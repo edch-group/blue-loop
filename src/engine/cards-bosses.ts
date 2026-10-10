@@ -136,11 +136,11 @@ export const CHALLENGE_CARDS: CardDef[] = [
   // before the battle ends and what it seals is the attacker's.
   {
     id: 'reliquary_obelisk', overlordPart: 'vault', name: 'Reliquary Obelisk', kind: 'defence', health: 12, defence: 2,
-    text: 'Destroy it before the battle ends to claim 1 relic.',
+    text: 'Destroy it before the battle ends to claim 1 emblem.',
   },
   {
     id: 'reliquary_obelisk_2', overlordPart: 'vault', name: 'Reliquary Obelisk', kind: 'defence', health: 14, defence: 2,
-    text: 'Destroy it before the battle ends to claim 2 relics.',
+    text: 'Destroy it before the battle ends to claim 2 emblems.',
   },
   {
     id: 'lost_retinue', overlordPart: 'retainer', name: 'Lost Retinue', kind: 'attack', health: 3, attack: 2,

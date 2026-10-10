@@ -386,7 +386,7 @@ export function lostSightedScene(name: string): StoryScene {
     lines: [
       oracle(`Do you see that fleet? The last of the ${name}. Their star went dark in the dimming, and took their worlds with it.`),
       oracle('There are others like them: the Lost Races, the last of peoples the dark has already taken. They have no home to defend, and nothing left to lose. They wander, and they take what they can.'),
-      oracle('Some still carry relics of the worlds they lost. Bring one of them down, and the relics are yours. Leave them be, and they may come for your worlds instead.'),
+      oracle('Some still carry emblems of the worlds they lost. Bring one of them down, and the emblems are yours. Leave them be, and they may come for your worlds instead.'),
     ],
   };
 }

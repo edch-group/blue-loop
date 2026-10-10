@@ -1394,7 +1394,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   // A relic cache broken open.
   if (card.defId.startsWith('reliquary_obelisk') && !state.vaultOpened) {
     state.vaultOpened = true;
-    log(state, `The Reliquary Obelisk breaks open: its relics are free.`);
+    log(state, `The Reliquary Obelisk breaks open: its emblems are free.`);
   }
   // A Lost Overlord beaten down: the battle is won.
   if (owner.boss?.leader === card.uid && !owner.eliminated) {
@@ -2323,7 +2323,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
         const relic = relicOf(p.relics, 'duskShift');
         const moved = p.tableau.find((c) => c.uid === action.duskShift!.uid && c.slot !== COMMAND_SLOT);
         const to = action.duskShift.to;
-        if (!relic) throw new GameError('Only a Dusk Shift relic moves a card as the day ends.');
+        if (!relic) throw new GameError('Only a Dusk Shift emblem moves a card as the day ends.');
         if (!moved || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots) throw new GameError('Move one of your cards (not your Hero) to another of your slots.');
         log(state, `${p.name}'s ${relic.name}: dusk shift.`);
         resolveEffects(state, p, { uid: `relic:${relic.name}`, defId: 'circular_refraction' }, [{ type: 'shift' }], 'turn', { allyUid: moved.uid, shiftTo: to });
@@ -2395,7 +2395,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       // A Reclaim relic: a card from the discard pile back to hand, for energy (then played as any card is).
       const n = relicN(p.relics, 'reclaim');
       const i = p.discard.findIndex((c) => c.uid === action.cardUid);
-      if (!n) throw new GameError('Only a Reclaim relic takes cards back from your discard pile.');
+      if (!n) throw new GameError('Only a Reclaim emblem takes cards back from your discard pile.');
       if (i < 0) throw new GameError('That card is not in your discard pile.');
       if (p.playsLeft < n) throw new GameError(`Taking a card back costs ${n} energy.`);
       const [card] = p.discard.splice(i, 1);

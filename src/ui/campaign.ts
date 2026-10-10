@@ -127,7 +127,7 @@ function saveCampaign(s: CampaignState | null) {
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const lower = (t: string) => esc(t.toLowerCase());
 /** Where a relic does its work, for its tip. */
-const relicNote = (r: Relic) => (r.cursed ? 'Cursed.' : !r.power ? 'Hero card.' : RELIC_POWERS[r.power].kind === 'once' ? 'Once per battle.' : '');
+const relicNote = (r: Relic) => (r.cursed ? 'Cursed emblem.' : !r.power ? 'Hero card.' : RELIC_POWERS[r.power].kind === 'once' ? 'Once per battle.' : '');
 
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { relicMark } from './relic-art';
@@ -1100,7 +1100,7 @@ export class CampaignView {
           `<button class="cmp-relic ${r.cursed ? 'cursed' : 'blessed'} rarity-${r.rarity}" data-key="relic-${r.id}" data-tip-title="${esc(r.name.toLowerCase())}" data-tip="${esc(relicText(r))}" data-tip-note="${esc(relicNote(r))}" aria-label="${esc(r.name)}">${relicMark(r.name, r.slot)}</button>`,
       )
       .join('');
-    return `<aside class="cmp-relics" aria-label="Relics">${tokens}</aside>`;
+    return `<aside class="cmp-relics" aria-label="Emblems">${tokens}</aside>`;
   }
 
   private renderSetup(): string {
@@ -2365,7 +2365,7 @@ export class CampaignView {
     const g = garrisonBonus(to);
     const held = g.tableau.length + (g.lightspeed ? 1 : 0);
     if (held) tips.push(`<li class="${defending ? 'good' : 'bad'}">${held} of ${defending ? 'your' : 'their'} cards start in play.</li>`);
-    if (defender?.lost) tips.push(`<li class="good">Win to take their relics: ${MATERIALS} ${CAMPAIGN.lostRelicMaterials} and a card.</li>`);
+    if (defender?.lost) tips.push(`<li class="good">Win to take their emblems: ${MATERIALS} ${CAMPAIGN.lostRelicMaterials} and a card.</li>`);
     const why = odds ? [...new Set([...odds.attacker.sources, ...odds.defender.sources])] : [];
     if (why.length) tips.push(`<li class="cmp-tips-why">From: ${esc(why.join(', '))}.</li>`);
     return `

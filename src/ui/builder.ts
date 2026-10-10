@@ -186,12 +186,18 @@ export class DeckBuilder {
   private fromCommunity: string | null = null;
 
   constructor(private host: BuilderHost) {
-    // A tap anywhere off the filters popover (and off its button, which toggles it itself) shuts it.
+    // A tap anywhere off an open dropdown (the rest of the filters popover too) shuts it; a tap anywhere off the
+    // filters popover (and off its button, which toggles it itself) shuts that.
     document.addEventListener(
       'pointerdown',
       (e) => {
+        const at = e.target as Element | null;
+        if (this.dropOpen && !at?.closest?.(`.db-drop[data-drop="${this.dropOpen}"]`)) {
+          this.dropOpen = null;
+          document.querySelectorAll<HTMLElement>('.db-drop.open').forEach((el) => el.classList.remove('open'));
+        }
         if (!this.filtersOpen || !document.querySelector('.db-filters-pop')) return;
-        if ((e.target as Element | null)?.closest?.('.db-filter-wrap')) return;
+        if (at?.closest?.('.db-filter-wrap')) return;
         this.filtersOpen = false;
         this.host.render();
       },
@@ -415,6 +421,7 @@ export class DeckBuilder {
         break;
       case 'db-filters':
         this.filtersOpen = !this.filtersOpen;
+        this.dropOpen = null;
         break;
       case 'db-grid':
         if (arg === 'sm' || arg === 'md' || arg === 'lg') {

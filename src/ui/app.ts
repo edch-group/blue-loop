@@ -5706,7 +5706,7 @@ export class App {
       .join('');
     return `
       ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
-      ${relics || counter ? `<aside class="relic-actives" aria-label="Relics">${counter}${relics}</aside>` : ''}
+      ${relics || counter ? `<aside class="relic-actives" aria-label="Emblems">${counter}${relics}</aside>` : ''}
       <div class="confirm-pill" role="radiogroup" aria-label="Your rival's moves">${(
         [['normal', "Each of your rival's cards waits for your OK"], ['auto', "Your rival's cards show a moment, then land by themselves"], ['skip', 'Auto, and Lightspeed replies let pass, until the day ends']] as const
       )

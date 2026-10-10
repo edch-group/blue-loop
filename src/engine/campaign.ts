@@ -341,25 +341,25 @@ export const STAR_TYPES: Record<StarType, { name: string; text: string; boon: st
   red: {
     name: 'Red dwarf',
     text: 'Small, cool and patient: it will outlive everything else.',
-    boon: 'Often left unguarded: about half hold a find, most often materials, sometimes cards or a relic.',
+    boon: 'Often left unguarded: about half hold a find, most often materials, sometimes cards or an emblem.',
     cost: 'Its worlds are poor: 1 material less when taken.',
   },
   white: {
     name: 'White dwarf',
     text: 'The hot, dense core of a star that died long ago.',
-    boon: 'The archives of the dead: about 2 in 5 hold a find, most often cards, sometimes a relic.',
+    boon: 'The archives of the dead: about 2 in 5 hold a find, most often cards, sometimes an emblem.',
     cost: 'Battles here are long: every sun starts 2 cooler.',
   },
   brown: {
     name: 'Brown dwarf',
     text: 'A failed star, barely warm. Easy to overlook; hard to dig out.',
-    boon: 'Easy to overlook: more often than not a find, cards or a relic.',
+    boon: 'Easy to overlook: more often than not a find, cards or an emblem.',
     cost: 'When it is guarded, its defender has +3 max health.',
   },
   neutron: {
     name: 'Neutron star',
     text: 'A city-sized star spinning hundreds of times a second; its beam sweeps the dark.',
-    boon: 'Rarely unguarded, but what it hides is rare: most often a relic, or cards.',
+    boon: 'Rarely unguarded, but what it hides is rare: most often an emblem, or cards.',
     cost: 'Battles here are volatile: every sun heats by 1 each day.',
   },
 };
@@ -2017,7 +2017,7 @@ function takeFinds(s: CampaignState, game: GameState) {
     (me.relics ??= []).push(...vault);
     s.uidCounter += 10 + vault.length;
     nodeById(s, b.nodeId).vault = undefined;
-    clog(s, `${me.name} breaks open the relic cache: ${vault.map((r) => r.name).join(' and ')}.`, b.nodeId, me.id);
+    clog(s, `${me.name} breaks open the emblem cache: ${vault.map((r) => r.name).join(' and ')}.`, b.nodeId, me.id);
   }
   const { items, modules } = battleFinds(s, game);
   if (!items.length && !modules.length) return;
@@ -2132,8 +2132,8 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
     // Beating one of the Lost Races wins its relics.
     if (guard?.lost) {
       attacker.materials += CAMPAIGN.lostRelicMaterials;
-      clog(s, `${attacker.name} takes the relics of the ${guard.lost}: +${CAMPAIGN.lostRelicMaterials} materials.`, target.id, attacker.id);
-      if (!attacker.isAI) s.cardRewards.push({ source: `Relics of the ${guard.lost}`, options: randomCardChoices(s, attacker) });
+      clog(s, `${attacker.name} takes the emblems of the ${guard.lost}: +${CAMPAIGN.lostRelicMaterials} materials.`, target.id, attacker.id);
+      if (!attacker.isAI) s.cardRewards.push({ source: `Emblems of the ${guard.lost}`, options: randomCardChoices(s, attacker) });
     }
     // A defending army is routed; the victors march in, if the system is settled.
     // (A hero who came to its aid from next door goes home battered.)
