@@ -4313,7 +4313,9 @@ export class App {
       backdrop.setHeat(instab > 0 ? Math.min(1, instab / 5) : -remaining / total);
     } else backdrop.setHeat(0);
     // A match in play gets the battle theme, the campaign map the ambient score; everywhere else, the voyage.
-    sound.setScene(this.screen === 'game' && this.state && !isGameOver(this.state) ? 'battle' : this.screen === 'campaign' && this.campaign.state ? 'ambient' : 'voyage');
+    // (A match against an Overlord, or a challenge, gets the boss track.)
+    const inPlay = this.screen === 'game' && this.state && !isGameOver(this.state);
+    sound.setScene(inPlay ? (this.state!.players.some((p) => p.boss) ? 'boss' : 'battle') : this.screen === 'campaign' && this.campaign.state ? 'ambient' : 'voyage');
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();

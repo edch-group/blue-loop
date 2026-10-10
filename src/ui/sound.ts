@@ -57,7 +57,7 @@ const CHORDS: number[][] = [
 const CHIMES = [659.25, 783.99, 880.0, 987.77, 1174.66, 1318.51, 1567.98];
 
 /** The scores: the ambient drone (the campaign map), the battle theme (matches), and the voyage (the menus). */
-export type MusicScene = 'ambient' | 'battle' | 'voyage';
+export type MusicScene = 'ambient' | 'battle' | 'boss' | 'voyage';
 
 // ---- Battle theme -----------------------------------------------------------
 // The menu score's sibling, in the same key and voices, made tense: a soft,
@@ -144,6 +144,23 @@ const CAMPAIGN_PHRASES: [number, string][][][] = [
   ],
 ];
 
+// ---- Boss battles --------------------------------------------------------------
+// The battle theme's harder sibling, for a match against an Overlord (or a
+// challenge): the same key, pads and hall, but faster, with chords where the
+// battle theme has single notes. Detuned saw chords stab in a driving 3-3-2
+// with the bass under them; tuned timpani strike each bar and roll into each
+// phrase; low war drums (and a softer frame drum on two and four) join from the
+// fifth bar. Am, F, G and E major, two bars each, the E always pulling back.
+
+const BOSS_BPM = 92;
+/** Per chord (two bars each): the timpani's and bass's root, and the chord the stabs and pads voice. */
+const BOSS_CHORDS: { root: string; chord: string[] }[] = [
+  { root: 'A1', chord: ['A3', 'C4', 'E4', 'A4'] }, // Am
+  { root: 'F1', chord: ['A3', 'C4', 'F4', 'A4'] }, // F
+  { root: 'G1', chord: ['B3', 'D4', 'G4', 'B4'] }, // G
+  { root: 'E1', chord: ['B3', 'E4', 'G#4', 'B4'] }, // E
+];
+
 class SoundBoard {
   private ctx: AudioContext | null = null;
   private sfx: GainNode | null = null;
@@ -154,6 +171,9 @@ class SoundBoard {
   /** The battle theme's two faders: one lightly reverbed (bass, kick), one drenched like the ambient score. */
   private battleBus: GainNode | null = null;
   private battleLush: GainNode | null = null;
+  /** The boss track's faders: one lightly reverbed (drums, timpani, bass, stabs), one drenched (the pads). */
+  private bossBus: GainNode | null = null;
+  private bossLush: GainNode | null = null;
   /** The campaign map's fader (its own, so a crossfade from a battle never cuts the battle's tails short). */
   private campaignBus: GainNode | null = null;
   private reverb: ConvolverNode | null = null;
@@ -291,6 +311,16 @@ class SoundBoard {
       this.battleLush.gain.value = 0.0001;
       this.battleLush.connect(master);
       this.battleLush.connect(this.reverb);
+      this.bossBus = ctx.createGain();
+      this.bossBus.gain.value = 0.0001;
+      this.bossBus.connect(master);
+      const bossSend = ctx.createGain();
+      bossSend.gain.value = 0.3;
+      this.bossBus.connect(bossSend).connect(this.reverb);
+      this.bossLush = ctx.createGain();
+      this.bossLush.gain.value = 0.0001;
+      this.bossLush.connect(master);
+      this.bossLush.connect(this.reverb);
       this.campaignBus = ctx.createGain();
       this.campaignBus.gain.value = 0.0001;
       this.campaignBus.connect(master);
@@ -761,6 +791,7 @@ class SoundBoard {
   /** Each score's faders, with the level and fade-in time it plays at. */
   private faders(scene: MusicScene): [GainNode, number, number][] {
     if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
+    if (scene === 'boss') return [[this.bossBus!, 1, 2], [this.bossLush!, 1, 2]];
     if (scene === 'voyage') return [[this.campaignBus!, 0.6, 0.05]];
     return [[this.musicBus!, 0.5, 6]];
   }
@@ -776,6 +807,7 @@ class SoundBoard {
       bus.gain.exponentialRampToValueAtTime(level, now + fade);
     }
     if (this.scene === 'battle') this.battleScore(ctx, this.battleBus!, this.battleLush!);
+    else if (this.scene === 'boss') this.bossScore(ctx, this.bossBus!, this.bossLush!);
     else if (this.scene === 'voyage') this.campaignScore(ctx, this.campaignBus!);
     else this.ambientScore(ctx, this.musicBus);
   }
@@ -1366,6 +1398,90 @@ class SoundBoard {
     };
     tick();
     this.musicTimers.push(window.setInterval(tick, 200));
+  }
+
+  /**
+   * The boss track. Pads, stabs, bass and timpani from the start; the drums join on the fifth bar. Eight bars (four
+   * chords) round and round, the timpani rolling into each four-bar phrase. Scheduled a bar at a time, just ahead
+   * of the audio clock.
+   */
+  private bossScore(ctx: AudioContext, bus: GainNode, lush: GainNode) {
+    const eighth = 60 / BOSS_BPM / 2;
+    const barLen = eighth * 8;
+    this.musicNodes = [];
+
+    /** A timpani stroke: a tuned sine settling onto its pitch, an inharmonic partial, and a soft felt thud. */
+    const timpani = (t: number, f: number, gain: number) => {
+      const d = this.until(t);
+      this.voice(f * 1.04, { dur: 1.8, attack: 0.006, gain, to: f, cutoff: 900, delay: d, out: bus });
+      this.voice(f * 1.5, { dur: 0.9, attack: 0.006, gain: gain * 0.35, to: f * 1.47, cutoff: 1200, delay: d, out: bus });
+      this.breath({ dur: 0.18, freq: 500, to: 120, type: 'lowpass', q: 0.7, gain: gain * 0.6, attack: 0.003, delay: d, out: bus });
+    };
+    /** A low war drum: a falling sine body and a puff of skin. */
+    const drum = (t: number, gain: number) => {
+      const d = this.until(t);
+      this.voice(78, { dur: 0.45, attack: 0.004, gain, to: 44, cutoff: 360, delay: d, out: bus });
+      this.breath({ dur: 0.12, freq: 900, to: 200, type: 'lowpass', q: 0.8, gain: gain * 0.5, attack: 0.002, delay: d, out: bus });
+    };
+    /** A softer frame drum on the backbeat: a mid thump and a dry slap of noise. */
+    const frame = (t: number, gain: number) => {
+      const d = this.until(t);
+      this.voice(180, { dur: 0.2, attack: 0.003, gain: gain * 0.6, to: 120, type: 'triangle', cutoff: 900, delay: d, out: bus });
+      this.breath({ dur: 0.14, freq: 1700, to: 900, type: 'bandpass', q: 0.9, gain, attack: 0.002, delay: d, out: bus });
+    };
+    /** A chord stab: detuned saws per note through a warm lowpass, struck and quickly let go. */
+    const stab = (t: number, notes: string[], gain: number) => {
+      const d = this.until(t);
+      notes.forEach((n, i) => {
+        const opts = { dur: eighth * 1.4, attack: 0.008, gain: gain * (i === 0 ? 1 : 0.8), type: 'sawtooth' as OscillatorType, cutoff: 1500, delay: d, out: bus };
+        this.voice(hz(n), { ...opts, detune: -7 });
+        this.voice(hz(n), { ...opts, detune: 7 });
+      });
+    };
+
+    const playBar = (at: number, bar: number) => {
+      const c = BOSS_CHORDS[Math.floor(bar / 2) % BOSS_CHORDS.length];
+      const inLoop = bar % 8;
+      const root = hz(c.root);
+      // Pads, as the other scores voice them, held across the chord's two bars.
+      if (bar % 2 === 0)
+        c.chord.forEach((n, i) => {
+          const opts = { dur: barLen * 2 + 2, attack: 0.8 + i * 0.2, gain: 0.014, type: 'triangle' as OscillatorType, cutoff: 1100, delay: this.until(at), out: lush };
+          this.voice(hz(n), opts);
+          this.voice(hz(n), { ...opts, detune: 9, gain: 0.009 });
+        });
+      // Stabs and bass in 3-3-2 (eighths 0, 3, 6), the first of each bar leaning.
+      [0, 3, 6].forEach((e, k) => {
+        const t = at + e * eighth;
+        stab(t, c.chord, k === 0 ? 0.014 : 0.011);
+        this.note(t, root * 2, eighth * (k === 2 ? 1.6 : 2.4), { gain: k === 0 ? 0.06 : 0.048, type: 'triangle', attack: 0.006, release: 0.12, cutoff: 500, out: bus });
+      });
+      // Timpani on the downbeat, and a roll (sixteenths, swelling) through the last beat of each four-bar phrase.
+      timpani(at, root * 2, 0.11);
+      if (bar % 4 === 3) {
+        const next = hz(BOSS_CHORDS[Math.floor((bar + 1) / 2) % BOSS_CHORDS.length].root) * 2;
+        for (let k = 0; k < 8; k++) timpani(at + eighth * 6 + k * (eighth / 4), next, 0.025 + k * 0.009);
+      }
+      // Drums from the fifth bar: war drums on 1, the and of 2, 3 and 4; the frame drum on 2 and 4.
+      if (bar >= 4) {
+        [0, 3, 4, 6].forEach((e, k) => drum(at + e * eighth, k === 0 ? 0.13 : 0.1));
+        [2, 6].forEach((e) => frame(at + e * eighth, 0.05));
+        if (inLoop === 7) [7, 7.5].forEach((e) => drum(at + e * eighth, 0.09));
+      }
+    };
+
+    let next = ctx.currentTime + 0.1;
+    let bar = 0;
+    const tick = () => {
+      if (this.playing !== 'boss') return;
+      while (next < ctx.currentTime + 0.5) {
+        playBar(next, bar);
+        next += barLen;
+        bar++;
+      }
+    };
+    tick();
+    this.musicTimers.push(window.setInterval(tick, 100));
   }
 
   /** Fade the score out (or cut it at once, when the app is being hidden). */
