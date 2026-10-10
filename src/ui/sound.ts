@@ -145,23 +145,22 @@ const CAMPAIGN_PHRASES: [number, string][][][] = [
 ];
 
 // ---- Boss battles --------------------------------------------------------------
-// The battle theme's harder sibling, for a match against an Overlord (or a
-// challenge): the same key and hall, faster, with chords where the battle
-// theme has single notes, and no pads. The chords are a proper poly-synth
-// patch: five-saw unison per note spread across the stereo field, a 24 dB
-// lowpass with its own envelope, an ADSR, then saturation, stereo chorus,
-// glue compression and a high-shelf trim. Under them, a mono analogue-style
-// bass; tuned timpani modelled from their inharmonic modes; taiko-style war
-// drums from the fifth bar. Am, F, G and E major, two bars each.
+// For a match against an Overlord (or a challenge), in A like the other scores,
+// built up in stages and round again: four bars of a boomy kick alone (1, the
+// and of 2, 3, 4); then a held A minor chord whose resonant filter oscillates
+// on every beat, its resonance building and building, with a new harmonic of A
+// swelling up in reverse each bar, panned left and right in turn; then crashing
+// timpani in tandem with a low, aggressive single-note bass for sixteen bars,
+// before it drops back to the kick and builds again.
 
 const BOSS_BPM = 92;
-/** Per chord (two bars each): the bass's and timpani's root, and the chord's open voicing (the root left to the bass). */
-const BOSS_CHORDS: { root: string; chord: string[] }[] = [
-  { root: 'A1', chord: ['E3', 'C4', 'E4', 'A4'] }, // Am
-  { root: 'F1', chord: ['C3', 'A3', 'C4', 'F4'] }, // F
-  { root: 'G1', chord: ['D3', 'B3', 'D4', 'G4'] }, // G
-  { root: 'E1', chord: ['B2', 'G#3', 'B3', 'E4'] }, // E
-];
+/** The form, in bars: the kick alone, then the chord, then everything; then round again. */
+const BOSS_KICK_BARS = 4;
+const BOSS_CHORD_BARS = 4;
+const BOSS_FULL_BARS = 16;
+/** The held chord (A minor, open), and the harmonics of A that swell in turn (2nd to 12th, climbing). */
+const BOSS_CHORD = ['A2', 'E3', 'A3', 'C4', 'E4'];
+const BOSS_HARMONICS = [4, 5, 6, 8, 7, 9, 10, 12, 3, 11];
 
 class SoundBoard {
   private ctx: AudioContext | null = null;
@@ -793,7 +792,7 @@ class SoundBoard {
   /** Each score's faders, with the level and fade-in time it plays at. */
   private faders(scene: MusicScene): [GainNode, number, number][] {
     if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
-    if (scene === 'boss') return [[this.bossBus!, 0.46, 2], [this.bossLush!, 0.46, 2]];
+    if (scene === 'boss') return [[this.bossBus!, 0.26, 0.05], [this.bossLush!, 0.26, 0.05]];
     if (scene === 'voyage') return [[this.campaignBus!, 0.6, 0.05]];
     return [[this.musicBus!, 0.5, 6]];
   }
@@ -1403,221 +1402,191 @@ class SoundBoard {
   }
 
   /**
-   * The boss track. Chords, bass and timpani from the start; the war drums join on the fifth bar, and the chords'
-   * filter opens further for the second half of each loop. Eight bars (four chords) round and round, the timpani
-   * rolling into each four-bar phrase. Scheduled a bar at a time, just ahead of the audio clock.
+   * The boss track (see BOSS_* above). Each stage of the form scheduled a bar at a time, just ahead of the clock;
+   * the held chord is one set of oscillators per pass through the form, started as its stage begins.
    */
   private bossScore(ctx: AudioContext, bus: GainNode, lush: GainNode) {
-    const eighth = 60 / BOSS_BPM / 2;
-    const barLen = eighth * 8;
+    const beat = 60 / BOSS_BPM;
+    const eighth = beat / 2;
+    const barLen = beat * 4;
+    const formBars = BOSS_KICK_BARS + BOSS_CHORD_BARS + BOSS_FULL_BARS;
     const t0 = ctx.currentTime + 0.1;
     const nodes: AudioNode[] = [];
     const node = <T extends AudioNode>(n: T) => (nodes.push(n), n);
+    const curveOf = (k: number) => {
+      const c = new Float32Array(new ArrayBuffer(2048 * 4));
+      for (let i = 0; i < c.length; i++) c[i] = Math.tanh(k * ((i / (c.length - 1)) * 2 - 1)) / Math.tanh(k);
+      return c;
+    };
 
-    // ---- The chord synth's shared chain: highpass, saturation, stereo chorus, glue compression, high-shelf trim,
-    // and a quiet dotted-eighth echo.
-    const chordIn = node(ctx.createGain());
-    const hp = node(ctx.createBiquadFilter());
-    hp.type = 'highpass';
-    hp.frequency.value = 150;
-    hp.Q.value = 0.6;
-    const drive = node(ctx.createWaveShaper());
-    const curve = new Float32Array(new ArrayBuffer(2048 * 4));
-    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(1.8 * ((i / (curve.length - 1)) * 2 - 1)) / Math.tanh(1.8);
-    drive.curve = curve;
-    drive.oversample = '4x';
-    const chorusOut = node(ctx.createGain());
-    const dry = node(ctx.createGain());
-    dry.gain.value = 0.7;
-    chordIn.connect(hp).connect(drive);
-    drive.connect(dry).connect(chorusOut);
-    [-1, 1].forEach((side, k) => {
-      const d = node(ctx.createDelay(0.05));
-      d.delayTime.value = k ? 0.019 : 0.013;
-      const lfo = node(ctx.createOscillator());
-      lfo.frequency.value = k ? 0.53 : 0.37;
-      const depth = node(ctx.createGain());
-      depth.gain.value = 0.0025;
-      lfo.connect(depth).connect(d.delayTime);
-      lfo.start(t0);
-      const pan = node(ctx.createStereoPanner());
-      pan.pan.value = side * 0.85;
-      const g = node(ctx.createGain());
-      g.gain.value = 0.55;
-      drive.connect(d).connect(g).connect(pan).connect(chorusOut);
-    });
-    const comp = node(ctx.createDynamicsCompressor());
-    comp.threshold.value = -20;
-    comp.knee.value = 8;
-    comp.ratio.value = 3.5;
-    comp.attack.value = 0.006;
-    comp.release.value = 0.16;
-    const shelf = node(ctx.createBiquadFilter());
-    shelf.type = 'highshelf';
-    shelf.frequency.value = 7000;
-    shelf.gain.value = -3;
-    chorusOut.connect(comp).connect(shelf).connect(bus);
-    const echo = node(ctx.createDelay(1));
-    echo.delayTime.value = eighth * 1.5;
-    const echoFb = node(ctx.createGain());
-    echoFb.gain.value = 0.28;
-    const echoTone = node(ctx.createBiquadFilter());
-    echoTone.type = 'lowpass';
-    echoTone.frequency.value = 2600;
-    const echoWet = node(ctx.createGain());
-    echoWet.gain.value = 0.16;
-    shelf.connect(echo).connect(echoTone).connect(echoFb).connect(echo);
-    echoTone.connect(echoWet).connect(lush);
+    // ---- The kick: a deep sine swept down in pitch with a long tail, a click, a little saturation for weight.
+    const kickBus = node(ctx.createWaveShaper());
+    kickBus.curve = curveOf(1.6);
+    kickBus.oversample = '2x';
+    const kickOut = node(ctx.createGain());
+    kickOut.gain.value = 0.9;
+    kickBus.connect(kickOut).connect(bus);
+    const kick = (t: number, velocity: number) => {
+      const o = ctx.createOscillator();
+      o.frequency.setValueAtTime(150, t);
+      o.frequency.exponentialRampToValueAtTime(48, t + 0.11);
+      o.frequency.exponentialRampToValueAtTime(38, t + 0.9);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.2 * velocity, t + 0.003);
+      g.gain.setTargetAtTime(0, t + 0.06, 0.26);
+      o.connect(g).connect(kickBus);
+      o.start(t);
+      o.stop(t + 1.4);
+      this.breath({ dur: 0.008, freq: 2500, type: 'highpass', q: 0.7, gain: 0.05 * velocity, attack: 0.001, delay: this.until(t), out: bus });
+    };
 
     /**
-     * A chord stab on the poly-synth: per note five saws in unison, detuned and spread across the field, all through
-     * one 24 dB lowpass (two filters) whose envelope snaps open and settles, under an ADSR.
+     * The held chord, for one pass of the form from `start` to `end`: detuned saws on each note through a resonant
+     * lowpass that oscillates once a beat around a centre that slowly rises, its resonance building throughout.
      */
-    const stab = (t: number, notes: string[], velocity: number, bright: number, hold: number) => {
-      const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter();
-      f1.type = f2.type = 'lowpass';
-      f1.Q.value = 0.7;
-      f2.Q.value = 2.2;
-      const peak = 1100 + 3200 * bright * velocity;
-      for (const f of [f1, f2]) {
-        f.frequency.setValueAtTime(380, t);
-        f.frequency.exponentialRampToValueAtTime(peak, t + 0.012);
-        f.frequency.exponentialRampToValueAtTime(peak * 0.42, t + 0.32);
-      }
+    const chord = (start: number, end: number) => {
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.setValueAtTime(1, start);
+      f.Q.linearRampToValueAtTime(16, end - barLen);
+      f.frequency.setValueAtTime(500, start);
+      f.frequency.linearRampToValueAtTime(1400, end - barLen);
+      const wob = ctx.createOscillator();
+      wob.frequency.value = BOSS_BPM / 60;
+      const depth = ctx.createGain();
+      depth.gain.setValueAtTime(250, start);
+      depth.gain.linearRampToValueAtTime(900, end - barLen);
+      wob.connect(depth).connect(f.frequency);
       const amp = ctx.createGain();
-      const level = 0.066 * velocity;
-      amp.gain.setValueAtTime(0, t);
-      amp.gain.linearRampToValueAtTime(level, t + 0.004);
-      amp.gain.setTargetAtTime(level * 0.45, t + 0.004, 0.11);
-      amp.gain.setValueAtTime(level * 0.45, t + hold);
-      amp.gain.setTargetAtTime(0, t + hold, 0.07);
-      f1.connect(f2).connect(amp).connect(chordIn);
-      const end = t + hold + 0.5;
-      const spread = [-17, -8, 0, 8, 17];
-      notes.forEach((n) => {
-        spread.forEach((cents, k) => {
+      amp.gain.setValueAtTime(0, start);
+      amp.gain.linearRampToValueAtTime(0.12, start + barLen);
+      amp.gain.setValueAtTime(0.12, end - barLen * 0.5);
+      amp.gain.linearRampToValueAtTime(0, end);
+      f.connect(amp);
+      amp.connect(bus);
+      const send = ctx.createGain();
+      send.gain.value = 0.5;
+      amp.connect(send).connect(lush);
+      wob.start(start);
+      wob.stop(end + 0.1);
+      BOSS_CHORD.forEach((n, i) =>
+        [-11, 11].forEach((cents, k) => {
           const o = ctx.createOscillator();
           o.type = 'sawtooth';
           o.frequency.value = hz(n);
           o.detune.value = cents;
           const pan = ctx.createStereoPanner();
-          pan.pan.value = (k - 2) * 0.32;
+          pan.pan.value = (k ? 0.35 : -0.35) * (i % 2 ? -1 : 1);
           const g = ctx.createGain();
-          g.gain.value = k === 2 ? 0.26 : 0.19;
-          o.connect(g).connect(pan).connect(f1);
-          o.start(t);
-          o.stop(end);
-        });
-      });
+          g.gain.value = i === 0 ? 0.2 : 0.14;
+          o.connect(g).connect(pan).connect(f);
+          o.start(start);
+          o.stop(end + 0.1);
+        }),
+      );
     };
 
-    /** The bass: a mono saw and a sine an octave down, through its own enveloped 24 dB lowpass with a little drive. */
-    const bassDrive = node(ctx.createWaveShaper());
-    const bcurve = new Float32Array(new ArrayBuffer(1024 * 4));
-    for (let i = 0; i < bcurve.length; i++) bcurve[i] = Math.tanh(1.4 * ((i / (bcurve.length - 1)) * 2 - 1)) / Math.tanh(1.4);
-    bassDrive.curve = bcurve;
-    bassDrive.connect(bus);
-    const bass = (t: number, f: number, len: number, velocity: number) => {
-      const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter();
-      f1.type = f2.type = 'lowpass';
-      f1.Q.value = 0.7;
-      f2.Q.value = 1.4;
-      for (const fl of [f1, f2]) {
-        fl.frequency.setValueAtTime(160, t);
-        fl.frequency.exponentialRampToValueAtTime(700 * velocity + 200, t + 0.01);
-        fl.frequency.exponentialRampToValueAtTime(260, t + 0.22);
-      }
-      const amp = ctx.createGain();
-      const level = 0.075 * velocity;
-      amp.gain.setValueAtTime(0, t);
-      amp.gain.linearRampToValueAtTime(level, t + 0.005);
-      amp.gain.setTargetAtTime(level * 0.7, t + 0.005, 0.12);
-      amp.gain.setValueAtTime(level * 0.7, t + len);
-      amp.gain.setTargetAtTime(0, t + len, 0.04);
-      f1.connect(f2).connect(amp).connect(bassDrive);
-      const saw = ctx.createOscillator();
-      saw.type = 'sawtooth';
-      saw.frequency.value = f;
-      const sub = ctx.createOscillator();
-      sub.frequency.value = f / 2;
-      const subG = ctx.createGain();
-      subG.gain.value = 0.9;
-      saw.connect(f1);
-      sub.connect(subG).connect(amp);
-      for (const o of [saw, sub]) {
-        o.start(t);
-        o.stop(t + len + 0.3);
-      }
-    };
-
-    /**
-     * A timpani stroke: the drum's inharmonic modes (fundamental, 1.50, 1.74, 2.00, 2.25), each with its own level
-     * and decay, settling slightly in pitch after the strike, and a felt mallet's soft transient.
-     */
-    const timpani = (t: number, f: number, velocity: number) => {
-      const modes: [number, number, number][] = [
-        [1, 1, 2.2],
-        [1.504, 0.45, 1.2],
-        [1.742, 0.22, 0.8],
-        [2.0, 0.16, 0.7],
-        [2.245, 0.09, 0.5],
-      ];
-      for (const [ratio, level, decay] of modes) {
+    /** A harmonic of A swelling up in reverse over a bar and cut on the next downbeat, panned to one side, into the hall. */
+    const swell = (t: number, n: number, side: number) => {
+      const end = t + barLen;
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = side * 0.75;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.05, end - 0.02);
+      g.gain.linearRampToValueAtTime(0, end);
+      g.connect(pan);
+      pan.connect(bus);
+      const send = ctx.createGain();
+      send.gain.value = 1.2;
+      pan.connect(send).connect(lush);
+      for (const [type, level] of [['sine', 1], ['triangle', 0.4]] as const) {
         const o = ctx.createOscillator();
-        o.frequency.setValueAtTime(f * ratio * 1.025, t);
+        o.type = type;
+        o.frequency.value = 55 * n;
+        const lv = ctx.createGain();
+        lv.gain.value = level;
+        o.connect(lv).connect(g);
+        o.start(t);
+        o.stop(end + 0.05);
+      }
+    };
+
+    // ---- The timpani: the drum's inharmonic modes, each with its own decay, settling in pitch after the strike.
+    const timpani = (t: number, f: number, velocity: number) => {
+      for (const [ratio, level, decay] of [[1, 1, 2.4], [1.504, 0.5, 1.3], [1.742, 0.25, 0.9], [2.0, 0.18, 0.8], [2.245, 0.1, 0.6]] as const) {
+        const o = ctx.createOscillator();
+        o.frequency.setValueAtTime(f * ratio * 1.03, t);
         o.frequency.exponentialRampToValueAtTime(f * ratio, t + 0.12);
         const g = ctx.createGain();
-        const peak = 0.08 * velocity * level;
         g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(peak, t + 0.004);
+        g.gain.linearRampToValueAtTime(0.12 * velocity * level, t + 0.004);
         g.gain.setTargetAtTime(0, t + 0.004, decay / 4);
         o.connect(g).connect(bus);
         o.start(t);
         o.stop(t + decay + 0.1);
       }
-      this.breath({ dur: 0.07, freq: 1400, to: 500, type: 'lowpass', q: 0.6, gain: 0.05 * velocity, attack: 0.002, delay: this.until(t), out: bus });
+      this.breath({ dur: 0.09, freq: 1500, to: 400, type: 'lowpass', q: 0.6, gain: 0.07 * velocity, attack: 0.002, delay: this.until(t), out: bus });
+    };
+    /** A crash: bright noise opening and ringing out, into the hall. */
+    const crash = (t: number) => {
+      const d = this.until(t);
+      this.breath({ dur: 2.2, freq: 5000, to: 3000, type: 'highpass', q: 0.5, gain: 0.05, attack: 0.004, delay: d, out: lush });
+      this.breath({ dur: 1.2, freq: 7000, type: 'bandpass', q: 0.8, gain: 0.03, attack: 0.003, delay: d, out: bus });
     };
 
-    /** A taiko-style war drum: a body swept down in pitch, the skin's ring, and the stick's click. */
-    const taiko = (t: number, velocity: number) => {
-      const o = ctx.createOscillator();
-      o.frequency.setValueAtTime(130, t);
-      o.frequency.exponentialRampToValueAtTime(52, t + 0.09);
-      o.frequency.exponentialRampToValueAtTime(46, t + 0.5);
+    // ---- The bass: one low A, aggressive: a saw and a square through a hard drive and a growling lowpass.
+    const bassDrive = node(ctx.createWaveShaper());
+    bassDrive.curve = curveOf(5);
+    bassDrive.oversample = '4x';
+    const bassTone = node(ctx.createBiquadFilter());
+    bassTone.type = 'lowpass';
+    bassTone.frequency.value = 900;
+    bassTone.Q.value = 0.8;
+    const bassOut = node(ctx.createGain());
+    bassOut.gain.value = 0.16;
+    bassDrive.connect(bassTone).connect(bassOut).connect(bus);
+    const bass = (t: number, len: number) => {
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.value = 4;
+      f.frequency.setValueAtTime(120, t);
+      f.frequency.exponentialRampToValueAtTime(600, t + 0.03);
+      f.frequency.exponentialRampToValueAtTime(220, t + len);
       const g = ctx.createGain();
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.13 * velocity, t + 0.003);
-      g.gain.setTargetAtTime(0, t + 0.003, 0.12);
-      o.connect(g).connect(bus);
-      o.start(t);
-      o.stop(t + 0.7);
-      const d = this.until(t);
-      this.breath({ dur: 0.22, freq: 260, to: 140, type: 'bandpass', q: 1.6, gain: 0.08 * velocity, attack: 0.002, delay: d, out: bus });
-      this.breath({ dur: 0.012, freq: 3500, type: 'highpass', q: 0.7, gain: 0.04 * velocity, attack: 0.001, delay: d, out: bus });
+      g.gain.linearRampToValueAtTime(0.5, t + 0.006);
+      g.gain.setValueAtTime(0.5, t + len);
+      g.gain.linearRampToValueAtTime(0, t + len + 0.06);
+      f.connect(g).connect(bassDrive);
+      for (const [type, mult] of [['sawtooth', 1], ['square', 0.5]] as const) {
+        const o = ctx.createOscillator();
+        o.type = type;
+        o.frequency.value = 55 * mult;
+        o.connect(f);
+        o.start(t);
+        o.stop(t + len + 0.1);
+      }
     };
 
     const playBar = (at: number, bar: number) => {
-      const c = BOSS_CHORDS[Math.floor(bar / 2) % BOSS_CHORDS.length];
-      const inLoop = bar % 8;
-      const root = hz(c.root);
-      const bright = inLoop < 4 ? 0.55 : 1;
-      // Stabs and bass in 3-3-2 (eighths 0, 3, 6), the first of each bar leaning.
-      [0, 3, 6].forEach((e, k) => {
-        const t = at + e * eighth;
-        const v = k === 0 ? 1 : 0.8;
-        stab(t, c.chord, v, bright, eighth * (k === 2 ? 1.3 : 2.2));
-        bass(t, root * 2, eighth * (k === 2 ? 1.5 : 2.4), v);
-      });
-      // Timpani on the downbeat, and a swelling roll (sixteenths) through the last beat of each four-bar phrase.
-      timpani(at, root * 2, 1);
-      if (bar % 4 === 3) {
-        const next = hz(BOSS_CHORDS[Math.floor((bar + 1) / 2) % BOSS_CHORDS.length].root) * 2;
-        for (let k = 0; k < 8; k++) timpani(at + eighth * 6 + k * (eighth / 4), next, 0.22 + k * 0.08);
+      const inForm = bar % formBars;
+      // The kick, always: 1, the and of 2, 3, 4.
+      [0, 3, 4, 6].forEach((e, k) => kick(at + e * eighth, k === 0 ? 1 : 0.85));
+      // The chord comes in after the kick's four bars, held to the end of the form; each bar, a harmonic swells.
+      if (inForm === BOSS_KICK_BARS) chord(at, at + (formBars - BOSS_KICK_BARS) * barLen);
+      if (inForm >= BOSS_KICK_BARS) {
+        const k = inForm - BOSS_KICK_BARS;
+        swell(at, BOSS_HARMONICS[k % BOSS_HARMONICS.length], k % 2 ? 1 : -1);
       }
-      // War drums from the fifth bar: 1, the and of 2, 3 and 4, with a pickup into each loop.
-      if (bar >= 4) {
-        [0, 3, 4, 6].forEach((e, k) => taiko(at + e * eighth, k === 0 ? 1 : 0.78));
-        if (inLoop === 7) [7, 7.5].forEach((e) => taiko(at + e * eighth, 0.7));
+      // After the chord's four bars, crashing timpani with the bass on 1 and the and of 2; a crash every other bar.
+      if (inForm >= BOSS_KICK_BARS + BOSS_CHORD_BARS) {
+        [0, 3].forEach((e, k) => {
+          timpani(at + e * eighth, 110, k ? 0.85 : 1);
+          bass(at + e * eighth, eighth * (k ? 2.6 : 2.4));
+        });
+        if ((inForm - BOSS_KICK_BARS - BOSS_CHORD_BARS) % 2 === 0) crash(at);
       }
     };
 
