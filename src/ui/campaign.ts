@@ -4,6 +4,7 @@ import {
   type GalaxyKind,
   BALANCE,
   battleFinds,
+  vaultFinds,
   relicText,
   RELIC_POWERS,
   sunHealth,
@@ -427,8 +428,9 @@ export class CampaignView {
     if (!s?.battle || !game.winnerId) return [];
     const b = s.battle;
     const winner = game.winnerId === game.players[0].id ? b.attacker : b.defender;
-    if (winner !== s.playerId) return [];
-    const { items } = battleFinds(s, game);
+    // (A relic cache broken open is the player's, won or lost.)
+    const items = winner === s.playerId ? [...battleFinds(s, game).items] : [];
+    items.push(...vaultFinds(s, game));
     // (Each marked by what it does: its first boon's kind.)
     const mark = (boons: string[] | undefined) => (boons?.[0] ?? 'boon_star').replace(/^boon_/, '').replace(/_\d+$/, '');
     return [

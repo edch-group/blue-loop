@@ -1358,6 +1358,11 @@ function sweep(state: GameState, owner: PlayerState, card: CardInstance) {
 function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' | 'deck' = 'discard') {
   owner.tableau = owner.tableau.filter((c) => c.uid !== card.uid);
   if (owner.boss && state.challenge?.kind === 'mine' && card.defId === 'antimatter_crystal') state.challenge.broken += 1;
+  // A relic cache broken open.
+  if (card.defId.startsWith('reliquary_obelisk') && !state.vaultOpened) {
+    state.vaultOpened = true;
+    log(state, `The Reliquary Obelisk breaks open: its relics are free.`);
+  }
   // A Lost Overlord beaten down: the battle is won.
   if (owner.boss?.leader === card.uid && !owner.eliminated) {
     log(state, `☠ ${owner.name} falls!`);

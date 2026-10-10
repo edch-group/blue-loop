@@ -916,6 +916,18 @@ function pyrr(S: Scene, x: number, y: number, s: number, o: PyrOpts = {}): strin
 
 type Draw = (S: Scene) => string;
 
+/** A Reliquary Obelisk: a tall dark monolith on the battlefield, gold bands and runes, its sealed relic(s) glowing within. */
+const OBELISK = (S: Scene, n: number) =>
+  S.glow(80, 58, 34, '#ffd47a', 0.35) +
+  S.ground(94, '#0a0806', 5) +
+  `<path d="M64 94 L68 30 L80 16 L92 30 L96 94 Z" fill="#17131c" stroke="#d4a64a" stroke-width="1"/>` +
+  `<path d="M66 48 H94 M65 74 H95" stroke="#d4a64a" stroke-width="1.2" opacity="0.8"/>` +
+  `<path d="M74 84 V90 M80 82 V90 M86 84 V90 M74 38 L80 32 L86 38" stroke="#d4a64a" stroke-width="0.8" opacity="0.6" fill="none"/>` +
+  (n > 1
+    ? S.glow(80, 54, 9, '#ffe9a8', 0.95) + S.crystal(80, 55, 12, 5, 0, '#fff2c8') + S.glow(80, 66, 7, '#ffe9a8', 0.9) + S.crystal(80, 66, 9, 4, 0, '#fff2c8')
+    : S.glow(80, 61, 10, '#ffe9a8', 0.95) + S.crystal(80, 61, 14, 6, 0, '#fff2c8')) +
+  S.motes(80, 60, 18, 40, '#ffe0a0');
+
 const ART: Record<string, Draw> = {
   // ---- Challenges (cards-bosses.ts) ----
   antimatter_crystal: (S) =>
@@ -928,6 +940,9 @@ const ART: Record<string, Draw> = {
     S.glow(80, 54, 32, '#7cc0f0', 0.35) + S.ground(92, '#0a1a2a', 4) + `<path d="M50 92 L54 54 L62 40 L98 40 L106 54 L110 92 Z" fill="#cfe6f6" stroke="#5aa8e0" stroke-width="1"/>` + `<path d="M62 40 L80 24 L98 40" fill="#e8f6ff" stroke="#5aa8e0" stroke-width="1"/>` + S.glow(80, 62, 8, '#5aa8e0', 0.8),
   blizzard_herald: (S) =>
     S.glow(80, 46, 32, '#9fd8ff', 0.5) + `<path d="M66 96 L70 50 Q80 36 90 50 L94 96 Z" fill="#e8f6ff" opacity="0.85"/>` + `<circle cx="80" cy="40" r="8" fill="#ffffff"/>` + [0, 1, 2, 3, 4, 5].map((k) => `<path d="M80 40 L${(80 + Math.cos(k * 1.047) * 34).toFixed(1)} ${(40 + Math.sin(k * 1.047) * 24).toFixed(1)}" stroke="#bfe6ff" stroke-width="1.2" opacity="0.8"/>`).join('') + S.motes(80, 50, 24, 70, '#ffffff'),
+  // A relic cache: a dark obelisk, banded in gold, a relic glowing sealed in its heart.
+  reliquary_obelisk: (S) => OBELISK(S, 1),
+  reliquary_obelisk_2: (S) => OBELISK(S, 2),
   lost_retinue: (S) =>
     S.glow(80, 56, 30, '#d4a02a', 0.35) + S.ground(92, '#0a0806', 4) + `<path d="M70 92 L72 58 Q80 48 88 58 L90 92 Z" fill="#1a140c" stroke="#d4a02a" stroke-width="0.7"/><circle cx="80" cy="50" r="6" fill="#1a140c" stroke="#d4a02a" stroke-width="0.7"/><path d="M94 92 L94 40" stroke="#d4a02a" stroke-width="1"/>`,
   lord_orrim: (S) =>

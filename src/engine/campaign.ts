@@ -101,6 +101,9 @@ export const CAMPAIGN = {
   repelledDamage: 2,
   /** Rewards for winning a battle. */
   winMaterials: 4,
+  /** Neutral systems whose battlefield holds a relic cache (a Reliquary Obelisk), and how often one seals two relics. */
+  vaultChance: 0.22,
+  vaultTwoChance: 0.2,
   /** Rewards for completing a campaign mission (plus a card choice). */
   missionMaterials: 6,
   cardChoices: 3,
@@ -303,6 +306,8 @@ export interface CampaignNode {
   bonus?: { materials?: number };
   /** Nothing to fight here, only something to find (taken by flying in): materials, or a card to choose. */
   cache?: Cache;
+  /** A relic cache on its battlefield (how many relics it seals): a Reliquary Obelisk to break before the battle ends. */
+  vault?: number;
   /** Burnt out by a supernova: nothing to take, but open to pass through. */
   ruined?: boolean;
 }
@@ -835,6 +840,8 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
   for (const id of here.links) {
     const n = nodeById(s, id);
     if (n.collapsed) continue;
+    // (Never a move that would end the player's run.)
+    if (doomProblem(s, army, id)) continue;
     // A challenge: the player's alone, once found, and tried once.
     if (n.challenge) {
       if (army.owner === s.playerId && !n.challenge.hidden && !n.challenge.done) out.push({ toId: id, battle: true });
@@ -850,6 +857,29 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
     out.push(surrenders(s, army, n) ? { toId: id, battle: false, surrender: true } : { toId: id, battle: true });
   }
   return out;
+}
+
+/**
+ * Why a move would end the player's run (null if it wouldn't) [direction: players can't move their ship to a node
+ * that would end their run]: its last step of the turn into a system that collapses as the turn ends, or into one
+ * the coming turn's collapse will cut off, every way out of it collapsing too. (A challenge is fought from where
+ * the flagship stands; the wormhole is always worth the try.)
+ */
+export function doomProblem(s: CampaignState, army: Army, toId: string): string | null {
+  if (army.owner !== s.playerId || army.lost) return null;
+  const here = nodeById(s, army.nodeId);
+  const to = nodeById(s, toId);
+  const dest = to.challenge ? here : to;
+  if (dest.heart) return null;
+  // (With a step to spare this turn, it can go on out of the collapse's way.)
+  if ((army.steps ?? 0) + 1 < 1 + armyBonus(s, army).march) return null;
+  if (dest.collapsing) return `${dest.name} collapses as the turn ends: your flagship would go down with it.`;
+  // The coming turn: what is marked now goes, and (stability spent) the next column is marked.
+  const marks = universeStability(s) - (s.turn + 1 - s.universeStart) <= 0;
+  const goes = (n: CampaignNode) => n.collapsed || n.collapsing || (marks && n.col === s.collapseCol);
+  if (!goes(dest)) return null;
+  const out = dest.links.map((id) => nodeById(s, id)).some((n) => n.heart || (!goes(n) && !n.challenge));
+  return out ? null : `${dest.name} would be cut off: every way out of it collapses before your flagship could leave.`;
 }
 
 /** Whether a neutral system gives itself up to this army without a fight (a hero's Dread). */
@@ -1340,6 +1370,11 @@ function buildUniverse(s: CampaignState, universe: number) {
     n.cache = { kind, amount: kind === 'cards' ? 3 : 4 + 2 * n.tier };
   }
   placeChallenges(s);
+  // Relic caches: now and then a neutral system's battlefield holds a sealed Reliquary Obelisk (one relic, now and
+  // then two).
+  for (const n of s.nodes.filter((x) => open(x) && !x.station && !x.cache && !x.challenge && (x.col ?? 0) >= 1)) {
+    if (nextRandom(s) < CAMPAIGN.vaultChance) n.vault = nextRandom(s) < CAMPAIGN.vaultTwoChance ? 2 : 1;
+  }
   clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into galaxy ${universe}, at ${home.name}.`);
   tell(s, wormholeSightedScene(universe));
 }
@@ -1670,7 +1705,8 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       // (A system's damage is its own: an army standing there brings its own.)
       heatDelta: (guard ? guard.damage : target.damage) + atk.foeHeat,
       ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : lord ? {} : { rooms: stationRooms(target) }),
-      tableau: lord ? [lord.hero, ...lord.parts] : [...(defShip?.tableau ?? []), ...g.tableau],
+      // (A relic cache on a neutral system's field, for the player to break: after the garrison, in the slots left.)
+      tableau: lord ? [lord.hero, ...lord.parts] : [...(defShip?.tableau ?? []), ...g.tableau, ...(target.vault && !owner && !guard && army.owner === s.playerId ? [target.vault > 1 ? 'reliquary_obelisk_2' : 'reliquary_obelisk'] : [])],
       lightspeed: g.lightspeed,
       // (A Lost Overlord's sun is its own: well beyond any system's, and more in every universe.)
       modifiers: lord
@@ -1703,6 +1739,8 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   const target = nodeById(s, toId);
   if (!here.links.includes(toId)) throw new GameError('There is no route between those systems.');
   if (target.collapsed) throw new GameError(`${target.name} has collapsed. There is nothing left there.`);
+  const doom = doomProblem(s, army, toId);
+  if (doom) throw new GameError(doom);
   if (target.challenge) {
     if (target.challenge.hidden || target.challenge.done || f.id !== s.playerId) throw new GameError('There is nothing there to try.');
     startChallenge(s, army, target);
@@ -1882,8 +1920,36 @@ export function battleFinds(s: CampaignState, game: GameState): { items: Relic[]
   return { items, modules };
 }
 
-/** Take a battle's finds: into the winner's stores (the AI wears and fits them at once). */
+/**
+ * A relic cache broken open on the battlefield (its Reliquary Obelisk destroyed before the battle ended): the relics
+ * it sealed, the player's whoever won, never cursed. Worked out from the finished battle, as battleFinds is.
+ */
+export function vaultFinds(s: CampaignState, game: GameState): Relic[] {
+  const b = s.battle;
+  if (!b || b.challenge || !isGameOver(game) || !game.vaultOpened || b.attacker !== s.playerId) return [];
+  const n = nodeById(s, b.nodeId);
+  const f = factionById(s, b.attacker);
+  const next = spoilsRng(game, `${b.nodeId}:vault`);
+  // (Ids after any the wreckage gives.)
+  let uid = s.uidCounter + 10;
+  return Array.from({ length: n.vault ?? 0 }, () => {
+    const slots = RACE_SLOTS[f.race];
+    const slot = slots[Math.floor(next() * slots.length)].kind;
+    return makeRelic(`item${++uid}`, slot, findRarity(n, next()), f.race, next(), false);
+  });
+}
+
+/** Take a battle's finds: into the winner's stores (the AI wears and fits them at once); and a relic cache broken open. */
 function takeFinds(s: CampaignState, game: GameState) {
+  const vault = vaultFinds(s, game);
+  if (vault.length) {
+    const b = s.battle!;
+    const me = campaignPlayer(s);
+    (me.relics ??= []).push(...vault);
+    s.uidCounter += 10 + vault.length;
+    nodeById(s, b.nodeId).vault = undefined;
+    clog(s, `${me.name} breaks open the relic cache: ${vault.map((r) => r.name).join(' and ')}.`, b.nodeId, me.id);
+  }
   const { items, modules } = battleFinds(s, game);
   if (!items.length && !modules.length) return;
   const b = s.battle!;

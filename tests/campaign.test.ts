@@ -500,3 +500,32 @@ describe('relics', () => {
     expect(b.skills.find((k) => k.relic)).toMatchObject({ once: true, cost: 0, effects: [{ type: 'strikeAll', amount: 3 }] });
   });
 });
+
+describe('no run-ending moves, and relic caches', () => {
+  it("won't let the flagship end its turn in a system that collapses as the turn ends", () => {
+    const s = fresh();
+    const army = myArmy(s);
+    const to = armyMoves(s, army)[0].toId;
+    nodeById(s, to).collapsing = true;
+    expect(armyMoves(s, army).some((m) => m.toId === to)).toBe(false);
+    expect(() => applyCampaignAction(s, { type: 'move', armyId: army.id, toId: to })).toThrow(/collapses/);
+  });
+
+  it('seals a relic cache on some neutral battlefields: break the obelisk, and its relics are yours, won or lost', () => {
+    let s = fresh();
+    const to = firstTarget(s);
+    nodeById(s, to).vault = 2;
+    nodeById(s, to).owner = null;
+    s = attack(s, to);
+    const g = s.battle!.game;
+    expect(g.players[1].tableau.some((c) => c.defId === 'reliquary_obelisk_2')).toBe(true);
+    const before = campaignPlayer(s).relics?.length ?? 0;
+    // (Broken, then the battle lost: the relics are still the player's.)
+    const lost = { ...g, vaultOpened: true, winnerId: g.players[1].id, players: g.players.map((p, i) => (i === 0 ? { ...p, eliminated: true } : p)) };
+    s = applyCampaignAction(s, { type: 'finishBattle', game: lost });
+    const relics = campaignPlayer(s).relics ?? [];
+    expect(relics.length).toBe(before + 2);
+    expect(relics.slice(-2).every((r) => !r.cursed && r.power)).toBe(true);
+    expect(nodeById(s, to).vault).toBeUndefined();
+  });
+});

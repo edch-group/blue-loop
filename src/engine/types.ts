@@ -318,7 +318,7 @@ export interface CardDef {
    */
   bossAction?: { name: string; effects: Effect[]; /** What it does, in words (if not the card's whole text). */ say?: string };
   /** A Lost Overlord's card: what it is of the Overlord's (shown where a card's type is). */
-  overlordPart?: 'overlord' | 'body' | 'gear' | 'retainer' | 'antimatter' | 'frost' | 'lost lord';
+  overlordPart?: 'overlord' | 'body' | 'gear' | 'retainer' | 'antimatter' | 'frost' | 'lost lord' | 'vault';
   /** The energy it costs to play (see costs.ts). */
   cost?: number;
   /** Spends all your energy as it is played (at least 1): its effects count how much (an X cost). */
@@ -545,6 +545,8 @@ export interface GameState {
    * time), and the crystals broken so far (the Antimatter Mine).
    */
   challenge?: { kind: 'mine' | 'frost' | 'lord'; days?: number; spawn?: string[]; per?: number; broken: number };
+  /** Campaign: a Reliquary Obelisk on the field was broken (its relics are the attacker's, whoever wins). */
+  vaultOpened?: boolean;
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
   /** Campaign battle rules (see GameSetup.campaign). */

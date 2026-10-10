@@ -132,6 +132,16 @@ export const CHALLENGE_CARDS: CardDef[] = [
     text: '2 heat to each of your cards.',
     bossAction: { name: 'Whiteout', effects: [{ type: 'strikeAll', amount: 2 }] },
   },
+  // A relic cache, sealed: an inanimate warden standing on a neutral system's battlefield. It never strikes; break it
+  // before the battle ends and what it seals is the attacker's.
+  {
+    id: 'reliquary_obelisk', overlordPart: 'vault', name: 'Reliquary Obelisk', kind: 'defence', health: 12, defence: 2,
+    text: 'Sealed inside: a relic. It never strikes: break it before the battle ends to claim it.',
+  },
+  {
+    id: 'reliquary_obelisk_2', overlordPart: 'vault', name: 'Reliquary Obelisk', kind: 'defence', health: 14, defence: 2,
+    text: 'Sealed inside: two relics. It never strikes: break it before the battle ends to claim them.',
+  },
   {
     id: 'lost_retinue', overlordPart: 'retainer', name: 'Lost Retinue', kind: 'attack', health: 3, attack: 2,
     text: "{dawn}: {heat:1}. Sworn to a lord whose people are gone.",
