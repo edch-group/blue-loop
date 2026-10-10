@@ -398,6 +398,12 @@ export class CampaignView {
     // The skill tree's tips: shown at once on a hover (or press), level with the skill and to its right (to its left
     // where the screen ends), never over it; with the map's star chime and a ring lit round it.
     if (typeof document !== 'undefined') {
+      document.addEventListener('input', (e) => {
+        const box = e.target as HTMLInputElement | null;
+        if (!box?.matches?.('.up-search input')) return;
+        this.upSearch = box.value;
+        this.applyUpSearch();
+      });
       document.addEventListener('pointerover', (e) => {
         const node = (e.target as Element | null)?.closest?.('.up-node') as HTMLElement | null;
         const id = node?.dataset.arg ?? null;
@@ -411,6 +417,19 @@ export class CampaignView {
 
   /** The skill under the pointer (its tip shown). */
   private upHover: string | null = null;
+  /** The skill tree's search: skills whose name or words match are lit, the rest dimmed. */
+  private upSearch = '';
+
+  /** Light the skills matching the search and dim the rest (straight on the page: typing never redraws the tree). */
+  private applyUpSearch() {
+    const term = this.upSearch.trim().toLowerCase();
+    document.querySelectorAll<HTMLElement>('.up-sky .up-node').forEach((n) => {
+      const hit = !!term && `${n.dataset.upTitle ?? ''} ${n.dataset.upText ?? ''}`.toLowerCase().includes(term);
+      n.classList.toggle('up-match', hit);
+      n.classList.toggle('up-dim', !!term && !hit);
+    });
+    document.querySelector('.up-sky')?.classList.toggle('up-searching', !!term);
+  }
 
   /** Lay the hovered skill's tip beside it (or take it away). */
   private showUpTip() {
@@ -695,6 +714,7 @@ export class CampaignView {
       case 'cmp-shop':
         this.shopOpen = !this.shopOpen;
         this.upPlaced = [];
+        this.upSearch = '';
         this.upJust = null;
         break;
       case 'cmp-up-pick': {
@@ -1241,7 +1261,9 @@ export class CampaignView {
         // (Not yet learnt: what its first point gives, with no "next" line.)
         const vals = look ? `${look.value(Math.max(level, 1))} ${look.unit}` : u.text;
         const next = look && level > 0 && !maxed ? `Next: ${look.value(level + 1)}` : '';
-        return `<button class="up-node tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed && level === 0 ? 'afford' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)};--bc:${colourOf(u.group)};--lv:${(level / u.max).toFixed(3)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-up-title="${esc(u.name.toLowerCase())}" data-up-text="${esc(vals)}" data-up-next="${esc(next)}" aria-label="${esc(u.name)}">
+        const term = this.upSearch.trim().toLowerCase();
+        const hit = !!term && `${u.name} ${vals}`.toLowerCase().includes(term);
+        return `<button class="up-node ${term ? (hit ? 'up-match' : 'up-dim') : ''} tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed && level === 0 ? 'afford' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)};--bc:${colourOf(u.group)};--lv:${(level / u.max).toFixed(3)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-up-title="${esc(u.name.toLowerCase())}" data-up-text="${esc(vals)}" data-up-next="${esc(next)}" aria-label="${esc(u.name)}">
           <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max, had, this.upJust === u.id)}</svg><i class="up-mote" aria-hidden="true"></i></span>
           ${level > had ? `<i class="up-node-plus">+${level - had}</i>` : ''}
         </button>`;
@@ -1258,8 +1280,12 @@ export class CampaignView {
             <h3>skills</h3>
             <span class="up-xp">${XP_MARK}<b>${meta.xp ?? 0}</b><small>experience to spend</small></span>
           </div>
+          <label class="up-search" aria-label="Search the skills">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM15.5 15.5l5 5"/></svg>
+            <input type="search" placeholder="search" value="${esc(this.upSearch)}" spellcheck="false" autocomplete="off">
+          </label>
         </header>
-        <div class="up-sky">
+        <div class="up-sky ${this.upSearch.trim() ? 'up-searching' : ''}">
           <span class="up-flower">${stellariaFlower()}</span>
           <span class="up-flower-fill"><svg viewBox="70 -260 860 860" aria-hidden="true">${fills.join('')}</svg></span>
           ${stems.join('')}

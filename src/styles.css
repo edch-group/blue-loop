@@ -6459,3 +6459,14 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-node.afford .up-node-disc::after { animation-duration: 28s; }
 .up-tree .up-node.locked .up-node-disc, .up-tree .up-node.maxed .up-node-disc, .up-tree .up-node.on .up-node-disc { background: none; box-shadow: none; }
 .up-tree .up-node-plus { top: 0; left: calc(50% + 6px); }
+/* The skill tree's search, top right: matching skills lit (their mote brighter, a soft ring of their colour), the rest dimmed. */
+.up-search { grid-column: 3; justify-self: end; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.14); }
+.up-search:focus-within { background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.35); }
+.up-search svg { width: 14px; height: 14px; fill: none; stroke: var(--ink-faint); stroke-width: 1.6; stroke-linecap: round; }
+.up-search input { width: clamp(90px, 14vw, 170px); border: 0; outline: 0; background: none; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); }
+.up-search input::placeholder { color: var(--ink-faint); }
+.up-sky .up-node.up-dim { opacity: 0.18; transition: opacity 0.2s; }
+.up-sky .up-node.up-match { opacity: 1; transition: opacity 0.2s; }
+.up-sky .up-node.up-match .up-mote { filter: drop-shadow(0 0 10px var(--bc)) brightness(1.15); }
+.up-sky .up-node.up-match .up-node-disc::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 0; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bc) 60%, transparent), 0 0 14px color-mix(in srgb, var(--bc) 45%, transparent); }
+.up-sky.up-searching .up-line, .up-sky.up-searching .up-flower-fill { opacity: 0.35; transition: opacity 0.2s; }
