@@ -3342,10 +3342,12 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   animation: result-in 0.35s cubic-bezier(.2,.8,.2,1);
 }
 .mid-cancel {
-  pointer-events: auto; border: 0; background: none; cursor: pointer; font-family: var(--display); letter-spacing: 0.2em; text-transform: uppercase;
-  font-size: clamp(0.5rem, calc(1.8 * var(--vh)), 0.7rem); color: var(--ink-soft); padding: 4px 10px;
+  pointer-events: auto; cursor: pointer; font-family: var(--display); font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
+  font-size: clamp(0.6rem, calc(2.2 * var(--vh)), 0.8rem); color: var(--ink); padding: 7px 18px; margin-top: 4px; border-radius: 999px;
+  border: 1px solid rgba(120, 126, 150, 0.35); background: #fff; box-shadow: 0 4px 14px rgba(70, 76, 100, 0.18);
 }
-.mid-cancel:hover { color: var(--ink); }
+.mid-cancel:hover { background: #f4f5f9; }
+.mid-btns { display: flex; gap: 8px; }
 
 /* The deck builder's pool: cards off screen are not laid out or painted until scrolled to. */
 /* (No content-visibility here: it clipped each card's shadow square at its box. The pool shows a page at a time anyway.) */

@@ -5274,13 +5274,13 @@ export class App {
     }
     // Your dawn Recall, first thing in your day: a card back to hand; or let it be.
     const choice = this.dawnChoice();
-    if (choice?.kind === 'recall') return `<div class="mid-hint"><b>${choice.relic ? 'recall a card to hand' : 'dawn recall: return a card to hand'}</b><button class="mid-cancel" data-act="dawn-shift-skip">let it be</button></div>`;
+    if (choice?.kind === 'recall') return `<div class="mid-hint"><b>${choice.relic ? 'recall a card to hand' : 'dawn recall: return a card to hand'}</b><button class="mid-cancel" data-act="dawn-shift-skip">skip</button></div>`;
     // A relic's heat at any target: a rival card, or their sun.
     if (choice?.kind === 'aim') return `<div class="mid-hint"><b>${choice.relic ? `${esc(choice.relic.toLowerCase())}: ` : ''}${choice.amount ?? 0} heat, pick a target</b><button class="mid-cancel" data-act="dawn-aim-sun">their sun</button></div>`;
     // Your dawn Shift (or a relic's dusk one, as your day ends): a card to move, then where; or let it be.
     if (this.dawnShiftWaiting()) {
       const when = this.duskShifting ? 'dusk shift' : 'dawn shift';
-      return `<div class="mid-hint"><b>${this.dawnPick ? `${when}: where it moves` : `${when}: move a card`}</b><button class="mid-cancel" data-act="${this.dawnPick ? 'dawn-shift-back' : 'dawn-shift-skip'}">${this.dawnPick ? 'back' : 'let it be'}</button></div>`;
+      return `<div class="mid-hint"><b>${this.dawnPick ? `${when}: where it moves` : `${when}: move a card`}</b><span class="mid-btns">${this.dawnPick ? '<button class="mid-cancel" data-act="dawn-shift-back">back</button>' : ''}<button class="mid-cancel" data-act="dawn-shift-skip">skip</button></span></div>`;
     }
     // A challenge's clock (the mine's count too), with nothing acting next. (Against a Lost Overlord or Lord, the
     // card that acts next burns on the board: that says enough.)
