@@ -818,6 +818,41 @@ export function dawnHeatAsAttack() {
 dawnHeatAsAttack();
 
 /**
+ * Upkeep: the walls and Guards of every race mend their own wear (repair 1 at dawn, or at dusk where that is when
+ * they act), so repair turns up in every deck rather than only the Korrath's and the Vorthane's.
+ */
+const UPKEEP: Record<string, 'dawn' | 'dusk'> = {
+  glacier_shell: 'dawn', deflector_grid: 'dawn',
+  halo_ward: 'dawn', aureline_vanguard: 'dawn', dawn_rampart: 'dusk',
+  prism_ward: 'dawn', prism_vent: 'dawn',
+  undertow_shrine: 'dawn',
+  thorn_hedge: 'dawn', canopy: 'dawn',
+  kor_shieldwall: 'dawn',
+  ser_orrery_keeper: 'dawn',
+  pyr_heat_bloom: 'dawn',
+};
+const UPKEEP_PAID = new Set(['halo_ward', 'prism_ward', 'kor_shieldwall', 'undertow_shrine', 'thorn_hedge']);
+export function upkeep() {
+  for (const c of CARDS) {
+    const when = UPKEEP[c.id];
+    if (!when) continue;
+    // (A wall that was a plain wall's twin pays for its upkeep with a point of Sturdy: the plain one stands higher on its numbers.)
+    if (UPKEEP_PAID.has(c.id) && (c.defence ?? 0) > 1) {
+      c.defence! -= 1;
+      c.text = c.text.replace(/\{sturdy:(\d+)\}/, (_, n: string) => `{sturdy:${Number(n) - 1}}`);
+    }
+    const effects = (when === 'dawn' ? (c.onTurn ??= []) : (c.onDusk ??= []));
+    if (effects.some((e) => e.type === 'repair')) continue;
+    effects.push({ type: 'repair', amount: 1 });
+    // Onto its plain dawn (or dusk) line if it has one ("{dawn}: {shield:1}." reads "{dawn}: {shield:1}, {repair:1}."),
+    // else a line of its own.
+    const line = new RegExp(`\\{${when}\\}: ((?:\\{[a-z]+:\\d+\\}(?:, )?)+)\\.`);
+    c.text = line.test(c.text) ? c.text.replace(line, (_, list: string) => `{${when}}: ${list}, {repair:1}.`) : `${c.text.trim()} {${when}}: {repair:1}.`;
+  }
+}
+upkeep();
+
+/**
  * Cards are all of one kind now (attack and defence were never fixed: a card with none can gain attack), so
  * their words say what they mean: an armed card (one with 1+ attack), a Sturdy card, a surge (one that resolves and goes).
  */

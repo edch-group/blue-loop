@@ -69,6 +69,7 @@ An attuned card gains, at each of its owner's dawns, the bonus of where their Or
 - **Defence** comes from the slot: **1, 2, 3, 2, 1** from left to right. The middle is the safest place for the card you most want to keep. [design review]
   - Sturdy cards add their own defence (Bellwarden and Hero of Rathune +1, Aegis Monolith +2). (They used to mend that much more worn defence each dawn too: a guard with Sturdy grafts fused onto it mended 5 a day and could not be worn down, so Sturdy is now defence only.)
   - Repair cards mend worn defence on your side, the most worn cards first: Bulwark Plating, Tide Pylon and Hero of Rathune 1 at each dawn, Aegis Monolith 2.
+  - **Repair is a core keyword** (a wrench symbol and its number, like heat, cool and shields; legal in Core), and common: every race's walls and Guards carry a little upkeep (repair 1 at dawn, or at dusk where they act then): Glacier Shell, Deflector Grid, Halo Warden, Aureline Vanguard, Dawn Rampart, Prism Ward, Prism Vent, Undertow Shrine, Thorn Hedge, Canopy, Shieldwall, Orrery Keeper, Heat Bloom (cards.ts UPKEEP). A wall that was a plain wall's twin pays for it with 1 Sturdy, so the plain one still stands higher on its numbers. [direction: repair basically never happened in a game]
   - Bulwarks guard their neighbours: Bulwark Plating gives +1 to the cards either side. Aegis Monolith (Anomaly) gives +2 either side and +1 two slots away.
   - Removal can only reach cards with low enough defence:
     - Ion Cannon: 2 or less.

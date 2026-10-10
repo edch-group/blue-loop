@@ -48,7 +48,7 @@ export type Mechanic =
 export const CORE_SIGNATURE: Record<number, Mechanic> = { 0: 'forge', 1: 'overheat', 2: 'shields', 3: 'growth' };
 export const CORE_RACES = [0, 1, 2, 3];
 /** Mechanics every race may use in Core, beyond the fundamentals. */
-export const CORE_MECHANICS: Mechanic[] = ['lightspeed'];
+export const CORE_MECHANICS: Mechanic[] = ['lightspeed', 'repair'];
 
 const MECHANIC_NAME: Record<Mechanic, string> = {
   forge: 'Forge', overheat: 'Overheat', shields: 'Shields', growth: 'Growth', resonance: 'Resonance', bulwark: 'Bulwark',
