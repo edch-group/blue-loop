@@ -5756,8 +5756,8 @@ body:has(.game-result) .dock { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .rh-card { transition: none; } }
 
 /* The game mode in a pane down the left of the page: frosted glass over the backdrop and a fine divider; at its
-   top the way back (and, in Decks, the community and import), beneath them the two modes as full-bleed pictures,
-   each about 40% of the pane's height. The page sits beside it, its title centred on the page. */
+   top the way back (and, in Decks, the community and import), as much space above that row as below it, beneath
+   them the two modes as full-bleed pictures, sharing the rest of the pane's height. The page sits beside it, its title centred on the page. */
 .menu:has(> .mode-cards) { --pw: clamp(190px, 17vw, 250px); padding-left: calc(var(--pw) + var(--sa-l, 0px) + 32px); }
 .mode-cards, .menu > .mode-cards.mode-cards {
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 3; width: calc(var(--pw) + var(--sa-l, 0px)); padding-left: var(--sa-l, 0px);
@@ -5768,11 +5768,11 @@ body:has(.game-result) .dock { visibility: hidden; }
   -webkit-backdrop-filter: blur(16px) saturate(1.15); backdrop-filter: blur(16px) saturate(1.15);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.9), 1px 0 0 rgba(150, 156, 172, 0.22), 10px 0 34px rgba(60, 70, 100, 0.07);
 }
-.mode-cards-top { flex: 1 1 auto; display: grid; grid-auto-flow: column; grid-auto-columns: auto; grid-template-columns: 1fr; align-content: start; gap: 8px; padding: max(12px, var(--sa-t)) 18px 12px; }
+.mode-cards-top { flex: none; display: grid; grid-auto-flow: column; grid-auto-columns: auto; grid-template-columns: 1fr; align-content: start; gap: 8px; padding: max(14px, var(--sa-t)) 18px 14px; }
 .pane-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
 .pane-icon { width: auto; aspect-ratio: 1; padding-left: 0; padding-right: 0; }
 .pane-ico { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.mode-cards-in { flex: 0 0 80%; display: grid; grid-template-rows: 1fr 1fr; gap: 1px; background: rgba(150, 156, 172, 0.25); }
+.mode-cards-in { flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: 1fr 1fr; gap: 1px; background: rgba(150, 156, 172, 0.25); }
 /* (The header's own back gives way to the pane's; the title stays centred over the page.) */
 .menu:has(> .mode-cards) > .setup-top > .btn:first-child { visibility: hidden; }
 .mode-card {
