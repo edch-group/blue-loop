@@ -5938,42 +5938,29 @@ body:has(.game-result) .dock { visibility: hidden; }
 
 
 /* ---- A reaction window: answer the rival's move at lightspeed (app.ts renderReaction) ---- */
-.react-panel {
-  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 40;
-  width: min(600px, calc(100% - 32px)); max-height: calc(100% - 24px); overflow: auto;
-  display: grid; gap: 12px; padding: 16px 18px 14px; border-radius: 20px;
-  background: rgba(255, 255, 255, 0.97); box-shadow: 0 0 0 1.5px rgba(212, 149, 42, 0.55), 0 24px 60px rgba(70, 70, 90, 0.3);
-  animation: react-in 0.22s ease-out both;
-}
-@keyframes react-in { from { opacity: 0; transform: translate(-50%, -46%) scale(0.97); } }
-.react-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.react-head b { font-family: var(--display); font-weight: 500; text-transform: uppercase; letter-spacing: 0.24em; font-size: 0.9rem; color: #b07a1c; }
-.react-head small { color: var(--muted, #8a8fa3); letter-spacing: 0.1em; }
-.react-move { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px; }
-.react-move p { margin: 0; color: var(--ink); line-height: 1.45; }
-.react-move .card, .react-opt .card { --hw: 96px; --hh: 134px; --cw: 96px; pointer-events: none; }
-.react-move .card .card-text, .react-opt .card .card-text { display: block; }
-.react-opts { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+/* (In the preview pane: the answers on the left, the move they answer as the pane's card.) */
+.stage.stage-react { --scw: min(250px, calc(40 * var(--vh))); display: flex; align-items: center; gap: 14px; z-index: 40; }
+.react-main { position: relative; display: grid; justify-items: center; gap: 8px; }
+.react-main .stage-ls-tag { left: 50%; transform: translateX(-50%); }
+.react-main .stage-caption { max-width: var(--scw); text-align: center; line-height: 1.6; }
+.react-side { display: grid; justify-items: center; gap: 10px; pointer-events: auto; }
+.react-opts { display: grid; gap: 8px; justify-items: center; }
 .react-opt {
-  display: grid; justify-items: center; gap: 6px; padding: 6px; border: 0; border-radius: 14px; background: none; cursor: pointer;
+  display: grid; justify-items: center; gap: 4px; padding: 4px; border: 0; border-radius: 14px; background: none; cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
 }
-.react-opt .card { --hw: 112px; --hh: 157px; --cw: 112px; box-shadow: 0 0 0 1.5px #fff, 0 0 18px rgba(212, 149, 42, 0.55), 0 6px 18px rgba(90, 90, 110, 0.18); }
+.stage .react-opt .card { --cw: calc(var(--scw) * 0.5); width: calc(var(--scw) * 0.5); height: calc(var(--scw) * 0.7); box-shadow: 0 0 0 1.5px #fff, 0 0 18px rgba(212, 149, 42, 0.55), 0 6px 18px rgba(90, 90, 110, 0.18); }
 .react-opt:hover, .react-opt:focus-visible { transform: translateY(-4px); }
-.react-opt-tag { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: #b07a1c; }
-.react-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--ink); font-size: 0.8rem; letter-spacing: 0.08em; }
+.react-opt-tag { font-size: 0.56rem; letter-spacing: 0.14em; text-transform: uppercase; color: #a86d10; }
+.react-pass { pointer-events: auto; white-space: nowrap; font-size: 0.62rem; padding: 7px 14px; }
 .react-wait {
   position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 40; padding: 8px 16px; border-radius: 999px;
   background: rgba(255, 255, 255, 0.95); box-shadow: 0 6px 20px rgba(70, 70, 90, 0.18); color: var(--ink); font-size: 0.85rem; letter-spacing: 0.06em;
 }
 .react-wait b { color: #b07a1c; }
-@media (max-width: 560px) {
-  .react-move .card { --hw: 76px; --hh: 106px; --cw: 76px; }
-  .react-opt .card { --hw: 92px; --hh: 129px; --cw: 92px; }
-}
 .plays-pips i.banked { background: #e2b04a; box-shadow: 0 0 6px rgba(212, 149, 42, 0.6); }
-/* (While an answer is being chosen, the card display waits: the panel shows the move itself.) */
-.table-view:has(.react-panel) .stage { display: none; }
+/* (While an answer is being chosen, the pane is the answer's.) */
+.table-view:has(.stage-react) .stage:not(.stage-react) { display: none; }
 
 
 /* ---- A Lost Overlord's parts: full-art cards (its one action across the picture), the next to act marked ---- */

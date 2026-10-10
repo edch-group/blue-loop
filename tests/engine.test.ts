@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
-import { activePlayer, replaces, isGuard, guards, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction,
+import { activePlayer, replaces, isGuard, guards, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, answerShown,
   baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver,
   isDraw, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
@@ -536,7 +536,13 @@ describe('Lightspeed guards', () => {
     s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: lancerTarget.uid });
     // The attack waits on their answer: they spring the Bulwark.
     expect(s.reaction?.slot).toBe(true);
+    expect(s.struck).toBeUndefined();
+    // As the answer is shown: the Bulwark is in, the attack not yet made.
+    const shown = answerShown(s, { type: 'react', slot: true });
+    expect(shown.players.find((p) => p.id === rival.id)!.tableau.some((c) => c.defId === 'blink_bulwark')).toBe(true);
+    expect(shown.struck).toBeUndefined();
     s = applyAction(s, { type: 'react', slot: true });
+    expect(s.struck?.attackerUid).toBe(array.uid);
     const after = s.players.find((p) => p.id === rival.id)!;
     expect(after.lightspeed).toBeNull();
     const guard = after.tableau.find((c) => c.defId === 'blink_bulwark');

@@ -8,6 +8,7 @@ import {
   attackProblem,
   cardAttack,
   applyAction,
+  answerShown,
   BALANCE,
   boosterPool,
   BOOSTERS,
@@ -283,6 +284,8 @@ const AUTO_END_MS = 250;
 const HAND_GROW = 1.14;
 /** An attack: the card's lunge (it strikes a little past halfway; the attack lands once it is back). */
 const LUNGE_MS = 900;
+/** How long a Lightspeed answer to an attack is shown before the attack (if it still comes) goes in. */
+const ANSWER_PAUSE_MS = 1400;
 /** When in the lunge the card strikes (a share of it): the blow lands then. */
 const LUNGE_HIT = 0.58;
 /** Banners in a row (dusk, dawn, day) are this far apart. */
@@ -1463,12 +1466,49 @@ export class App {
     }
     // The viewer's own card hangs in the preview pane until the rival has read it.
     if (this.stage?.own) return this.holdOwn(land);
-    // An attack lands as the attacker strikes.
-    if (last.action.type === 'attack' && this.lunge(prev, next, last.action)) this.landAtStrike(land);
+    if (this.strikeAfterAnswer(prev, next, last.action, land)) return;
+    // An attack lands as the attacker strikes (one its target may yet answer waits for that answer).
+    if (last.action.type === 'attack' && !next.reaction && this.lunge(prev, next, last.action)) this.landAtStrike(land);
     else land();
   }
 
   /** A move whose attack lands the moment the attacker strikes (its numbers change as it hits), while the card flies back. */
+  /**
+   * An answer to an attack: the Lightspeed card that answered shows (and what it did lands) first, a moment to take
+   * it in; only then does the attacker go in, if it still can. Returns false for any other move.
+   */
+  private strikeAfterAnswer(prev: GameState, next: GameState, action: Action, land: () => void): boolean {
+    if (action.type !== 'react' || prev.reaction?.pending.kind !== 'attack' || reducedMotion()) return false;
+    const blow: Extract<Action, { type: 'attack' }> | null = next.struck ? { type: 'attack', ...next.struck } : null;
+    const strike = (from: GameState) => {
+      this.render();
+      if (blow && this.lunge(from, next, blow)) this.landAtStrike(land);
+      else land();
+    };
+    let mid: GameState | null = null;
+    if (next.sprung?.length) {
+      try {
+        mid = answerShown(prev, action);
+      } catch {
+        mid = null;
+      }
+    }
+    if (!mid) {
+      strike(prev);
+      return true;
+    }
+    const shown = mid;
+    this.state = shown;
+    this.render();
+    this.landing = land;
+    window.setTimeout(() => {
+      if (this.landing !== land) return;
+      this.landing = null;
+      strike(shown);
+    }, ANSWER_PAUSE_MS);
+    return true;
+  }
+
   private landAtStrike(land: () => void) {
     this.landing = land;
     window.setTimeout(() => {
@@ -2040,8 +2080,10 @@ export class App {
     }
     // The viewer's own card hangs in the preview pane a moment before it lands.
     if (this.stage?.own && animate) return this.holdOwn(land);
-    // An attack lands the moment the attacker strikes.
-    if (action.type === 'attack' && animate && (this.render(), this.lunge(prev, next, action))) return this.landAtStrike(land);
+    // An attack answered at lightspeed: the answer first, then the attack, if it still comes.
+    if (animate && this.strikeAfterAnswer(prev, next, action, land)) return;
+    // An attack lands the moment the attacker strikes (one its target may yet answer waits for that answer).
+    if (action.type === 'attack' && !next.reaction && animate && (this.render(), this.lunge(prev, next, action))) return this.landAtStrike(land);
     land();
   }
 
@@ -5975,31 +6017,36 @@ export class App {
     if (r.pending.kind === 'play') {
       const ev = r.events[0];
       const aimed = r.events.find((e) => e.on === 'targeted');
-      if (ev.faceDown || !ev.defId) what = `${esc(enemy.name)} sets a card face down at lightspeed.`;
+      if (ev.faceDown || !ev.defId) what = 'a card set face down';
       else {
         move = still('react-move', ev.defId);
-        what = `${esc(enemy.name)} plays <b>${name(ev.defId)}</b>${aimed ? `, aimed at your <b>${mineName(aimed.mineUid)}</b>` : ''}.`;
+        what = aimed ? `aimed at <b>${mineName(aimed.mineUid)}</b>` : `${esc(enemy.name)} plays it`;
       }
     } else {
       const atk = enemy.tableau.find((c) => c.uid === (r.pending as { attackerUid: string }).attackerUid);
       const target = r.pending.targetUid;
       if (atk) move = still('react-move', atk.defId);
-      what = `${esc(enemy.name)}'s <b>${atk ? name(atk.defId) : 'card'}</b> attacks ${target ? `your <b>${mineName(target)}</b>` : 'your sun'}.`;
+      what = `attacks ${target ? `<b>${mineName(target)}</b>` : 'your sun'}`;
     }
     const opts = [
       ...(r.slot && who.lightspeed ? [`<button class="react-opt" data-act="react-slot">${still(who.lightspeed.uid, who.lightspeed.defId)}<span class="react-opt-tag">face down · free</span></button>`] : []),
       ...r.hand.map((uid) => {
         const c = who.hand.find((x) => x.uid === uid);
-        return c ? `<button class="react-opt" data-act="react-card" data-arg="${uid}">${still(uid, c.defId)}<span class="react-opt-tag">from hand · ${reactCost(c.defId)} banked</span></button>` : '';
+        return c ? `<button class="react-opt" data-act="react-card" data-arg="${uid}">${still(uid, c.defId)}<span class="react-opt-tag">${reactCost(c.defId)} banked</span></button>` : '';
       }),
     ].join('');
-    const hotseat = s.players.filter((p) => !p.isAI).length > 1 && !this.online;
+    // In the preview pane: the answers on the left, the move they answer as the pane's card.
     return `
-      <div class="react-panel" data-key="react-panel" role="dialog" aria-label="Answer at lightspeed">
-        <div class="react-head"><b>⚡ answer at lightspeed?</b>${hotseat ? `<small>${esc(who.name.toLowerCase())}</small>` : ''}</div>
-        <div class="react-move">${move}<p>${what}</p></div>
-        <div class="react-opts">${opts}</div>
-        <div class="react-foot"><span>banked energy <b>${who.banked ?? 0}</b></span><button class="btn" data-act="react-pass">let it pass</button></div>
+      <div class="stage stage-react" data-key="react-panel" role="dialog" aria-label="Answer at lightspeed">
+        <div class="react-side">
+          <div class="react-opts">${opts}</div>
+          <button class="btn react-pass" data-act="react-pass">let it pass</button>
+        </div>
+        <div class="react-main">
+          <span class="stage-ls-tag">⚡ answer?</span>
+          ${move || `<div class="card card-back">${cardBackFace()}</div>`}
+          <div class="stage-caption">${what}</div>
+        </div>
       </div>`;
   }
 

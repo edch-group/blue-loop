@@ -557,6 +557,8 @@ export interface GameState {
   vaultOpened?: boolean;
   /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
+  /** The attack this move made (only this move's state): the attacker and what it struck (null, the sun). */
+  struck?: { attackerUid: string; targetUid: string | null };
   /** Campaign battle rules (see GameSetup.campaign). */
   campaign?: boolean;
   /** Core or Lost Races (unset: Lost Races). */

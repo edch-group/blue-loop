@@ -1840,6 +1840,22 @@ function openReaction(state: GameState, mover: PlayerState, events: ReactEvent[]
  * lets the move go on. An answer resolves at once, before the move; then the move goes on (or not, if it was
  * cancelled), unless they could still answer it another way (one face down and one from hand, at most).
  */
+/** Set while answerShown plays an answer: the move it answered waits (as it is seen, before it goes on). */
+let holdResume = false;
+
+/**
+ * A Lightspeed answer as it lands, before the move it answered goes on: what the board looks like while the answer
+ * is read (its guard landed, its shields up), ahead of the attack that may still come.
+ */
+export function answerShown(prev: GameState, action: Extract<Action, { type: 'react' }>): GameState {
+  holdResume = true;
+  try {
+    return applyAction(prev, action);
+  } finally {
+    holdResume = false;
+  }
+}
+
 function react(state: GameState, action: Extract<Action, { type: 'react' }>) {
   const r = state.reaction;
   if (!r) throw new GameError('There is nothing to answer.');
@@ -1899,7 +1915,7 @@ function react(state: GameState, action: Extract<Action, { type: 'react' }>) {
     return;
   }
   delete state.reaction;
-  resume(state, r);
+  if (!holdResume) resume(state, r);
 }
 
 /** An answer cancelled the move: a card played goes to its owner's discard pile (or back to hand), its energy spent; an attack is called off. */
@@ -2160,6 +2176,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
   // Only the state a day starts in carries that start's pulses (and only this move's state, what sprang).
   delete state.turnPulses;
   delete state.sprung;
+  delete state.struck;
   const p = activePlayer(state);
   if (state.reaction && action.type !== 'react' && action.type !== 'concede') throw new GameError(`Waiting on ${playerById(state, state.reaction.playerId).name}'s answer.`);
   if (p.dawnChoices?.length && action.type !== 'dawnChoice' && action.type !== 'concede') throw new GameError(`Your dawn ${p.dawnChoices[0].kind} comes first: choose a card, or let it be.`);
@@ -2411,6 +2428,7 @@ export function attackProblem(state: GameState, p: PlayerState, attackerUid: str
 /** An attack, and then (the third of the day) a Flurry relic's blow. */
 function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid: string | null) {
   p.turn.attacks = (p.turn.attacks ?? 0) + 1;
+  state.struck = { attackerUid: card.uid, targetUid };
   strike(state, p, card, targetUid);
   const flurry = relicN(p.relics, 'flurry');
   if (flurry && p.turn.attacks === 3 && !state.winnerId && !p.eliminated) relicAim(state, p, flurry, 'flurry');
