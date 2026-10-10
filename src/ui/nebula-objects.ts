@@ -997,9 +997,12 @@ export class MapObjects {
     const sprite = this.sprites(cam, time, fade);
     if (look === 'blackHole') sprite.draw(0, BLACK_HOLE_Y, BLACK_HOLE_Z, 0.9, 0, GOLD, 0.35);
     else {
+      // (Its glow over the land, not cut off where the ground rises into it: a soft light, not a solid.)
+      gl.disable(gl.DEPTH_TEST);
       sprite.draw(0, PULSAR_Y, 0, 0.6 * (1 + 0.2 * Math.sin(time * 9)), 0, [0.52, 0.72, 0.88], 0.9);
     }
     sprite.done();
+    gl.enable(gl.DEPTH_TEST);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
   }
