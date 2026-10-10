@@ -2370,10 +2370,10 @@ export class CampaignView {
       // (Every reward the same size, on a gold glow: materials and petals their mark large with the number under it;
       // an emblem its badge, its name, what it does; a card itself.)
       const items = [
-        l.materials ? `<div class="loot-tile loot-res" title="Materials">${MATERIALS}<b>+${l.materials}</b></div>` : '',
-        l.petals ? `<div class="loot-tile loot-res" title="Stellari petals">${PETAL}<b>+${l.petals}</b></div>` : '',
-        ...l.relics.map((r) => `<div class="loot-tile loot-emblem"><span class="cmp-relic ${r.cursed ? 'cursed' : ''}">${relicMark(r.name, r.slot)}</span><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div>`),
-        ...l.cards.map((id) => `<div class="loot-tile loot-card">${cardHtml(id)}</div>`),
+        l.materials ? `<div class="loot-tile loot-res" title="Materials"><span class="loot-glow">${MATERIALS}</span><b>+${l.materials}</b></div>` : '',
+        l.petals ? `<div class="loot-tile loot-res" title="Stellari petals"><span class="loot-glow">${PETAL}</span><b>+${l.petals}</b></div>` : '',
+        ...l.relics.map((r) => `<div class="loot-tile loot-emblem"><span class="loot-glow"><span class="cmp-relic ${r.cursed ? 'cursed' : ''}">${relicMark(r.name, r.slot)}</span></span><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div>`),
+        ...l.cards.map((id) => `<div class="loot-tile loot-card"><span class="loot-glow">${cardHtml(id)}</span></div>`),
       ].filter(Boolean);
       // (The experience first, top middle; the rewards after it, one at a time.)
       const first = l.xp ? 1 : 0;

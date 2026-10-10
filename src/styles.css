@@ -6606,14 +6606,16 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
    faint rays turning slowly through it). */
 .loot-item { position: relative; animation: loot-in 0.55s cubic-bezier(.2,1.4,.4,1) both; animation-delay: calc(450ms + var(--i) * 420ms); }
 .loot-tile { --lh: calc(var(--lw) * 1.4); position: relative; isolation: isolate; width: var(--lw); height: var(--lh); display: grid; justify-items: center; align-content: center; gap: 6px; text-align: center; }
-.loot-tile::before { content: ''; position: absolute; left: 50%; top: 50%; width: 150%; height: 125%; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; border-radius: 50%;
+.loot-glow { position: relative; display: grid; place-items: center; isolation: isolate; }
+/* (The glow behind the reward itself, never its number or words.) */
+.loot-glow::before { content: ''; position: absolute; left: 50%; top: 50%; width: 190%; height: 190%; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; border-radius: 50%;
   background: radial-gradient(closest-side, rgba(255, 226, 140, 0.8), rgba(246, 200, 96, 0.38) 50%, rgba(240, 190, 80, 0) 100%);
   animation: loot-glow-breathe 2.6s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -0.4s); }
-.loot-tile::after { content: ''; position: absolute; left: 50%; top: 50%; width: 175%; aspect-ratio: 1; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; border-radius: 50%;
+.loot-glow::after { content: ''; position: absolute; left: 50%; top: 50%; width: 230%; aspect-ratio: 1; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; border-radius: 50%;
   background: repeating-conic-gradient(from 0deg, rgba(255, 236, 170, 0.5) 0 5deg, transparent 5deg 24deg);
   -webkit-mask: radial-gradient(closest-side, #000 15%, transparent 72%); mask: radial-gradient(closest-side, #000 15%, transparent 72%);
   animation: loot-rays-turn 18s linear infinite; opacity: 0.7; }
-.loot-res svg { width: calc(var(--lw) * 0.58); height: calc(var(--lw) * 0.58); filter: drop-shadow(0 2px 6px rgba(150, 110, 30, 0.35)); }
+.loot-res svg { position: relative; width: calc(var(--lw) * 0.58); height: calc(var(--lw) * 0.58); filter: drop-shadow(0 2px 6px rgba(150, 110, 30, 0.35)); }
 .loot-res b { font-family: var(--display); font-size: 0.95rem; letter-spacing: 0.08em; color: var(--ink); }
 .loot-emblem { align-content: start; padding-top: 4px; }
 .loot-emblem .cmp-relic { width: calc(var(--lw) * 0.62); height: calc(var(--lw) * 0.62); padding: calc(var(--lw) * 0.08); animation: none; }
@@ -6627,7 +6629,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 @keyframes loot-in { from { opacity: 0; transform: translateY(calc(var(--y, 0px) + 18px)) rotate(var(--r, 0deg)) scale(0.6); } }
 @keyframes loot-glow-breathe { 50% { opacity: 0.65; transform: translate(-50%, -50%) scale(1.08); } }
 @keyframes loot-rays-turn { to { transform: translate(-50%, -50%) rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .loot-cache, .loot-cache-glow, .loot-cache-seam, .loot-item, .loot-tile::before, .loot-tile::after { animation: none; } .loot-burst { display: none; } .loot-take { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .loot-cache, .loot-cache-glow, .loot-cache-seam, .loot-item, .loot-glow::before, .loot-glow::after { animation: none; } .loot-burst { display: none; } .loot-take { animation: none; } }
 
 /* A system on a rise or in a dip of the land: its marks stand at its height (the plane's own up, in map units). */
 .cmp-3d .cmp-n3 { transform: translateZ(var(--h, 0px)); }
