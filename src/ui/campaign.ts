@@ -1240,7 +1240,9 @@ export class CampaignView {
         if (!needs) return [];
         return needs.map(([r, n]) => {
           const [x0, y0] = pos.get(r)!;
-          return line([x0, y0], [x, y], levelOf(meta, r) >= n ? 'lit' : '', colourOf(u.group));
+          // (Lit once the further skill of the two is taken, not merely opened.)
+          void n;
+          return line([x0, y0], [x, y], levelOf(meta, u.id) > 0 ? 'lit' : '', colourOf(u.group));
         });
       })
       .join('');

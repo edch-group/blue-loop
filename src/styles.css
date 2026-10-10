@@ -6470,3 +6470,5 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-sky .up-node.up-match .up-mote { filter: drop-shadow(0 0 10px var(--bc)) brightness(1.15); }
 .up-sky .up-node.up-match .up-node-disc::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 0; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bc) 60%, transparent), 0 0 14px color-mix(in srgb, var(--bc) 45%, transparent); }
 .up-sky.up-searching .up-line, .up-sky.up-searching .up-flower-fill { opacity: 0.35; transition: opacity 0.2s; }
+/* (A skill with no points in it is not yet lit: a grey glimmer, its colour coming with its first point.) */
+.up-tree .up-node:not(.owned):not(.planned) .up-mote { --bc: #aab0bf; }
