@@ -6449,3 +6449,13 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* A capstone: a larger, brighter star of light. */
 .up-tree .up-node.tier-3 .up-node-disc::before { border-color: color-mix(in srgb, var(--bc, #aab0bf) 22%, transparent); }
 @media (prefers-reduced-motion: reduce) { .up-mote { animation: none; } }
+/* [direction: motes about half the size, the tap and hover area and the dashed ring as they were; the ring turning slower]
+   The disc (the button's area) keeps its size: the mote and its level ring shrink inside it. */
+.up-tree .up-mote { inset: 25%; }
+.up-tree .up-node-ring { inset: 22%; width: 56%; height: 56%; }
+.up-tree .up-node.tier-3 .up-node-disc::before { inset: 14%; }
+.up-tree .up-node:hover .up-node-disc { transform: none; }
+.up-tree .up-node:hover .up-mote { transform: scale(1.18); }
+.up-node.afford .up-node-disc::after { animation-duration: 28s; }
+.up-tree .up-node.locked .up-node-disc, .up-tree .up-node.maxed .up-node-disc, .up-tree .up-node.on .up-node-disc { background: none; box-shadow: none; }
+.up-tree .up-node-plus { top: 0; left: calc(50% + 6px); }
