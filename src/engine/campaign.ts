@@ -557,11 +557,10 @@ export function armyBonus(s: CampaignState, a: Army) {
     if (rel.start) bonus.start = true;
     Object.assign(relics, { walls: rel.walls, guns: rel.guns, powers: rel.powers });
   }
-  // The skill tree, bought between runs, for the player's own armies: the Fold drive's move, the flagship's battles
+  // The skill tree, bought between runs, for the player's own armies: the flagship's battles
   // (a cooler sun, a sharper command), its repair on the map, its finds and the systems that surrender to it.
   if (a.owner === s.playerId && s.run) {
     const run = s.run;
-    if (run.march) bonus.march = (bonus.march ?? 0) + run.march;
     if (run.mods) bonus.mods = mergeModifiers(bonus.mods, run.mods);
     bonus.mend += run.mend ?? 0;
     bonus.loot += run.loot ?? 0;

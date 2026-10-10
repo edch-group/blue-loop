@@ -430,6 +430,8 @@ export interface BattleModifiers {
   industrialPlays?: number;
   deadCool?: number;
   paradise?: number;
+  /** Extra defence on this side's Guards (Bastion). */
+  guardDefence?: number;
 }
 
 export interface TurnStats {

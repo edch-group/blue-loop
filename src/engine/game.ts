@@ -656,6 +656,8 @@ export function cardDefence(p: PlayerState, card: CardInstance): number {
   let d = slotDefence(card.slot) + cardSturdy(card) + roomDefence(p, card) + (card.fortified ?? 0);
   // (An Anchor relic: Guards stand thicker.)
   if (p.relics && isGuard(p, card)) d += relicN(p.relics, 'anchor');
+  // (Bastion, from the skill tree: the same.)
+  if (p.modifiers?.guardDefence && isGuard(p, card)) d += p.modifiers.guardDefence;
   for (const src of p.tableau) {
     const k = distance(src, card);
     if (k === 0) continue;

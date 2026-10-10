@@ -328,12 +328,14 @@ describe('progress between runs', () => {
     expect(meta.petals).toBe(2);
     // The skill tree costs points (a level's worth each), and each tier needs the one below it.
     expect(buyUpgradeProblem(meta, 'materials')).toMatch(/point/);
-    expect(buyUpgradeProblem({ ...meta, xp: 999 }, 'march')).toMatch(/first/);
+    expect(buyUpgradeProblem({ ...meta, xp: 999 }, 'bastion')).toMatch(/first/);
     let rich = { ...meta, xp: 999 };
-    for (const id of ['hull', 'hull', 'shields', 'walls', 'march']) rich = buyUpgrade(rich, id);
-    expect(levelOf(rich, 'march')).toBe(1);
+    for (const id of ['hull', 'hull', 'shields', 'walls', 'bastion']) rich = buyUpgrade(rich, id);
+    expect(levelOf(rich, 'bastion')).toBe(1);
     expect(rich.petals).toBe(2);
-    expect(buyUpgradeProblem(rich, 'march')).toMatch(/most/);
+    expect(buyUpgradeProblem(rich, 'bastion')).toMatch(/most/);
+    // Bastion: the Guards stand thicker in every battle.
+    expect(runBonuses(rich).mods?.guardDefence).toBe(2);
   });
 });
 

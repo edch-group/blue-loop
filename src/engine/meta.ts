@@ -101,7 +101,7 @@ export const META_UPGRADES: MetaUpgrade[] = [
   { id: 'hull', group: 'flagship', tier: 1, name: 'Reinforced core', text: '+1 max health on your sun in battle.', max: 3, cost: rising(20, 15) },
   { id: 'shields', group: 'flagship', tier: 2, requires: [['hull', 1]], name: 'Shield emitters', text: 'Your sun starts every battle with +1 shield.', max: 2, cost: rising(45, 35) },
   { id: 'walls', group: 'flagship', tier: 2, requires: [['hull', 2]], name: 'Armoured slots', text: '+1 defence on every slot of your tableau.', max: 2, cost: rising(50, 40) },
-  { id: 'march', group: 'flagship', tier: 3, requires: [['shields', 1], ['walls', 1]], name: 'Fold drive', text: 'One more move each turn on the map.', max: 1, cost: flat(180) },
+  { id: 'bastion', group: 'flagship', tier: 3, requires: [['shields', 1], ['walls', 1]], name: 'Bastion', text: 'Your Guards have +2 defence in battle.', max: 1, cost: flat(180) },
   // Run perks.
   { id: 'grace', group: 'perk', tier: 1, name: 'Anchored space', text: 'Regional stability holds one turn longer in every galaxy.', max: 3, cost: rising(20, 15) },
   { id: 'armory', group: 'perk', tier: 2, requires: [['grace', 1]], name: 'Trade friends', text: 'Armoury cards cost 1 material less.', max: 2, cost: rising(40, 30) },
@@ -221,7 +221,6 @@ export interface RunBonuses {
   hull: number;
   shields: number;
   walls: number;
-  march: number;
   /** Extra turns of regional stability in every universe. */
   grace: number;
   armoryDiscount: number;
@@ -309,7 +308,6 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
     hull: l('hull'),
     shields: l('shields'),
     walls: l('walls'),
-    march: l('march'),
     grace: l('grace'),
     armoryDiscount: l('armory'),
     petalBonus: 0.2 * l('petals'),
@@ -325,6 +323,7 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
       ...(l('foundry') ? { industrialPlays: l('foundry') } : {}),
       ...(l('coldworld') ? { deadCool: 2 * l('coldworld') } : {}),
       ...(l('gardens') ? { paradise: l('gardens') } : {}),
+      ...(l('bastion') ? { guardDefence: 2 * l('bastion') } : {}),
     },
     mend: l('mend'),
     loot: 0.1 * l('scouts'),

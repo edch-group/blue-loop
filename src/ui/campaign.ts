@@ -188,7 +188,7 @@ const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: 
   hull: { icon: glyph('M4 14h16l-2.5 5.5h-11ZM6.5 14V9.5h11V14M9 9.5V6h6v3.5'), unit: 'max health on your sun in battle', value: (l) => `+${l}` },
   shields: { icon: glyph('M12 2.8 19.5 6v5.5c0 4.6-3.2 7.8-7.5 9.5-4.3-1.7-7.5-4.9-7.5-9.5V6Z'), unit: 'shield on your sun as battle begins', value: (l) => `+${l}` },
   walls: { icon: glyph('M3.5 20.5h17M5 20.5V9h14v11.5M5 9V5.5h3V9M10.5 9V5.5h3V9M16 9V5.5h3V9M9 20.5v-5h6v5'), unit: 'defence on every tableau slot', value: (l) => `+${l}` },
-  march: { icon: glyph('M4 12h11M11 7l5 5-5 5M17.5 5.5v13M20.5 5.5v13'), unit: 'move each turn on the map', value: (l) => `+${l}` },
+  bastion: { icon: glyph('M5 20.5V8l3-2 4 2 4-2 3 2v12.5ZM9.5 20.5v-5h5v5'), unit: 'defence on your Guards', value: (l) => `+${2 * l}` },
   grace: { icon: glyph('M12 3v4M12 17v4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M3 12h4M17 12h4M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8M12 9.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z'), unit: 'turns of stability in every galaxy', value: (l) => `+${l}` },
   armory: { icon: glyph('M4 8.5 12 4l8 4.5v7L12 20l-8-4.5ZM4 8.5l8 4.5 8-4.5M12 13v7M8.5 6.2l8 4.5'), unit: 'material off every armoury card', value: (l) => `−${l}` },
   petals: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM12 5.5v10M5 20.5h14'), unit: 'more petals at every wormhole', value: (l) => `+${20 * l}%` },
@@ -426,11 +426,10 @@ export class CampaignView {
   /**
    * On a phone the tree shows one branch at a time, its petal turned straight up and its skills named [direction:
    * left/right arrows turn the Stellari on to the next branch]: the branch shown, and the flower's turn (degrees,
-   * running on round the circle so it always turns the way the arrow points), and its turn before the last arrow.
+   * running on round the circle so it always turns the way the arrow points).
    */
   private upBranch = 0;
   private upTurn = 90;
-  private upTurnFrom: number | null = null;
   /** A phone (or a narrow window): the tree one branch at a time. */
   private upMobile(): boolean {
     return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse), (max-width: 760px)').matches;
@@ -468,6 +467,18 @@ export class CampaignView {
         this.upSearch = box.value;
         this.applyUpSearch();
       });
+      // (The Stellari turned on to the next branch straight on the page, not redrawn: it turns smoothly.)
+      document.addEventListener(
+        'click',
+        (e) => {
+          const btn = (e.target as Element | null)?.closest?.('[data-act="cmp-up-turn"]') as HTMLElement | null;
+          if (!btn) return;
+          e.stopPropagation();
+          e.preventDefault();
+          this.turnUpBranch(Number(btn.dataset.arg) < 0 ? -1 : 1);
+        },
+        true,
+      );
       document.addEventListener('pointerover', (e) => {
         const node = (e.target as Element | null)?.closest?.('.up-node') as HTMLElement | null;
         const id = node?.dataset.arg ?? null;
@@ -477,6 +488,26 @@ export class CampaignView {
         this.showUpTip();
       });
     }
+  }
+
+  /** On a phone: the Stellari turned on to the next branch (or back), the branch's petal brought straight up. */
+  private turnUpBranch(step: 1 | -1) {
+    this.upBranch = (this.upBranch + step + UP_BRANCHES.length) % UP_BRANCHES.length;
+    const br = UP_BRANCHES[this.upBranch];
+    const want = 270 - br.dir;
+    // (Turning the way the arrow points: on to the right, the flower turns anticlockwise.)
+    let t = this.upTurn - step;
+    while (((t - want) % 360 + 360) % 360) t -= step;
+    this.upTurn = t;
+    sound.hover();
+    const tree = document.querySelector('.up-tree.up-mobile');
+    if (!tree) return;
+    (tree.querySelector('.up-wheel') as HTMLElement | null)?.style.setProperty('--turn', `${t}deg`);
+    tree.querySelectorAll<HTMLElement>('[data-g]').forEach((el) => el.classList.toggle('up-off', el.dataset.g !== br.g));
+    const nav = tree.querySelector('.up-spin') as HTMLElement | null;
+    nav?.style.setProperty('--bc', br.colour);
+    const title = nav?.querySelector('span');
+    if (title) title.textContent = br.title;
   }
 
   /** The skill under the pointer (its tip shown). */
@@ -782,19 +813,6 @@ export class CampaignView {
         this.upSearch = '';
         this.upJust = null;
         break;
-      case 'cmp-up-turn': {
-        // The Stellari turned on to the next branch (or back), the branch's petal brought straight up.
-        const step = n() < 0 ? -1 : 1;
-        this.upBranch = (this.upBranch + step + UP_BRANCHES.length) % UP_BRANCHES.length;
-        const want = 270 - UP_BRANCHES[this.upBranch].dir;
-        // (Turning the way the arrow points: on to the right, the flower turns anticlockwise.)
-        let t = this.upTurn + step * -1;
-        while (((t - want) % 360 + 360) % 360) t += step * -1;
-        this.upTurnFrom = this.upTurn;
-        this.upTurn = t;
-        sound.hover();
-        break;
-      }
       case 'cmp-up-pick': {
         // A point placed: learnt at once (undo or clear takes it back, while the tree is open).
         const meta = loadMeta();
@@ -1355,22 +1373,22 @@ export class CampaignView {
     const mobile = this.upMobile();
     const shown = branches[this.upBranch % branches.length];
     const turn = this.upTurn;
-    const from = this.upTurnFrom;
-    this.upTurnFrom = null;
     const colourOf = (g: MetaGroup) => branches.find((b) => b.g === g)?.colour ?? '#6f9fd8';
     // Where a skill lies, from the Stellari's heart (at the foot of the sky, half of it below), in units of the
     // sky's reach R (a true circle, set in CSS): out along its branch by tier, its tier's skills fanned across it.
     // Each branch leaves the tip of one of the flower's own petals (they point every 30°, the tips 0.345 R out).
     const TIP = 0.345;
     const reach = [0, 0.46, 0.7, 0.94];
-    const pos = new Map<string, [number, number]>();
+    const pos = new Map<string, [number, number] | [number, number, number, number]>();
     const place = (deg: number, k: number): [number, number] => {
       const r = (deg * Math.PI) / 180;
       return [k * Math.cos(r), k * Math.sin(r)];
     };
     // A line from one point to another (in R): CSS works out its length and angle.
-    const line = (a: [number, number], b: [number, number], cls: string, colour = '') =>
-      `<span class="up-line ${cls}" style="--x1:${a[0].toFixed(4)};--y1:${a[1].toFixed(4)};--x2:${b[0].toFixed(4)};--y2:${b[1].toFixed(4)}${colour ? `;--bc:${colour}` : ''}"></span>`;
+    // (On a phone a point also has a part in G, the gap between skills across a row: [x, y, gx, gy].)
+    type Pt = [number, number] | [number, number, number, number];
+    const line = (a: Pt, b: Pt, cls: string, colour = '', g = '') =>
+      `<span class="up-line ${cls}" ${g ? `data-g="${g}"` : ''} style="--x1:${a[0].toFixed(4)};--y1:${a[1].toFixed(4)};--x2:${b[0].toFixed(4)};--y2:${b[1].toFixed(4)};--gx1:${(a[2] ?? 0).toFixed(4)};--gy1:${(a[3] ?? 0).toFixed(4)};--gx2:${(b[2] ?? 0).toFixed(4)};--gy2:${(b[3] ?? 0).toFixed(4)}${colour ? `;--bc:${colour}` : ''}"></span>`;
     for (const br of branches) {
       const skills = META_UPGRADES.filter((u) => u.group === br.g);
       for (const tier of [1, 2, 3]) {
@@ -1385,22 +1403,20 @@ export class CampaignView {
     }
     // On a phone, the branch shown laid out in rows straight up from its petal (a tier a row, its skills spread across,
     // each named to its right), placed where they show once the flower has turned it upright.
-    // (Its scale R in pixels, from the room the screen has: the rows as tall as it allows, the skills as far apart as
-    // its width allows, each name as wide as the gap to the next.)
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
-    const vh = typeof window !== 'undefined' ? window.innerHeight : 400;
-    const mR = Math.round(Math.max(110, Math.min(200, (vh - 130) / 1.32)));
-    const mGap = Math.max(130, Math.min(240, (vw / 2 - 150) * 0.95));
-    if (mobile) {
-      const r = (turn * Math.PI) / 180;
-      const row = (tier: number) => META_UPGRADES.filter((u) => u.group === shown.g && (u.tier ?? 1) === tier);
-      for (const tier of [1, 2, 3])
-        row(tier).forEach((u, i, all) => {
-          const sx = ((i - (all.length - 1) / 2) * mGap) / mR;
-          const sy = -(TIP + 0.2 + 0.375 * (tier - 1));
-          pos.set(u.id, [sx * Math.cos(r) + sy * Math.sin(r), -sx * Math.sin(r) + sy * Math.cos(r)]);
-        });
-    }
+    // On a phone, each branch laid out in rows straight up from its petal (a tier a row, its skills spread across,
+    // each named to its right), placed where they show once the flower has turned it upright: up in R (the rows' scale),
+    // across in G (the gap between skills), both set in CSS from the room the screen has.
+    if (mobile)
+      for (const br of branches) {
+        const r = ((270 - br.dir) * Math.PI) / 180;
+        const c = Math.cos(r), sn = Math.sin(r);
+        for (const tier of [1, 2, 3])
+          META_UPGRADES.filter((u) => u.group === br.g && (u.tier ?? 1) === tier).forEach((u, i, all) => {
+            const sx = i - (all.length - 1) / 2;
+            const sy = -(TIP + 0.2 + 0.375 * (tier - 1));
+            pos.set(u.id, [sy * sn, sy * c, sx * c, -sx * sn]);
+          });
+      }
     const ring = (level: number, max: number, had = level, fresh = false) => {
       const C = 2 * Math.PI * 22;
       const g = max > 1 ? 7 : 0;
@@ -1432,20 +1448,18 @@ export class CampaignView {
           <path d="M500 170 L405 170 A95 330 0 0 1 595 170 Z" transform="rotate(${rot} 500 170)" fill="#fff"/>${ell(rot - 30, '#000')}${ell(rot + 30, '#000')}
         </mask>
         <rect x="70" y="-260" width="860" height="860" mask="url(#up-lobe-${br.g})" fill="${br.colour}" fill-opacity="${(0.06 + 0.26 * f).toFixed(3)}"/>`);
-      stems.push(line(place(deg, TIP), pos.get(first.id)!, `${levelOf(meta, first.id) ? 'lit' : ''} ${mobile && br !== shown ? 'up-off' : ''}`, br.colour));
+      stems.push(line(place(deg, TIP), pos.get(first.id)!, `${levelOf(meta, first.id) ? 'lit' : ''} ${mobile && br !== shown ? 'up-off' : ''}`, br.colour, br.g));
     }
     // The links: the heart to each first tier, each skill to what it needs.
     const links = skills
       .flatMap((u) => {
-        const [x, y] = pos.get(u.id)!;
         const needs = u.requires?.length ? u.requires : null;
         // (A first tier hangs off the flower itself: no line into its heart, where the words are.)
         if (!needs) return [];
         return needs.map(([r, n]) => {
-          const [x0, y0] = pos.get(r)!;
           // (Lit once the further skill of the two is taken, not merely opened.)
           void n;
-          return line([x0, y0], [x, y], `${levelOf(meta, u.id) > 0 ? 'lit' : ''} ${mobile && u.group !== shown.g ? 'up-off' : ''}`, colourOf(u.group));
+          return line(pos.get(r)!, pos.get(u.id)!, `${levelOf(meta, u.id) > 0 ? 'lit' : ''} ${mobile && u.group !== shown.g ? 'up-off' : ''}`, colourOf(u.group), u.group);
         });
       })
       .join('');
@@ -1453,7 +1467,7 @@ export class CampaignView {
     // a hover (or a press); a tap places a point on it.
     const nodes = skills
       .map((u) => {
-        const [x, y] = pos.get(u.id)!;
+        const [x, y, gx = 0, gy = 0] = pos.get(u.id)!;
         // (Points placed this visit, which undo can still take back, marked as such.)
         const had = Math.max(0, Math.min(levelOf(meta, u.id), u.max) - this.upPlaced.filter((x) => x === u.id).length);
         const level = Math.min(levelOf(meta, u.id), u.max);
@@ -1469,7 +1483,7 @@ export class CampaignView {
         const next = [look && level > 0 && !maxed ? `Next: ${look.value(level + 1)}` : '', price].filter(Boolean).join(' · ');
         const term = this.upSearch.trim().toLowerCase();
         const hit = !!term && `${u.name} ${vals}`.toLowerCase().includes(term);
-        return `<button class="up-node ${term ? (hit ? 'up-match' : 'up-dim') : ''} tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed && level === 0 ? 'afford' : ''} ${mobile && u.group !== shown.g ? 'up-off' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)};--bc:${colourOf(u.group)};--lv:${(level / u.max).toFixed(3)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-up-title="${esc(u.name.toLowerCase())}" data-up-text="${esc(vals)}" data-up-next="${esc(next)}" aria-label="${esc(u.name)}">
+        return `<button class="up-node ${term ? (hit ? 'up-match' : 'up-dim') : ''} tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed && level === 0 ? 'afford' : ''} ${mobile && u.group !== shown.g ? 'up-off' : ''}" data-g="${u.group}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)};--gx:${gx.toFixed(4)};--gy:${gy.toFixed(4)};--bc:${colourOf(u.group)};--lv:${(level / u.max).toFixed(3)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-up-title="${esc(u.name.toLowerCase())}" data-up-text="${esc(vals)}" data-up-next="${esc(next)}" aria-label="${esc(u.name)}">
           <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max, had, this.upJust === u.id)}</svg><i class="up-mote" aria-hidden="true"></i></span>
           ${level > had ? `<i class="up-node-plus">+${level - had}</i>` : ''}
           ${mobile ? `<b>${esc(u.name)}<small>${esc(vals)}</small></b>` : ''}
@@ -1493,7 +1507,7 @@ export class CampaignView {
           </label>
         </header>
         <div class="up-sky ${this.upSearch.trim() ? 'up-searching' : ''}">
-          <div class="up-wheel ${mobile && from !== null ? 'up-turning' : ''}" style="--turn:${mobile ? turn : 0}deg;--from:${from ?? turn}deg${mobile ? `;--R:${mR}px;--lw:${Math.round(mGap - 34)}px` : ''}">
+          <div class="up-wheel" style="--turn:${mobile ? turn : 0}deg">
             <span class="up-flower">${stellariaFlower()}</span>
             <span class="up-flower-fill"><svg viewBox="70 -260 860 860" aria-hidden="true">${fills.join('')}</svg></span>
             ${stems.join('')}
