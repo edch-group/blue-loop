@@ -6252,6 +6252,17 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-node:hover, .up-node.on { z-index: 3; }
 .up-node-ring circle { fill: none; stroke: #e3e6ec; stroke-width: 2.4; stroke-linecap: round; transition: stroke 0.3s; }
 .up-node-ring circle.on { stroke: #3a4256; }
+/* A point placed but not yet confirmed: its ring segment blue, and a small +N by the disc. */
+.up-node-ring circle.plan { stroke: #6f9fd8; }
+.up-node.planned .up-node-disc { color: #4f7fc0; box-shadow: 0 0 0 1.5px #8fb8ea, 0 3px 10px rgba(70, 76, 100, 0.12); }
+.up-node-plus { position: absolute; top: -9px; left: calc(50% + 10px); padding: 0 5px; border-radius: 999px; font-style: normal; font-family: var(--display); font-size: 0.55rem; line-height: 1.5; color: #fff; background: #6f9fd8; pointer-events: none; }
+/* The points placed, top left: what they'll learn, what they'll cost, and confirm (or undo, or clear). */
+.up-plan-list { margin: 0; font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); line-height: 1.6; }
+.up-heart-purse em { margin-left: 6px; font-style: normal; font-size: 0.7rem; color: var(--ink-faint); }
+.up-plan-acts { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.up-plan-acts .up-heart-buy { margin-top: 0; padding: 7px 18px; }
+.up-plan-undo { font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); }
+.up-plan-undo:hover { color: var(--ink); }
 .up-node b { position: absolute; top: calc(100% + 9px); left: 50%; transform: translateX(-50%); font-family: var(--display); font-weight: 500; font-size: 0.52rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; transition: color 0.18s; }
 .up-node.owned .up-node-disc { color: #3a4256; }
 .up-node.owned b { color: var(--ink-soft); }

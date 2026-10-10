@@ -363,7 +363,11 @@ export class CampaignView {
   /** The starting-deck panel (cards bought into the picked race's starting deck with petals) is open. */
   private deckOpen = false;
   /** The lasting upgrade picked in the shop, shown in the flower's heart. */
-  private upPick: string | null = null;
+  /**
+   * Skill points placed on the tree but not yet learnt [direction: a tap assigns a point, which must be confirmed, so
+   * no point is spent by accident]: each a level of a skill, in the order placed.
+   */
+  private upPending: string[] = [];
   /** The routes to draw as lines of light, between the stars where they stand on screen (drawRays). */
   private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
   /** The systems seen as the map was last drawn (the ships flying over it are drawn after it). */
@@ -644,12 +648,42 @@ export class CampaignView {
         break;
       case 'cmp-shop':
         this.shopOpen = !this.shopOpen;
-        this.upPick = null;
+        this.upPending = [];
         break;
-      case 'cmp-up-pick':
-        this.upPick = this.upPick === arg ? null : arg;
+      case 'cmp-up-pick': {
+        // A point placed (as the tree would stand with those already placed): learnt only once confirmed.
+        const plan = this.plannedMeta(loadMeta());
+        const why = buyUpgradeProblem(plan, arg);
+        if (why) {
+          this.host.toast(why);
+          sound.error();
+          break;
+        }
+        this.upPending.push(arg);
         sound.hover();
         break;
+      }
+      case 'cmp-up-undo':
+        this.upPending.pop();
+        break;
+      case 'cmp-up-clear':
+        this.upPending = [];
+        break;
+      case 'cmp-up-confirm': {
+        let meta = loadMeta();
+        try {
+          for (const id of this.upPending) meta = buyUpgrade(meta, id);
+        } catch (e) {
+          this.host.toast((e as Error).message);
+          sound.error();
+          this.upPending = [];
+          break;
+        }
+        saveMeta(meta);
+        this.upPending = [];
+        sound.upgrade();
+        break;
+      }
       case 'cmp-hero-pick':
         this.setup.hero = n();
         sound.hover();
@@ -1065,7 +1099,20 @@ export class CampaignView {
    * one it needs, ending in a capstone. Lines join each skill to what it needs (lit once that is bought). Picking a
    * skill shows it in the flower's heart: what it gives now and next, what it needs, and the way to buy it.
    */
-  private renderShop(meta: MetaState): string {
+  /** The tree as it would stand with the points placed (each bought in turn; one that no longer can be is let go). */
+  private plannedMeta(meta: MetaState): MetaState {
+    let plan = meta;
+    this.upPending = this.upPending.filter((id) => {
+      if (buyUpgradeProblem(plan, id)) return false;
+      plan = buyUpgrade(plan, id);
+      return true;
+    });
+    return plan;
+  }
+
+  private renderShop(real: MetaState): string {
+    // (The tree drawn as it would stand with the points placed: those still to confirm marked as such.)
+    const meta = this.plannedMeta(real);
     const branches: { g: MetaGroup; title: string; dir: number }[] = [
       // (One off each of the seven petals the flower shows above the foot of the screen, every 30° from left to right.)
       { g: 'sun', title: 'a cooler sun', dir: 180 },
@@ -1100,11 +1147,11 @@ export class CampaignView {
         row.forEach((u, i) => pos.set(u.id, place(br.dir + lift + (row.length > 1 ? -fan / 2 + (fan * i) / (row.length - 1) : 0), reach[tier])));
       }
     }
-    const ring = (level: number, max: number) => {
+    const ring = (level: number, max: number, had = level) => {
       const C = 2 * Math.PI * 22;
       const g = max > 1 ? 4 : 0;
       const seg = C / max - g;
-      return Array.from({ length: max }, (_, i) => `<circle cx="24" cy="24" r="22" class="${i < level ? 'on' : ''}" stroke-dasharray="${seg.toFixed(2)} ${C.toFixed(2)}" transform="rotate(${(-90 + (i * 360) / max + (g / C) * 180).toFixed(1)} 24 24)"/>`).join('');
+      return Array.from({ length: max }, (_, i) => `<circle cx="24" cy="24" r="22" class="${i < had ? 'on' : i < level ? 'plan' : ''}" stroke-dasharray="${seg.toFixed(2)} ${C.toFixed(2)}" transform="rotate(${(-90 + (i * 360) / max + (g / C) * 180).toFixed(1)} 24 24)"/>`).join('');
     };
     const skills = META_UPGRADES.filter((u) => u.group !== 'unlock');
     // Each branch grows out of one of the Stellari's own petals (the flower drawn as everywhere else, 12 petals, one
@@ -1150,52 +1197,57 @@ export class CampaignView {
         });
       })
       .join('');
+    // (Each branch named in a skill's tip.)
+    const branchOf = (g: MetaGroup) => branches.find((b) => b.g === g)?.title ?? '';
+    // The skills: each a disc, its ring its levels (learnt inked, placed but not confirmed blue). What it does shows on
+    // a hover (or a press); a tap places a point on it.
     const nodes = skills
       .map((u) => {
         const [x, y] = pos.get(u.id)!;
+        const had = Math.min(levelOf(real, u.id), u.max);
         const level = Math.min(levelOf(meta, u.id), u.max);
         const maxed = level >= u.max;
         const open = upgradeOpen(meta, u.id);
-        const canBuy = !maxed && !buyUpgradeProblem(meta, u.id);
-        return `<button class="up-node tier-${u.tier ?? 1} ${level ? 'owned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${canBuy ? 'afford' : ''} ${this.upPick === u.id ? 'on' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" aria-label="${esc(u.name)}">
-          <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max)}</svg>${UPGRADE_LOOK[u.id]?.icon ?? ''}</span>
-          <b>${esc(u.name.toLowerCase())}</b>
+        const why = maxed ? null : buyUpgradeProblem(meta, u.id);
+        const look = UPGRADE_LOOK[u.id];
+        const needs = (u.requires ?? []).filter(([r, n]) => levelOf(meta, r) < n).map(([r, n]) => `${metaUpgrade(r)?.name ?? r} ${'I'.repeat(n)}`);
+        const vals = look ? `${level ? `${look.value(level)} now` : 'none yet'}${maxed ? '' : ` · ${look.value(level + 1)} next`}: ${look.unit}.` : u.text;
+        const note = `${branchOf(u.group)} · ${u.tier === 3 ? 'capstone' : `tier ${u.tier ?? 1}`} · level ${level} of ${u.max}${level > had ? ` (${level - had} to confirm)` : ''}. ${
+          maxed ? 'Complete.' : needs.length ? `Needs ${needs.join(' and ')}.` : why ? why : `Tap to place a point: ${u.cost(level)} XP.`
+        }`;
+        return `<button class="up-node tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed ? 'afford' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-tip-title="${esc(u.name.toLowerCase())}" data-tip="${esc(vals)}" data-tip-note="${esc(note)}" aria-label="${esc(u.name)}">
+          <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max, had)}</svg>${look?.icon ?? ''}</span>
+          ${level > had ? `<i class="up-node-plus">+${level - had}</i>` : ''}
         </button>`;
       })
       .join('');
-    // (Each branch named in the heart's small print when one of its skills is picked, not on the tree.)
-    const branchOf = (g: MetaGroup) => branches.find((b) => b.g === g)?.title ?? '';
-    // The heart: the picked skill, or the experience to spend.
-    const u = this.upPick ? metaUpgrade(this.upPick) : undefined;
-    let heart: string;
-    if (u) {
-      const level = Math.min(levelOf(meta, u.id), u.max);
-      const look = UPGRADE_LOOK[u.id];
-      const maxed = level >= u.max;
-      const why = buyUpgradeProblem(meta, u.id);
-      const needs = (u.requires ?? []).filter(([r, n]) => levelOf(meta, r) < n).map(([r, n]) => `${metaUpgrade(r)?.name.toLowerCase() ?? r} ${'I'.repeat(n)}`);
-      heart = `<div class="up-heart up-heart-pick">
-        <small>${esc(branchOf(u.group))} · ${u.tier === 3 ? 'capstone' : `tier ${u.tier ?? 1}`} · level ${level} of ${u.max}</small>
-        <h4>${esc(u.name.toLowerCase())}</h4>
-        ${look ? `<div class="up-heart-vals">
-          <span><strong class="${level ? '' : 'none'}">${esc(level ? look.value(level) : '0')}</strong><i>now</i></span>
-          ${maxed ? '' : `<em>›</em><span><strong class="next">${esc(look.value(level + 1))}</strong><i>next</i></span>`}
-        </div>
-        <p>${esc(look.unit)}</p>` : `<p>${esc(u.text)}</p>`}
-        ${maxed ? '<span class="up-heart-max">complete</span>' : needs.length ? `<span class="up-heart-needs">needs ${esc(needs.join(' and '))}</span>` : `<button class="up-heart-buy" data-act="cmp-meta-buy" data-arg="${esc(u.id)}" ${why ? 'disabled' : ''}>${why ? 'need' : 'learn'}<i>${XP_MARK}${u.cost(level)}</i></button>`}
-      </div>`;
-    } else {
-      heart = `<div class="up-heart">
-        <span class="up-heart-purse">${XP_MARK}<strong>${meta.xp ?? 0}</strong></span>
-        <small>experience to spend</small>
-        <p>Earned on every run, won or lost. Each tier opens the next.</p>
-      </div>`;
-    }
+    // Top left: the experience to spend, and the points placed, to confirm (or take back).
+    const spend = (real.xp ?? 0) - (meta.xp ?? 0);
+    const placed = [...new Set(this.upPending)].map((id) => {
+      const n = this.upPending.filter((x) => x === id).length;
+      return `${esc(metaUpgrade(id)?.name.toLowerCase() ?? id)}${n > 1 ? ` ×${n}` : ''}`;
+    });
+    const heart = this.upPending.length
+      ? `<div class="up-heart up-heart-plan">
+          <small>to learn</small>
+          <p class="up-plan-list">${placed.join(' · ')}</p>
+          <span class="up-heart-purse">${XP_MARK}<strong>${spend}</strong><em>XP of ${real.xp ?? 0}</em></span>
+          <div class="up-plan-acts">
+            <button class="up-heart-buy" data-act="cmp-up-confirm">confirm</button>
+            <button class="up-plan-undo" data-act="cmp-up-undo">undo</button>
+            <button class="up-plan-undo" data-act="cmp-up-clear">clear</button>
+          </div>
+        </div>`
+      : `<div class="up-heart">
+          <span class="up-heart-purse">${XP_MARK}<strong>${real.xp ?? 0}</strong></span>
+          <small>experience to spend</small>
+          <p>Earned on every run, won or lost. Hover a skill to see what it does; tap to place a point, then confirm.</p>
+        </div>`;
     return `
       <div class="up-shop up-tree">
         <header class="up-head">
-          <div class="up-title"><h3>skills</h3>${meta.runs ? `<small>best run: ${meta.best} galax${meta.best === 1 ? 'y' : 'ies'} crossed · ${meta.runs} run${meta.runs === 1 ? '' : 's'}</small>` : ''}</div>
-          <span class="up-purse">${XP_MARK}<b>${meta.xp ?? 0}</b></span>
+          <div class="up-title"><h3>skills</h3>${real.runs ? `<small>best run: ${real.best} galax${real.best === 1 ? 'y' : 'ies'} crossed · ${real.runs} run${real.runs === 1 ? '' : 's'}</small>` : ''}</div>
+          <span class="up-purse">${XP_MARK}<b>${real.xp ?? 0}</b></span>
           <button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button>
         </header>
         <div class="up-sky">
