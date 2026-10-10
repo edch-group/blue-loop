@@ -514,6 +514,26 @@ class SoundBoard {
     this.breath({ dur: 1.3, freq: 2400, to: 260, type: 'bandpass', q: 0.9, gain: 0.12, attack: 0.12, delay: 0.2 });
     this.breath({ dur: 1.0, freq: 140, to: 70, type: 'lowpass', q: 1, gain: 0.14, attack: 0.05, delay: 0.2 });
   }
+  /**
+   * The universe giving way a column further: an earthquake. A deep rumble swelling and rolling in waves (low noise
+   * and a sub-bass that wanders), rock grinding and cracking through it, and a last heavy thud as the ground falls.
+   */
+  earthquake() {
+    const dur = 3.2;
+    this.breath({ dur, freq: 110, to: 55, type: 'lowpass', q: 0.9, gain: 0.32, attack: 0.5 });
+    this.voice(38, { dur, attack: 0.4, gain: 0.26, to: 31, type: 'sine', vibrato: 8 });
+    this.voice(52, { dur: dur - 0.4, attack: 0.6, gain: 0.12, to: 41, type: 'triangle', cutoff: 160, detune: 12 });
+    // Rolling waves through the rumble.
+    for (const [d, g] of [[0.2, 0.18], [0.9, 0.24], [1.6, 0.2], [2.2, 0.14]] as const) this.breath({ dur: 0.9, freq: 160, to: 70, type: 'lowpass', q: 1.2, gain: g, attack: 0.25, delay: d });
+    // Grinding rock and cracks.
+    for (let i = 0; i < 7; i++) {
+      const d = 0.3 + Math.random() * 2.2;
+      this.breath({ dur: 0.18 + Math.random() * 0.25, freq: 500 + Math.random() * 900, type: 'bandpass', q: 2.5, gain: 0.05 + Math.random() * 0.05, attack: 0.01, delay: d });
+    }
+    // The fall.
+    this.voice(70, { dur: 1.4, attack: 0.004, gain: 0.3, to: 28, type: 'sine', delay: 1.9 });
+    this.breath({ dur: 0.8, freq: 700, to: 60, type: 'lowpass', q: 0.8, gain: 0.25, attack: 0.004, delay: 1.9 });
+  }
   /** A star under the pointer: a soft glassy chime, each star its own note of a pentatonic scale. */
   starHover(seed: number) {
     const now = performance.now();

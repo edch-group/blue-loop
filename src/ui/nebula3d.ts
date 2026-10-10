@@ -77,7 +77,7 @@ float fbm(vec2 p) { return 0.5 * vnoise(p) + 0.25 * vnoise(p * 2.03 + 7.1) + 0.1
 
 /**
  * The ground. Shards past the collapse (uGone, a world x) break away: each turns about its middle and falls,
- * the further past the sooner, until it is gone; shards in the next column to go (up to uCrack) shiver.
+ * the further past the sooner, until it is gone; shards in the next column to go (up to uCrack) are marked, burnt orange.
  */
 const GROUND_VERT = `
 attribute vec3 aPos; attribute vec3 aNorm; attribute vec3 aBary; attribute vec3 aEdge; attribute vec4 aShard;
@@ -113,9 +113,6 @@ void main() {
     n = r * n;
     p.y -= 3.2 * t * t;
     p.xz += (mid.xz - vec2(uGone, 0.0)) * 0.08 * t;
-  } else if (mid.x < uCrack) {
-    // About to go: it shivers.
-    p.y += sin(uTime * 23.0 + aShard.w * 40.0) * 0.006;
   }
   vec4 v = uView * vec4(p, 1.0);
   gl_Position = uProj * v;
@@ -210,6 +207,8 @@ void main() {
     float w = fwidth(d) * 1.8;
     float crack = 1.0 - smoothstep(0.0, w, d);
     vec3 glow = mix(vec3(0.85, 0.35, 0.75), vec3(0.3, 0.75, 0.95), 0.5 + 0.5 * sin(vWorld.x * 3.0 + uTime * 2.0));
+    // (About to go: the whole shard burnt orange, still, under its glowing cracks.)
+    if (vFall <= 0.0) c *= vec3(0.95, 0.6, 0.42);
     c = mix(c, glow, crack * 0.9);
     if (vFall > 0.0) c *= 1.0 - min(vFall, 1.5) * 0.35;
   }

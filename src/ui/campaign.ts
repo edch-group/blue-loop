@@ -1626,6 +1626,8 @@ export class CampaignView {
   private lastFocus: string | null = null;
   private stageEl: HTMLElement | null = null;
   private nebula: Nebula | null = null;
+  /** How many systems had fallen at the last look, in which universe (a column more is an earthquake). */
+  private fallen: { universe: number; n: number } | null = null;
 
   /** Set as a campaign starts: the flagship's first appearance on the map is a fly-in. */
   private arriving = false;
@@ -1795,6 +1797,10 @@ export class CampaignView {
    */
   private showNebula(root: HTMLElement) {
     const s = this.state!;
+    // (A column falling, in the universe already in view: the ground shakes and gives way.)
+    const fallen = s.nodes.filter((n) => n.collapsed).length;
+    if (this.fallen && this.fallen.universe === s.universe && fallen > this.fallen.n) sound.earthquake();
+    this.fallen = { universe: s.universe, n: fallen };
     const back = root.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
     this.nebula = back ? nebulaOn(back, root.querySelector<HTMLCanvasElement>('canvas.cmp-nebula-front')) : null;
     if (!this.nebula) return;
