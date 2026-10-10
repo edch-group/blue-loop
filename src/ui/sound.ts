@@ -145,40 +145,45 @@ const CAMPAIGN_PHRASES: [number, string][][][] = [
 ];
 
 // ---- Boss battles --------------------------------------------------------------
-// For a match against an Overlord (or a challenge): the battle theme pushed to
-// the edge, in the voices of the other scores. The battle theme's plucked
-// arpeggio ticks in eighths, a little faster, over its deep held bass and a
-// low pulse on every beat that the whole score breathes with; the chords turn
-// darker (Am, B-flat, Dm, then E with a flattened ninth, wrenching back round).
-// Then the voyage's voices join one by one: its gritty haze and a slow,
-// menacing melody; a second arpeggio an octave up, a sixteenth behind the
-// first; and a long climb in eighths, swelling to the top of the E before
-// cutting back to the arpeggio alone.
+// For a match against an Overlord (or a challenge), in the voices of the other
+// scores: a plucked arpeggio like the battle theme's, a little faster and
+// hammering on each chord's root, over a deep held bass and a low pulse on
+// every beat that the whole score breathes with; the chords turn darker (Am,
+// B-flat, Dm, then E, wrenching back round). Then the voyage's voices join one
+// by one: its gritty haze and a slow, menacing melody (chorused and driven
+// harder); a second arpeggio an octave up, a sixteenth behind the first; and a
+// long climb in eighths, swelling to the top of the E before cutting back to
+// the arpeggio alone.
 
 const BOSS_BPM = 88;
 /** The form, in bars (two times round the chords): see bossScore. */
 const BOSS_FORM_BARS = 32;
-/** Per chord (four bars each): the held bass, the arpeggio's eight eighths per bar (two halves for the turn), the haze, and the climb's swelling chord. */
+/**
+ * Per chord (four bars each): the held bass, the arpeggio's eight eighths per bar (two halves for the turn), the
+ * haze, and the climb's swelling chord. Plain triads throughout (only the E adds its seventh, for the pull home),
+ * so nothing stacked over the arpeggio rubs against it. The arpeggio hammers on the chord's root an octave up
+ * between every other note.
+ */
 const BOSS_CHORDS: { bass: string; arp: string[][]; haze: string[]; swell: string[] }[] = [
-  { bass: 'A1', arp: [['A3', 'E4', 'A4', 'B4', 'C5', 'B4', 'A4', 'E4']], haze: ['C4', 'E4', 'B4'], swell: [] }, // Am(add9)
-  { bass: 'A#1', arp: [['A#3', 'F4', 'A4', 'A#4', 'D5', 'A#4', 'A4', 'F4']], haze: ['D4', 'F4', 'A4'], swell: [] }, // B-flat maj7
-  { bass: 'D2', arp: [['D3', 'A3', 'E4', 'F4', 'A4', 'F4', 'E4', 'A3']], haze: ['F3', 'C4', 'E4'], swell: ['A3', 'D4', 'F4', 'A4'] }, // Dm9
+  { bass: 'A1', arp: [['A3', 'A4', 'E4', 'A4', 'C5', 'A4', 'E4', 'A4']], haze: ['C4', 'E4', 'A4'], swell: [] }, // Am
+  { bass: 'A#1', arp: [['A#3', 'A#4', 'F4', 'A#4', 'D5', 'A#4', 'F4', 'A#4']], haze: ['D4', 'F4', 'A#4'], swell: [] }, // B-flat
+  { bass: 'D2', arp: [['D3', 'D4', 'A3', 'D4', 'F4', 'D4', 'A3', 'D4']], haze: ['F3', 'A3', 'D4'], swell: ['A3', 'D4', 'F4', 'A4'] }, // Dm
   {
     bass: 'E1',
     arp: [
-      ['E3', 'B3', 'D4', 'F4', 'A4', 'F4', 'D4', 'B3'], // Esus4 with the flat ninth...
-      ['E3', 'B3', 'D4', 'F4', 'G#4', 'F4', 'D4', 'B3'], // ...resolving to E7(b9)
+      ['E3', 'E4', 'B3', 'E4', 'G#4', 'E4', 'B3', 'E4'], // E...
+      ['E3', 'E4', 'B3', 'E4', 'G#4', 'B4', 'D5', 'B4'], // ...climbing to its seventh, pulling back round
     ],
-    haze: ['G#3', 'D4', 'F4'],
-    swell: ['G#3', 'D4', 'F4', 'B4'],
+    haze: ['G#3', 'B3', 'E4'],
+    swell: ['G#3', 'B3', 'E4', 'B4'],
   },
 ];
-/** The melody, per chord from the ninth bar of the form, as [eighth (0-31 across the chord's four bars), note]. */
+/** The melody, per chord from the ninth bar of the form, as [eighth (0-31 across the chord's four bars), note]: chord tones only. */
 const BOSS_PHRASES: [number, string][][] = [
-  [[0, 'A5'], [12, 'C6'], [16, 'B5'], [24, 'E5']], // Dm
-  [[0, 'F5'], [8, 'E5'], [16, 'G#5'], [24, 'B5']], // E
-  [[0, 'E6'], [8, 'C6'], [16, 'B5'], [20, 'C6'], [24, 'A5']], // Am
-  [[0, 'D6'], [8, 'F6'], [16, 'E6'], [24, 'D6']], // B-flat
+  [[0, 'A5'], [12, 'F5'], [16, 'D6'], [24, 'A5']], // Dm
+  [[0, 'G#5'], [8, 'B5'], [16, 'E6'], [24, 'B5']], // E
+  [[0, 'E6'], [8, 'C6'], [16, 'A5'], [24, 'E6']], // Am
+  [[0, 'D6'], [8, 'F6'], [16, 'D6'], [24, 'A#5']], // B-flat
 ];
 
 class SoundBoard {
@@ -1478,6 +1483,23 @@ class SoundBoard {
     melody.connect(melEcho).connect(melTone).connect(melFeedback).connect(melEcho);
     melTone.connect(melWet).connect(lush);
     this.musicNodes = [mix, arpFilter, echo, feedback, echoTone, echoWet, arpLeft, arpRight, melody, melEcho, melFeedback, melTone, melWet];
+    // A wide chorus on the melody: two short delays, each slowly wavering in time, spread hard left and right.
+    [-1, 1].forEach((side, i) => {
+      const d = ctx.createDelay(0.1);
+      d.delayTime.value = 0.02 + i * 0.006;
+      const wobble = ctx.createOscillator();
+      wobble.frequency.value = [0.55, 0.8][i];
+      const depth = ctx.createGain();
+      depth.gain.value = 0.004;
+      wobble.connect(depth).connect(d.delayTime);
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = side * 0.8;
+      const wet = ctx.createGain();
+      wet.gain.value = 0.7;
+      melody.connect(d).connect(pan).connect(wet).connect(mix);
+      wobble.start(t0);
+      this.musicNodes.push(d, wobble, depth, pan, wet);
+    });
 
     // The haze's hard distortion and the melody synth's milder one, as in the voyage.
     const curveOf = (k: number) => {
@@ -1486,18 +1508,18 @@ class SoundBoard {
       return c;
     };
     const hard = curveOf(9);
-    const mild = curveOf(3);
+    const drive = curveOf(6);
 
-    /** The voyage's melody voice: a bell-like pluck layered with a held, slightly distorted pair of saws. */
+    /** The voyage's melody voice: a bell-like pluck layered with held, distorted saws. */
     const lead = (t: number, f: number, gain: number, len: number) => {
       const d = this.until(t);
       const pluck = Math.max(eighth * 2.4, Math.min(len, eighth * 5));
       this.voice(f, { dur: pluck, attack: 0.01, gain, type: 'triangle', cutoff: 7000, delay: d, out: melody });
       this.voice(f, { dur: pluck / 2, attack: 0.01, gain: gain / 6, type: 'sawtooth', cutoff: 7000, detune: 6, delay: d, out: melody });
-      const level = gain * 0.4;
+      const level = gain * 0.3;
       const release = Math.min(0.6, len * 0.6);
       const shaper = ctx.createWaveShaper();
-      shaper.curve = mild;
+      shaper.curve = drive;
       shaper.oversample = '2x';
       const lp = ctx.createBiquadFilter();
       lp.type = 'lowpass';
@@ -1508,13 +1530,14 @@ class SoundBoard {
       g.gain.linearRampToValueAtTime(level * 0.75, t + len);
       g.gain.linearRampToValueAtTime(0, t + len + release);
       shaper.connect(lp).connect(g).connect(melody);
-      for (const detune of [-4, 4]) {
+      // Driven harder than the voyage's, with a third saw and a wider detune for a thicker, chorused sound.
+      for (const detune of [-10, 0, 10]) {
         const o = ctx.createOscillator();
         o.type = 'sawtooth';
         o.frequency.value = f;
         o.detune.value = detune;
         const lv = ctx.createGain();
-        lv.gain.value = 0.25;
+        lv.gain.value = 0.3;
         o.connect(lv).connect(shaper);
         o.start(t);
         o.stop(t + len + release + 0.05);
