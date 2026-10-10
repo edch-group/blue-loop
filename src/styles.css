@@ -6695,3 +6695,34 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .kw-trap { --kwc: #3f4296; }
 .stage-trap .stage-caption { font-weight: 600; letter-spacing: 0.18em; }
 .stage-trap .stage-ls .card { box-shadow: 0 24px 50px rgba(70, 70, 90, 0.28), 0 0 0 2px #fff, 0 0 30px rgba(75, 79, 176, 0.6); }
+
+/* ---- The skill tree on a phone: one branch at a time, its petal turned straight up, its skills named ----
+   The wheel (flower, stems, links and skills) turns about the Stellari's heart; each skill turns back the other way,
+   so its name stays upright. Arrows at the foot turn it on to the next branch. */
+.up-wheel { position: absolute; inset: 0; transform-origin: 50% calc(100% - 40px); transform: rotate(var(--turn, 0deg)); }
+.up-wheel > .up-node { left: calc(50% + var(--R) * var(--x)); top: calc(var(--cy) + var(--R) * var(--y)); }
+.up-mobile .up-wheel > .up-node { transform: translate(-50%, -50%) rotate(calc(-1 * var(--turn, 0deg))); }
+.up-wheel.up-turning { animation: up-wheel-turn 0.6s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+.up-wheel.up-turning > .up-node { animation: up-node-turn 0.6s cubic-bezier(0.3, 0.7, 0.2, 1) both; }
+@keyframes up-wheel-turn { from { transform: rotate(var(--from)); } to { transform: rotate(var(--turn)); } }
+@keyframes up-node-turn { from { transform: translate(-50%, -50%) rotate(calc(-1 * var(--from))); } to { transform: translate(-50%, -50%) rotate(calc(-1 * var(--turn))); } }
+@media (prefers-reduced-motion: reduce) { .up-wheel.up-turning, .up-wheel.up-turning > .up-node { animation: none; } }
+/* The branch alone, as large as the sky lets it be (its capstone clear of the header, its fan of names clear of the edges). */
+/* (R, the rows' scale, set on the wheel from the screen's room: campaign.ts.) */
+.up-wheel.up-turning > .up-node:not(.up-off) { animation-name: up-node-turn, up-node-in; }
+@keyframes up-node-in { from { opacity: 0; } 40% { opacity: 0; } }
+.up-mobile .up-off { opacity: 0; pointer-events: none; }
+.up-mobile .up-node { z-index: 2; }
+.up-mobile .up-node b {
+  opacity: 1; display: grid; gap: 2px; width: min(160px, var(--lw, 150px)); top: 50%; left: calc(100% + 4px); transform: translateY(-50%); padding: 3px 6px; border-radius: 10px; background: color-mix(in srgb, var(--paper) 80%, transparent); box-shadow: 0 0 10px 4px color-mix(in srgb, var(--paper) 80%, transparent); white-space: normal; text-align: left;
+  font-size: 0.5rem; letter-spacing: 0.14em; line-height: 1.25; color: var(--ink-soft);
+}
+.up-mobile .up-node b small { font-family: var(--body, inherit); font-weight: 400; font-size: 0.6rem; letter-spacing: 0; text-transform: none; line-height: 1.25; color: var(--ink-faint); }
+.up-mobile .up-node.locked b { color: #b9bdc8; }
+.up-mobile .up-node.locked b small { color: #c8ccd6; }
+.up-spin { position: absolute; left: 50%; bottom: max(10px, var(--sa-b, 0px)); transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 14px; }
+.up-spin span { min-width: 9.5em; text-align: center; font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.24em; text-transform: uppercase; color: color-mix(in srgb, var(--bc) 70%, var(--ink)); }
+.up-spin button {
+  width: 40px; height: 40px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer;
+  font-size: 1.4rem; line-height: 1; color: var(--ink-soft); background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.1), 0 4px 12px rgba(40, 46, 70, 0.1);
+}
