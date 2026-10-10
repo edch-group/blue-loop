@@ -214,28 +214,39 @@ const ARRIVAL_FLIGHT = 3.2;
 const LOOT_FIRST = 450;
 const LOOT_STEP = 420;
 /**
- * A loot cache: a sealed crate of pale metal bound in gold, a seam of light along its lid and a star clasp at its
- * front. (Its lid and body are separate, so the lid can fly off as it bursts.)
+ * A loot cache: a sealed supply pod of pale panelled metal, chamfered, gold-trimmed, a hatch raised on its lid, a
+ * glowing core lock on its face and a seam of light where lid meets body, status lights winking beside it. (Its lid
+ * and body are separate, so the lid can lift as it opens.)
  */
 const LOOT_CACHE = `<svg class="loot-cache-art" viewBox="0 0 120 110" aria-hidden="true">
   <defs>
-    <linearGradient id="lcBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbfaf6"/><stop offset="1" stop-color="#d9d6cc"/></linearGradient>
+    <linearGradient id="lcBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdfcf9"/><stop offset=".55" stop-color="#ecebe6"/><stop offset="1" stop-color="#d4d2ca"/></linearGradient>
+    <linearGradient id="lcSide" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e2e0d8"/><stop offset="1" stop-color="#c9c6bc"/></linearGradient>
     <linearGradient id="lcGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3d58a"/><stop offset=".5" stop-color="#c99a3e"/><stop offset="1" stop-color="#f0cf7e"/></linearGradient>
     <radialGradient id="lcGlow"><stop offset="0" stop-color="#fff6d8"/><stop offset="1" stop-color="#ffd772" stop-opacity="0"/></radialGradient>
+    <radialGradient id="lcCore"><stop offset="0" stop-color="#fffbe9"/><stop offset=".45" stop-color="#ffe39a"/><stop offset="1" stop-color="#d9a74a"/></radialGradient>
   </defs>
-  <ellipse cx="60" cy="100" rx="44" ry="7" fill="#3b3a4a" opacity=".14"/>
-  <circle class="loot-cache-glow" cx="60" cy="56" r="52" fill="url(#lcGlow)"/>
+  <ellipse cx="60" cy="102" rx="46" ry="6" fill="#3b3a4a" opacity=".14"/>
+  <circle class="loot-cache-glow" cx="60" cy="62" r="54" fill="url(#lcGlow)"/>
   <g class="loot-cache-body">
-    <path d="M16 50h88l-6 46H22z" fill="url(#lcBody)" stroke="#b7b2a5" stroke-width="1.2"/>
-    <path d="M26 50v46M94 50v46" stroke="url(#lcGold)" stroke-width="6"/>
-    <path d="M16 62h88" stroke="url(#lcGold)" stroke-width="3"/>
-    <path d="M60 58l3.2 6.5 7.1 1-5.2 5 1.3 7-6.4-3.4-6.4 3.4 1.3-7-5.2-5 7.1-1z" fill="url(#lcGold)" stroke="#9a7429" stroke-width=".8"/>
+    <path d="M12 56h96v34l-8 8H20l-8-8z" fill="url(#lcBody)" stroke="#b7b2a5" stroke-width="1.2"/>
+    <path d="M100 56h8v34l-8 8z" fill="url(#lcSide)" opacity=".7"/>
+    <path d="M12 90l8 8h80l8-8" fill="none" stroke="url(#lcGold)" stroke-width="2.2"/>
+    <path d="M34 60v34M86 60v34" stroke="#c9c5b9" stroke-width="1.2"/>
+    <path d="M18 66h12M18 71h12M90 66h12M90 71h12" stroke="#c4c0b4" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M60 64l11 6.4v12.8L60 89.6l-11-6.4V70.4z" fill="#f6f4ee" stroke="url(#lcGold)" stroke-width="2"/>
+    <circle class="loot-cache-core" cx="60" cy="77" r="5.5" fill="url(#lcCore)"/>
+    <circle class="loot-cache-led" cx="22" cy="84" r="1.8" fill="#7fb6e6"/>
+    <circle class="loot-cache-led" cx="28" cy="84" r="1.8" fill="#7fb6e6"/>
+    <circle class="loot-cache-led" cx="92" cy="84" r="1.8" fill="#e8c46a"/>
   </g>
-  <path class="loot-cache-seam" d="M18 50h84" stroke="#ffe7a3" stroke-width="2.5" stroke-linecap="round"/>
+  <path class="loot-cache-seam" d="M14 56h92" stroke="#ffe7a3" stroke-width="2.5" stroke-linecap="round"/>
   <g class="loot-cache-lid">
-    <path d="M14 50c0-14 10-24 22-24h48c12 0 22 10 22 24z" fill="url(#lcBody)" stroke="#b7b2a5" stroke-width="1.2"/>
-    <path d="M26 50c0-14 4-22 10-24M94 50c0-14-4-22-10-24" stroke="url(#lcGold)" stroke-width="6" fill="none"/>
-    <path d="M14 50h92" stroke="url(#lcGold)" stroke-width="3"/>
+    <path d="M12 56l6-14h84l6 14z" fill="url(#lcBody)" stroke="#b7b2a5" stroke-width="1.2"/>
+    <path d="M32 42l5-9h46l5 9z" fill="url(#lcBody)" stroke="#b7b2a5" stroke-width="1.1"/>
+    <path d="M40 36.5h40" stroke="url(#lcGold)" stroke-width="2" stroke-linecap="round"/>
+    <path d="M12 56h96" stroke="url(#lcGold)" stroke-width="2.4"/>
+    <path d="M24 49h8M88 49h8" stroke="#c4c0b4" stroke-width="1.6" stroke-linecap="round"/>
   </g>
 </svg>`;
 /** The opening shot: the longest the camera rides alongside the flagship, and how long it takes to pull back. */

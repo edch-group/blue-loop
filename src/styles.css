@@ -6671,3 +6671,12 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 @media (max-height: 560px) { .loot-items { padding: 10px 14px; } .loot-emblem small { font-size: 0.6rem; } .loot-emblem b { font-size: 0.52rem; } }
 /* (An emblem's name and power each kept to two lines, so a long name never spills out of its tile.) */
 .loot-emblem b, .loot-emblem small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; }
+
+/* The cache's core lock breathing with light, and its status lights winking in turn. */
+.loot-cache-core { animation: loot-core 1.8s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+.loot-cache-led { animation: loot-led 2.4s steps(1) infinite; }
+.loot-cache-led:nth-of-type(2) { animation-delay: 0.8s; }
+.loot-cache-led:nth-of-type(3) { animation-delay: 1.6s; }
+@keyframes loot-core { 50% { transform: scale(1.18); filter: brightness(1.15); } }
+@keyframes loot-led { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .loot-cache-core, .loot-cache-led { animation: none; } }
