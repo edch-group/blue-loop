@@ -6031,14 +6031,14 @@ export class App {
 
   // ---- Sheets --------------------------------------------------------------
 
-  private sheetFrame(title: string, body: string, footer = ''): string {
+  private sheetFrame(title: string, body: string, footer = '', close = true): string {
     return `
       <div class="overlay overlay-soft" data-act="cancel">
         <div class="modal sheet">
           <div class="bar-title">${title}</div>
           <div class="modal-body">${body}</div>
           ${footer}
-          <button class="modal-cancel" data-act="cancel">close</button>
+          ${close ? '<button class="modal-cancel" data-act="cancel">close</button>' : ''}
         </div>
       </div>`;
   }
@@ -6085,6 +6085,9 @@ export class App {
           'end your day?',
           `<p class="center-text">You still have ${esc(left.length > 1 ? `${left.slice(0, -1).join(', ')} and ${left[left.length - 1]}` : left[0] ?? 'things to do')}.</p>
            <div class="end-day-actions"><button class="btn-primary" data-act="end-day-confirm">end day <small>⏎</small></button><button class="btn" data-act="cancel">keep playing <small>esc</small></button></div>`,
+          '',
+          // (Keep playing is its close: no second one.)
+          false,
         );
       }
       case 'quit': {
