@@ -106,7 +106,7 @@ import { relicMark } from './relic-art';
 /** Hero gear's mark, in a battle's finds. */
 const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
 import { closeTour, tourShowing } from './tour';
-import { shownKind, isBurst, isBossCard, bossIntent, relicN, type ShownKind } from '../engine';
+import { shownKind, isBurst, isBossCard, bossIntent, relicN, relicOf, RELIC_POWERS, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -1671,7 +1671,7 @@ export class App {
   private canAutoEnd(): boolean {
     const s = this.state;
     // (Not while discards are being picked: End Day confirms those, never the clock.)
-    return this.screen === 'game' && !!s && !tourShowing() && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && !this.discarding && this.leftUndone().length === 0;
+    return this.screen === 'game' && !!s && !tourShowing() && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && !this.discarding && !this.dawnChoice() && !this.landing && this.leftUndone().length === 0;
   }
 
   /**
@@ -3350,7 +3350,7 @@ export class App {
   private onDragStart(e: PointerEvent) {
     if (e.button > 0 || this.screen !== 'game') return;
     const el = (e.target as HTMLElement).closest<HTMLElement>('.hand > .card[data-act="play"]');
-    if (!el || !this.canAct()) return;
+    if (!el || !this.canAct() || this.landing || this.dawnChoice()) return;
     const r = el.getBoundingClientRect();
     const held = activePlayer(this.state!).hand.find((c) => c.uid === el.dataset.arg);
     this.drag = { uid: el.dataset.arg!, el, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, ghost: null, aim: !!held && this.quickAim(held.defId) };
@@ -3452,7 +3452,7 @@ export class App {
   private onAttackDragStart(e: PointerEvent) {
     if (e.button > 0 || this.screen !== 'game' || this.attackDrag) return;
     const el = (e.target as HTMLElement).closest<HTMLElement>('.tableau-mine .card[data-act="attack-start"], .tableau-mine .card[data-act="hero-panel"][data-attacker]');
-    if (!el || !this.canAct()) return;
+    if (!el || !this.canAct() || this.landing || this.dawnChoice()) return;
     this.attackDrag = { uid: el.dataset.arg!, x: e.clientX, y: e.clientY, beam: null, over: null };
   }
 
@@ -3972,6 +3972,15 @@ export class App {
       return this.dispatch(act === 'react-slot' ? { type: 'react', slot: true } : act === 'react-card' ? { type: 'react', cardUid: arg } : { type: 'react' });
     }
     if (!this.canAct()) return;
+    // A move of yours still landing lands first: what it sets off (a relic's aim) comes before anything else.
+    if (this.landing && !this.stage?.confirm) this.flushLanding();
+    // A choice owed (a relic's aim, a dawn recall or shift): nothing else until it is made.
+    if (this.dawnChoice() && !act.startsWith('dawn-') && act !== 'board-zoom') {
+      this.pending = null;
+      this.heroPanel = null;
+      sound.blocked();
+      return this.render();
+    }
 
     switch (act) {
       case 'play':
@@ -5256,8 +5265,7 @@ export class App {
     const choice = this.dawnChoice();
     if (choice?.kind === 'recall') return `<div class="mid-hint"><b>${choice.relic ? 'recall a card to hand' : 'dawn recall: return a card to hand'}</b><button class="mid-cancel" data-act="dawn-shift-skip">let it be</button></div>`;
     // A relic's heat at any target: a rival card, or their sun.
-    // (Short, as every hint here is: the relic is named in the log.)
-    if (choice?.kind === 'aim') return `<div class="mid-hint"><b>${choice.amount ?? 0} heat: pick a target</b><button class="mid-cancel" data-act="dawn-aim-sun">their sun</button></div>`;
+    if (choice?.kind === 'aim') return `<div class="mid-hint"><b>${choice.relic ? `${esc(choice.relic.toLowerCase())}: ` : ''}${choice.amount ?? 0} heat, pick a target</b><button class="mid-cancel" data-act="dawn-aim-sun">their sun</button></div>`;
     // Your dawn Shift (or a relic's dusk one, as your day ends): a card to move, then where; or let it be.
     if (this.dawnShiftWaiting()) {
       const when = this.duskShifting ? 'dusk shift' : 'dawn shift';
@@ -5402,14 +5410,31 @@ export class App {
         return r.width > 0 && r.left < t.right + 2 && r.right > t.left - 2 && r.top < t.bottom + 2 && r.bottom > t.top - 2;
       });
     };
+    // Under the Stellari it keeps clear of your tableau's outline below: lifted as far as that takes, but never up
+    // into the Stellari (its flower fills the inner 90% of its slot); still too close, it counts as in the way.
+    const frame = this.root.querySelector('.tableau-mine .tableau-frame')?.getBoundingClientRect();
+    const star = this.root.querySelector('.board-star-slot')?.getBoundingClientRect();
+    const crowded = () => {
+      tag.style.removeProperty('--gt-lift');
+      const t = tag.getBoundingClientRect();
+      if (!frame || !t.height || !tag.offsetHeight || tag.matches('.galaxy-tag-side, .galaxy-tag-right')) return false;
+      const k = t.height / tag.offsetHeight;
+      const need = t.bottom + 8 * k - frame.top;
+      if (need <= 0) return false;
+      const room = star && star.height ? t.top - (star.bottom - star.height * 0.05) - 2 * k : Infinity;
+      const lift = Math.max(0, Math.min(need, room));
+      if (lift > 0) tag.style.setProperty('--gt-lift', `${(lift / k).toFixed(1)}px`);
+      return lift < need;
+    };
+    const blocked = () => crowded() || clash();
     tag.classList.remove('galaxy-tag-name', 'galaxy-tag-side', 'galaxy-tag-right', 'galaxy-tag-off');
-    if (!clash()) return;
+    if (!blocked()) return;
     tag.classList.add('galaxy-tag-name');
-    if (!clash()) return;
+    if (!blocked()) return;
     tag.classList.add('galaxy-tag-side');
-    if (!clash()) return;
+    if (!blocked()) return;
     tag.classList.replace('galaxy-tag-side', 'galaxy-tag-right');
-    if (!clash()) return;
+    if (!blocked()) return;
     // (Nowhere clear: the galaxy's chip at the top of the map says it, and the battle's conditions.)
     tag.classList.add('galaxy-tag-off');
   }
@@ -5581,6 +5606,12 @@ export class App {
         return `<button class="cmp-relic relic-active ${k.spent ? 'spent' : ''} ${ready ? 'ready' : ''}" ${ready ? `data-act="hero-skill" data-arg="${i}"` : ''} data-tip-title="${esc(k.relic.toLowerCase())}" data-tip="${esc(k.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${k.relic}. ${k.text}`)}">${relicMark(k.relic, '')}</button>`;
       })
       .join('');
+    // A relic that counts the day's attacks (three, and it strikes): its token, filling as they are made.
+    const tally = relicOf(me.relics, 'flurry');
+    const done = myTurn ? Math.min(3, me.turn.attacks ?? 0) : 0;
+    const counter = tally
+      ? `<div class="cmp-relic relic-count ${done >= 3 ? 'full' : ''}" style="--f:${(done / 3).toFixed(3)}" data-tip-title="${esc(tally.name.toLowerCase())}" data-tip="${esc(RELIC_POWERS.flurry.text(relicN(me.relics, 'flurry')))}" aria-label="${esc(`${tally.name}: ${done}/3`)}">${relicMark(tally.name, 'weapon')}<b>${done}/3</b></div>`
+      : '';
     const skills = (me.skills ?? [])
       .map((k, i) => {
         if (k.relic) return '';
@@ -5592,7 +5623,7 @@ export class App {
       .join('');
     return `
       ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
-      ${relics ? `<aside class="relic-actives" aria-label="Relics, once a battle">${relics}</aside>` : ''}
+      ${relics || counter ? `<aside class="relic-actives" aria-label="Relics">${counter}${relics}</aside>` : ''}
       <div class="turn-controls turn-corner">
         <div class="plays ${myTurn || banked ? '' : 'plays-off'}" title="${myTurn ? 'Energy left today: each card costs the number on its gem. What you leave unspent is banked through your rival\'s day, to answer them at lightspeed.' : 'Banked energy: to play a Lightspeed card from hand in answer to your rival'}">
           <small>${myTurn ? 'energy' : banked ? 'banked' : 'waiting'}</small>

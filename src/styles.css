@@ -6028,7 +6028,7 @@ body:has(.game-result) .dock { visibility: hidden; }
 
 /* The galaxy's trade-off, lying on the board just under the Stellari. */
 .galaxy-tag {
-  position: absolute; left: 50%; top: calc(50% + 66px * var(--bz, 1)); transform: translateX(-50%) translateZ(2px); z-index: 1;
+  position: absolute; left: 50%; top: calc(50% + 66px * var(--bz, 1) - var(--gt-lift, 0px)); transform: translateX(-50%) translateZ(2px); z-index: 1;
   display: grid; justify-items: center; gap: 1px; max-width: min(46%, 300px); text-align: center; pointer-events: auto; cursor: help;
   font-family: var(--display); color: var(--ink-soft); line-height: 1.25;
 }
@@ -6470,3 +6470,17 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* A surge dragged straight onto what it heats: the rival card (or sun) it would land on. */
 .tableau-rival .card.drop-over, .tableau-rival .vitals.drop-over { outline: 2px solid #d8452b; outline-offset: 3px; border-radius: calc(var(--tcw, 60px) * 0.08); }
 .tableau-rival .vitals.drop-over { border-radius: 50%; }
+
+/* A relic that counts the day's attacks: a ring round its token fills a third with each, and its tally under it. */
+.relic-actives .relic-count { position: relative; margin-bottom: 14px; --rim: #c9ccd6; }
+.relic-actives .relic-count::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(#c9a24e calc(var(--f, 0) * 360deg), transparent 0);
+  -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 3px), #000 calc(100% - 3px)); mask: radial-gradient(closest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  transition: background 0.4s ease-out;
+}
+.relic-actives .relic-count b {
+  position: absolute; z-index: 1; left: 50%; bottom: -12px; transform: translateX(-50%); padding: 0 5px; border-radius: 999px;
+  background: #fff; box-shadow: 0 1px 4px rgba(60, 70, 100, 0.2); font-family: var(--display); font-size: 0.5rem; font-weight: 600; letter-spacing: 0.08em; color: var(--ink); line-height: 1.5;
+}
+.relic-actives .relic-count.full { --rim: #c9a24e; box-shadow: 0 0 0 1.5px var(--rim), 0 0 0 4px rgba(255, 255, 255, 0.9), 0 0 14px 4px rgba(201, 162, 78, 0.45), 0 3px 8px rgba(60, 70, 100, 0.22); }
