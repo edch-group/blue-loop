@@ -2313,7 +2313,7 @@ export class App {
     // (Announced by a small tag above the card in the preview pane: a banner across the screen hid what happened.)
     sound.flare();
     const trap = !isLightspeed(why.defId);
-    const stage: Stage = { defId: why.defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} ${trap ? 'springs' : 'replies'}`, against: why.against };
+    const stage: Stage = { defId: why.defId, actorId: now.id, caption: trap ? 'trap triggered!' : `⚡ ${now.name.toLowerCase()} replies`, against: why.against };
     // It shows for a few seconds, then fades away by itself (not lingering until someone acts).
     window.setTimeout(() => {
       if (this.stage !== stage) return;
@@ -6236,19 +6236,21 @@ export class App {
     // A sprung trap (or a Lightspeed card played in reply): the card that set it off stands where a played card does
     // (plain, to be read), and the answer beside it on the left, the same size.
     const tag = isLightspeed(st.defId) ? '⚡ lightspeed' : 'trap';
+    // (A trap says only that it was triggered: the card it caught, and the trap beside it.)
+    const trapped = !isLightspeed(st.defId);
     if (st.against) {
       const trigger = s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays';
       const how = { enemyPlays: 'in answer to this', sunAttacked: 'against its attack', targeted: 'against this', cardAttacked: 'against its attack' }[trigger] ?? 'in answer to this';
       return `
-      <div class="stage stage-sprung stage-pair">
-        <div class="stage-ls"><span class="stage-ls-tag">${tag}</span>${card}</div>
+      <div class="stage stage-sprung stage-pair ${trapped ? 'stage-trap' : ''}">
+        <div class="stage-ls">${trapped ? '' : `<span class="stage-ls-tag">${tag}</span>`}${card}</div>
         ${still('stage-against', st.against)}
-        <div class="stage-caption">${esc(`${actor.name.toLowerCase()} ${isLightspeed(st.defId) ? 'plays' : 'springs'} ${cardDef(st.defId).name.toLowerCase()} ${how}`)}</div>
+        <div class="stage-caption">${esc(trapped ? 'trap triggered!' : `${actor.name.toLowerCase()} plays ${cardDef(st.defId).name.toLowerCase()} ${how}`)}</div>
       </div>`;
     }
     return `
-      <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
-        ${st.caption && !st.faceDown && st.caption.startsWith('⚡') ? `<span class="stage-ls-tag stage-ls-tag-solo">${tag}</span>` : ''}
+      <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.caption === 'trap triggered!' ? 'stage-trap' : ''} ${st.confirm ? 'stage-confirm' : ''}">
+        ${st.caption && !st.faceDown && st.caption.startsWith('⚡') && !trapped ? `<span class="stage-ls-tag stage-ls-tag-solo">${tag}</span>` : ''}
         ${card}
         ${/* (A plain play needs no words: only a card set face down, or sprung, says what happened.) */ st.caption && st.caption !== 'you play' ? `<div class="stage-caption">${esc(st.caption)}</div>` : ''}
         ${st.confirm && !st.faceDown ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">OK</button>` : ''}

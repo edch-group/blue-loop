@@ -46,7 +46,7 @@ const PAL: Record<string, Pal> = {
   korrath: { sky: ['#141110', '#3a302a', '#a8602e'], glow: '#ffa040', accent: '#e2b06a', deep: '#0c0907' },
   seren: { sky: ['#070c24', '#22306a', '#9aa8d8'], glow: '#f0f4ff', accent: '#a9c4ff', deep: '#050920' },
   pyrr: { sky: ['#1c0505', '#6a140c', '#f06a24'], glow: '#ffd060', accent: '#ff6a1e', deep: '#160302' },
-  trap: { sky: ['#2a1a08', '#6a4210', '#e8b45a'], glow: '#ffe2a0', accent: '#fff6dc', deep: '#170d03' },
+  trap: { sky: ['#0f1030', '#2e3180', '#9ea2f0'], glow: '#dfe0ff', accent: '#f5f5ff', deep: '#07081c' },
   relic: { sky: ['#1a1408', '#4a3a1a', '#c9a24e'], glow: '#ffe7a8', accent: '#fff3c4', deep: '#0e0a04' },
   // The Lost Overlords: dried blood and embers, out past the last stars.
   overlord: { sky: ['#0a0406', '#3a0c10', '#9a3a22'], glow: '#ff6a3a', accent: '#ffb070', deep: '#050203' },

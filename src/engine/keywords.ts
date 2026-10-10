@@ -12,7 +12,7 @@ export interface Keyword {
   /** As it reads on a card. */
   name: string;
   /** Colour family on the card. */
-  group: 'defence' | 'resonance' | 'stability' | 'recovery' | 'removal' | 'shields' | 'lightspeed' | 'global' | 'orbit' | 'heat' | 'cool' | 'repair' | 'tempo' | 'timing';
+  group: 'defence' | 'resonance' | 'stability' | 'recovery' | 'removal' | 'shields' | 'lightspeed' | 'global' | 'orbit' | 'heat' | 'cool' | 'repair' | 'tempo' | 'timing' | 'trap';
   /** Drawn as a symbol and its number on a card (heat, cool, shields, repair), not as a word. */
   symbol?: boolean;
   /** What it means, for a given value (or in general, without one). */
@@ -95,7 +95,7 @@ export const KEYWORDS: Record<string, Keyword> = {
       `Each dawn, gains your orbit's bonus${v && v !== '1' ? ` (×${v})` : ''}. Dead planet: ${ATTUNEMENT.slice(0, 3).map((a) => plainText(a.text)).join(' → ')}. Abundant: ${ATTUNEMENT.slice(3, 6).map((a) => plainText(a.text)).join(' → ')}. Industrial: ${ATTUNEMENT.slice(6).map((a) => plainText(a.text)).join(' → ')}.`,
   },
   lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Play it in any phase of your day, or on your rival's day in reply to a card they play or an attack, paid with banked energy (energy left unspent at your day's end). One in reply per rival day." },
-  trap: { name: 'trap', group: 'lightspeed', explain: () => 'Set face down on your day. It springs on the first trigger it meets.' },
+  trap: { name: 'trap', group: 'trap', explain: () => 'Set face down on your day. It springs on the first trigger it meets.' },
   global: { name: 'global', group: 'global', explain: () => 'Affects both players.' },
 };
 

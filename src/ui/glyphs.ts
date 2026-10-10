@@ -42,7 +42,7 @@ export const KIND_COLOUR: Record<CardKind | ShownKind, string> = {
   growth: '#3a9e6a', // green: draw, growth and extra plays
   global: '#9265d6', // purple
   command: '#8b909b', // silver: each deck's Heroes
-  trap: '#d4952a', // amber: set face down, springs on the enemy's day
+  trap: '#4b4fb0', // indigo: set face down, springs on the enemy's day (Lightspeed keeps the amber)
   relic: '#1fa6a0', // teal: lasting bonuses, brittle
 };
 
