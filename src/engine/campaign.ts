@@ -974,6 +974,21 @@ export function migrateCampaign(s: CampaignState): CampaignState {
     if (st?.kind === 'research' && !st.options) st.options = st.project ? [st.project] : [];
   }
   if (!s.galaxy) s.galaxy = GALAXY_KINDS[(s.universe * 7 + s.nodes.length) % GALAXY_KINDS.length];
+  // Enemy flagships carry a card that repairs (their race's, where it has one): an older save's decks, made
+  // before, have a neutral card or two swapped for it.
+  for (const a of s.armies) {
+    if (a.owner === s.playerId || a.deck.some((id) => repairs(cardDef(id)))) continue;
+    const race = s.factions.find((f) => f.id === a.owner)?.race;
+    const fix = CARDS.find((c) => c.race === race && c.kind === 'defence' && c.rarity !== 'anomaly' && !c.fusion && repairs(c) && legalIn(s.mode, c.id));
+    if (!fix) continue;
+    let swapped = 0;
+    for (let i = a.deck.length - 1; i >= 0 && swapped < 2; i--) {
+      const d = cardDef(a.deck[i]);
+      if (d.race !== undefined || d.kind === 'command' || a.deck[i] === a.general) continue;
+      a.deck[i] = fix.id;
+      swapped++;
+    }
+  }
   return s;
 }
 
@@ -1082,6 +1097,10 @@ function nodeName(s: CampaignState, used: Set<string>): string {
 
 const emptyStats = (): CampaignStats => ({ settled: 0, absorbed: 0, novas: 0, defences: 0, rivalsTaken: 0, battlesWon: 0, swiftWins: 0, coldWins: 0 });
 
+/** Whether a card repairs (as it is played, at dawn or at dusk). */
+const repairs = (c: { onPlay?: { type: string }[]; onTurn?: { type: string }[]; onDusk?: { type: string }[] }) =>
+  [...(c.onPlay ?? []), ...(c.onTurn ?? []), ...(c.onDusk ?? [])].some((e) => e.type === 'repair');
+
 /** Neutral cards every campaign deck starts with (twice each), before its race's cards. */
 // Weighted to attack (seven attack pairs to three defence): a campaign is won by taking systems, and a
 // deck heavy with defence could not finish even a weakened foe before regional stability ran out.
@@ -1094,7 +1113,9 @@ export function armyDeck(race: number, general: string, mode: GameMode = 'lost')
   const r = ((race % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
   const plain = (c: (typeof CARDS)[number]) => c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll && legalIn(mode, c.id);
   const mine = CARDS.filter((c) => c.race === r && plain(c));
-  const own = [...mine.filter((c) => c.kind === 'attack').slice(0, 2), ...mine.filter((c) => c.kind === 'defence').slice(0, 1)].map((c) => c.id);
+  // (Its defence pair: one that repairs, where the race has one, so repair turns up in the enemy's decks too.)
+  const defences = mine.filter((c) => c.kind === 'defence');
+  const own = [...mine.filter((c) => c.kind === 'attack').slice(0, 2), ...[...defences.filter(repairs), ...defences].slice(0, 1)].map((c) => c.id);
   const deck = [general, ...own.flatMap((id) => [id, id])];
   for (const id of ['coronal_lance', 'deflector_grid', 'heat_sink', ...GUARD_NEUTRALS, ...CORE_FILL]) {
     if (deck.length >= CAMPAIGN.armySize) break;
@@ -1143,7 +1164,9 @@ export function starterDeck(race: number, mode: GameMode = 'lost'): string[] {
   // (In Core, the race's Core starter.)
   if (mode === 'core') return [...presetDeck(r, 'core').cards];
   const mine = CARDS.filter((c) => c.race === r && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion);
-  const own = [...mine.filter((c) => c.kind === 'attack'), ...mine.filter((c) => c.kind !== 'attack')].slice(0, 3).map((c) => c.id);
+  // (Two of its attacks and a card that repairs, where the race has one.)
+  const rest = mine.filter((c) => c.kind !== 'attack');
+  const own = [...mine.filter((c) => c.kind === 'attack').slice(0, 2), ...[...rest.filter(repairs), ...rest].slice(0, 1)].map((c) => c.id);
   const [g0, g1] = GENERALS[r];
   const heroes = copyLimit(g0) > 1 ? [g0, g0, g1] : [g0, g1, GENERALS[r][2]];
   return [...GUARD_NEUTRALS.flatMap((id) => [id, id]), ...own, ...heroes];
