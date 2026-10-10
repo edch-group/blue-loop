@@ -6515,3 +6515,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* Repair, a core keyword beside heat, cool and shields: its own colour wherever its mark shows. */
 .eff-repair { color: #3f8a7e; }
 .find .eff-repair, :is(.hero-pick-mark, .boon-mark) .eff-repair, :is(.sh-socket, .sh-mod-face) .eff-repair { color: #3f8a7e; }
+
+/* A card that heats one target, aimed from the hand: it stays put, lit, while the beam runs from it to the pointer. */
+.hand > .card.card-aiming { box-shadow: 0 0 0 2px #fff, 0 0 18px 4px rgba(224, 110, 60, 0.55), var(--shadow); }

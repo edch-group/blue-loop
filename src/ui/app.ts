@@ -1886,7 +1886,10 @@ export class App {
       this.showBanner(named(now, 'day'), round, t.day, 'game', () => {
         this.setPhase('day');
         // (The hand's cards light up as playable now it is day.)
-        if (now.id === you) this.render();
+        if (now.id === you) {
+          this.render();
+          this.nudgeDailyRelics();
+        }
       }, this.orbitLine(next, now));
     }
   }
@@ -1906,6 +1909,21 @@ export class App {
   /** Whether this player's dawn did something (its effects, or the table's, played out on the board). */
   private dawnHappened(next: GameState, now: PlayerState): boolean {
     return (next.turnPulses ?? []).some((p) => p.kind !== 'start' && (p.source === now.id || !p.uid));
+  }
+
+  /** Your day begins: each once-a-day relic ready to use pulses once, down the right, as a reminder. */
+  private nudgeDailyRelics() {
+    if (reducedMotion()) return;
+    this.root.querySelectorAll<HTMLElement>('.relic-actives .cmp-relic.ready[data-daily]').forEach((el, i) =>
+      el.animate(
+        [
+          { transform: 'scale(1)', filter: 'brightness(1)' },
+          { transform: 'scale(1.22)', filter: 'brightness(1.35)', boxShadow: '0 0 22px 8px rgba(222, 178, 90, 0.75)' },
+          { transform: 'scale(1)', filter: 'brightness(1)' },
+        ],
+        { duration: 900, delay: i * 140, easing: 'cubic-bezier(.3,.7,.3,1)', composite: 'add' },
+      ),
+    );
   }
 
   /** The phase of the day under way (shown by the phase tracker, middle right). */
@@ -3333,7 +3351,7 @@ export class App {
   }
 
   /** A card being dragged out of the hand: where it was picked up, and (once it moves) its flying copy. */
-  private drag: { uid: string; el: HTMLElement; x: number; y: number; dx: number; dy: number; ghost: HTMLElement | null; aim?: boolean } | null = null;
+  private drag: { uid: string; el: HTMLElement; x: number; y: number; dx: number; dy: number; ghost: HTMLElement | null; aim?: boolean; beam?: ReturnType<typeof pointerAim> } | null = null;
 
   /**
    * Whether a card in hand can be dragged straight onto what it heats: a surge whose only choice is where its heat
@@ -3361,10 +3379,28 @@ export class App {
   private onDragMove(e: PointerEvent) {
     const d = this.drag;
     if (!d) return;
-    if (!d.ghost) {
+    if (!d.ghost && !d.beam) {
       // A drag, not a tap: it has moved a little, mostly upwards (out of the hand).
       if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 14 || d.y - e.clientY < 8) return;
       this.cancelPress();
+      // A card that heats one target stays in the hand, lit, and aims: the beam runs from it to the pointer.
+      if (d.aim) {
+        const uid = d.uid;
+        d.beam = pointerAim(() => {
+          const el = this.root.querySelector(`.hand > .card[data-uid="${uid}"]`);
+          return el ? pageRect(el) : null;
+        });
+        d.el.classList.add('card-aiming');
+        sound.hover();
+      }
+    }
+    if (d.beam) {
+      const at = toPage(new DOMRect(e.clientX, e.clientY, 0, 0));
+      d.beam.to(at.x, at.y);
+      this.markDrop(this.dropEl(e.clientX, e.clientY));
+      return;
+    }
+    if (!d.ghost) {
       const r = d.el.getBoundingClientRect();
       const ghost = d.el.cloneNode(true) as HTMLElement;
       ghost.removeAttribute('data-uid');
@@ -3427,16 +3463,26 @@ export class App {
 
   private onDragEnd(e: PointerEvent | null) {
     const d = this.drag;
-    const drop = d?.ghost && e ? this.dropAt(e.clientX, e.clientY) : undefined;
+    const drop = (d?.ghost || d?.beam) && e ? this.dropAt(e.clientX, e.clientY) : undefined;
     this.drag = null;
-    if (!d?.ghost) return;
-    d.ghost.remove();
-    d.el.classList.remove('card-dragging');
+    if (!d?.ghost && !d?.beam) return;
+    d.ghost?.remove();
+    d.beam?.stop();
+    d.el.classList.remove('card-dragging', 'card-aiming');
     // (The click that ends a drag must not also tap the card.)
     this.suppressClick = true;
     window.setTimeout(() => (this.suppressClick = false), 0);
     // Let go above the hand: it is played (to the preview pane, and on as any card played); else it goes back.
+    // (Aimed with the beam: let go on a target, it is played at it; anywhere else, nothing, as with an attack.)
     this.markDrop(null);
+    if (d.beam) {
+      if (drop?.aim) {
+        this.raiseHand(false);
+        this.sheet = null;
+        this.startPlay(d.uid, drop);
+      }
+      return;
+    }
     const zone = this.root.querySelector('.table-view > .dock .hand-zone')?.getBoundingClientRect();
     if (e && zone && e.clientY < zone.top) {
       this.raiseHand(false);
@@ -5616,7 +5662,7 @@ export class App {
         // (Once a battle, it is spent for good; once a day, until tomorrow.)
         const used = k.spent || (!k.once && k.usedTurn === s.turnNumber);
         const note = k.spent ? 'Used.' : used ? 'Used today.' : '';
-        return `<button class="cmp-relic relic-active ${used ? 'spent' : ''} ${ready ? 'ready' : ''}" ${ready ? `data-act="hero-skill" data-arg="${i}"` : ''} data-tip-title="${esc(k.relic.toLowerCase())}" data-tip="${esc(k.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${k.relic}. ${k.text}`)}">${relicMark(k.relic, '')}</button>`;
+        return `<button class="cmp-relic relic-active ${used ? 'spent' : ''} ${ready ? 'ready' : ''}" ${k.once ? '' : 'data-daily="1"'} " ${ready ? `data-act="hero-skill" data-arg="${i}"` : ''} data-tip-title="${esc(k.relic.toLowerCase())}" data-tip="${esc(k.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${k.relic}. ${k.text}`)}">${relicMark(k.relic, '')}</button>`;
       })
       .join('');
     // A relic that counts the day's attacks (three, and it strikes): its token, filling as they are made.
