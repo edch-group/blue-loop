@@ -6731,3 +6731,19 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   width: 40px; height: 40px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer;
   font-size: 1.4rem; line-height: 1; color: var(--ink-soft); background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.1), 0 4px 12px rgba(40, 46, 70, 0.1);
 }
+
+/* ---- A card's own shields (a Ward), and a card frozen (a Freeze) ---- */
+.card .card-shields {
+  position: absolute; left: 50%; top: 0; transform: translate(-50%, -45%); z-index: 4; pointer-events: auto;
+  display: flex; align-items: center; gap: 2px; padding: 1px 6px 1px 4px; border-radius: 999px;
+  font-family: var(--display); font-weight: 700; font-size: max(8px, calc(var(--cw, 100px) * 0.1)); color: #fff;
+  background: linear-gradient(180deg, #6f9be0, #3d6fbf); box-shadow: 0 0 0 1.5px #fff, 0 0 8px rgba(90, 140, 220, 0.6);
+}
+.card .card-shields .kw-ico { width: 1.1em; height: 1.1em; color: #fff; fill: currentColor; }
+.card.card-table.card-frozen::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2;
+  background: linear-gradient(160deg, rgba(200, 230, 255, 0.55), rgba(150, 200, 245, 0.25) 55%, rgba(220, 240, 255, 0.5));
+  box-shadow: inset 0 0 0 2px rgba(150, 200, 245, 0.95), inset 0 0 14px rgba(170, 215, 255, 0.9);
+}
+.card.card-table.card-frozen .card-glyph { filter: saturate(0.4) hue-rotate(-10deg) brightness(1.05); }
+.hero-pick-mark.hero-pick-relic { box-shadow: 0 0 0 1.5px #e3c46a; }

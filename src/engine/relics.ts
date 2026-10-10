@@ -7,7 +7,7 @@
  * Each power's strength grows with the relic's rarity (white dwarf, stellar, anomaly).
  */
 import type { SlotKind } from './heroes';
-import type { Effect } from './types';
+import type { AbilityChoice, Effect } from './types';
 
 export type RelicPower =
   | 'aegis'
@@ -43,11 +43,18 @@ export type RelicPower =
   | 'phoenix'
   | 'paradise'
   | 'grasp'
-  | 'ram';
+  | 'ram'
+  | 'might'
+  | 'steady'
+  | 'multishot'
+  | 'ward'
+  | 'freeze'
+  | 'displace';
 
 export interface RelicPowerDef {
   /** Always at work, answering what happens, or kept for the right moment: once a battle, or once a day (a button on the battle's right). */
-  kind: 'passive' | 'trigger' | 'once' | 'daily';
+  /** (`ability`: one more ability for the Hero leading its holder's tableau, used as its own are, one a day.) */
+  kind: 'passive' | 'trigger' | 'once' | 'daily' | 'ability';
   /** Its number, by rarity: white dwarf, stellar, anomaly. */
   amounts: [number, number, number];
   text: (n: number) => string;
@@ -55,6 +62,8 @@ export interface RelicPowerDef {
   effects?: (n: number) => Effect[];
   /** Its choices for its holder to make, one after another (Recall 2: two cards back to hand). */
   choices?: (n: number) => { kind: 'recall' | 'shift'; times: number };
+  /** A Hero ability's name, and the choice it leaves its holder to make. */
+  ability?: (n: number) => { name: string; text: string; choice: { kind: AbilityChoice; times: number; amount?: number } };
 }
 
 
@@ -96,24 +105,31 @@ export const RELIC_POWERS: Record<RelicPower, RelicPowerDef> = {
   // (Walls that hit back: a card's defence, while it stands, adds to its attack, up to the emblem's number. Only a card
   // that attacks at all: a wall with none still doesn't.)
   ram: { kind: 'trigger', amounts: [2, 3, 4], text: (n) => `Your attackers add their defence to their attack (up to +${n}).` },
+  // Hero abilities: the Hero leading its holder's tableau may use one of these as one of its own (one a day).
+  might: { kind: 'ability', amounts: [1, 1, 2], text: (n) => `Hero ability: a card gains +${n} attack.`, ability: (n) => ({ name: 'Empower', text: `+${n} attack to a card.`, choice: { kind: 'empower', times: 1, amount: n } }) },
+  steady: { kind: 'ability', amounts: [2, 3, 4], text: (n) => `Hero ability: a card gains ${n} stability.`, ability: (n) => ({ name: 'Steady', text: `${n} stability to a card.`, choice: { kind: 'renew', times: 1, amount: n } }) },
+  multishot: { kind: 'ability', amounts: [3, 3, 3], text: (n) => `Hero ability: Multishot, ${n} heat split among up to ${n} targets.`, ability: (n) => ({ name: 'Multishot', text: `${n} heat, split among up to ${n} targets.`, choice: { kind: 'aim', times: n, amount: 1 } }) },
+  ward: { kind: 'ability', amounts: [2, 2, 3], text: (n) => `Hero ability: a card gains ${n} shields.`, ability: (n) => ({ name: 'Ward', text: `${n} shields to a card.`, choice: { kind: 'ward', times: 1, amount: n } }) },
+  freeze: { kind: 'ability', amounts: [1, 1, 1], text: () => "Hero ability: a rival card can't attack next turn.", ability: () => ({ name: 'Freeze', text: "A rival card can't attack next turn.", choice: { kind: 'freeze', times: 1 } }) },
+  displace: { kind: 'ability', amounts: [1, 1, 1], text: () => 'Hero ability: shift a rival card.', ability: () => ({ name: 'Displace', text: 'Shift a rival card.', choice: { kind: 'displace', times: 1 } }) },
   phoenix: { kind: 'once', amounts: [1, 1, 1], text: () => 'Once per battle: return your last discarded card to your hand.', effects: () => [{ type: 'recover', latest: true }] },
 };
 
 /** The powers a relic of each kind can carry (its slot's flavour: a weapon strikes, a core cools...). */
 export const SLOT_POWERS: Record<SlotKind, RelicPower[]> = {
-  weapon: ['edge', 'splash', 'flurry', 'starfall', 'leech', 'ram'],
-  helm: ['walls', 'vigour', 'herald', 'anchor'],
-  mantle: ['aegis', 'renew', 'walls', 'fortress'],
-  sigil: ['herald', 'firstLight', 'overcharge', 'harvest', 'grasp'],
-  core: ['frost', 'coolant', 'bounty', 'phoenix'],
-  facet: ['splash', 'nova', 'bounty', 'sear'],
-  ring: ['mend', 'vigour', 'aegis', 'thorns'],
-  carapace: ['walls', 'vigour', 'renew', 'thorns', 'ram'],
-  gland: ['gift', 'recycle', 'renew', 'reclaim', 'paradise'],
-  mask: ['flurry', 'recall', 'bounty', 'devour'],
-  plate: ['walls', 'aegis', 'mend', 'anchor'],
-  star: ['shift', 'firstLight', 'gift', 'duskShift', 'paradise', 'grasp'],
-  ember: ['nova', 'recycle', 'starfall', 'sear'],
+  weapon: ['edge', 'splash', 'flurry', 'starfall', 'leech', 'ram', 'might', 'multishot'],
+  helm: ['walls', 'vigour', 'herald', 'anchor', 'ward'],
+  mantle: ['aegis', 'renew', 'walls', 'fortress', 'ward'],
+  sigil: ['herald', 'firstLight', 'overcharge', 'harvest', 'grasp', 'might'],
+  core: ['frost', 'coolant', 'bounty', 'phoenix', 'freeze'],
+  facet: ['splash', 'nova', 'bounty', 'sear', 'multishot'],
+  ring: ['mend', 'vigour', 'aegis', 'thorns', 'steady'],
+  carapace: ['walls', 'vigour', 'renew', 'thorns', 'ram', 'steady'],
+  gland: ['gift', 'recycle', 'renew', 'reclaim', 'paradise', 'steady'],
+  mask: ['flurry', 'recall', 'bounty', 'devour', 'freeze', 'displace'],
+  plate: ['walls', 'aegis', 'mend', 'anchor', 'ward'],
+  star: ['shift', 'firstLight', 'gift', 'duskShift', 'paradise', 'grasp', 'displace'],
+  ember: ['nova', 'recycle', 'starfall', 'sear', 'multishot'],
 };
 
 /** Every power (a relic's roll falls on its kind's own half the time, else on any power at all). */

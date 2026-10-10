@@ -3,6 +3,7 @@ import {
   activePlayer,
   heroSkillProblem,
   heroAbilityProblem,
+  heroAbilities,
   raceTrait,
   SUBRACES,
   attackProblem,
@@ -110,7 +111,7 @@ import { shownKind, isBurst, isBossCard, bossIntent, relicN, relicOf, RELIC_POWE
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { cardJewels, cardBackFace, cardBodyHtml, effectMark, mechanicMark, modeCards, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { symbolIcon, cardJewels, cardBackFace, cardBodyHtml, effectMark, mechanicMark, modeCards, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -1761,7 +1762,7 @@ export class App {
     const attackers = sun || cards.length ? me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0).length : 0;
     if (attackers) out.push(`${attackers} card${attackers === 1 ? '' : 's'} that can still attack`);
     const hero = commandCard(me);
-    if (hero && (cardDef(hero.defId).abilities ?? []).some((_, i) => !heroAbilityProblem(s, me, i))) out.push(`${cardDef(hero.defId).name}'s ability`);
+    if (hero && heroAbilities(me, hero).some((_, i) => !heroAbilityProblem(s, me, i))) out.push(`${cardDef(hero.defId).name}'s ability`);
     return out;
   }
 
@@ -2431,7 +2432,7 @@ export class App {
     const playedDef = playedId ? cardDef(playedId) : null;
     // A Hero's ability: its heat flies from the Hero's card, as a played card's does from that card.
     const heroCard = action.type === 'heroAbility' ? commandCard(prev.players.find((p) => p.id === actor.id)!) : undefined;
-    const ability = heroCard ? cardDef(heroCard.defId).abilities?.[action.type === 'heroAbility' ? action.index : 0] : undefined;
+    const ability = heroCard ? heroAbilities(prev.players.find((p) => p.id === actor.id)!, heroCard)[action.type === 'heroAbility' ? action.index : 0] : undefined;
     const heroFrom = heroCard
       ? () => {
           const el = this.root.querySelector(`.tableau [data-uid="${heroCard.uid}"]`);
@@ -4116,7 +4117,7 @@ export class App {
         // An ability that heats, with rival cards on the table: aim it first (a card, or their sun).
         const hero = commandCard(this.viewer())!;
         // An ability paid for with a sacrifice: first choose which of your cards to give up.
-        if (cardDef(hero.defId).abilities?.[Number(arg)]?.pay?.sacrifice) {
+        if (heroAbilities(this.viewer(), hero)[Number(arg)]?.pay?.sacrifice) {
           this.pending = { uid: hero.uid, step: 'sacrifice', ability: Number(arg) };
           sound.hover();
           return this.render();
@@ -4224,6 +4225,7 @@ export class App {
           this.duskMove = uid ? { uid, to: Number(arg) } : null;
           return this.finishDay();
         }
+        if (uid && this.dawnChoice()?.kind === 'displace') return this.dispatch({ type: 'dawnChoice', enemyUid: uid, shiftTo: Number(arg) });
         if (uid) this.dispatch({ type: 'dawnChoice', allyUid: uid, shiftTo: Number(arg) });
         return;
       }
@@ -4235,6 +4237,7 @@ export class App {
         this.sheet = null;
         return this.dispatch({ type: 'reclaim', cardUid: arg });
       case 'dawn-recall':
+      case 'dawn-ally':
         this.dawnPick = null;
         return this.dispatch({ type: 'dawnChoice', allyUid: arg });
       case 'dawn-shift-skip':
@@ -5380,6 +5383,11 @@ export class App {
     // Your dawn Recall, first thing in your day: a card back to hand; or let it be.
     const choice = this.dawnChoice();
     if (choice?.kind === 'recall') return `<div class="mid-hint"><b>${choice.relic ? 'recall a card to hand' : 'dawn recall: return a card to hand'}</b><button class="mid-cancel" data-act="dawn-shift-skip">skip</button></div>`;
+    // An emblem's ability, waiting on its choice: a card of yours, or a rival card (and, moving one, where it goes).
+    const skip = '<button class="mid-cancel" data-act="dawn-shift-skip">skip</button>';
+    const ask = ({ empower: `+${choice?.amount ?? 1} attack: choose a card`, renew: `+${choice?.amount ?? 1} stability: choose a card`, ward: `${choice?.amount ?? 1} shields: choose a card`, freeze: 'freeze a rival card' } as Record<string, string>)[choice?.kind ?? ''];
+    if (ask) return `<div class="mid-hint"><b>${ask}</b>${skip}</div>`;
+    if (choice?.kind === 'displace') return `<div class="mid-hint"><b>${this.dawnPick ? 'where it moves' : 'move a rival card'}</b><span class="mid-btns">${this.dawnPick ? '<button class="mid-cancel" data-act="dawn-shift-back">back</button>' : ''}${skip}</span></div>`;
     // A relic's heat at any target: a rival card, or their sun.
     if (choice?.kind === 'aim') return `<div class="mid-hint"><b>${choice.relic ? `${esc(choice.relic.toLowerCase())}: ` : ''}${choice.amount ?? 0} heat, pick a target</b><button class="mid-cancel" data-act="dawn-aim-sun">their sun</button></div>`;
     // Your dawn Shift (or a relic's dusk one, as your day ends): a card to move, then where; or let it be.
@@ -5526,7 +5534,8 @@ export class App {
     // Shifting: the slots of the tableau the chosen card stands in (it moves there, swapping with any card there).
     const shiftDef = pend?.step === 'shift' ? activePlayer(this.state!).hand.find((h) => h.uid === pend.uid)?.defId : undefined;
     const shifting = !!shiftDef && (shiftEffect(shiftDef) === 'mine') === (side === 'mine');
-    const dawnMoving = side === 'mine' && !!this.dawnPick && this.dawnShiftWaiting();
+    // (A rival card being moved by a Displace: their slots are where it may go.)
+    const dawnMoving = !!this.dawnPick && (side === 'mine' ? this.dawnShiftWaiting() : this.dawnChoice()?.kind === 'displace');
     const st = this.state!;
     // While an attack is aimed: what it would leave of each rival card it could hit.
     const preview = new Map<string, { defence: number; health?: number }>();
@@ -5755,7 +5764,7 @@ export class App {
       state = 'card-attacker';
     }
     // Your Hero, with abilities, on your day: tap it for its abilities (and its attack) to pick from.
-    if (!p && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && c.slot === COMMAND_SLOT && !c.dimmed && (cardDef(c.defId).abilities ?? []).length && !isGameOver(s)) {
+    if (!p && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && c.slot === COMMAND_SLOT && !c.dimmed && heroAbilities(me, c).length && !isGameOver(s)) {
       // (One that can attack can still be dragged straight onto a target, as any attacker; a tap opens its abilities.)
       attrs = `data-act="hero-panel" data-arg="${c.uid}" ${this.heroActions(me).includes('attack') ? 'data-attacker="1"' : ''} title="Its abilities"`;
       state = 'card-attacker';
@@ -5795,6 +5804,28 @@ export class App {
     if (recall?.kind === 'aim' && opts.tableau === 'rival') {
       attrs = `data-act="dawn-aim" data-arg="${c.uid}" title="${recall.amount ?? 0} heat to ${esc(cardDef(c.defId).name)}"`;
       state = 'card-choosable';
+    }
+    // An emblem's ability: a card of yours to empower, steady or ward (your Hero too); a rival card to freeze, or to move.
+    const verb = ({ empower: 'Empower', renew: 'Steady', ward: 'Ward' } as Record<string, string>)[recall?.kind ?? ''];
+    if (verb && opts.tableau === 'mine' && opts.owner?.id === this.viewer().id && c.slot !== undefined) {
+      attrs = `data-act="dawn-ally" data-arg="${c.uid}" title="${verb} ${esc(cardDef(c.defId).name)}"`;
+      state = 'card-choosable';
+    }
+    if (recall?.kind === 'freeze' && opts.tableau === 'rival') {
+      attrs = `data-act="dawn-aim" data-arg="${c.uid}" title="Freeze ${esc(cardDef(c.defId).name)}"`;
+      state = 'card-choosable';
+    }
+    if (recall?.kind === 'displace' && opts.tableau === 'rival' && c.slot !== undefined && c.slot !== COMMAND_SLOT) {
+      if (!this.dawnPick) {
+        attrs = `data-act="dawn-shift-card" data-arg="${c.uid}" title="Move ${esc(cardDef(c.defId).name)}"`;
+        state = 'card-choosable';
+      } else if (c.uid === this.dawnPick) {
+        attrs = 'data-act="dawn-shift-back" title="Choose another card"';
+        state = 'card-picked';
+      } else {
+        attrs = `data-act="dawn-shift-to" data-arg="${c.slot}" title="Swap places with ${esc(cardDef(c.defId).name)}"`;
+        state = 'card-choosable';
+      }
     }
     // Your dawn Shift: pick a card of yours (not your Hero), then a card to swap with (or an empty slot).
     if (opts.tableau === 'mine' && c.slot !== undefined && c.slot !== COMMAND_SLOT && opts.owner?.id === this.viewer().id && this.dawnShiftWaiting()) {
@@ -5859,9 +5890,9 @@ export class App {
     const full = isBossCard(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}${opts.owner?.boss?.intent === c.uid ? ' card-intent' : ''}` : '';
     const actionTag = def.bossAction && (def.overlordPart !== 'lost lord' || opts.owner?.boss) ? `<div class="card-action">${esc(def.bossAction.name.toLowerCase())}</div>` : '';
     return `
-      <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
+      <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}${opts.tableau && c.frozen ? ' card-frozen' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
-        ${growth}${resonance}${fusedTags}${stats}${actionTag}
+        ${growth}${resonance}${fusedTags}${stats}${actionTag}${opts.tableau && c.shields ? `<b class="card-shields" title="Shields: they take heat before its defence does, and fade at its owner's dawn">${symbolIcon('shield')}<span>${c.shields}</span></b>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(this.shownDef(def, c), opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>
@@ -6068,7 +6099,7 @@ export class App {
     const s = this.state!;
     const hero = commandCard(me);
     if (!hero || hero.dimmed) return [];
-    const out: (number | 'attack')[] = (cardDef(hero.defId).abilities ?? []).map((_, i) => i).filter((i) => !heroAbilityProblem(s, me, i));
+    const out: (number | 'attack')[] = heroAbilities(me, hero).map((_, i) => i).filter((i) => !heroAbilityProblem(s, me, i));
     const { cards, sun } = aimChoices(s, me, true);
     if (cardAttack(s, me, hero) > 0 && (sun || cards.length)) out.push('attack');
     return out;
@@ -6081,10 +6112,12 @@ export class App {
   private heroPicks(me: PlayerState, hero: CardInstance): string {
     const s = this.state!;
     const def = cardDef(hero.defId);
-    const abilities = (def.abilities ?? [])
+    // (An emblem's ability marked as what its choice does: attack, stability, heat, shields, frost, a move.)
+    const CHOICE_MARK: Record<string, string> = { empower: 'guns', renew: 'stability', aim: 'heat', ward: 'shield', freeze: 'cool', displace: 'star' };
+    const abilities = heroAbilities(me, hero)
       .map((ab, i) => {
         const e = ab.effects[0];
-        const amount = e && 'amount' in e && typeof e.amount === 'number' ? e.amount : 0;
+        const amount = e && 'amount' in e && typeof e.amount === 'number' ? e.amount : ab.choices ? (ab.choices.amount ?? 0) * (ab.choices.kind === 'aim' ? ab.choices.times : 1) : 0;
         const why = heroAbilityProblem(s, me, i);
         // What it does, in words: its text, then what its keywords mean (the marks' own meaning).
         const explain = keywordsIn(ab.text).map((k) => KEYWORDS[k.id]?.explain(k.value)).filter(Boolean).join(' ');
@@ -6097,7 +6130,7 @@ export class App {
         ].filter(Boolean);
         const payTag = pay.length ? `<em class="hero-pick-pay">${esc(pay.join(' · '))}</em>` : '';
         return `<button class="hero-pick ${why ? 'hero-pick-off' : ''}" ${why ? 'aria-disabled="true"' : `data-act="hero-ability" data-arg="${i}"`} title="${esc([explain, why].filter(Boolean).join(' '))}">
-          <span class="hero-pick-mark">${effectMark(e?.type ?? 'star')}${amount ? `<small>${amount}</small>` : ''}</span>
+          <span class="hero-pick-mark ${ab.relic ? 'hero-pick-relic' : ''}">${effectMark(e?.type ?? (ab.choices ? CHOICE_MARK[ab.choices.kind] ?? 'star' : 'star'))}${amount ? `<small>${amount}</small>` : ''}</span>
           <span class="hero-pick-words"><b>${esc(ab.name.toLowerCase())}${cost}${payTag}</b><span>${esc(why ?? plainText(ab.text))}</span></span>
         </button>`;
       })

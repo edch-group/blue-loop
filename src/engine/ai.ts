@@ -43,6 +43,7 @@ import {
   shiftEffect,
   shiftSlots,
   isDraw,
+  heroAbilities,
 } from './game';
 import type { Action, CardInstance, Effect, GameState, HeroAbility, PlayerState } from './types';
 
@@ -243,7 +244,9 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   // Cards no longer fade: each is worth the horizon, a little more the harder it is to beat down (defence and
   // stability), less where removal can reach it. A Hero leads longer still.
   const turns = def.kind === 'command' ? HORIZON + HERO_DAYS : HORIZON + 1;
-  return perTurn * turns * (0.8 + 0.05 * cardDefence(p, card) + 0.02 * (card.health ?? 0)) * (1 - removalRisk(state, p, card));
+  // (Its own shields, a Ward's, count as defence while they last; a frozen card loses a day's attack.)
+  const frozen = card.frozen && (def.attack ?? 0) > 0 ? 0.8 * cardAttack(state, p, card) : 0;
+  return perTurn * turns * (0.8 + 0.05 * (cardDefence(p, card) + (card.shields ?? 0)) + 0.02 * (card.health ?? 0)) * (1 - removalRisk(state, p, card)) - frozen;
 }
 
 /** Days a Hero is counted on to lead, beyond the usual horizon. */
@@ -529,40 +532,7 @@ export function chooseAIAction(state: GameState): Action {
   if (me.boss) return { type: 'endTurn' };
   // A dawn choice waiting (Circular Refraction): the card returned or moved that leaves it best placed, or none if
   // none is better.
-  const dawn = me.dawnChoices?.[0];
-  // A relic's heat at any target: the rival card, or their sun, that leaves it best placed.
-  if (dawn?.kind === 'aim') {
-    let best: Action = { type: 'dawnChoice' };
-    let score = -Infinity;
-    for (const c of [undefined, ...(targetOf(state, me)?.tableau ?? [])]) {
-      const a: Action = c ? { type: 'dawnChoice', enemyUid: c.uid } : { type: 'dawnChoice' };
-      try {
-        const v = evaluate(applyAction(state, a), me.id);
-        if (v > score) [score, best] = [v, a];
-      } catch {
-        // (Not a move it can make.)
-      }
-    }
-    return best;
-  }
-  if (dawn) {
-    let best: Action = { type: 'dawnChoice' };
-    let score = evaluate(applyAction(state, best), me.id) + 0.05;
-    for (const c of me.tableau) {
-      if (c.slot === COMMAND_SLOT) continue;
-      for (let to = 0; to < (dawn.kind === 'shift' ? BALANCE.tableauSlots : 1); to++) {
-        if (dawn.kind === 'shift' && to === c.slot) continue;
-        const a: Action = dawn.kind === 'shift' ? { type: 'dawnChoice', allyUid: c.uid, shiftTo: to } : { type: 'dawnChoice', allyUid: c.uid };
-        try {
-          const v = evaluate(applyAction(state, a), me.id);
-          if (v > score) [score, best] = [v, a];
-        } catch {
-          // (Not a move it can make.)
-        }
-      }
-    }
-    return best;
-  }
+  if (me.dawnChoices?.length) return dawnPick(state, me);
   const focus = bestTarget(state, me);
   if (focus && targetOf(state, me)?.id !== focus.id) return { type: 'setTarget', targetId: focus.id };
   const skill = aiSkill(state, me);
@@ -572,7 +542,7 @@ export function chooseAIAction(state: GameState): Action {
   // (One that heats: at the sun, or at each card it may be aimed at.)
   const aimAt = aimChoices(state, me).cards.map((c) => c.uid);
   const abilities: Action[] = hero
-    ? (cardDef(hero.defId).abilities ?? []).flatMap((_, index) =>
+    ? heroAbilities(me, hero).flatMap((_, index) =>
         heroAbilityProblem(state, me, index) !== null ? [] : [{ type: 'heroAbility' as const, index }, ...(abilityAimable(hero.defId, index) ? aimAt.map((aimUid) => ({ type: 'heroAbility' as const, index, aimUid })) : [])],
       )
     : [];
@@ -580,7 +550,7 @@ export function chooseAIAction(state: GameState): Action {
   const attacks: Action[] = [];
   const targets = aimChoices(state, me, true);
   for (const c of me.tableau) {
-    if (c.dimmed || cardAttack(state, me, c) <= 0) continue;
+    if (c.dimmed || c.frozen || cardAttack(state, me, c) <= 0) continue;
     if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
     for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
   }
@@ -600,14 +570,14 @@ export function chooseAIAction(state: GameState): Action {
   for (const action of [...attacks, ...abilities, ...candidatePlays(view, me)]) {
     let next: GameState;
     try {
-      next = applyAction(view, action);
+      next = settleChoices(applyAction(view, action), me.id);
     } catch {
       continue;
     }
     // Energy spent on a card is energy not spent on another: a costlier card has to be worth it.
     const played = action.type === 'playCard' ? me.hand.find((c) => c.uid === action.cardUid) : undefined;
     // (An ability is a free extra action, but for its energy.)
-    const abilityCost = action.type === 'heroAbility' && hero ? cardDef(hero.defId).abilities![action.index].cost ?? 0 : 0;
+    const abilityCost = action.type === 'heroAbility' && hero ? heroAbilities(me, hero)[action.index].cost ?? 0 : 0;
     let extra = played ? (cardDef(played.defId).spendAll ? me.playsLeft : cardCost(played.defId)) - 1 : abilityCost;
     // Energy left at day's end is lost: it only costs something when other cards in hand want it today (what they
     // need beyond what is left after this play).
@@ -711,4 +681,51 @@ function removalCombo(view: GameState, me: PlayerState, attacks: Action[]): { ac
     if (sc !== null && (!best || sc > best.score)) best = { action: a1, score: sc };
   }
   return best;
+}
+
+/**
+ * A choice waiting first thing (a dawn Recall or Shift, or what an ability leaves: heat to aim, a card to empower,
+ * ward, freeze or move): the answer that leaves it best placed, or none if none is better.
+ */
+function dawnPick(state: GameState, me: PlayerState): Action {
+  const dawn = me.dawnChoices![0];
+  const rival = targetOf(state, me);
+  const options: Action[] = [];
+  if (dawn.kind === 'aim') for (const c of rival?.tableau ?? []) options.push({ type: 'dawnChoice', enemyUid: c.uid });
+  else if (dawn.kind === 'freeze') for (const c of rival?.tableau ?? []) options.push({ type: 'dawnChoice', enemyUid: c.uid });
+  else if (dawn.kind === 'displace')
+    for (const c of rival?.tableau ?? []) {
+      if (c.slot === COMMAND_SLOT) continue;
+      for (let to = 0; to < BALANCE.tableauSlots; to++) if (to !== c.slot) options.push({ type: 'dawnChoice', enemyUid: c.uid, shiftTo: to });
+    }
+  else if (dawn.kind === 'empower' || dawn.kind === 'renew' || dawn.kind === 'ward') for (const c of me.tableau) options.push({ type: 'dawnChoice', allyUid: c.uid });
+  else
+    for (const c of me.tableau) {
+      if (c.slot === COMMAND_SLOT) continue;
+      if (dawn.kind !== 'shift') options.push({ type: 'dawnChoice', allyUid: c.uid });
+      else for (let to = 0; to < BALANCE.tableauSlots; to++) if (to !== c.slot) options.push({ type: 'dawnChoice', allyUid: c.uid, shiftTo: to });
+    }
+  // (Aimed heat always goes somewhere: their sun is the choice of none. Anything else may be let go, a little worse.)
+  let best: Action = { type: 'dawnChoice' };
+  let score = evaluate(applyAction(state, best), me.id) + (dawn.kind === 'aim' ? 0 : 0.05);
+  for (const a of options) {
+    try {
+      const v = evaluate(applyAction(state, a), me.id);
+      if (v > score) [score, best] = [v, a];
+    } catch {
+      // (Not a move it can make.)
+    }
+  }
+  return best;
+}
+
+/** A state with the mover's waiting choices (an ability's) answered as the AI would answer them. */
+function settleChoices(state: GameState, id: string): GameState {
+  let s = state;
+  for (let i = 0; i < 6; i++) {
+    const me = activePlayer(s);
+    if (me.id !== id || !me.dawnChoices?.length) break;
+    s = applyAction(s, dawnPick(s, me));
+  }
+  return s;
 }

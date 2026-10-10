@@ -129,7 +129,7 @@ function saveCampaign(s: CampaignState | null) {
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const lower = (t: string) => esc(t.toLowerCase());
 /** Where a relic does its work, for its tip. */
-const relicNote = (r: Relic) => (r.cursed ? 'Cursed emblem.' : !r.power ? 'Hero card.' : RELIC_POWERS[r.power].kind === 'once' ? 'Once per battle.' : '');
+const relicNote = (r: Relic) => (r.cursed ? 'Cursed emblem.' : !r.power ? 'Hero card.' : RELIC_POWERS[r.power].kind === 'once' ? 'Once per battle.' : RELIC_POWERS[r.power].kind === 'ability' ? 'Hero ability, one a day.' : '');
 
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { relicMark } from './relic-art';

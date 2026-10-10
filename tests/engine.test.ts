@@ -1883,3 +1883,106 @@ describe('the Grasp and Ram emblems', () => {
     expect(cardAttack(s, ada, w)).toBe(wall);
   });
 });
+
+describe('emblem hero abilities', () => {
+  const relic = (power: string, n: number) => ({ power: power as never, n, name: `Test ${power}` });
+  /** Ada leads with a Hero carrying the emblem; Bo has a card in play. Returns the state and the emblem ability's index. */
+  const setup = (power: string, n: number) => {
+    const s = twoPlayer(21);
+    const [ada, bo] = s.players;
+    ada.tableau.push({ uid: 'hero1', defId: 'ignition_protocol', slot: COMMAND_SLOT, health: 5 });
+    ada.relics = [relic(power, n)];
+    give(ada, ['helio_lancer'], 'tableau');
+    give(bo, ['helio_lancer'], 'tableau');
+    const index = (cardDef('ignition_protocol').abilities ?? []).length;
+    return { s, index };
+  };
+
+  it('lends the Hero one more ability, used as its own are (one a day)', () => {
+    const { s, index } = setup('might', 2);
+    expect(heroAbilityProblem(s, activePlayer(s), index)).toBeNull();
+    const t = applyAction(s, { type: 'heroAbility', index });
+    expect(activePlayer(t).dawnChoices?.[0].kind).toBe('empower');
+    expect(() => applyAction(t, { type: 'heroAbility', index: 0 })).toThrow(/comes first/);
+  });
+
+  it('Empower: a card of yours gains attack', () => {
+    const { s, index } = setup('might', 2);
+    const mine = s.players[0].tableau[1];
+    const before = cardAttack(s, s.players[0], mine);
+    let t = applyAction(s, { type: 'heroAbility', index });
+    t = applyAction(t, { type: 'dawnChoice', allyUid: mine.uid });
+    expect(cardAttack(t, t.players[0], t.players[0].tableau[1])).toBe(before + 2);
+  });
+
+  it('Steady: a card gains stability, past its full', () => {
+    const { s, index } = setup('steady', 3);
+    const mine = s.players[0].tableau[1];
+    let t = applyAction(s, { type: 'heroAbility', index });
+    t = applyAction(t, { type: 'dawnChoice', allyUid: mine.uid });
+    expect(t.players[0].tableau[1].health).toBe((mine.health ?? 0) + 3);
+  });
+
+  it('Multishot: 3 heat, one at a time, at up to 3 targets', () => {
+    const { s, index } = setup('multishot', 3);
+    let t = applyAction(s, { type: 'heroAbility', index });
+    expect(activePlayer(t).dawnChoices).toHaveLength(3);
+    const heat = t.players[1].heat, shields = t.players[1].shields;
+    for (let i = 0; i < 3; i++) t = applyAction(t, { type: 'dawnChoice' });
+    expect(t.players[1].heat).toBe(heat + Math.max(0, 3 - shields));
+    expect(activePlayer(t).dawnChoices).toBeUndefined();
+  });
+
+  it('Ward: a card gains shields, which take heat before its defence, and fade at its dawn', () => {
+    const { s, index } = setup('ward', 2);
+    const mine = s.players[0].tableau[1];
+    let t = applyAction(s, { type: 'heroAbility', index });
+    t = applyAction(t, { type: 'dawnChoice', allyUid: mine.uid });
+    expect(t.players[0].tableau[1].shields).toBe(2);
+    t = endTurn(t);
+    // Bo attacks it: the shields soak the blow first.
+    const bo = activePlayer(t);
+    const atk = bo.tableau[0];
+    atk.dimmed = false;
+    const dented = t.players[0].tableau[1].dented ?? 0;
+    t = applyAction(t, { type: 'attack', attackerUid: atk.uid, targetUid: mine.uid });
+    const after = t.players[0].tableau.find((c) => c.uid === mine.uid)!;
+    const hit = cardAttack(s, s.players[1], s.players[1].tableau[0]);
+    expect(after.shields ?? 0).toBe(Math.max(0, 2 - hit));
+    expect(after.dented ?? 0).toBe(dented + Math.min(Math.max(0, hit - 2), cardDefence(s.players[0], mine)));
+    t = endTurn(t);
+    expect(t.players[0].tableau.find((c) => c.uid === mine.uid)!.shields).toBeUndefined();
+  });
+
+  it("Freeze: a rival card can't attack on its next day", () => {
+    const { s, index } = setup('freeze', 1);
+    const theirs = s.players[1].tableau[0];
+    let t = applyAction(s, { type: 'heroAbility', index });
+    t = applyAction(t, { type: 'dawnChoice', enemyUid: theirs.uid });
+    t = endTurn(t);
+    const card = activePlayer(t).tableau.find((c) => c.uid === theirs.uid)!;
+    card.dimmed = false;
+    expect(attackProblem(t, activePlayer(t), theirs.uid)).toMatch(/frozen/);
+    t = endTurn(endTurn(t));
+    const thawed = activePlayer(t).tableau.find((c) => c.uid === theirs.uid)!;
+    thawed.dimmed = false;
+    expect(attackProblem(t, activePlayer(t), theirs.uid)).toBeNull();
+  });
+
+  it('Displace: a rival card moves to another of their slots', () => {
+    const { s, index } = setup('displace', 1);
+    const theirs = s.players[1].tableau[0];
+    const to = [0, 1, 2, 3, 4].find((i) => i !== theirs.slot)!;
+    let t = applyAction(s, { type: 'heroAbility', index });
+    t = applyAction(t, { type: 'dawnChoice', enemyUid: theirs.uid, shiftTo: to });
+    expect(t.players[1].tableau.find((c) => c.uid === theirs.uid)!.slot).toBe(to);
+  });
+
+  it('the AI uses them, and answers their choices', () => {
+    const { s } = setup('multishot', 3);
+    s.players[0].isAI = true;
+    let t = s;
+    for (let i = 0; i < 12 && activePlayer(t).id === s.players[0].id; i++) t = applyAction(t, chooseAIAction(t));
+    expect(t.players[0].dawnChoices).toBeUndefined();
+  });
+});

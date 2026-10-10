@@ -388,6 +388,10 @@ export interface CardInstance {
   fortified?: number;
   /** Attack given up today (Offering): taken off its attack until its owner's next dawn. */
   spentAttack?: number;
+  /** Shields on the card itself (a Ward): they take heat before its defence does, and fade at its owner's dawn, as a sun's do. */
+  shields?: number;
+  /** Frozen: it can't attack until its owner's day is over. */
+  frozen?: boolean;
   /** Came into play today (dimmed, not Darkspeed): its dusk effects rest until tomorrow. */
   fresh?: boolean;
   boons?: string[];
@@ -457,7 +461,7 @@ export interface PlayerState {
    * (Also any choice a relic leaves its holder to make in their day: a Recall, or heat to aim at any target, a rival
    * card or their sun, `amount` of it.)
    */
-  dawnChoices?: { uid: string; kind: 'recall' | 'shift' | 'aim'; /** A relic's choice (its name), not a card's. */ relic?: string; amount?: number }[];
+  dawnChoices?: { uid: string; kind: AbilityChoice; /** A relic's choice (its name), not a card's. */ relic?: string; amount?: number }[];
   /** Campaign: the relic powers this side carries into battle that the engine answers (relics.ts). */
   relics?: RelicInPlay[];
   id: string;
@@ -618,7 +622,14 @@ export interface HeroAbility {
   cost?: number;
   /** Costs other than energy. */
   pay?: Omit<ActionCost, 'energy'>;
+  /** An emblem's ability (its name): the Hero carries it while the emblem is held. */
+  relic?: string;
+  /** What it leaves its holder to choose, one after another: a card of theirs, or a rival card (or sun). */
+  choices?: { kind: AbilityChoice; times: number; amount?: number };
 }
+
+/** A choice an ability (or a dawn) leaves its holder to make, first thing. */
+export type AbilityChoice = 'recall' | 'shift' | 'aim' | 'empower' | 'renew' | 'ward' | 'freeze' | 'displace';
 
 export interface BattleSkill {
   id: string;

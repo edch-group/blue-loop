@@ -6,7 +6,7 @@ import { inMode, setRulesMode } from './modes';
 import { relicN, relicOf, RELIC_POWERS, type RelicPower } from './relics';
 import { raceTrait } from './races';
 import { randomInt, shuffleInPlace } from './rng';
-import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, TrapTrigger, Passive, ReactEvent, Reaction, Planet, PlayerState, TurnPulse, TurnStats } from './types';
+import type { AbilityChoice, Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, HeroAbility, TrapTrigger, Passive, ReactEvent, Reaction, Planet, PlayerState, TurnPulse, TurnStats } from './types';
 
 export class GameError extends Error {}
 
@@ -381,6 +381,30 @@ export function abilityAimable(defId: string, index: number): boolean {
   return (cardDef(defId).abilities?.[index]?.effects ?? []).some((e) => e.type === 'heat' && e.to === 'target');
 }
 
+/**
+ * The abilities of the Hero leading a player's tableau: its own, then those its side's emblems lend it (Empower,
+ * Multishot, Ward, Freeze...), each used as its own are, one a day, by the choice it leaves its holder to make.
+ */
+export function heroAbilities(p: PlayerState, hero: CardInstance | undefined = commandCard(p)): HeroAbility[] {
+  if (!hero) return [];
+  const lent = (p.relics ?? []).flatMap((r): HeroAbility[] => {
+    const a = RELIC_POWERS[r.power]?.ability?.(r.n);
+    return a ? [{ id: `relic-${r.power}`, name: a.name, text: a.text, effects: [], relic: r.name, choices: a.choice }] : [];
+  });
+  return [...(cardDef(hero.defId).abilities ?? []), ...lent];
+}
+
+/** Whether a choice an ability leaves has anything to fall on: a card of the holder's, or the rival's (aimed heat always has their sun). */
+function choiceOpen(state: GameState, p: PlayerState, kind: AbilityChoice): boolean {
+  const rival = targetOf(state, p);
+  if (kind === 'aim') return !!rival && (rival.tableau.length > 0 || !rival.boss);
+  if (kind === 'freeze') return !!rival?.tableau.length;
+  if (kind === 'displace') return !!rival?.tableau.some((c) => c.slot !== COMMAND_SLOT);
+  if (kind === 'shift') return p.tableau.some((c) => c.slot !== COMMAND_SLOT);
+  if (kind === 'recall') return p.tableau.some(returnable);
+  return p.tableau.length > 0;
+}
+
 /** Where aimed heat lands: the rival card aimed at (if still there), else the sun (null). Guards don't draw it in. */
 function aimedCard(state: GameState, p: PlayerState, aim: string | undefined): CardInstance | null {
   const t = targetOf(state, p);
@@ -411,6 +435,15 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
     amount -= blocked;
   }
   if (amount <= 0 || !owner.tableau.includes(victim)) return;
+  // A card's own shields (a Ward) take the blow before its defence, as a sun's do (not pierce heat).
+  if (victim.shields && !pierce) {
+    const held = Math.min(victim.shields, amount);
+    victim.shields -= held;
+    if (!victim.shields) delete victim.shields;
+    amount -= held;
+    log(state, `${owner.name}'s ${cardDef(victim.defId).name}'s shields absorb ${held}${fromText}.`);
+    if (amount <= 0) return;
+  }
   // The card's defence (its slot's, and its own) takes the blow first (not a pierce one), and stays worn:
   // later blows find less defence in their way, until it is mended.
   // A sting ignores it too: the attacking card left its defences to attack.
@@ -1587,6 +1620,8 @@ function startTurn(state: GameState) {
   const keep = passives(p).some(({ passive }) => passive.type === 'keepShields');
   // (A campaign ship's shields are up as the battle begins: they last its first day.)
   if (!(state.campaign && p.turnsTaken === 1)) p.shields = keep ? Math.min(p.shields, BALANCE.maxKeptShields) : 0;
+  // (A card's own shields fade too.)
+  for (const c of p.tableau) delete c.shields;
 
   // The planets move on a day (your first day starts at the dead planet).
   if (p.turnsTaken > 1) {
@@ -2283,8 +2318,47 @@ export function applyAction(prev: GameState, action: Action): GameState {
         if (p.eliminated) passOn(state);
         break;
       }
+      // An emblem's ability: a rival card frozen, or moved.
+      if (next.kind === 'freeze' || next.kind === 'displace') {
+        const rival = targetOf(state, p);
+        if (!rival || action.enemyUid === undefined) {
+          log(state, `${p.name} lets ${name} pass.`);
+          break;
+        }
+        const victim = rival.tableau.find((c) => c.uid === action.enemyUid && (next.kind === 'freeze' || c.slot !== COMMAND_SLOT));
+        if (!victim) throw new GameError("Choose a card in your rival's tableau.");
+        if (next.kind === 'freeze') {
+          victim.frozen = true;
+          log(state, `${p.name}'s ${name}: ${rival.name}'s ${cardDef(victim.defId).name} is frozen.`);
+          break;
+        }
+        const to = action.shiftTo;
+        if (to === undefined || to === victim.slot || to < 0 || to >= BALANCE.tableauSlots) throw new GameError("Move it to another of your rival's slots.");
+        log(state, `${p.name}'s ${name}: ${rival.name}'s ${cardDef(victim.defId).name} is moved.`);
+        resolveEffects(state, p, source, [{ type: 'shift', enemy: true }], 'turn', { enemyUid: victim.uid, shiftTo: to });
+        break;
+      }
       if (action.allyUid === undefined) {
-        log(state, `${p.name} lets ${name}'s ${next.relic && next.kind === 'recall' ? '' : 'dawn '}${next.kind} pass.`);
+        log(state, next.kind === 'recall' || next.kind === 'shift' ? `${p.name} lets ${name}'s ${next.relic && next.kind === 'recall' ? '' : 'dawn '}${next.kind} pass.` : `${p.name} lets ${name} pass.`);
+        break;
+      }
+      // An emblem's ability on a card of yours: attack, stability or shields.
+      if (next.kind === 'empower' || next.kind === 'renew' || next.kind === 'ward') {
+        const mine = p.tableau.find((c) => c.uid === action.allyUid);
+        if (!mine) throw new GameError('Choose one of your cards in play.');
+        const n = next.amount ?? 1;
+        if (next.kind === 'empower') {
+          mine.attackBonus = (mine.attackBonus ?? 0) + n;
+          log(state, `${p.name}'s ${name}: ${cardDef(mine.defId).name} gains +${n} attack.`);
+        } else if (next.kind === 'ward') {
+          mine.shields = (mine.shields ?? 0) + n;
+          log(state, `${p.name}'s ${name}: ${cardDef(mine.defId).name} gains ${n} shields.`);
+          notePulse(state, p, null, 'shield', p, n, mine.uid);
+        } else {
+          mine.health = (mine.health ?? 0) + n;
+          mine.maxHealth = Math.max(mine.maxHealth ?? 0, baseHealth(mine.defId), mine.health);
+          log(state, `${p.name}'s ${name}: ${cardDef(mine.defId).name} gains ${n} stability (stability ${mine.health}).`);
+        }
         break;
       }
       if (next.kind === 'recall') {
@@ -2338,6 +2412,8 @@ export function applyAction(prev: GameState, action: Action): GameState {
       // Dusk: the day's last effects, replayed with the next dawn's.
       state.turnPulses = [];
       dusk(state, p);
+      // (A card frozen thaws as its owner's day ends.)
+      for (const c of p.tableau) delete c.frozen;
       if (p.eliminated) {
         passOn(state);
         break;
@@ -2362,7 +2438,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       const why = heroAbilityProblem(state, p, action.index);
       if (why) throw new GameError(why);
       const hero = commandCard(p)!;
-      const k = cardDef(hero.defId).abilities![action.index];
+      const k = heroAbilities(p, hero)[action.index];
       p.playsLeft -= k.cost ?? 0;
       // The other costs: the Hero's own stability, a card sacrificed, heat on your own sun.
       if (k.pay?.stability) hero.health = (hero.health ?? 0) - k.pay.stability;
@@ -2380,6 +2456,9 @@ export function applyAction(prev: GameState, action: Action): GameState {
       if (action.aimUid && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
       log(state, `${p.name}'s ${cardDef(hero.defId).name}: ${k.name}.`);
       resolveEffects(state, p, hero, k.effects, 'play', { aimUid: action.aimUid });
+      // (An emblem's ability: its choices, one after another, before anything else.)
+      if (k.choices && choiceOpen(state, p, k.choices.kind))
+        for (let i = 0; i < k.choices.times; i++) (p.dawnChoices ??= []).push({ uid: `relic:${k.relic ?? k.name}`, kind: k.choices.kind, relic: k.name, ...(k.choices.amount ? { amount: k.choices.amount } : {}) });
       if (p.eliminated) passOn(state);
       break;
     }
@@ -2491,6 +2570,7 @@ export function attackProblem(state: GameState, p: PlayerState, attackerUid: str
   if (activePlayer(state).id !== p.id) return 'Only on your own day.';
   if (cardAttack(state, p, card) <= 0) return `${cardDef(card.defId).name} has no attack.`;
   if (card.dimmed) return `${cardDef(card.defId).name} is dimmed: it acts again from your next day.`;
+  if (card.frozen) return `${cardDef(card.defId).name} is frozen: it can't attack today.`;
   const { cards, sun } = aimChoices(state, p, true);
   if (targetUid === undefined) return null;
   if (targetUid === null) return sun ? null : targetOf(state, p)?.boss && !guards(targetOf(state, p)!).length ? 'It has no sun: strike its body (its Overlord is what must fall).' : 'Your rival has a Guard in play: attack it.';
@@ -2563,8 +2643,9 @@ function strike(state: GameState, p: PlayerState, card: CardInstance, targetUid:
 /** Why the ability of the Hero leading a player's tableau can't be used now (null if it can). */
 export function heroAbilityProblem(state: GameState, p: PlayerState, index: number): string | null {
   const hero = commandCard(p);
-  const k = hero ? cardDef(hero.defId).abilities?.[index] : undefined;
+  const k = hero ? heroAbilities(p, hero)[index] : undefined;
   if (!hero || !k) return 'No Hero leads your tableau.';
+  if (k.choices && !choiceOpen(state, p, k.choices.kind)) return `${k.name} has nothing to choose.`;
   if (activePlayer(state).id !== p.id) return 'Only on your own day.';
   if (hero.dimmed) return p.abilityTurn === state.turnNumber ? `${cardDef(hero.defId).name} is dimmed: it has been used today.` : `${cardDef(hero.defId).name} is dimmed: it acts from your next day.`;
   if ((k.cost ?? 0) > p.playsLeft) return `${k.name} needs ${k.cost} energy.`;
