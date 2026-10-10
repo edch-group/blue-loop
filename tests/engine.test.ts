@@ -533,15 +533,13 @@ describe('Lightspeed guards', () => {
     s.activePlayerIndex = s.players.indexOf(s.players.find((p) => p.id === me.id)!);
     const [array] = give(activePlayer(s), ['siege_array'], 'tableau');
     array.health = 6;
-    s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: lancerTarget.uid });
-    // The attack waits on their answer: they spring the Bulwark.
-    expect(s.reaction?.slot).toBe(true);
-    expect(s.struck).toBeUndefined();
-    // As the answer is shown: the Bulwark is in, the attack not yet made.
-    const shown = answerShown(s, { type: 'react', slot: true });
+    const strike = { type: 'attack', attackerUid: array.uid, targetUid: lancerTarget.uid } as const;
+    // As the answer is shown: the Bulwark is in (sprung at once, face down), the attack not yet made.
+    const shown = answerShown(s, strike);
     expect(shown.players.find((p) => p.id === rival.id)!.tableau.some((c) => c.defId === 'blink_bulwark')).toBe(true);
     expect(shown.struck).toBeUndefined();
-    s = applyAction(s, { type: 'react', slot: true });
+    s = applyAction(s, strike);
+    expect(s.reaction).toBeUndefined();
     expect(s.struck?.attackerUid).toBe(array.uid);
     const after = s.players.find((p) => p.id === rival.id)!;
     expect(after.lightspeed).toBeNull();
@@ -1012,10 +1010,7 @@ describe('lightspeed', () => {
     give(activePlayer(s), ['coronal_lance', 'cryo_vault']);
     const ada = s.players[0].heat;
     s = play(s, 'coronal_lance');
-    // The play waits: Ada may answer it.
-    expect(s.reaction?.playerId).toBe(s.players[0].id);
-    expect(() => applyAction(s, { type: 'endTurn' })).toThrow(/Waiting/);
-    s = applyAction(s, { type: 'react', slot: true });
+    // Face down, it springs at once: nothing to choose.
     expect(s.reaction).toBeUndefined();
     expect(s.players[0].heat).toBe(ada);
     expect(s.players[0].lightspeed).toBeNull();
@@ -1023,20 +1018,21 @@ describe('lightspeed', () => {
     expect(s.players[1].tableau).toHaveLength(0);
   });
 
-  it('can be kept face down: let the move pass, and it waits for another', () => {
+  it('face down, springs on the first trigger it meets: it cannot be held back for a better one', () => {
     let s = twoPlayer();
     give(activePlayer(s), ['null_field']);
     activePlayer(s).playsLeft = 2;
     s = play(s, 'null_field');
     s = endTurn(s);
-    give(activePlayer(s), ['coronal_lance']);
-    s = play(s, 'coronal_lance');
-    s = applyAction(s, { type: 'react' });
+    give(activePlayer(s), ['gravity_sling', 'coronal_lance']);
+    activePlayer(s).playsLeft = 5;
+    // A small play first: the Null Field spends itself on it, and the Lance that follows goes through.
+    s = play(s, 'gravity_sling');
     expect(s.reaction).toBeUndefined();
-    expect(s.players[0].lightspeed?.defId).toBe('null_field');
-    expect(s.players[1].hand.some((c) => c.defId === 'coronal_lance')).toBe(false);
-    expect(s.log.some((l) => /cancelled/.test(l.text))).toBe(false);
-    expect(s.log.some((l) => /plays Coronal Lance/.test(l.text))).toBe(true);
+    expect(s.players[0].lightspeed).toBeNull();
+    expect(s.log.some((l) => /cancelled/.test(l.text))).toBe(true);
+    s = play(s, 'coronal_lance');
+    expect(s.log.some((l) => /Coronal Lance heats/.test(l.text))).toBe(true);
   });
 
   it('answers only its own trigger (Flare Trap: an attack on your sun, not on a card)', () => {
@@ -1051,8 +1047,7 @@ describe('lightspeed', () => {
     s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: mine.uid });
     expect(s.reaction).toBeUndefined();
     s = applyAction(s, { type: 'attack', attackerUid: array2.uid, targetUid: null });
-    expect(s.reaction?.slot).toBe(true);
-    s = applyAction(s, { type: 'react', slot: true });
+    expect(s.reaction).toBeUndefined();
     // 4 heat to the attacker first (its defence, then its stability), then its attack lands.
     const a2 = s.players[1].tableau.find((c) => c.uid === array2.uid);
     expect((a2?.dented ?? 0) + (9 - (a2?.health ?? 0))).toBe(4);
@@ -1068,7 +1063,6 @@ describe('lightspeed', () => {
     array.health = 9;
     const before = cardDefence(s.players[0], s.players[0].tableau.find((c) => c.uid === keep.uid)!);
     s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: keep.uid });
-    s = applyAction(s, { type: 'react', slot: true });
     const k = s.players[0].tableau.find((c) => c.uid === keep.uid)!;
     expect(k.fortified).toBe(3);
     expect((k.dented ?? 0)).toBeGreaterThan(0);
@@ -1085,7 +1079,6 @@ describe('lightspeed', () => {
     bo.playsLeft = 3;
     give(bo, ['coolant_array']);
     s = play(s, 'coolant_array');
-    s = applyAction(s, { type: 'react', slot: true });
     expect(s.players[1].playsLeft).toBe(0);
     expect(s.players[1].tableau).toHaveLength(0);
   });
@@ -1381,7 +1374,7 @@ describe('lightspeed', () => {
     const bo = s.players[1];
     bo.lightspeed = { uid: 'ls1', defId: 'null_field' };
     give(activePlayer(s), ['coronal_lance']);
-    const next = applyAction(play(s, 'coronal_lance'), { type: 'react', slot: true });
+    const next = play(s, 'coronal_lance');
     expect(next.sprung).toEqual([{ ownerId: bo.id, defId: 'null_field', enemyId: activePlayer(s).id, against: 'coronal_lance', trigger: 'enemyPlays' }]);
     expect(next.log.some((l) => /springs Null Field in answer to .*Coronal Lance/.test(l.text))).toBe(true);
     // Only the move it sprang on carries it.
@@ -1399,7 +1392,6 @@ describe('lightspeed', () => {
     const heatBefore = ada.heat, shields = ada.shields;
     const stab = bo.tableau.find((c) => c.uid === t.b.uid)!.health;
     s = applyAction(s, { type: 'attack', attackerUid: t.array.uid, targetUid: t.b.uid });
-    s = applyAction(s, { type: 'react', slot: true });
     expect(s.players[1].lightspeed).toBeNull();
     expect(s.players[1].tableau.find((c) => c.uid === t.b.uid)!.health).toBe(stab);
     expect(activePlayer(s).heat + Math.max(0, shields - activePlayer(s).shields)).toBe(heatBefore + 2);
@@ -1416,7 +1408,6 @@ describe('lightspeed', () => {
     s.players[1].lightspeed = { uid: 'pd', defId: 'prism_of_dawn' };
     const sun = s.players[1].heat;
     s = applyAction(s, { type: 'attack', attackerUid: array.uid, targetUid: null });
-    s = applyAction(s, { type: 'react', slot: true });
     const w = s.players[1].tableau.find((c) => c.uid === wall.uid)!;
     expect(w.fortified).toBe(3);
     expect(s.players[1].heat).toBe(sun);
@@ -1430,10 +1421,8 @@ describe('lightspeed', () => {
     give(me, ['ion_cannon']);
     me.playsLeft = 5;
     s = play(s, 'ion_cannon', { enemyUid: keep.uid });
-    const left = activePlayer(s).playsLeft;
-    s = applyAction(s, { type: 'react', slot: true });
     expect(activePlayer(s).hand.some((c) => c.defId === 'ion_cannon')).toBe(true);
-    expect(activePlayer(s).playsLeft).toBeLessThan(left);
+    expect(activePlayer(s).playsLeft).toBeLessThan(5);
     expect(s.players[1].tableau.some((c) => c.uid === keep.uid)).toBe(true);
   });
 });
@@ -1738,9 +1727,8 @@ describe('relic powers', () => {
     bo.tableau = [];
     let t = endTurn(s);
     t = endTurn(t);
-    // (Its blow at any target waits on Ada's choice: here, Bo's sun.)
-    expect(t.players[0].dawnChoices?.find((c) => c.kind === 'aim')).toMatchObject({ amount: 5 });
-    while (t.players[0].dawnChoices?.length) t = applyAction(t, { type: 'dawnChoice' });
+    // (With nothing of Bo's on the board, its blow goes straight to Bo's sun: nothing to choose.)
+    expect(t.players[0].dawnChoices?.find((c) => c.kind === 'aim')).toBeUndefined();
     expect(t.players[1].heat).toBeGreaterThan(heat);
   });
 });
@@ -1754,6 +1742,8 @@ describe('relic powers, part two', () => {
     const atk = give(ada, ['helio_lancer', 'helio_lancer', 'helio_lancer'], 'tableau');
     for (const c of atk) c.dimmed = false;
     bo.tableau = [];
+    const [wall] = give(bo, ['coolant_array'], 'tableau');
+    wall.health = 9;
     for (const c of atk) s = applyAction(s, { type: 'attack', attackerUid: c.uid, targetUid: null });
     expect(s.players[0].dawnChoices?.[0]).toMatchObject({ kind: 'aim', amount: 2 });
     const heat = s.players[1].heat;

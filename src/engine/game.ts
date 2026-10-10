@@ -427,6 +427,13 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
 function relicAim(state: GameState, p: PlayerState, amount: number, power: RelicPower) {
   const relic = relicOf(p.relics, power);
   if (!relic || amount <= 0 || state.winnerId || p.eliminated || !targetOf(state, p)) return;
+  const rival = targetOf(state, p)!;
+  // (Nothing of theirs on the board: it goes to their sun, with nothing to choose.)
+  if (!rival.tableau.length && !rival.boss) {
+    notePulse(state, p, null, 'heat', rival, amount);
+    applyHeat(state, rival, amount, p, false, undefined, false, `${p.name}'s ${relic.name}`);
+    return;
+  }
   log(state, `${p.name}'s ${relic.name}: ${amount} heat to any target.`);
   (p.dawnChoices ??= []).push({ uid: `relic:${relic.name}`, kind: 'aim', relic: relic.name, amount });
 }
@@ -1824,12 +1831,18 @@ function wouldAnswer(state: GameState, mover: PlayerState, events: ReactEvent[])
   });
 }
 
-/** Open a reaction window for the first rival who could answer: the move waits on them. True if one opened. */
+/**
+ * Open a reaction window for the first rival who could answer: the move waits on them. True if one opened (or the
+ * move was answered and has gone on). A face-down card that answers springs at once, with nothing to choose (the
+ * first trigger it meets is the one it answers: only a card kept in hand picks its moment); then a window opens
+ * only if a card in hand could still answer.
+ */
 function openReaction(state: GameState, mover: PlayerState, events: ReactEvent[], pending: Reaction['pending']): boolean {
   for (const o of othersInOrder(state, mover)) {
     const k = reactOptions(state, o, events);
     if (!k.slot && !k.hand.length) continue;
     state.reaction = { playerId: o.id, enemyId: mover.id, events, pending, slot: k.slot, hand: k.hand };
+    if (k.slot) react(state, { type: 'react', slot: true });
     return true;
   }
   return false;
@@ -1847,7 +1860,7 @@ let holdResume = false;
  * A Lightspeed answer as it lands, before the move it answered goes on: what the board looks like while the answer
  * is read (its guard landed, its shields up), ahead of the attack that may still come.
  */
-export function answerShown(prev: GameState, action: Extract<Action, { type: 'react' }>): GameState {
+export function answerShown(prev: GameState, action: Action): GameState {
   holdResume = true;
   try {
     return applyAction(prev, action);

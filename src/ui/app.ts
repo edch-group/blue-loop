@@ -1478,7 +1478,10 @@ export class App {
    * it in; only then does the attacker go in, if it still can. Returns false for any other move.
    */
   private strikeAfterAnswer(prev: GameState, next: GameState, action: Action, land: () => void): boolean {
-    if (action.type !== 'react' || prev.reaction?.pending.kind !== 'attack' || reducedMotion()) return false;
+    // (An answer from hand to an attack, or a face-down card that sprang at the attack itself.)
+    const answered = action.type === 'react' && prev.reaction?.pending.kind === 'attack';
+    const sprang = action.type === 'attack' && !next.reaction && !!next.sprung?.length;
+    if ((!answered && !sprang) || reducedMotion()) return false;
     const blow: Extract<Action, { type: 'attack' }> | null = next.struck ? { type: 'attack', ...next.struck } : null;
     const strike = (from: GameState) => {
       this.render();
@@ -4947,7 +4950,7 @@ export class App {
             kind('relic', 'Relic', 'No attack: a lasting bonus. Brittle: nothing restores it, and removal reaches it whatever its defence.'),
             kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. It leads from its own slot until it is beaten down or replaced, with an ability to use each day, and never returns to your hand.`),
             kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
-            kind('lightspeed', 'Lightspeed', "Set face down. Springs during your rival's day."),
+            kind('lightspeed', 'Lightspeed', "Face down, springs on the first trigger. From hand, you pick the moment."),
           ),
       ],
       keywords: [
@@ -5484,6 +5487,8 @@ export class App {
         : null;
     // Aiming (an attack, a card's heat or a Hero's ability): the rival's sun is a target too, unless a Guard stands (against an attack).
     const sunAim = side === 'rival' && pend?.step === 'aim' && aimChoices(st, activePlayer(st), !!pend.attack).sun;
+    // A relic's heat at any target: their sun is one.
+    const relicSun = side === 'rival' && this.dawnChoice()?.kind === 'aim' && !p.boss;
     // The Command slot: the one Command card leads the tableau from out in front (top right of yours,
     // bottom left of your rival's: a mirror across the board), lying landscape.
     const cmd = commandCard(p);
@@ -5523,7 +5528,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          ${p.boss ? this.bossVitals(p) : `<div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), paradise: relicN(p.relics, 'paradise') + (p.modifiers?.paradise ?? 0) > 0, shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>`}
+          ${p.boss ? this.bossVitals(p) : `<div class="vitals ${sunAim || relicSun ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : relicSun ? 'data-act="dawn-aim-sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), paradise: relicN(p.relics, 'paradise') + (p.modifiers?.paradise ?? 0) > 0, shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>`}
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>
