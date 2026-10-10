@@ -37,6 +37,9 @@ import {
   buyUpgrade,
   refundUpgrade,
   buyUpgradeProblem,
+  levelFor,
+  pointCost,
+  pointsLeft,
   levelOf,
   raceUnlocked,
   heroUnlocked,
@@ -86,13 +89,14 @@ import {
   type ChallengeKind,
   type Relic,
 } from '../engine';
-import { markDirty } from './account';
+import { account, markDirty } from './account';
+import { profile } from './profile';
 import { loadMeta, saveMeta } from './meta';
 import { DeckBuilder, type BuilderMode } from './builder';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
-import { raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { playerAvatar, raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { reducedMotion } from './fx';
 import { voices } from './voice';
@@ -1020,6 +1024,11 @@ export class CampaignView {
         sound.cacheOpen();
         // (Each reward chimes as it comes out.)
         for (let i = 0; i < n; i++) window.setTimeout(() => sound.lootChime(i), LOOT_FIRST + i * LOOT_STEP);
+        // The experience gauge fills once it is out (it comes after the materials, if any).
+        if (l.xp) {
+          const from = this.commanderXp() - l.xp;
+          window.setTimeout(() => this.fillXpGauge(from, l.xp), LOOT_FIRST + (l.materials ? 1 : 0) * LOOT_STEP + 350);
+        }
         break;
       }
       case 'cmp-loot-ok':
@@ -1092,6 +1101,7 @@ export class CampaignView {
         <canvas class="cmp-nebula" data-key="cmp-nebula" aria-hidden="true"></canvas>
         <header class="cmp-top">
           <div class="cmp-top-left">
+            ${this.renderProfile()}
             ${scene ? this.renderStory(scene) : ''}
           </div>
           <div class="cmp-purse">
@@ -1117,6 +1127,62 @@ export class CampaignView {
   }
 
   /** What this galaxy is like (touching every battle in it): its mark, its name, and what it does on a hover or tap. */
+  /** A battle's experience, as a gauge: the commander's level, the bar where it stood before, what was earned. */
+  private xpGauge(from: number, gain: number): string {
+    const { level, into, need } = levelFor(from);
+    return `<div class="loot-xp"><span class="loot-xp-lv">level <b>${level}</b></span><span class="loot-xp-bar"><i style="width:${((into / need) * 100).toFixed(1)}%"></i></span><span class="loot-xp-gain">+${gain} xp</span><span class="loot-xp-up" aria-hidden="true">+1 skill point</span></div>`;
+  }
+
+  /**
+   * The gauge filling: the bar runs from where it stood to where it ends up, around again for every level gained
+   * (the level ticking up, a chime, "+1 skill point"), the sound of it filling rising as it goes.
+   */
+  private fillXpGauge(from: number, gain: number) {
+    const el = document.querySelector<HTMLElement>('.loot-xp');
+    const bar = el?.querySelector<HTMLElement>('.loot-xp-bar > i');
+    const lv = el?.querySelector<HTMLElement>('.loot-xp-lv b');
+    if (!el || !bar || !lv) return;
+    const start = levelFor(from), end = levelFor(from + gain);
+    const ups = end.level - start.level;
+    const dur = Math.min(2600, 700 + gain * 40 + ups * 450);
+    sound.xpFill(dur / 1000);
+    const t0 = performance.now();
+    let shown = start.level;
+    const step = (t: number) => {
+      if (!el.isConnected) return;
+      const k = Math.min(1, (t - t0) / dur);
+      const e = 1 - (1 - k) * (1 - k);
+      const now = levelFor(from + gain * e);
+      bar.style.width = `${((now.into / now.need) * 100).toFixed(1)}%`;
+      if (now.level !== shown) {
+        shown = now.level;
+        lv.textContent = String(shown);
+        el.classList.remove('levelled');
+        void el.offsetWidth;
+        el.classList.add('levelled');
+        sound.levelUp();
+      }
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  /** The commander's experience in all: what is banked, and what this run has earned and not yet banked. */
+  private commanderXp(): number {
+    const s = this.state;
+    return (loadMeta().xp ?? 0) + Math.max(0, (s?.xp ?? 0) - (s?.xpBanked ?? 0));
+  }
+
+  /** The player on the map: their face, their name, their commander level and how far into it they are. */
+  private renderProfile(): string {
+    const { level, into, need } = levelFor(this.commanderXp());
+    const name = profile().name || 'Commander';
+    return `<div class="cmp-profile" data-tip-title="commander level ${level}" data-tip="${into} / ${need} experience to level ${level + 1}. Every level brings a skill point, for the skill tree between runs." aria-label="${esc(`${name}, level ${level}`)}">
+      ${playerAvatar(account()?.avatar ?? (this.state ? campaignPlayer(this.state).hero : undefined), 'cmp-profile-face')}
+      <span class="cmp-profile-who"><b>${esc(name.toLowerCase())}</b><small>level ${level}</small><span class="cmp-xpbar"><i style="width:${Math.round((into / need) * 100)}%"></i></span></span>
+    </div>`;
+  }
+
   /**
    * The galaxy's name, written on the land itself beside the start of the route, running along it (turned to read
    * the right way up): what the galaxy does to every battle in it, on a tap.
@@ -1214,7 +1280,7 @@ export class CampaignView {
           <h2 class="menu-heading">a dying universe</h2>
           <div class="cs-purses">
             <button class="cs-petals" data-act="cmp-deck" data-tip-title="starting deck" data-tip="Spend Stellari petals on cards for this race's starting deck.">${PETAL}<b>${meta.petals}</b><span>starting deck</span></button>
-            <button class="cs-petals cs-xp" data-act="cmp-shop" data-tip-title="skills" data-tip="Spend experience on the skill tree: earned on every run, won or lost.">${XP_MARK}<b>${meta.xp ?? 0}</b><span>skills</span></button>
+            <button class="cs-petals cs-xp" data-act="cmp-shop" data-tip-title="skills · level ${levelFor(meta.xp ?? 0).level}" data-tip="Spend skill points on the skill tree: one for every commander level, raised by the experience every run earns, won or lost.">${XP_MARK}<b>${pointsLeft(meta)}</b><span>skill points</span></button>
           </div>
         </header>
         <div class="cs-body">
@@ -1335,7 +1401,8 @@ export class CampaignView {
         // current value, next value].)
         // (Not yet learnt: what its first point gives, with no "next" line.)
         const vals = look ? `${look.value(Math.max(level, 1))} ${look.unit}` : u.text;
-        const next = look && level > 0 && !maxed ? `Next: ${look.value(level + 1)}` : '';
+        const price = maxed ? '' : `${pointCost(u)} point${pointCost(u) === 1 ? '' : 's'}`;
+        const next = [look && level > 0 && !maxed ? `Next: ${look.value(level + 1)}` : '', price].filter(Boolean).join(' · ');
         const term = this.upSearch.trim().toLowerCase();
         const hit = !!term && `${u.name} ${vals}`.toLowerCase().includes(term);
         return `<button class="up-node ${term ? (hit ? 'up-match' : 'up-dim') : ''} tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed && level === 0 ? 'afford' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)};--bc:${colourOf(u.group)};--lv:${(level / u.max).toFixed(3)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-up-title="${esc(u.name.toLowerCase())}" data-up-text="${esc(vals)}" data-up-next="${esc(next)}" aria-label="${esc(u.name)}">
@@ -1353,7 +1420,7 @@ export class CampaignView {
           </div>
           <div class="up-title-big">
             <h3>skills</h3>
-            <span class="up-xp">${XP_MARK}<b>${meta.xp ?? 0}</b><small>experience to spend</small></span>
+            <span class="up-xp">${XP_MARK}<b>${pointsLeft(meta)}</b><small>skill point${pointsLeft(meta) === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small></span>
           </div>
           <label class="up-search" aria-label="Search the skills">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM15.5 15.5l5 5"/></svg>
@@ -2264,7 +2331,7 @@ export class CampaignView {
       return this.modal(
         'the run is over',
         `<div class="center"><h2>${s.universe > 1 ? `${s.universe - 1} galax${s.universe - 1 === 1 ? 'y' : 'ies'} crossed` : 'lost in the first galaxy'}</h2>
-          <p>${XP_MARK} ${s.xp ?? 0} experience earned this run, and kept: you have ${XP_MARK} ${meta.xp ?? 0} to spend on skills.</p>
+          <p>${XP_MARK} ${s.xp ?? 0} experience earned this run, and kept: commander level ${levelFor(meta.xp ?? 0).level}, with ${pointsLeft(meta)} skill point${pointsLeft(meta) === 1 ? '' : 's'} to spend.</p>
           <p>${s.petals ? `${PETAL} ${s.petals} petal${s.petals === 1 ? '' : 's'} grabbed this run, and banked.` : 'No petals this time: reach a wormhole to grab some.'} You have ${PETAL} ${meta.petals} to spend on your starting decks.</p>
           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-new-run">upgrades · new run</button><button class="btn" data-act="cmp-abandon">back to menu</button></div></div>`,
       );
@@ -2302,7 +2369,7 @@ export class CampaignView {
       const l = s.loot;
       const items = [
         l.materials ? `<div class="loot-row">${MATERIALS}<b>+${l.materials}</b><span>materials</span></div>` : '',
-        l.xp ? `<div class="loot-row"><b>+${l.xp}</b><span>experience</span></div>` : '',
+        l.xp ? this.xpGauge(this.commanderXp() - l.xp, l.xp) : '',
         l.petals ? `<div class="loot-row">${PETAL}<b>+${l.petals}</b><span>Stellari petals</span></div>` : '',
         ...l.relics.map((r) => `<div class="loot-relic"><span class="cmp-relic ${r.cursed ? 'cursed' : ''}">${relicMark(r.name, r.slot)}</span><div><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div></div>`),
         ...l.cards.map((id) => `<div class="cmp-pick loot-card">${cardHtml(id)}</div>`),

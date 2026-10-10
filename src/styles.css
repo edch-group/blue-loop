@@ -6639,3 +6639,29 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 }
 .cmp-galaxy.cmp-galaxy-land svg { width: 76px; height: 76px; stroke-width: 1.2; }
 .cmp-galaxy.cmp-galaxy-land b { font-weight: 400; letter-spacing: 0.32em; }
+
+/* ---- The commander on the map: face, name, level, and the bar to the next level ---- */
+.cmp-profile { display: flex; align-items: center; gap: 8px; height: 44px; box-sizing: border-box; padding: 4px 14px 4px 4px; border-radius: 999px; background: var(--glass-strong); border: 1px solid #fff; box-shadow: var(--shadow); cursor: help; }
+.cmp-profile-face { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex: none; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(201, 162, 78, 0.7); }
+.cmp-profile-who { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 8px; row-gap: 3px; min-width: 96px; }
+.cmp-profile-who b { font-family: var(--display); font-weight: 500; font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.cmp-profile-who small { font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.14em; text-transform: uppercase; color: #9a7429; justify-self: end; white-space: nowrap; }
+.cmp-xpbar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: rgba(150, 156, 172, 0.25); overflow: hidden; }
+.cmp-xpbar i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #d9b45e, #f1d48a); }
+@media (max-height: 560px) { .cmp-profile { height: 38px; padding-right: 10px; } .cmp-profile-face { width: 30px; height: 30px; } .cmp-profile-who { min-width: 80px; } }
+
+/* ---- A battle's experience in the loot: the level, the gauge filling, "+1 skill point" on a level gained ---- */
+.loot-xp { position: relative; display: grid; grid-template-columns: auto minmax(160px, 260px) auto; align-items: center; gap: 12px; font-family: var(--display); letter-spacing: 0.12em; text-transform: uppercase; }
+.loot-xp-lv { font-size: 0.7rem; color: var(--ink-soft); white-space: nowrap; }
+.loot-xp-lv b { font-size: 1.15rem; color: var(--ink); margin-left: 4px; display: inline-block; }
+.loot-xp-bar { height: 10px; border-radius: 5px; background: rgba(150, 156, 172, 0.22); overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 60, 90, 0.15); }
+.loot-xp-bar i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #d9b45e, #f6dc94, #d9b45e); background-size: 200% 100%; animation: xp-sheen 1.4s linear infinite; }
+.loot-xp-gain { font-size: 0.8rem; color: #9a7429; white-space: nowrap; }
+.loot-xp-up { position: absolute; left: 50%; top: -6px; transform: translate(-50%, -100%); font-size: 0.66rem; color: #9a7429; opacity: 0; pointer-events: none; white-space: nowrap; }
+.loot-xp.levelled .loot-xp-up { animation: xp-up 1.6s ease-out both; }
+.loot-xp.levelled .loot-xp-lv b { animation: xp-lv 0.5s cubic-bezier(.2,1.6,.4,1); }
+@keyframes xp-sheen { to { background-position: -200% 0; } }
+@keyframes xp-up { 0% { opacity: 0; transform: translate(-50%, -60%); } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -160%); } }
+@keyframes xp-lv { 50% { transform: scale(1.5); color: #c9a24e; } }
+/* (A phone on its side: the cards in a cache a little smaller, so everything fits above "take it".) */
+@media (max-height: 560px) { .loot-items { gap: 10px; padding: 10px; max-height: 70vh; } .loot-item { padding: 8px 12px; } .loot-item .loot-card { zoom: 0.72; } }

@@ -141,6 +141,8 @@ export const CAMPAIGN = {
   bossCardChoices: 2,
   /** Experience earned, win or lose: for every battle won, system taken, challenge cleared, galaxy crossed, boss beaten. */
   xpBattle: 6,
+  /** A battle lost or drawn still teaches something. */
+  xpBattleLost: 3,
   xpConquer: 3,
   xpChallenge: 12,
   xpGalaxy: 20,
@@ -2193,6 +2195,7 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   }
 
   if (winner?.id === s.playerId) gainXp(s, CAMPAIGN.xpBattle);
+  else if (b.attacker === s.playerId || b.defender === s.playerId) gainXp(s, CAMPAIGN.xpBattleLost);
   // Stellari's Favour: the flagship's sun cools after every battle it wins.
   if (attackerWon && army && army.owner === s.playerId && s.run?.favour) army.damage = Math.max(BALANCE.minHeat, army.damage - s.run.favour);
   if (winner) {
@@ -2403,7 +2406,7 @@ function resolveChallenge(s: CampaignState, game: GameState) {
   const c = n.challenge!;
   const won = !isDraw(game) && game.winnerId === game.players[0].id;
   c.done = won ? 'won' : 'lost';
-  if (won && f.id === s.playerId) gainXp(s, CAMPAIGN.xpChallenge);
+  if (f.id === s.playerId) gainXp(s, won ? CAMPAIGN.xpChallenge : CAMPAIGN.xpBattleLost);
   if (!won) {
     n.dimmed = true;
     if (army) army.damage = b.challenge!.damage;

@@ -4,6 +4,9 @@ import {
   armiesOf,
   armyMoves,
   buyUpgrade,
+  levelFor,
+  pointsLeft,
+  xpForLevel,
   buyUpgradeProblem,
   CAMPAIGN,
   campaignPlayer,
@@ -126,13 +129,37 @@ describe('the skill tree', () => {
 });
 
 describe('a point taken back', () => {
-  it('refunds its XP', () => {
+  it('gives the point back', () => {
     let meta = { ...emptyMeta(), xp: 100 };
+    const points = pointsLeft(meta);
     meta = buyUpgrade(buyUpgrade(meta, 'cryo'), 'cryo');
+    expect(pointsLeft(meta)).toBe(points - 2);
     const after = refundUpgrade(meta, 'cryo');
     expect(after.upgrades.cryo).toBe(1);
-    expect(after.xp).toBe(meta.xp + 35);
+    expect(pointsLeft(after)).toBe(points - 1);
     expect(refundUpgrade(after, 'cryo')).toMatchObject({ xp: 100, upgrades: {} });
+  });
+});
+
+describe('commander levels', () => {
+  it('a point for every level, each level needing a little more experience', () => {
+    expect(levelFor(0)).toEqual({ level: 1, into: 0, need: 26 });
+    expect(levelFor(26).level).toBe(2);
+    expect(levelFor(xpForLevel(10)).level).toBe(10);
+    expect(xpForLevel(3) - xpForLevel(2)).toBeGreaterThan(xpForLevel(2) - xpForLevel(1));
+    expect(pointsLeft({ ...emptyMeta(), xp: xpForLevel(5) })).toBe(4);
+  });
+  it('brings an older save over: the XP it spent counts again, and it keeps every skill it bought', () => {
+    const old = { ...emptyMeta(), v: 1, xp: 10, upgrades: { cryo: 2, plating: 1 } };
+    const now = migrateMeta(old);
+    expect(now.v).toBe(2);
+    // (Cryo 20 + 35, Stellar plating 45: spent, and earned all the same.)
+    expect(now.xp).toBeGreaterThanOrEqual(10 + 20 + 35 + 45);
+    expect(pointsLeft(now)).toBeGreaterThanOrEqual(0);
+    expect(now.upgrades).toEqual(old.upgrades);
+  });
+  it('earns experience from a battle lost, too', () => {
+    expect(CAMPAIGN.xpBattleLost).toBeGreaterThan(0);
   });
 });
 
@@ -290,7 +317,7 @@ describe('the wormhole', () => {
 });
 
 describe('progress between runs', () => {
-  it('buys the skill tree with XP, a tier at a time, and unlocks races and heroes with petals', () => {
+  it('buys the skill tree with points, a tier at a time, and unlocks races and heroes with petals', () => {
     let meta = { ...emptyMeta(), petals: 12 };
     expect(raceUnlocked(meta, 0)).toBe(true);
     expect(raceUnlocked(meta, 5)).toBe(false);
@@ -299,8 +326,8 @@ describe('progress between runs', () => {
     meta = buyUpgrade(meta, 'race:5');
     expect(raceUnlocked(meta, 5)).toBe(true);
     expect(meta.petals).toBe(2);
-    // The skill tree costs XP, and each tier needs the one below it.
-    expect(buyUpgradeProblem(meta, 'materials')).toMatch(/XP/);
+    // The skill tree costs points (a level's worth each), and each tier needs the one below it.
+    expect(buyUpgradeProblem(meta, 'materials')).toMatch(/point/);
     expect(buyUpgradeProblem({ ...meta, xp: 999 }, 'march')).toMatch(/first/);
     let rich = { ...meta, xp: 999 };
     for (const id of ['hull', 'hull', 'shields', 'walls', 'march']) rich = buyUpgrade(rich, id);

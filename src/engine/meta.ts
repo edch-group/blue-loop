@@ -1,8 +1,9 @@
 /**
- * The loop's lasting progress, in two currencies, both kept for every run after.
+ * The loop's lasting progress, kept for every run after.
  *
- * Experience (XP) is earned by everything a run does (battles won, systems taken, challenges cleared, galaxies
- * crossed, bosses beaten), win or lose, so every run moves the player on. It buys the skill tree: seven branches,
+ * Experience (XP) is earned by everything a run does (every battle, won or lost, systems taken, challenges
+ * cleared, galaxies crossed, bosses beaten), so every run moves the player on. It is never spent: it raises the
+ * commander's level, and every level grants a skill point. Points buy the skill tree: seven branches,
  * one off each petal of the Stellari (a cooler sun, a sharper command, a tougher flagship, run perks, a stronger
  * start, spoils of war, lasting wisdom), each a tier of upgrades bought level by level, unlocking the next tier up,
  * to a capstone.
@@ -24,7 +25,10 @@ export interface MetaUpgrade {
   text: string;
   /** Levels it can be bought to. */
   max: number;
-  /** The price of the level after `level` (in XP for the skill tree, petals for unlocks). */
+  /**
+   * The price of the level after `level`: petals, for unlocks. (For the skill tree, what it once cost in XP, before
+   * skills were bought with points: kept to bring older saves up to date. Its price now is in points, pointCost.)
+   */
   cost(level: number): number;
   /** Its tier in its branch (1, 2, then the capstone, 3). */
   tier?: number;
@@ -32,14 +36,45 @@ export interface MetaUpgrade {
   requires?: [string, number][];
 }
 
-/** What an upgrade is bought with. */
-export const currencyOf = (u: MetaUpgrade): 'xp' | 'petals' => (u.group === 'unlock' ? 'petals' : 'xp');
+/** What an upgrade is bought with: skill points, or petals (unlocks). */
+export const currencyOf = (u: MetaUpgrade): 'points' | 'petals' => (u.group === 'unlock' ? 'petals' : 'points');
+
+/** A skill's price in points, every level of it: its tier (1, 2, or 3 for a capstone). */
+export const pointCost = (u: MetaUpgrade) => u.tier ?? 1;
+
+/** An upgrade's next level's price, in its own currency. */
+export const priceOf = (u: MetaUpgrade, level: number) => (currencyOf(u) === 'points' ? pointCost(u) : u.cost(level));
+
+/** The experience to rise from a level to the next: a little more each level. */
+export const commanderXpToNext = (level: number) => 25 + level;
+
+/** The commander's level for the experience earned in all: the level, the experience into it, and what it needs. */
+export function levelFor(xp: number): { level: number; into: number; need: number } {
+  let level = 1, left = Math.max(0, Math.floor(xp));
+  while (left >= commanderXpToNext(level)) {
+    left -= commanderXpToNext(level);
+    level++;
+  }
+  return { level, into: left, need: commanderXpToNext(level) };
+}
+
+/** The experience it takes, in all, to reach a level. */
+export const xpForLevel = (level: number) => Array.from({ length: Math.max(0, level - 1) }, (_, i) => commanderXpToNext(i + 1)).reduce((t, n) => t + n, 0);
+
+/** Points spent on the skill tree. */
+export const pointsSpent = (meta: MetaState) =>
+  META_UPGRADES.filter((u) => currencyOf(u) === 'points').reduce((t, u) => t + pointCost(u) * (meta.upgrades[u.id] ?? 0), 0);
+
+/** Skill points to spend: one for every level past the first, less those spent. */
+export const pointsLeft = (meta: MetaState) => levelFor(meta.xp ?? 0).level - 1 - pointsSpent(meta);
 
 /** What a player has banked and bought (kept on the account). */
 export interface MetaState {
   petals: number;
-  /** Experience banked, to spend on the skill tree. */
+  /** Experience earned in all, every run (never spent: it makes the commander's level). */
   xp: number;
+  /** 2: skills are bought with points (before, XP was spent on them: see migrateMeta). */
+  v?: number;
   upgrades: Record<string, number>;
   /** Cards bought (with petals) into each race's starting deck, by race. */
   deck: Record<string, string[]>;
@@ -48,7 +83,7 @@ export interface MetaState {
   runs: number;
 }
 
-export const emptyMeta = (): MetaState => ({ petals: 0, xp: 0, upgrades: {}, deck: {}, best: 0, runs: 0 });
+export const emptyMeta = (): MetaState => ({ petals: 0, xp: 0, upgrades: {}, deck: {}, best: 0, runs: 0, v: 2 });
 
 const flat = (n: number) => () => n;
 const rising = (base: number, step: number) => (level: number) => base + step * level;
@@ -104,14 +139,24 @@ const RETIRED: Record<string, number[]> = { doctrine: [25, 50], insight: [90], c
 /** A save brought up to date: the XP spent on skills since taken out of the tree, refunded. */
 export function migrateMeta(meta: MetaState): MetaState {
   const gone = Object.keys(meta.upgrades ?? {}).filter((id) => RETIRED[id]);
-  if (!gone.length) return meta;
-  const upgrades = { ...meta.upgrades };
-  let back = 0;
-  for (const id of gone) {
-    back += RETIRED[id].slice(0, upgrades[id]).reduce((t, c) => t + c, 0);
-    delete upgrades[id];
+  if (gone.length) {
+    const upgrades = { ...meta.upgrades };
+    let back = 0;
+    for (const id of gone) {
+      back += RETIRED[id].slice(0, upgrades[id]).reduce((t, c) => t + c, 0);
+      delete upgrades[id];
+    }
+    meta = { ...meta, upgrades, xp: (meta.xp ?? 0) + back };
   }
-  return { ...meta, upgrades, xp: (meta.xp ?? 0) + back };
+  // Skills bought with XP, from before levels and points: the XP spent on them counts again (it is all experience
+  // earned), and the commander stands at least high enough to have the points for every skill already bought.
+  if ((meta.v ?? 1) < 2) {
+    let spent = 0;
+    for (const u of META_UPGRADES) if (currencyOf(u) === 'points') for (let l = 0; l < (meta.upgrades[u.id] ?? 0); l++) spent += u.cost(l);
+    const xp = Math.max((meta.xp ?? 0) + spent, xpForLevel(pointsSpent(meta) + 1));
+    meta = { ...meta, xp, v: 2 };
+  }
+  return meta;
 }
 
 export function metaUpgrade(id: string): MetaUpgrade | undefined {
@@ -128,8 +173,8 @@ export function buyUpgradeProblem(meta: MetaState, id: string): string | null {
   if (level >= u.max) return 'Already at its most.';
   const missing = (u.requires ?? []).find(([r, n]) => levelOf(meta, r) < n);
   if (missing) return `Needs ${metaUpgrade(missing[0])?.name ?? missing[0]} ${'I'.repeat(missing[1])} first.`;
-  const price = u.cost(level);
-  if (currencyOf(u) === 'xp' ? (meta.xp ?? 0) < price : meta.petals < price) return `Needs ${price} ${currencyOf(u) === 'xp' ? 'XP' : 'petals'}.`;
+  const price = priceOf(u, level);
+  if (currencyOf(u) === 'points' ? pointsLeft(meta) < price : meta.petals < price) return `Needs ${price} ${currencyOf(u) === 'points' ? (price === 1 ? 'point' : 'points') : 'petals'}.`;
   return null;
 }
 
@@ -142,18 +187,17 @@ export function buyUpgrade(meta: MetaState, id: string): MetaState {
   if (why) throw new Error(why);
   const level = levelOf(meta, id);
   const u = metaUpgrade(id)!;
-  const price = u.cost(level);
-  const paid = currencyOf(u) === 'xp' ? { xp: (meta.xp ?? 0) - price } : { petals: meta.petals - price };
+  // (Points are not taken: what is left is worked out from the skills bought.)
+  const paid = currencyOf(u) === 'points' ? {} : { petals: meta.petals - u.cost(level) };
   return { ...meta, ...paid, upgrades: { ...meta.upgrades, [id]: level + 1 } };
 }
 
-/** Take back the last level of a skill (a point placed by mistake): its XP (or petals) refunded. */
+/** Take back the last level of a skill (a point placed by mistake): its points (or petals) back. */
 export function refundUpgrade(meta: MetaState, id: string): MetaState {
   const level = levelOf(meta, id);
   const u = metaUpgrade(id);
   if (!u || level <= 0) return meta;
-  const price = u.cost(level - 1);
-  const back = currencyOf(u) === 'xp' ? { xp: (meta.xp ?? 0) + price } : { petals: meta.petals + price };
+  const back = currencyOf(u) === 'points' ? {} : { petals: meta.petals + u.cost(level - 1) };
   const upgrades = { ...meta.upgrades, [id]: level - 1 };
   if (!upgrades[id]) delete upgrades[id];
   return { ...meta, ...back, upgrades };

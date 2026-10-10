@@ -577,6 +577,23 @@ class SoundBoard {
     const scale = ['A4', 'B4', 'C#5', 'E5', 'F#5', 'A5'];
     this.bell(hz(scale[Math.min(i, scale.length - 1)]), 0, 0.03);
   }
+  /**
+   * An experience bar filling: a soft tone gliding up as it fills (A3 to E5), with a quick patter of little ticks
+   * climbing with it, for `dur` seconds.
+   */
+  xpFill(dur: number) {
+    this.voice(hz('A3'), { dur, attack: 0.05, gain: 0.035, to: hz('E5'), type: 'triangle', cutoff: 1800 });
+    const ticks = Math.max(6, Math.round(dur / 0.07));
+    for (let i = 0; i < ticks; i++) {
+      const k = i / ticks;
+      this.voice(hz('A4') * Math.pow(2, k * 1.2), { dur: 0.05, attack: 0.003, gain: 0.018, type: 'sine', delay: k * dur * (1 - 0.35 * k) });
+    }
+  }
+  /** A level gained: a warm chord of bells (A major) over a low swell. */
+  levelUp() {
+    this.voice(hz('A2'), { dur: 1.2, attack: 0.02, gain: 0.12, type: 'sine' });
+    ['A4', 'C#5', 'E5'].forEach((n, i) => this.bell(hz(n), i * 0.06, 0.045));
+  }
   /** A star under the pointer: a soft glassy chime, each star its own note of a pentatonic scale. */
   starHover(seed: number) {
     const now = performance.now();
