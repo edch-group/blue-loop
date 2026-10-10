@@ -1,7 +1,9 @@
 import { attunedEffects, attunePosition } from './attunement';
 import { BALANCE } from './balance';
-import { cardDef, hasDarkspeed, isBurst, PRESET_DECKS } from './cards';
-import { setRulesMode } from './modes';
+import { CARDS, cardDef, cardIn as cardInMode, hasDarkspeed, isBurst, PRESET_DECKS } from './cards';
+import { isBossCard } from './cards-bosses';
+import { inMode, setRulesMode } from './modes';
+import { relicN, relicOf, type RelicPower } from './relics';
 import { raceTrait } from './races';
 import { randomInt, shuffleInPlace } from './rng';
 import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, ReactEvent, Reaction, Planet, PlayerState, TurnPulse, TurnStats } from './types';
@@ -75,6 +77,7 @@ export function createGame(setup: GameSetup): GameState {
       modifiers: ps.modifiers,
       conditions: ps.conditions,
       ...(ps.heroBoons?.boons.length ? { heroBoons: ps.heroBoons } : {}),
+      ...(ps.relics?.length ? { relics: ps.relics.map((r) => ({ ...r })) } : {}),
       ...(ps.skills?.length ? { skills: ps.skills.map((k) => ({ ...k })) } : {}),
       ...(ps.hero ? { hero: ps.hero } : {}),
       ...(ps.heroStats ? { heroStats: { ...ps.heroStats } } : {}),
@@ -337,20 +340,21 @@ export function isGuard(_p: PlayerState, c: CardInstance): boolean {
   return cardPassives(c).some((x) => x.type === 'taunt') || (c.fortified ?? 0) > 0;
 }
 
-/** A player's Guard cards: while they have any, rival attacks can only strike them. */
+/** A player's Guard cards: while they have any, rival attacks can only strike them (heat aimed by a card played or a Hero's ability goes where it likes). */
 export function guards(p: PlayerState): CardInstance[] {
   return p.tableau.filter((c) => isGuard(p, c));
 }
 
 /**
  * Where an attack, or heat a card deals as it is played (or a Hero's ability), may be aimed: any card in your
- * rival's tableau, or their sun; while they have Guard cards, only those. (Dawn heat is never aimed: it
- * always strikes the sun.)
+ * rival's tableau, or their sun; while they have Guard cards, an attack only those. (Dawn heat is never aimed:
+ * it always strikes the sun.)
  */
-export function aimChoices(state: GameState, p: PlayerState): { cards: CardInstance[]; sun: boolean } {
+export function aimChoices(state: GameState, p: PlayerState, attack = false): { cards: CardInstance[]; sun: boolean } {
   const t = targetOf(state, p);
   if (!t) return { cards: [], sun: true };
-  const g = guards(t);
+  // (A Guard soaks up attacks only [direction: not heat aimed by surges or abilities].)
+  const g = attack ? guards(t) : [];
   // (A Lost Overlord has no sun to aim at: only its body.)
   return g.length ? { cards: g, sun: false } : { cards: [...t.tableau], sun: !t.boss };
 }
@@ -365,15 +369,11 @@ export function abilityAimable(defId: string, index: number): boolean {
   return (cardDef(defId).abilities?.[index]?.effects ?? []).some((e) => e.type === 'heat' && e.to === 'target');
 }
 
-/** Where aimed heat lands: the rival card aimed at (if still there and allowed), else a Guard (the most worn), else the sun (null). */
+/** Where aimed heat lands: the rival card aimed at (if still there), else the sun (null). Guards don't draw it in. */
 function aimedCard(state: GameState, p: PlayerState, aim: string | undefined): CardInstance | null {
   const t = targetOf(state, p);
   if (!t) return null;
-  const g = guards(t);
-  const aimed = aim ? t.tableau.find((c) => c.uid === aim) : undefined;
-  if (aimed && (!g.length || g.includes(aimed))) return aimed;
-  if (g.length) return [...g].sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0];
-  return null;
+  return (aim ? t.tableau.find((c) => c.uid === aim) : undefined) ?? null;
 }
 
 /** Whether a player's shields guard their cards too, against heat aimed at them (a Tidewall card in play). */
@@ -414,7 +414,45 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
   if (victim.health <= 0) {
     log(state, `${owner.name}'s ${cardDef(victim.defId).name} burns away.`);
     leaveTableau(state, owner, victim);
+    // A Bounty relic: each rival card burned away cools its holder's sun.
+    const bounty = source !== owner ? relicN(source.relics, 'bounty') : 0;
+    if (bounty && !source.eliminated) {
+      cool(state, source, bounty, relicOf(source.relics, 'bounty')!.name);
+      notePulse(state, source, null, 'cool', source, bounty);
+    }
   }
+}
+
+/**
+ * A relic's blow where its holder would want it ("any target"): the rival card it would burn away (the one with
+ * the most attack of those), else the rival's sun (a Lost Overlord's body, if it has no sun).
+ */
+function relicStrike(state: GameState, p: PlayerState, amount: number, power: RelicPower) {
+  const rival = targetOf(state, p);
+  const relic = relicOf(p.relics, power);
+  if (!rival || !relic || amount <= 0 || state.winnerId) return;
+  const kills = rival.tableau
+    .filter((c) => !(rival.boss && c.uid === rival.boss.leader) && (c.health ?? 0) + cardDefence(rival, c) <= amount)
+    .sort((a, b) => cardAttack(state, rival, b) - cardAttack(state, rival, a));
+  const victim = kills[0];
+  log(state, `${p.name}'s ${relic.name} strikes ${victim ? `${rival.name}'s ${cardDef(victim.defId).name}` : `${rival.name}'s sun`} for ${amount}.`);
+  if (victim) {
+    notePulse(state, p, null, 'heat', rival, amount, victim.uid);
+    strikeCard(state, rival, victim, amount, p, false, '', false, true);
+  } else {
+    notePulse(state, p, null, 'heat', rival, amount);
+    applyHeat(state, rival, amount, p, false, undefined, false, `${p.name}'s ${relic.name}`);
+  }
+}
+
+/** A Gift relic's card: a random one of its holder's race (as rare as the relic allows), legal in the battle's mode. */
+function giftCard(state: GameState, p: PlayerState, n: number): string | undefined {
+  const race = p.hero ? cardDef(p.hero).race : undefined;
+  const rarities = n >= 3 ? ['dwarf', 'stellar', 'anomaly'] : n === 2 ? ['dwarf', 'stellar'] : ['dwarf'];
+  const pool = CARDS.filter(
+    (c) => c.race === race && race !== undefined && rarities.includes(c.rarity ?? 'dwarf') && c.kind !== 'command' && c.kind !== 'global' && !c.fusion && !isBossCard(c.id) && !c.id.startsWith('boon_') && (state.mode !== 'core' || inMode(cardInMode(c.id, 'core'), 'core')),
+  );
+  return pool.length ? pool[randomInt(state, pool.length)].id : undefined;
 }
 
 /** What a card's removal does to the chosen card. */
@@ -567,6 +605,12 @@ function place(p: PlayerState, card: CardInstance, slot: number) {
     // (A hero's +stability gear adds to its stability.)
     card.health = Math.min(BALANCE.maxHealth + 4, card.health + card.boons.reduce((t, b) => t + (cardDef(b).stability ?? 0), 0));
     card.maxHealth = card.health;
+  }
+  // A Vigour relic: every card put into play stands a little steadier.
+  const vigour = relicN(p.relics, 'vigour');
+  if (vigour && cardDef(card.defId).kind !== 'relic') {
+    card.health = (card.health ?? 0) + vigour;
+    card.maxHealth = (card.maxHealth ?? baseHealth(card.defId)) + vigour;
   }
   // A campaign ship's room with a module in it: the card standing there carries the module's boons.
   const roomBoons = slot !== COMMAND_SLOT ? p.rooms?.boons?.[slot] : undefined;
@@ -882,6 +926,9 @@ function reshuffle(state: GameState, p: PlayerState) {
   p.deck = shuffleInPlace(state, p.discard);
   p.discard = [];
   log(state, `${p.name} shuffles their discard pile back into their deck.`);
+  // A Recycle relic answers it with a blow.
+  const recycle = relicN(p.relics, 'recycle');
+  if (recycle) relicStrike(state, p, recycle, 'recycle');
 }
 
 /** A player's card by uid, wherever it is. */
@@ -1567,6 +1614,23 @@ function dawn(state: GameState, p: PlayerState) {
       if (could) (p.dawnChoices ??= []).push({ uid: card.uid, kind });
     }
   }
+  // Relics' dawns: a repair, a card given, and a Recall or Shift that waits on its holder as a card's does.
+  const mendBy = relicN(p.relics, 'mend');
+  if (mendBy) {
+    log(state, `${p.name}'s ${relicOf(p.relics, 'mend')!.name}: dawn repair ${mendBy}.`);
+    repair(state, p, mendBy);
+  }
+  const gift = relicN(p.relics, 'gift');
+  const given = gift ? giftCard(state, p, gift) : undefined;
+  if (given) {
+    p.hand.push(newCard(state, given));
+    log(state, `${p.name}'s ${relicOf(p.relics, 'gift')!.name} gives them ${cardDef(given).name}.`);
+  }
+  for (const kind of ['recall', 'shift'] as const) {
+    const relic = relicOf(p.relics, kind);
+    const could = kind === 'recall' ? p.tableau.some(returnable) : p.tableau.some((c) => c.slot !== COMMAND_SLOT);
+    if (relic && could) (p.dawnChoices ??= []).push({ uid: `relic:${relic.name}`, kind, relic: relic.name });
+  }
   // (Cards no longer fade with the days: they stand until beaten down or removed.) Anchor mends its neighbours.
   for (const card of p.tableau) if (anchored(p, card) && cardDef(card.defId).kind !== 'relic') mend(state, p, card, 1);
   p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
@@ -1871,11 +1935,11 @@ function resume(state: GameState, r: Reaction) {
     return;
   }
   const action = { ...r.pending.action };
-  // Heat aimed at a card goes to the guard that landed, or one that rose to Guard.
+  // Heat aimed at a card goes where a Lightspeed answer redirected it; its card gone, to the sun.
   if (action.aimUid) {
     const aimable = aimChoices(state, enemy).cards;
     if (r.redirect && aimable.some((c) => c.uid === r.redirect)) action.aimUid = r.redirect;
-    else if (!aimable.some((c) => c.uid === action.aimUid)) action.aimUid = guardTo();
+    else if (!aimable.some((c) => c.uid === action.aimUid)) delete action.aimUid;
   }
   const trial = structuredClone(state);
   try {
@@ -1970,7 +2034,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const shifted = shifts === 'rival' ? target?.tableau.find((c) => c.uid === action.enemyUid) : shifts === 'mine' ? p.tableau.find((c) => c.uid === action.allyUid) : undefined;
   if (shifted && (action.shiftTo === undefined || !shiftSlots(shifted).includes(action.shiftTo))) throw new GameError('Choose a slot to move it into.');
 
-  if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau (a Guard, while they have one), or at their sun.");
+  if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
 
   p.hand = p.hand.filter((c) => c.uid !== card.uid);
   // An X card spends all the energy left; its effects count how much.
@@ -2080,7 +2144,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       if (!p.dawnChoices?.length) delete p.dawnChoices;
       // (Its card may have left play since: the choice still stands.)
       const source = p.tableau.find((c) => c.uid === next.uid) ?? { uid: next.uid, defId: 'circular_refraction' };
-      const name = cardDef(source.defId).name;
+      const name = next.relic ?? cardDef(source.defId).name;
       if (action.allyUid === undefined) {
         log(state, `${p.name} lets ${name}'s dawn ${next.kind} pass.`);
         break;
@@ -2165,7 +2229,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       if (k.pay?.selfHeat) resolveEffects(state, p, hero, [{ type: 'selfHeat', amount: k.pay.selfHeat }], 'play');
       p.abilityTurn = state.turnNumber;
       hero.dimmed = true;
-      if (action.aimUid && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau (a Guard, while they have one), or at their sun.");
+      if (action.aimUid && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
       log(state, `${p.name}'s ${cardDef(hero.defId).name}: ${k.name}.`);
       resolveEffects(state, p, hero, k.effects, 'play', { aimUid: action.aimUid });
       if (p.eliminated) passOn(state);
@@ -2178,7 +2242,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       p.playsLeft -= k.cost;
       if (k.once) k.spent = true;
       else k.usedTurn = state.turnNumber;
-      log(state, `${p.name} calls on ${cardDef(k.hero).name}: ${k.name}.`);
+      log(state, k.relic ? `${p.name} calls on the ${k.relic}.` : `${p.name} calls on ${cardDef(k.hero).name}: ${k.name}.`);
       resolveEffects(state, p, { uid: `skill-${k.id}`, defId: k.hero }, k.effects, 'play');
       if (p.eliminated) passOn(state);
       break;
@@ -2260,7 +2324,7 @@ export function attackProblem(state: GameState, p: PlayerState, attackerUid: str
   if (activePlayer(state).id !== p.id) return 'Only on your own day.';
   if (cardAttack(state, p, card) <= 0) return `${cardDef(card.defId).name} has no attack.`;
   if (card.dimmed) return `${cardDef(card.defId).name} is dimmed: it acts again from your next day.`;
-  const { cards, sun } = aimChoices(state, p);
+  const { cards, sun } = aimChoices(state, p, true);
   if (targetUid === undefined) return null;
   if (targetUid === null) return sun ? null : targetOf(state, p)?.boss && !guards(targetOf(state, p)!).length ? 'It has no sun: strike its body (its Overlord is what must fall).' : 'Your rival has a Guard in play: attack it.';
   return cards.some((c) => c.uid === targetUid) ? null : sun ? "Attack a card in your rival's tableau, or their sun." : 'Your rival has a Guard in play: attack it.';
@@ -2271,7 +2335,15 @@ export function attackProblem(state: GameState, p: PlayerState, attackerUid: str
  * defence, then its health), and that card hits back with its own attack and Sting, at the attacker's
  * health. Then it is dimmed.
  */
+/** An attack, and then (the third of the day) a Flurry relic's blow. */
 function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid: string | null) {
+  p.turn.attacks = (p.turn.attacks ?? 0) + 1;
+  strike(state, p, card, targetUid);
+  const flurry = relicN(p.relics, 'flurry');
+  if (flurry && p.turn.attacks === 3 && !state.winnerId && !p.eliminated) relicStrike(state, p, flurry, 'flurry');
+}
+
+function strike(state: GameState, p: PlayerState, card: CardInstance, targetUid: string | null) {
   const rival = targetOf(state, p);
   if (!rival) return;
   const amount = cardAttack(state, p, card);
@@ -2287,7 +2359,16 @@ function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   if (!victim || state.winnerId || p.eliminated) return;
   const back = counterDamage(state, rival, victim);
   log(state, `${p.name}'s ${name} attacks ${rival.name}'s ${cardDef(victim.defId).name} for ${amount}.`);
+  // (A Splash relic's spray: the cards either side of the one attacked, as it stood.)
+  const beside = relicN(p.relics, 'splash') && victim.slot !== COMMAND_SLOT ? rival.tableau.filter((c) => c.slot !== COMMAND_SLOT && Math.abs((c.slot ?? -9) - (victim.slot ?? -9)) === 1) : [];
   strikeCard(state, rival, victim, amount, p, false, card.uid);
+  for (const c of beside) {
+    if (state.winnerId || !rival.tableau.includes(c)) continue;
+    const n = relicN(p.relics, 'splash');
+    log(state, `${p.name}'s ${relicOf(p.relics, 'splash')!.name} splashes ${cardDef(c.defId).name} for ${n}.`);
+    notePulse(state, p, null, 'heat', rival, n, c.uid);
+    strikeCard(state, rival, c, n, p, false, '', false, true);
+  }
   if (back > 0 && p.tableau.includes(card)) {
     // An attacker out of its slot has no slot defence: only its own (Sturdy, and its race's) takes the blow first.
     const own = Math.max(0, cardSturdy(card));

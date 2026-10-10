@@ -478,18 +478,25 @@ describe('ship modules and finds', () => {
 
 
 describe('relics', () => {
-  it("blesses the hero's card, or curses the flagship, in every battle", async () => {
+  it('carries a power over the whole board, or curses the flagship, in every battle', async () => {
     const { makeRelic } = await import('../src/engine/heroes');
     const s = fresh();
     const me = campaignPlayer(s);
     const plain = armyBonus(s, myArmy(s));
-    const blessing = makeRelic('r1', 'weapon', 'stellar', me.race, 0, false);
+    // (A weapon's first power: guns for every armed card, 2 at stellar.)
+    const guns = makeRelic('r1', 'weapon', 'stellar', me.race, 0, false);
+    const shields = makeRelic('r3', 'mantle', 'dwarf', me.race, 0, false);
+    const nova = makeRelic('r4', 'facet', 'anomaly', me.race, 0.5, false);
     const curse = makeRelic('r2', 'helm', 'dwarf', me.race, 0, true);
-    expect(blessing.cursed).toBeFalsy();
+    expect([guns.power, guns.n, shields.power, nova.power, nova.n]).toEqual(['edge', 2, 'aegis', 'nova', 3]);
     expect(curse.cursed).toBe(true);
-    me.relics = [blessing, curse];
+    me.relics = [guns, shields, nova, curse];
     const b = armyBonus(s, myArmy(s));
-    expect(b.boons.length).toBeGreaterThan(plain.boons.length);
+    expect(b.boons.length).toBe(plain.boons.length);
+    expect(b.relics.guns).toBe(2);
+    expect(b.mods.shieldPerTurn ?? 0).toBe((plain.mods.shieldPerTurn ?? 0) + 2);
     expect(b.mods.startingHeat ?? 0).toBe((plain.mods.startingHeat ?? 0) + 2);
+    // A once-a-battle power is a skill of the battle's, shown with the relics.
+    expect(b.skills.find((k) => k.relic)).toMatchObject({ once: true, cost: 0, effects: [{ type: 'strikeAll', amount: 3 }] });
   });
 });

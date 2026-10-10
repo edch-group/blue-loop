@@ -22,6 +22,7 @@ import { applyAction, createGame, DRAW, GameError, isDraw, isGameOver } from './
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types';
 import { LOST_LORDS, OVERLORDS, overlordById, overlordHealth } from './cards-bosses';
+import type { RelicInPlay } from './relics';
 import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
 import { RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
@@ -532,11 +533,16 @@ export function armyBonus(s: CampaignState, a: Army) {
   const hero = heroBonus(a.general, a.lost || !f ? undefined : f.heroes?.[a.general]);
   const r = researchBonus(a.lost || !f ? undefined : f.research);
   const bonus = { ...hero, ...r, foeMods: {} as BattleModifiers, foeHeat: 0, foeConditions: [] as { name: string; text: string }[] };
-  // Relics: their blessings on the hero's card, their curses' tolls on the army's own side.
+  // Relics: their powers over the whole board (the passive ones as modifiers, walls and guns, the Hero in play; the
+  // once-a-battle ones as skills; the rest for the engine), their curses' tolls on the army's own side.
+  const relics = { walls: 0, guns: 0, powers: [] as RelicInPlay[] };
   if (f && !a.lost && f.relics?.length) {
-    const rel = relicBonus(f.relics);
+    const rel = relicBonus(f.relics, a.general);
     bonus.boons = [...bonus.boons, ...rel.boons];
     bonus.mods = mergeModifiers(bonus.mods, rel.mods);
+    bonus.skills = [...bonus.skills, ...rel.skills];
+    if (rel.start) bonus.start = true;
+    Object.assign(relics, { walls: rel.walls, guns: rel.guns, powers: rel.powers });
   }
   // The skill tree, bought between runs, for the player's own armies: the Fold drive's move, the flagship's battles
   // (a cooler sun, a sharper command), its repair on the map, its finds and the systems that surrender to it.
@@ -548,7 +554,7 @@ export function armyBonus(s: CampaignState, a: Army) {
     bonus.loot += run.loot ?? 0;
     bonus.dread += run.dread ?? 0;
   }
-  return bonus;
+  return { ...bonus, relics };
 }
 
 /** Who leads an army, as it is named: its general, or (a lost army) the last of its people. */
@@ -1493,11 +1499,15 @@ function flagshipSetup(s: CampaignState, army: Army): Pick<PlayerSetup, 'hero' |
   // The hero is in the deck, drawn and played like any card: only one who has learned Herald starts in play.
   if (army.lost || !f) return { hero: army.general, tableau: [], heroStats: { attack: CAMPAIGN.heroAttack + 1, defence: CAMPAIGN.heroDefence }, hull: {} };
   const ship = f.ship ?? newShip();
+  const bonus = armyBonus(s, army);
+  // (Relics: walls on every slot, guns for every armed card.)
+  const { walls, guns } = bonus.relics;
+  const rooms = { ...ship.rooms, defence: ship.rooms.defence.map((d) => d + walls), attack: ship.rooms.attack.map((d) => d + guns) };
   return {
     hero: army.general,
-    tableau: armyBonus(s, army).start ? [army.general] : [],
+    tableau: bonus.start ? [army.general] : [],
     heroStats: heroStats(f, army.general),
-    rooms: ship.modules?.some(Boolean) ? { ...ship.rooms, boons: [0, 1, 2, 3, 4].map((r) => ship.modules?.[r]?.boons ?? []) } : ship.rooms,
+    rooms: ship.modules?.some(Boolean) ? { ...rooms, boons: [0, 1, 2, 3, 4].map((r) => ship.modules?.[r]?.boons ?? []) } : rooms,
     ...(ship.shields ? { opening: { shields: ship.shields } } : {}),
     hull: ship.hull || f.sunBonus ? { maxHealthDelta: (ship.hull ?? 0) * CAMPAIGN.hullHealth + (f.sunBonus ?? 0) } : {},
   };
@@ -1648,6 +1658,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       modifiers: [starBoth, atk.mods, def?.foeMods ?? {}, atkHull].reduce(mergeModifiers, fx?.modifiers ?? {}),
       ...(atk.skills.length ? { skills: atk.skills } : {}),
       ...(atk.boons.length ? { heroBoons: { hero: army.general, boons: atk.boons } } : {}),
+      ...(atk.relics.powers.length ? { relics: atk.relics.powers } : {}),
       ...atkShip,
       conditions: [...(fx?.conditions ?? []), ...(target.star === 'white' || target.star === 'neutron' ? starCond : []), ...(def?.foeConditions ?? [])],
     },
@@ -1667,6 +1678,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
         : capDefence([fortified, wardens, guard ? {} : core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {}), fx?.modifiers, !!guard),
       ...(def?.skills.length ? { skills: def.skills } : {}),
       ...(guard && def?.boons.length ? { heroBoons: { hero: guard.general, boons: def.boons } } : {}),
+      ...(guard && def?.relics.powers.length ? { relics: def.relics.powers } : {}),
       conditions: [...defenceConditions, ...atk.foeConditions].length ? [...defenceConditions, ...atk.foeConditions] : undefined,
     },
   ];

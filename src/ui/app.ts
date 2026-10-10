@@ -100,6 +100,7 @@ const WAVE_EXTRA_MS = 450;
 const isWave = (p: TurnPulse) => p.kind === 'unstable' && !p.uid;
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
 import { CampaignView, cardHtml, loadCampaign } from './campaign';
+import { relicMark } from './relic-art';
 
 /** Hero gear's mark, in a battle's finds. */
 const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
@@ -1659,7 +1660,7 @@ export class App {
     const out: string[] = [];
     const playable = me.hand.filter((c) => this.canPlayNow(me, c.defId)).length;
     if (playable) out.push(`${playable} playable card${playable === 1 ? '' : 's'}`);
-    const { cards, sun } = aimChoices(s, me);
+    const { cards, sun } = aimChoices(s, me, true);
     const attackers = sun || cards.length ? me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0).length : 0;
     if (attackers) out.push(`${attackers} card${attackers === 1 ? '' : 's'} that can still attack`);
     const hero = commandCard(me);
@@ -5169,9 +5170,9 @@ export class App {
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.attack || p.ability !== undefined ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
-    const guarded = !aimChoices(s, activePlayer(s)).sun;
+    const guarded = !aimChoices(s, activePlayer(s), true).sun;
     if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
-    if (p.step === 'aim') return hint(guarded ? 'aim at a guard' : 'aim heat');
+    if (p.step === 'aim') return hint('aim heat');
     if (p.step === 'sacrifice') return hint(p.ability !== undefined ? 'sacrifice a card' : this.state && cardDef(this.state.players.find((x) => x.hand.some((c) => c.uid === p.uid))?.hand.find((c) => c.uid === p.uid)?.defId ?? '').consume ? 'consume a card' : 'replace a card');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card', shift: 'move a card', offer: 'strike a card', rootbreak: 'split a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint({ recall: 'recall a card', empower: 'choose a card', offer: 'offer a card’s attack', rootbreak: 'choose a grown card', restore: 'restore a card', shift: 'choose a card' }[allyEffectKind(card.defId) ?? 'restore']);
@@ -5218,8 +5219,11 @@ export class App {
           <div class="salvage-title">found</div>
           <div class="finds-row">${finds
             .map((f) => {
-              const note = f.cursed ? 'A cursed relic: it weighs on your flagship in every battle.' : "A relic: a blessing on your hero's card in every battle.";
-              return `<button class="find rarity-${f.rarity} ${f.cursed ? 'find-cursed' : ''}" data-tip-title="${esc(f.name.toLowerCase())}" data-tip="${esc(f.text)}" data-tip-note="${note}" aria-label="${esc(`${f.name}. ${f.text}`)}">${effectMark(f.mark)}<i class="find-kind">${GEAR_ICON}</i></button>`;
+              const note = f.note ?? (f.cursed ? 'A cursed relic: it weighs on your flagship in every battle.' : 'A relic, at work in every battle.');
+              // (A relic: its painted badge, as down the right of the map.)
+              return f.art
+                ? `<button class="find find-relic rarity-${f.rarity} ${f.cursed ? 'find-cursed' : ''}" data-tip-title="${esc(f.name.toLowerCase())}" data-tip="${esc(f.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${f.name}. ${f.text}`)}">${f.art}</button>`
+                : `<button class="find rarity-${f.rarity} ${f.cursed ? 'find-cursed' : ''}" data-tip-title="${esc(f.name.toLowerCase())}" data-tip="${esc(f.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${f.name}. ${f.text}`)}">${effectMark(f.mark)}<i class="find-kind">${GEAR_ICON}</i></button>`;
             })
             .join('')}</div>
         </div>`
@@ -5330,7 +5334,7 @@ export class App {
           : pend.ability !== undefined
             ? { type: 'heroAbility', index: pend.ability, aimUid: aim, ...(pend.sacrificeUid ? { sacrificeUid: pend.sacrificeUid } : {}) }
             : { type: 'playCard', cardUid: pend.uid, choice: pend.choice, enemyUid: pend.enemyUid, allyUid: pend.allyUid, recoverUid: pend.recoverUid, slot: pend.slot, shiftTo: pend.shiftTo, aimUid: aim, ...(pend.hostUid ? { hostUid: pend.hostUid } : {}) };
-      for (const c of aimChoices(st, me).cards) {
+      for (const c of aimChoices(st, me, !!pend.attack).cards) {
         try {
           const g = structuredClone(st);
           for (const pl of g.players) if (pl.id !== me.id) pl.lightspeed = null;
@@ -5349,8 +5353,8 @@ export class App {
       placing && pend!.slot === i
         ? this.renderCard({ ...placing, slot: i, health: baseHealth(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
         : null;
-    // Aiming (an attack, a card's heat or a Hero's ability): the rival's sun is a target too, unless a Guard stands.
-    const sunAim = side === 'rival' && pend?.step === 'aim' && aimChoices(st, activePlayer(st)).sun;
+    // Aiming (an attack, a card's heat or a Hero's ability): the rival's sun is a target too, unless a Guard stands (against an attack).
+    const sunAim = side === 'rival' && pend?.step === 'aim' && aimChoices(st, activePlayer(st), !!pend.attack).sun;
     // The Command slot: the one Command card leads the tableau from out in front (top right of yours,
     // bottom left of your rival's: a mirror across the board), lying landscape.
     const cmd = commandCard(p);
@@ -5463,8 +5467,19 @@ export class App {
     const banked = !myTurn ? me.banked ?? 0 : 0;
     const bankPips = banked ? Array.from({ length: banked }, () => '<i class="on banked"></i>').join('') : '';
     // A campaign hero's battle skills, above End Day: each a button with its cost (and spent, once used).
+    // A relic's once-a-battle powers: tokens down the right of the screen (as on the map), each its painted badge.
+    const relics = (me.skills ?? [])
+      .map((k, i) => {
+        if (!k.relic) return '';
+        const why = heroSkillProblem(s, me, i);
+        const ready = !why && act && !busy;
+        const note = k.spent ? 'Used this battle.' : ready ? 'Once a battle: tap to call on it.' : `Once a battle${why && !k.spent ? `: ${why[0].toLowerCase()}${why.slice(1)}` : '.'}`;
+        return `<button class="cmp-relic relic-active ${k.spent ? 'spent' : ''} ${ready ? 'ready' : ''}" ${ready ? `data-act="hero-skill" data-arg="${i}"` : ''} data-tip-title="${esc(k.relic.toLowerCase())}" data-tip="${esc(k.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${k.relic}. ${k.text}`)}">${relicMark(k.relic, '')}</button>`;
+      })
+      .join('');
     const skills = (me.skills ?? [])
       .map((k, i) => {
+        if (k.relic) return '';
         const why = heroSkillProblem(s, me, i);
         const spent = k.spent || (!k.once && k.usedTurn === s.turnNumber);
         return `<button class="hero-skill ${spent ? 'spent' : ''}" data-act="hero-skill" data-arg="${i}" ${why || !act || busy ? `disabled title="${esc(why ?? k.text)}"` : `title="${esc(k.text)}"`}>
@@ -5473,6 +5488,7 @@ export class App {
       .join('');
     return `
       ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
+      ${relics ? `<aside class="relic-actives" aria-label="Relics, once a battle">${relics}</aside>` : ''}
       <div class="turn-controls turn-corner">
         <div class="plays ${myTurn || banked ? '' : 'plays-off'}" title="${myTurn ? 'Energy left today: each card costs the number on its gem. What you leave unspent is banked through your rival\'s day, to answer them at lightspeed.' : 'Banked energy: to play a Lightspeed card from hand in answer to your rival'}">
           <small>${myTurn ? 'energy' : banked ? 'banked' : 'waiting'}</small>
@@ -5503,7 +5519,7 @@ export class App {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
-    if (p?.step === 'aim' && me && opts.tableau === 'rival' && aimChoices(s!, me).cards.some((x) => x.uid === c.uid)) {
+    if (p?.step === 'aim' && me && opts.tableau === 'rival' && aimChoices(s!, me, !!p.attack).cards.some((x) => x.uid === c.uid)) {
       attrs = `data-act="choose-aim" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
@@ -5793,7 +5809,7 @@ export class App {
     const hero = commandCard(me);
     if (!hero || hero.dimmed) return [];
     const out: (number | 'attack')[] = (cardDef(hero.defId).abilities ?? []).map((_, i) => i).filter((i) => !heroAbilityProblem(s, me, i));
-    const { cards, sun } = aimChoices(s, me);
+    const { cards, sun } = aimChoices(s, me, true);
     if (cardAttack(s, me, hero) > 0 && (sun || cards.length)) out.push('attack');
     return out;
   }
@@ -5829,7 +5845,7 @@ export class App {
     const attack = this.heroActions(me).includes('attack')
       ? `<button class="hero-pick hero-pick-attack" data-act="attack-start" data-arg="${hero.uid}">
           <span class="hero-pick-mark hero-pick-mark-atk">${effectMark('guns')}<small>${cardAttack(s, me, hero)}</small></span>
-          <span class="hero-pick-words"><b>attack</b><span>A rival card${aimChoices(s, me).sun ? ' or their sun' : ''}.</span></span>
+          <span class="hero-pick-words"><b>attack</b><span>A rival card${aimChoices(s, me, true).sun ? ' or their sun' : ''}.</span></span>
         </button>`
       : '';
     // (Each its own pill, nothing round them; a tap anywhere else puts them away.)

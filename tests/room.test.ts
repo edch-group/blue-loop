@@ -129,7 +129,9 @@ describe('online room', () => {
     let guard = 0;
     while (!room.game!.winnerId && guard++ < 3000) {
       const g = room.game!;
-      const seat = [0, 1].find((s) => playerIndex(room, s) === g.activePlayerIndex)!;
+      // (A Lightspeed answer comes from the seat that may answer, not the one whose day it is.)
+      const mover = g.reaction ? g.players.findIndex((p) => p.id === g.reaction!.playerId) : g.activePlayerIndex;
+      const seat = [0, 1].find((s) => playerIndex(room, s) === mover)!;
       const r = handle(room, seat, { t: 'action', action: chooseAIAction(g) });
       expect(r.reply.filter((m) => m.t === 'error')).toEqual([]);
       // The rival reads each card played against them.

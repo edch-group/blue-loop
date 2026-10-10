@@ -1281,10 +1281,13 @@ describe('attacks and heat', () => {
     expect(stab(s, a.uid)).toBe(sa);
     expect(stab(s, b.uid)).toBe(sb);
     expect(stab(s, veil.uid)).toBe(6);
-    // A Coronal Lance, aimed: with a Guard up, only the Guard can be aimed at.
+    // A Coronal Lance, aimed: a Guard draws attacks only, so its heat may go past it to any card.
     activePlayer(s).playsLeft = 9;
-    give(activePlayer(s), ['coronal_lance', 'coronal_lance']);
-    expect(() => play(s, 'coronal_lance', { aimUid: a.uid })).toThrow(GameError);
+    give(activePlayer(s), ['coronal_lance', 'coronal_lance', 'coronal_lance']);
+    const ha = stab(s, a.uid);
+    const past = play(s, 'coronal_lance', { aimUid: a.uid });
+    expect(stab(past, veil.uid)).toBe(6);
+    expect(stab(past, a.uid) + (past.players[1].tableau.find((c) => c.uid === a.uid)?.dented ?? 0)).toBeLessThanOrEqual(ha);
     s = play(s, 'coronal_lance', { aimUid: veil.uid });
     const struck = s.players[1].tableau.find((c) => c.uid === veil.uid)!;
     expect((struck.dented ?? 0) + (6 - struck.health!)).toBe(3);
@@ -1685,5 +1688,50 @@ describe('the Frost Line', () => {
     const heat = t.players[0].heat;
     t = endTurn(t);
     expect(t.players[0].heat).toBeGreaterThan(heat);
+  });
+});
+
+describe('relic powers', () => {
+  const relic = (power: string, n: number) => ({ power: power as never, n, name: `Test ${power}` });
+  it('Splash strikes the cards either side of the one attacked', () => {
+    const s = twoPlayer(5);
+    const [ada, bo] = s.players;
+    const [attacker] = give(ada, ['helio_lancer'], 'tableau');
+    attacker.dimmed = false;
+    const row = give(bo, ['halo_ward', 'halo_ward', 'halo_ward'], 'tableau');
+    ada.relics = [relic('splash', 1)];
+    const before = row.map((c) => (c.health ?? 0) + cardDefence(bo, c));
+    const t = applyAction(s, { type: 'attack', attackerUid: attacker.uid, targetUid: row[1].uid });
+    const them = t.players[1];
+    const after = row.map((c) => them.tableau.find((x) => x.uid === c.uid)).map((c) => (c ? (c.health ?? 0) + cardDefence(them, c) : 0));
+    expect(after[0]).toBeLessThan(before[0]);
+    expect(after[2]).toBeLessThan(before[2]);
+  });
+
+  it('Vigour steadies every card put into play; a dawn Recall waits on its holder', () => {
+    const s = twoPlayer(6);
+    const [ada] = s.players;
+    ada.relics = [relic('vigour', 2), relic('recall', 1)];
+    const [c] = give(ada, ['helio_lancer'], 'tableau');
+    void c;
+    const [d] = give(ada, ['helio_lancer'], 'hand');
+    let t = play(s, 'helio_lancer');
+    const placed = t.players[0].tableau.find((x) => x.uid === d.uid)!;
+    expect(placed.health).toBe(baseHealth('helio_lancer') + 2);
+    t = endTurn(t);
+    t = endTurn(t);
+    expect(t.players[0].dawnChoices?.[0]).toMatchObject({ kind: 'recall', relic: 'Test recall' });
+  });
+
+  it('Recycle answers a discard pile shuffled back with a blow', () => {
+    const s = twoPlayer(7);
+    const [ada, bo] = s.players;
+    ada.relics = [relic('recycle', 5)];
+    ada.discard.push(...ada.deck.splice(0));
+    const heat = bo.heat;
+    bo.tableau = [];
+    let t = endTurn(s);
+    t = endTurn(t);
+    expect(t.players[1].heat).toBeGreaterThan(heat);
   });
 });

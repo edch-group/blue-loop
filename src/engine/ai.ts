@@ -477,9 +477,15 @@ function aiSkill(state: GameState, me: PlayerState): number | null {
   for (const [i, k] of (me.skills ?? []).entries()) {
     if (heroSkillProblem(state, me, i)) continue;
     const guards = k.effects.some((e) => e.type === 'cool' || e.type === 'shield');
-    const strikes = k.effects.some((e) => e.type === 'heat' || e.type === 'draw' || e.type === 'plays');
+    const strikes = k.effects.some((e) => e.type === 'heat' || e.type === 'draw');
     if (guards && mine >= 0.55) return i;
     if (strikes && (!k.once || theirs >= 0.5 || state.round >= 6)) return i;
+    // (A relic's once-a-battle powers: a sweep when it catches several rival cards, a renewal when cards are worn
+    // well down, energy when there is a hand to spend it on.)
+    if (k.effects.some((e) => e.type === 'strikeAll') && (rival?.tableau.length ?? 0) >= 3) return i;
+    const worn = me.tableau.reduce((t, c) => t + Math.max(0, (c.maxHealth ?? baseHealth(c.defId)) - (c.health ?? 0)), 0);
+    if (k.effects.some((e) => e.type === 'restore') && worn >= 4) return i;
+    if (k.effects.some((e) => e.type === 'plays') && me.hand.length >= 3 && (!k.once || state.round >= 3)) return i;
   }
   return null;
 }
@@ -557,7 +563,7 @@ export function chooseAIAction(state: GameState): Action {
     : [];
   // Its cards' attacks (each ready card, at the sun or each card it may hit).
   const attacks: Action[] = [];
-  const targets = aimChoices(state, me);
+  const targets = aimChoices(state, me, true);
   for (const c of me.tableau) {
     if (c.dimmed || cardAttack(state, me, c) <= 0) continue;
     if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });

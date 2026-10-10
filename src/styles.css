@@ -5889,6 +5889,20 @@ body:has(.game-result) .dock { visibility: hidden; }
 .cmp-relic:hover { transform: scale(1.08); }
 .find.find-cursed { box-shadow: 0 0 0 1.5px #c0564a; }
 @media (prefers-reduced-motion: reduce) { .cmp-relic { animation: none; } }
+/* In battle: a relic's once-a-battle powers, tokens down the right of the screen (off the board, as on the map).
+   Ready to call on, it glows; once used, it goes grey. */
+.relic-actives {
+  position: fixed; z-index: 16; right: calc(var(--pad-r, 0px) + 2px); top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 12px; padding: 4px;
+}
+.relic-actives .cmp-relic { cursor: help; }
+.relic-actives .cmp-relic.ready { cursor: pointer; box-shadow: 0 0 0 1.5px var(--rim), 0 0 0 4px rgba(255, 255, 255, 0.9), 0 0 14px 4px rgba(201, 162, 78, 0.45), 0 3px 8px rgba(60, 70, 100, 0.22); }
+.relic-actives .cmp-relic.spent { animation: none; opacity: 0.45; filter: grayscale(1); --rim: #b9bcc6; }
+.table-view.zoom-rival > .relic-actives, .table-view.zoom-mine > .relic-actives { opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+@media (max-height: 560px) { .relic-actives { gap: 8px; } .relic-actives .cmp-relic { width: 32px; height: 32px; } }
+/* A relic found in the wreckage: its painted badge. */
+.find.find-relic { padding: 0; overflow: hidden; }
+.find.find-relic img { display: block; width: 100%; height: 100%; border-radius: 50%; }
 .cmp-galaxy {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px 0 8px; border-radius: 999px; cursor: help;
   border: 1px solid rgba(85, 96, 126, 0.35); background: rgba(255, 255, 255, 0.85); color: #55607e; font: inherit; font-size: 12px;

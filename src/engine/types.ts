@@ -1,3 +1,4 @@
+import type { RelicInPlay } from './relics';
 import type { GameMode } from './modes';
 /**
  * Blue Loop is a tableau card game. Each player brings a 20-card deck (with
@@ -417,6 +418,8 @@ export interface BattleModifiers {
 
 export interface TurnStats {
   heatDealt: number;
+  /** Attacks made today (a Flurry relic answers the third). */
+  attacks?: number;
   /** The day's energy in all (bonuses and energy gained today included), and the part that is the day's usual amount. */
   energyTotal?: number;
   energyBase?: number;
@@ -432,7 +435,9 @@ export interface PlayerState {
    * Dawn choices waiting on this player (a dawn Recall or Shift of their own), in order, each with the card that
    * gave it: answered one by one before anything else that day.
    */
-  dawnChoices?: { uid: string; kind: 'recall' | 'shift' }[];
+  dawnChoices?: { uid: string; kind: 'recall' | 'shift'; /** A relic's dawn (its name), not a card's. */ relic?: string }[];
+  /** Campaign: the relic powers this side carries into battle that the engine answers (relics.ts). */
+  relics?: RelicInPlay[];
   id: string;
   name: string;
   isAI: boolean;
@@ -598,6 +603,8 @@ export interface BattleSkill {
   effects: Effect[];
   cost: number;
   once?: boolean;
+  /** A relic's once-a-battle power (its name): shown with the relics, on the battle's right, not with the hero. */
+  relic?: string;
 }
 
 export interface PlayerSetup {
@@ -612,6 +619,8 @@ export interface PlayerSetup {
   heatDelta?: number;
   /** Campaign: the army's hero, and the boons (gear and skills) their card carries while in play. */
   heroBoons?: { hero: string; boons: string[] };
+  /** Campaign: the relic powers its side carries that the engine answers (relics.ts). */
+  relics?: RelicInPlay[];
   /** Campaign battles: a one-off head start (from a garrison). */
   opening?: { shields?: number; draw?: number };
   /** Campaign battles: cards already in the tableau when the battle starts (a garrison). */

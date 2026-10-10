@@ -4,7 +4,8 @@ import {
   type GalaxyKind,
   BALANCE,
   battleFinds,
-  itemText,
+  relicText,
+  RELIC_POWERS,
   sunHealth,
   defenderOf,
   salvageOptions,
@@ -83,6 +84,7 @@ import {
   overlordById,
   CHALLENGES,
   type ChallengeKind,
+  type Relic,
 } from '../engine';
 import { markDirty } from './account';
 import { loadMeta, saveMeta } from './meta';
@@ -121,11 +123,21 @@ function saveCampaign(s: CampaignState | null) {
 
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const lower = (t: string) => esc(t.toLowerCase());
+/** Where a relic does its work, for its tip. */
+const relicNote = (r: Relic) =>
+  r.cursed
+    ? 'Cursed: it weighs on your flagship in every battle.'
+    : !r.power
+      ? "A blessing on your hero's card in every battle."
+      : RELIC_POWERS[r.power].kind === 'once'
+        ? "Once in every battle the flagship fights: call on it from the relics on the battle's right."
+        : 'At work in every battle the flagship fights.';
 
 import { FACTION_COLOUR, factionAvatar } from './factions';
+import { relicMark } from './relic-art';
 export { FACTION_COLOUR };
 const NEUTRAL = '#c9cbd0';
-/** Each kind of relic's mark, drawn in ink. */
+/** A mark drawn in ink (the skill tree's icons, and more). */
 const glyph = (d: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
 /** Each kind of galaxy's mark, in ink. */
 const GALAXY_GLYPH: Record<GalaxyKind, string> = {
@@ -136,34 +148,6 @@ const GALAXY_GLYPH: Record<GalaxyKind, string> = {
   darkMatter: '<circle cx="12" cy="12" r="8" stroke-dasharray="2 3"/><circle cx="8" cy="10" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1" fill="currentColor"/><circle cx="13" cy="15" r="1.5" fill="currentColor"/>',
 };
 
-/** Each relic's painted badge, by its base name (the name without its quality or curse word): "Bright Sunlance" is sunlance. */
-const RELIC_ART: Record<string, string> = Object.fromEntries(
-  Object.entries(import.meta.glob<string>('../assets/relics/*.webp', { eager: true, query: '?url', import: 'default' })).map(([path, url]) => [
-    path.slice(path.lastIndexOf('/') + 1, -'.webp'.length),
-    url,
-  ]),
-);
-function relicMark(name: string, slot: string): string {
-  const slug = name.slice(name.indexOf(' ') + 1).toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-  const url = RELIC_ART[slug];
-  return url ? `<img src="${url}" alt="" draggable="false">` : (RELIC_GLYPH[slot] ?? RELIC_GLYPH.weapon);
-}
-
-const RELIC_GLYPH: Record<string, string> = {
-  weapon: glyph('M5 19 17 7l2-3-3 2L4 18M8 16l-3 3M14 6l4 4'),
-  helm: glyph('M5 16V12a7 7 0 0 1 14 0v4M5 16h14M9 9l3-4 3 4'),
-  mantle: glyph('M8 4h8l3 16H5zM12 4v16'),
-  sigil: glyph('M12 3l2.6 5.6L20 9.5l-4 4 1 6-5-3-5 3 1-6-4-4 5.4-.9z'),
-  core: glyph('M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'),
-  facet: glyph('M12 3 20 9l-3 11H7L4 9zM4 9h16M12 3l-3 6 3 11 3-11z'),
-  ring: glyph('M12 6a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM9 6l3-3 3 3'),
-  carapace: glyph('M5 13a7 7 0 0 1 14 0v3H5zM12 6v10M5 13h14'),
-  gland: glyph('M12 4c3 4 5 7 5 10a5 5 0 0 1-10 0c0-3 2-6 5-10z'),
-  mask: glyph('M5 6h14v6a7 7 0 0 1-14 0zM8.5 10.5h2M13.5 10.5h2'),
-  plate: glyph('M6 4h12v9a6 6 0 0 1-12 0zM6 9h12'),
-  star: glyph('M12 3v18M3 12h18M6 6l12 12M18 6 6 18'),
-  ember: glyph('M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-4 3-5 0 2 1 3 2 3 0-3-1-5 0-8z'),
-};
 /** Materials: a paper crate drawn in ink. Earned from systems taken, finds and battles; spent on everything (cards, fusing, repairs). */
 const MATERIALS =
   '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#e3e2dc"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#ffffff"/><path d="M10 9.6V18.5L3 14V6Z" fill="#f0efea"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6ZM10 9.6V18.5M3 6l7 3.6L17 6" fill="none" stroke="#6b7590" stroke-width="1" stroke-linejoin="round"/></svg>';
@@ -438,7 +422,7 @@ export class CampaignView {
   }
 
   /** What the player found in the wreckage of a battle just won (gear for their hero, modules for their ship). */
-  findsFor(game: GameState): { name: string; text: string; rarity: string; kind: 'gear' | 'module'; mark: string; cursed?: boolean }[] {
+  findsFor(game: GameState): { name: string; text: string; rarity: string; kind: 'gear' | 'module'; mark: string; art?: string; note?: string; cursed?: boolean }[] {
     const s = this.state;
     if (!s?.battle || !game.winnerId) return [];
     const b = s.battle;
@@ -448,7 +432,7 @@ export class CampaignView {
     // (Each marked by what it does: its first boon's kind.)
     const mark = (boons: string[] | undefined) => (boons?.[0] ?? 'boon_star').replace(/^boon_/, '').replace(/_\d+$/, '');
     return [
-      ...items.map((i) => ({ name: i.name, text: i.cursed ? i.text : itemText(i), rarity: i.rarity, kind: 'gear' as const, mark: i.cursed ? 'heat' : mark(i.boons), cursed: !!i.cursed })),
+      ...items.map((i) => ({ name: i.name, text: relicText(i), rarity: i.rarity, kind: 'gear' as const, mark: i.cursed ? 'heat' : mark(i.boons), art: relicMark(i.name, i.slot), note: relicNote(i), cursed: !!i.cursed })),
 
     ];
   }
@@ -1002,7 +986,7 @@ export class CampaignView {
     const tokens = relics
       .map(
         (r) =>
-          `<button class="cmp-relic ${r.cursed ? 'cursed' : 'blessed'} rarity-${r.rarity}" data-key="relic-${r.id}" data-tip-title="${esc(r.name.toLowerCase())}" data-tip="${esc(r.cursed ? r.text : itemText(r))}" data-tip-note="${r.cursed ? 'Cursed: it weighs on your flagship in every battle.' : "A blessing on your hero's card in every battle."}" aria-label="${esc(r.name)}">${relicMark(r.name, r.slot)}</button>`,
+          `<button class="cmp-relic ${r.cursed ? 'cursed' : 'blessed'} rarity-${r.rarity}" data-key="relic-${r.id}" data-tip-title="${esc(r.name.toLowerCase())}" data-tip="${esc(relicText(r))}" data-tip-note="${esc(relicNote(r))}" aria-label="${esc(r.name)}">${relicMark(r.name, r.slot)}</button>`,
       )
       .join('');
     return `<aside class="cmp-relics" aria-label="Relics">${tokens}</aside>`;
