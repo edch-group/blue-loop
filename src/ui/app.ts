@@ -5822,7 +5822,7 @@ export class App {
     // comes next is marked.
     // (A full-art card with a cost of its own, a Lost Lord, shows it: the Overlords' parts have none.)
     const full = isBossCard(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}${opts.owner?.boss?.intent === c.uid ? ' card-intent' : ''}` : '';
-    const actionTag = def.bossAction ? `<div class="card-action">${esc(def.bossAction.name.toLowerCase())}</div>` : '';
+    const actionTag = def.bossAction && (def.overlordPart !== 'lost lord' || opts.owner?.boss) ? `<div class="card-action">${esc(def.bossAction.name.toLowerCase())}</div>` : '';
     return `
       <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
@@ -5900,9 +5900,9 @@ export class App {
     const def = cardDef(defId);
     const first = [this.raceNote(defId), ...raceTraitTags(def).map((g) => `<div><b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}">${esc(g.name)}</b><span>${esc(g.text)}</span></div>`)].filter(Boolean);
     // A boss card's great action: what it does (a Lost Lord's only as a foe), in words.
-    if (def.bossAction) {
+    if (def.bossAction && (def.overlordPart !== 'lost lord' || owner?.boss)) {
       const words = def.bossAction.say ?? plainText(def.text.includes('Action:') ? def.text.slice(def.text.indexOf('Action:') + 7) : def.text).trim();
-      const when = def.overlordPart === 'lost lord' ? 'As a foe, its action' : 'Its action, when its turn comes';
+      const when = def.overlordPart === 'lost lord' ? 'Its action' : 'Its action, when its turn comes';
       first.push(`<div><b class="kw kw-removal">${esc(def.bossAction.name)}</b><span>${esc(`${when}: ${words}`)}</span></div>`);
     }
     return keywordList(def.text, stats, first);
@@ -5946,7 +5946,7 @@ export class App {
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     // (A Lost Overlord's part: full-art, its action named across its picture.)
     const full = isBossCard(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}` : '';
-    const actionTag = def.bossAction ? `<div class="card-action">${esc(def.bossAction.name.toLowerCase())}</div>` : '';
+    const actionTag = def.bossAction && (def.overlordPart !== 'lost lord' || owner?.boss) ? `<div class="card-action">${esc(def.bossAction.name.toLowerCase())}</div>` : '';
     return `
       <div class="card card-big kind-${def.kind}${race}${full} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
