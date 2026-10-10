@@ -3383,7 +3383,7 @@ export class App {
 
   private onAttackDragStart(e: PointerEvent) {
     if (e.button > 0 || this.screen !== 'game' || this.attackDrag) return;
-    const el = (e.target as HTMLElement).closest<HTMLElement>('.tableau-mine .card[data-act="attack-start"]');
+    const el = (e.target as HTMLElement).closest<HTMLElement>('.tableau-mine .card[data-act="attack-start"], .tableau-mine .card[data-act="hero-panel"][data-attacker]');
     if (!el || !this.canAct()) return;
     this.attackDrag = { uid: el.dataset.arg!, x: e.clientX, y: e.clientY, beam: null, over: null };
   }
@@ -5566,7 +5566,8 @@ export class App {
     }
     // Your Hero, with abilities, on your day: tap it for its abilities (and its attack) to pick from.
     if (!p && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && c.slot === COMMAND_SLOT && !c.dimmed && (cardDef(c.defId).abilities ?? []).length && !isGameOver(s)) {
-      attrs = `data-act="hero-panel" data-arg="${c.uid}" title="Its abilities"`;
+      // (One that can attack can still be dragged straight onto a target, as any attacker; a tap opens its abilities.)
+      attrs = `data-act="hero-panel" data-arg="${c.uid}" ${this.heroActions(me).includes('attack') ? 'data-attacker="1"' : ''} title="Its abilities"`;
       state = 'card-attacker';
     }
     if ((p?.attack || p?.ability !== undefined) && opts.tableau === 'mine' && c.uid === p.uid) state = 'card-aiming';
