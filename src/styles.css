@@ -6562,3 +6562,24 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cmp.cmp-cine-done .cmp-map, .cmp.cmp-cine-done .cmp-relics, .cmp.cmp-cine-done .cmp-purse, .cmp.cmp-cine-done .cmp-nav,
 .cmp.cmp-cine-done .cmp-top-left > :not(.cmp-guide) { animation: cmp-cine-in 1s ease both; }
 @keyframes cmp-cine-in { from { opacity: 0; } }
+
+/* ---- A relic's power: what it does marked in the middle of its badge (draw, cool, energy...), on a white disc ---- */
+.cmp-relic { position: relative; }
+.relic-action {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 52%; height: 52%; border-radius: 50%;
+  display: grid; place-items: center; background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 3px rgba(40, 46, 70, 0.3); pointer-events: none;
+}
+.cmp-relic .relic-action .kw-ico { width: 68%; height: 68%; margin: 0; stroke: currentColor; stroke-width: 2.1; }
+.relic-action .eff-heat { color: #d9662f; } .relic-action :is(.eff-cool, .eff-shield) { color: #4f86c6; }
+.relic-action :is(.eff-draw, .eff-energy, .eff-plant) { color: #3f9a68; } .relic-action :is(.eff-wall, .eff-repair, .eff-time) { color: #6b7080; }
+.relic-actives .cmp-relic { cursor: pointer; }
+.relic-actives .cmp-relic.open { transform: scale(1.12); }
+/* Tapped: in the preview pane (clear of the relics down the right), its badge large, what it does, and use or cancel. */
+.stage.stage-relic { right: calc(var(--pad-r, 0px) + 64px); pointer-events: auto; width: min(240px, 60vw); text-align: center; gap: 6px; }
+.cmp-relic.relic-panel-badge { width: 84px; height: 84px; padding: 16px; animation: none; }
+.relic-panel-badge > img, .relic-panel-badge > svg { width: 100%; height: 100%; }
+.relic-panel-name { font-family: var(--display); font-weight: 500; letter-spacing: 0.08em; font-size: 0.95rem; color: var(--ink); }
+.relic-panel-text { margin: 0; font-size: 0.85rem; line-height: 1.35; color: var(--ink); }
+.relic-panel-when { font-family: var(--display); letter-spacing: 0.16em; text-transform: uppercase; font-size: 0.62rem; color: var(--ink-faint, #8a8fa3); }
+.relic-panel-btns { display: flex; gap: 8px; margin-top: 4px; }
+.relic-panel-btns .btn { min-width: 84px; }

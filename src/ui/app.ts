@@ -403,6 +403,15 @@ function yieldMarks(st: GameState, p: PlayerState, c: CardInstance, side: 'mine'
   return `<span class="card-yield card-yield-${side}">${[...yields, ...marks].join('')}</span>`;
 }
 
+/** The mark of what a relic's power does (draw, cool, energy...), laid over its badge; none for a power with no plain mark. */
+function relicActionMark(k: { effects: Effect[]; choices?: { kind: string } }): string {
+  const type = k.effects[0]?.type ?? k.choices?.kind;
+  if (!type) return '';
+  const kind = /^strike/.test(type) ? 'heat' : type === 'fortify' ? 'sturdy' : type;
+  const mark = effectMark(kind);
+  return mark.includes('eff-star') ? '' : `<span class="relic-action">${mark}</span>`;
+}
+
 /** The sound of a blow landing on a card: its defence cracking if the blow wore it, and the crunch of what got through. */
 function cardBlowSound(prev: GameState, next: GameState, uid: string) {
   const find = (st: GameState) => st.players.flatMap((p) => p.tableau).find((c) => c.uid === uid);
@@ -831,6 +840,8 @@ export class App {
   private stage: Stage | null = null;
   /** Your Hero, tapped on your day: its actions (abilities, and attack) shown in the stage's place, middle right. */
   private heroPanel: string | null = null;
+  /** A relic's power tapped (its index among the viewer's skills): shown in the preview pane, to use or not. */
+  private relicPanel: number | null = null;
   /** The card mid-attack (its flying copy is out): hidden in its slot until the copy is back. */
   private lunging: string | null = null;
   /** The board zoomed onto one tableau (the rival's, or yours), to read it close up; null: the whole board. */
@@ -1710,7 +1721,7 @@ export class App {
   private canAutoEnd(): boolean {
     const s = this.state;
     // (Not while discards are being picked: End Day confirms those, never the clock.)
-    return this.screen === 'game' && !!s && !tourShowing() && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && !this.drag && !this.discarding && !this.dawnChoice() && !this.landing && this.phase === 'day' && this.leftUndone().length === 0;
+    return this.screen === 'game' && !!s && !tourShowing() && !isGameOver(s) && this.canAct() && !this.pending && !this.stage && !this.sheet && !this.heroPanel && this.relicPanel === null && !this.drag && !this.discarding && !this.dawnChoice() && !this.landing && this.phase === 'day' && this.leftUndone().length === 0;
   }
 
   /**
@@ -3360,7 +3371,7 @@ export class App {
   private dealtAt = 0;
   /** A card is in the preview pane (picked to play, landing, a Hero's abilities): the hand keeps still meanwhile. */
   private handStill(): boolean {
-    return !!(this.pending || this.stage || this.heroPanel);
+    return !!(this.pending || this.stage || this.heroPanel || this.relicPanel !== null);
   }
   /** Whether a point is in the hand's column: between its outermost cards, from their tops down (never, with no cards). */
   private inHandColumn(x: number, y: number): boolean {
@@ -3698,6 +3709,12 @@ export class App {
         this.render();
         return;
       }
+    }
+    // A relic in the preview pane closes with a click anywhere else.
+    if (this.relicPanel !== null && !(e.target as HTMLElement).closest?.('.relic-panel') && el?.dataset.act !== 'relic-panel') {
+      this.relicPanel = null;
+      this.render();
+      if (!el) return;
     }
     // Your Hero's actions close with a click anywhere else.
     if (this.heroPanel && !(e.target as HTMLElement).closest?.('.hero-picks') && el?.dataset.act !== 'hero-panel') {
@@ -4057,6 +4074,7 @@ export class App {
     if (this.dawnChoice() && !act.startsWith('dawn-') && act !== 'board-zoom') {
       this.pending = null;
       this.heroPanel = null;
+      this.relicPanel = null;
       sound.blocked();
       return this.render();
     }
@@ -4085,6 +4103,7 @@ export class App {
       case 'board-zoom':
         return this.setBoardZoom(this.boardZoom === arg ? null : (arg as 'rival' | 'mine'));
       case 'hero-panel':
+        this.relicPanel = null;
         this.heroPanel = this.heroPanel === arg ? null : arg;
         sound.hover();
         return this.render();
@@ -4109,9 +4128,23 @@ export class App {
         sound.hero();
         return this.dispatch({ type: 'heroAbility', index: Number(arg) });
       }
+      case 'relic-panel': {
+        const i = Number(arg);
+        this.relicPanel = this.relicPanel === i ? null : i;
+        this.heroPanel = null;
+        sound.hover();
+        return this.render();
+      }
+      case 'relic-cancel':
+        this.relicPanel = null;
+        return this.render();
       case 'hero-skill': {
+        this.relicPanel = null;
         const why = heroSkillProblem(this.state!, this.viewer(), Number(arg));
-        if (why) return this.showToast(why, 'info');
+        if (why) {
+          this.render();
+          return this.showToast(why, 'info');
+        }
         sound.hero();
         return this.dispatch({ type: 'heroSkill', index: Number(arg) });
       }
@@ -5652,7 +5685,8 @@ export class App {
         // (Once a battle, it is spent for good; once a day, until tomorrow.)
         const used = k.spent || (!k.once && k.usedTurn === s.turnNumber);
         const note = k.spent ? 'Used.' : used ? 'Used today.' : '';
-        return `<button class="cmp-relic relic-active ${used ? 'spent' : ''} ${ready ? 'ready' : ''}" ${k.once ? '' : 'data-daily="1"'} " ${ready ? `data-act="hero-skill" data-arg="${i}"` : ''} data-tip-title="${esc(k.relic.toLowerCase())}" data-tip="${esc(k.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${k.relic}. ${k.text}`)}">${relicMark(k.relic, '')}</button>`;
+        // (Tapped, it shows in the preview pane, to read and then use, or not.)
+        return `<button class="cmp-relic relic-active ${used ? 'spent' : ''} ${ready ? 'ready' : ''} ${this.relicPanel === i ? 'open' : ''}" ${k.once ? '' : 'data-daily="1"'} data-act="relic-panel" data-arg="${i}" aria-label="${esc(`${k.relic}. ${k.text}${note ? ` ${note}` : ''}`)}">${relicMark(k.relic, '')}${relicActionMark(k)}</button>`;
       })
       .join('');
     // A relic that counts the day's attacks (three, and it strikes): its token, filling as they are made.
@@ -5994,6 +6028,27 @@ export class App {
   }
 
   /** Your Hero, tapped on your day: its card in the preview pane (middle right), its abilities as pills to its left. */
+  /** A relic's power, tapped: its badge (what it does marked over it), its name and words, and Use, or Cancel. */
+  private renderRelicPanel(i: number): string {
+    const s = this.state!;
+    const me = this.viewer();
+    const k = me.skills?.[i];
+    if (!k?.relic) return '';
+    const used = k.spent || (!k.once && k.usedTurn === s.turnNumber);
+    const myDay = activePlayer(s).id === me.id;
+    const why = used ? (k.spent ? 'Used.' : 'Used today.') : !myDay ? 'On your day.' : heroSkillProblem(s, me, i) ?? (this.phase !== 'day' || this.pending ? 'Not now.' : null);
+    return `<div class="stage stage-relic relic-panel" data-key="relic-panel">
+      <div class="cmp-relic relic-panel-badge">${relicMark(k.relic, '')}${relicActionMark(k)}</div>
+      <b class="relic-panel-name">${esc(k.relic.toLowerCase())}</b>
+      <p class="relic-panel-text">${esc(k.text.replace(/^Once (per|a) (battle|day|turn): /i, '').replace(/^./, (c) => c.toUpperCase()))}</p>
+      <small class="relic-panel-when">${k.once ? 'once a battle' : 'once a day'}</small>
+      <div class="relic-panel-btns">
+        <button class="btn" data-act="relic-cancel">cancel</button>
+        <button class="btn btn-primary" data-act="hero-skill" data-arg="${i}" ${why ? 'disabled' : ''}>${why ? esc(why.replace(/\.$/, '').toLowerCase()) : 'use'}</button>
+      </div>
+    </div>`;
+  }
+
   private renderHeroPanel(): string {
     const me = this.viewer();
     const hero = commandCard(me);
@@ -6145,6 +6200,7 @@ export class App {
   private renderStage(): string {
     const st = this.stage;
     const s = this.state!;
+    if (!st && this.relicPanel !== null && !isGameOver(s)) return this.renderRelicPanel(this.relicPanel);
     if (!st && this.heroPanel && !isGameOver(s) && this.canAct()) return this.renderHeroPanel();
     // A card picked from your hand: it waits here while you choose where it goes and what it does.
     const picked = !st && this.pending && !this.pending.attack && this.pending.ability === undefined ? activePlayer(s).hand.find((c) => c.uid === this.pending!.uid) : undefined;
