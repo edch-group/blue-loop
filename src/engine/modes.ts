@@ -41,19 +41,19 @@ export function underRules<T>(mode: GameMode | undefined, f: () => T): T {
 export type Mechanic =
   | 'forge' | 'overheat' | 'shields' | 'growth'
   | 'resonance' | 'bulwark' | 'pierce' | 'removal' | 'erode' | 'restore' | 'repair' | 'recall' | 'recover'
-  | 'shift' | 'plant' | 'orbit' | 'attune' | 'lightspeed' | 'fusion' | 'spendAll' | 'global' | 'leave'
+  | 'shift' | 'plant' | 'orbit' | 'attune' | 'lightspeed' | 'trap' | 'fusion' | 'spendAll' | 'global' | 'leave'
   | 'consume' | 'sting' | 'anchor' | 'thermosiphon' | 'darkspeed' | 'empower' | 'halt' | 'relic';
 
 /** The one mechanic each core race is built round: Aureline, Xel'Naru, Vorthane, Ixquor. */
 export const CORE_SIGNATURE: Record<number, Mechanic> = { 0: 'forge', 1: 'overheat', 2: 'shields', 3: 'growth' };
 export const CORE_RACES = [0, 1, 2, 3];
 /** Mechanics every race may use in Core, beyond the fundamentals. */
-export const CORE_MECHANICS: Mechanic[] = ['lightspeed', 'repair'];
+export const CORE_MECHANICS: Mechanic[] = ['lightspeed', 'trap', 'repair'];
 
 const MECHANIC_NAME: Record<Mechanic, string> = {
   forge: 'Forge', overheat: 'Overheat', shields: 'Shields', growth: 'Growth', resonance: 'Resonance', bulwark: 'Bulwark',
   pierce: 'Pierce', removal: 'Removal', erode: 'Erode', restore: 'Restore', repair: 'Repair', recall: 'Recall',
-  recover: 'Recover', shift: 'Shift', plant: 'Plant', orbit: 'Orbit', attune: 'Attune', lightspeed: 'Lightspeed',
+  recover: 'Recover', shift: 'Shift', plant: 'Plant', orbit: 'Orbit', attune: 'Attune', lightspeed: 'Lightspeed', trap: 'Trap',
   fusion: 'Fusion', consume: 'Consume', spendAll: 'Spend all', global: 'Global', leave: 'Leaving play', sting: 'Sting', anchor: 'Anchor',
   thermosiphon: 'Thermosiphon', darkspeed: 'Darkspeed', empower: 'Chosen', halt: 'Halt', relic: 'Relic',
 };
@@ -115,12 +115,13 @@ function ofPassive(p: Passive, add: (m: Mechanic) => void) {
 export function cardMechanics(def: CardDef): Set<Mechanic> {
   const out = new Set<Mechanic>();
   const add = (m: Mechanic) => out.add(m);
-  for (const list of [def.onPlay, def.onTurn, def.onDusk, def.onLeave, def.onRecover, def.lightspeed?.effects, ...(def.choices ?? []).map((c) => c.onTurn), ...(def.abilities ?? []).map((a) => a.effects)]) {
+  for (const list of [def.onPlay, def.onTurn, def.onDusk, def.onLeave, def.onRecover, def.trap?.effects, ...(def.choices ?? []).map((c) => c.onTurn), ...(def.abilities ?? []).map((a) => a.effects)]) {
     for (const e of list ?? []) ofEffect(e, add);
   }
   for (const p of def.passive ?? []) ofPassive(p, add);
   if (def.onLeave?.length) add('leave');
   if (def.onRecover?.length) add('recover');
+  if (def.trap) add('trap');
   if (def.lightspeed) add('lightspeed');
   if (def.fusion) add('fusion');
   if (def.consume) add('consume');
@@ -135,7 +136,7 @@ export function cardMechanics(def: CardDef): Set<Mechanic> {
 /** How many things a card does: each trigger's effects of one type count once, and each passive once. */
 export function cardThings(def: CardDef): number {
   let n = 0;
-  for (const list of [def.onPlay, def.onTurn, def.onDusk, def.onLeave, def.lightspeed?.effects]) n += new Set((list ?? []).map((e) => e.type)).size;
+  for (const list of [def.onPlay, def.onTurn, def.onDusk, def.onLeave, def.trap?.effects]) n += new Set((list ?? []).map((e) => e.type)).size;
   n += (def.passive ?? []).length;
   return n;
 }

@@ -7,7 +7,7 @@ import { act, hero } from './heroes-battle';
  * Growth). Each replaces the card's effects; its name, picture and kind stay. In Lost Races they play as written.
  */
 const forge = (n = 1) => ({ type: 'adjacent' as const, amounts: [n], kind: 'attack' as const });
-const none = { onPlay: undefined, onTurn: undefined, onDusk: undefined, onLeave: undefined, onRecover: undefined, passive: undefined, fusion: undefined, lightspeed: undefined, attune: undefined, spendAll: undefined };
+const none = { onPlay: undefined, onTurn: undefined, onDusk: undefined, onLeave: undefined, onRecover: undefined, passive: undefined, fusion: undefined, trap: undefined, lightspeed: undefined, attune: undefined, spendAll: undefined };
 
 const HEROES: CardDef[] = [
   // ---- Aureline: Forge ----

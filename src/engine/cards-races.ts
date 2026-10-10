@@ -18,31 +18,31 @@ export const RACE_CARDS: CardDef[] = [
   {
     // Veilwalker traps: each works in your tableau too, or set face down (1 more energy) to spring.
     id: 'nyx_umbral_snare', name: 'Umbral Snare', kind: 'defence', race: 4, sub: 'veilwalker', cost: 1,
-    text: '{sting:1}. {dawn}: {shield:1}. {lightspeed} for 1 more energy: when a rival card attacks your sun, 3 heat to the attacker and {shield:2}.',
+    text: '{sting:1}. {dawn}: {shield:1}. {trap} for 1 more energy: when a rival card attacks your sun, 3 heat to the attacker and {shield:2}.',
     onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'retaliate', amount: 1 }],
-    lightspeed: { trigger: { on: 'sunAttacked' }, effects: [{ type: 'hitBack', amount: 3 }, { type: 'shield', amount: 2 }] },
+    trap: { trigger: { on: 'sunAttacked' }, effects: [{ type: 'hitBack', amount: 3 }, { type: 'shield', amount: 2 }] },
   },
   {
     id: 'nyx_mirror_veil', name: 'Mirror Veil', kind: 'defence', race: 4, sub: 'veilwalker', cost: 1,
-    text: '{dawn}: {shield:2}. {lightspeed} for 1 more energy: when your rival plays a card aimed at one of yours, cancel it.',
+    text: '{dawn}: {shield:2}. {trap} for 1 more energy: when your rival plays a card aimed at one of yours, cancel it.',
     onTurn: [{ type: 'shield', amount: 2 }],
-    lightspeed: { trigger: { on: 'targeted' }, counter: true },
+    trap: { trigger: { on: 'targeted' }, counter: true },
   },
   {
     id: 'nyx_night_ambush', name: 'Night Ambush', kind: 'attack', race: 4, sub: 'veilwalker', cost: 1, character: true,
-    text: '{dawn}: {heat:1}. {lightspeed} for 1 more energy: when a rival card attacks one of yours, cancel the attack and {heat:2} to them.',
+    text: '{dawn}: {heat:1}. {trap} for 1 more energy: when a rival card attacks one of yours, cancel the attack and {heat:2} to them.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
-    lightspeed: { trigger: { on: 'cardAttacked' }, counter: true, effects: [{ type: 'heat', amount: 2, to: 'target' }] },
+    trap: { trigger: { on: 'cardAttacked' }, counter: true, effects: [{ type: 'heat', amount: 2, to: 'target' }] },
   },
   {
-    id: 'nyx_null_shroud', name: 'Null Shroud', kind: 'lightspeed', race: 4, sub: 'veilwalker', cost: 3, rarity: 'stellar',
-    text: '{lightspeed}. When your rival plays a Hero, cancel it.',
-    lightspeed: { trigger: { on: 'enemyPlays', kind: 'command' }, counter: true },
+    id: 'nyx_null_shroud', name: 'Null Shroud', kind: 'trap', race: 4, sub: 'veilwalker', cost: 3, rarity: 'stellar',
+    text: '{trap}. When your rival plays a Hero, cancel it.',
+    trap: { trigger: { on: 'enemyPlays', kind: 'command' }, counter: true },
   },
   {
     id: 'nyx_veil_sentry', name: 'Veil Sentry', kind: 'defence', race: 4, sub: 'veilwalker', cost: 2,
-    text: '{guard}. {sting:2}. {dawn}: {shield:1}. {lightspeed} for 1 more energy: when a rival card attacks one of yours, it lands in your tableau and takes the attack.',
-    onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }], lightspeed: { trigger: { on: 'cardAttacked' }, deploy: true },
+    text: '{guard}. {sting:2}. {dawn}: {shield:1}. {trap} for 1 more energy: when a rival card attacks one of yours, it lands in your tableau and takes the attack.',
+    onTurn: [{ type: 'shield', amount: 1 }], passive: [{ type: 'taunt' }, { type: 'retaliate', amount: 2 }], trap: { trigger: { on: 'cardAttacked' }, deploy: true },
   },
   {
     id: 'nyx_gloom_warden', name: 'Gloom Warden', kind: 'defence', race: 4, sub: 'veilwalker', cost: 2, character: true,

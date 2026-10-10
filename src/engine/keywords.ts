@@ -94,7 +94,8 @@ export const KEYWORDS: Record<string, Keyword> = {
     explain: (v) =>
       `Each dawn, gains your orbit's bonus${v && v !== '1' ? ` (×${v})` : ''}. Dead planet: ${ATTUNEMENT.slice(0, 3).map((a) => plainText(a.text)).join(' → ')}. Abundant: ${ATTUNEMENT.slice(3, 6).map((a) => plainText(a.text)).join(' → ')}. Industrial: ${ATTUNEMENT.slice(6).map((a) => plainText(a.text)).join(' → ')}.`,
   },
-  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Answers your rival's move, before it resolves. Set face down on your day, it springs on the first trigger it meets. Kept in hand, you pick the moment: play it on their day, paid with banked energy (energy left unspent at your day's end). One from hand per rival day." },
+  lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Play it in any phase of your day, or on your rival's day in reply to a card they play or an attack, paid with banked energy (energy left unspent at your day's end). One in reply per rival day." },
+  trap: { name: 'trap', group: 'lightspeed', explain: () => 'Set face down on your day. It springs on the first trigger it meets.' },
   global: { name: 'global', group: 'global', explain: () => 'Affects both players.' },
 };
 

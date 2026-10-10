@@ -37,11 +37,13 @@ function vec(c: CardDef): Vec {
   effects(v, 'recover', c.onRecover);
   for (const p of c.passive ?? []) passive(v, p);
   if (c.choices) bump(v, `choices|${c.choices.map((x) => x.id).join(',')}`, 1);
-  if (c.lightspeed) {
-    bump(v, `ls|${JSON.stringify(c.lightspeed.trigger)}`, 1);
-    if (c.lightspeed.counter) bump(v, 'ls|counter', 1);
-    effects(v, 'spring', c.lightspeed.effects);
+  if (c.trap) {
+    bump(v, `trap|${JSON.stringify(c.trap.trigger)}`, 1);
+    if (c.trap.counter) bump(v, 'trap|counter', 1);
+    effects(v, 'spring', c.trap.effects);
   }
+  // (Lightspeed is worth a point of power: a Lightspeed card a little weaker than another is not beaten by it.)
+  if (c.lightspeed) bump(v, 'lightspeed', 1);
   if (c.defence) bump(v, 'defence', c.defence);
   if (c.attack) bump(v, 'attack', c.attack);
   if (c.attune) bump(v, 'attune', c.attune);
@@ -72,7 +74,7 @@ const vecs = new Map(cards.map((c) => [c.id, vec(c)]));
 const found: string[] = [];
 for (const a of cards) {
   for (const b of cards) {
-    if (a === b || !fits(a, b) || cardCost(b.id) > cardCost(a.id) || (a.kind === 'lightspeed') !== (b.kind === 'lightspeed') || (a.kind === 'command') !== (b.kind === 'command') || (a.kind === 'relic') !== (b.kind === 'relic')) continue; // (A Relic lasts but is brittle: no match for anything else)
+    if (a === b || !fits(a, b) || cardCost(b.id) > cardCost(a.id) || (a.kind === 'trap') !== (b.kind === 'trap') || (a.kind === 'command') !== (b.kind === 'command') || (a.kind === 'relic') !== (b.kind === 'relic')) continue; // (A Relic lasts but is brittle: no match for anything else)
     const va = vecs.get(a.id)!, vb = vecs.get(b.id)!;
     let better = cardCost(b.id) < cardCost(a.id);
     let ok = true;

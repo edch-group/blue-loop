@@ -6,7 +6,7 @@ import { inMode, setRulesMode } from './modes';
 import { relicN, relicOf, RELIC_POWERS, type RelicPower } from './relics';
 import { raceTrait } from './races';
 import { randomInt, shuffleInPlace } from './rng';
-import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, ReactEvent, Reaction, Planet, PlayerState, TurnPulse, TurnStats } from './types';
+import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, TrapTrigger, Passive, ReactEvent, Reaction, Planet, PlayerState, TurnPulse, TurnStats } from './types';
 
 export class GameError extends Error {}
 
@@ -94,7 +94,7 @@ export function createGame(setup: GameSetup): GameState {
         if (!commandCard(p)) place(p, card, COMMAND_SLOT);
       } else if (safest.length) place(p, card, safest.shift()!);
     }
-    if (ps.lightspeed && cardDef(ps.lightspeed).kind === 'lightspeed') p.lightspeed = newCard(state, ps.lightspeed);
+    if (ps.lightspeed && cardDef(ps.lightspeed).kind === 'trap') p.lightspeed = newCard(state, ps.lightspeed);
     // A Lost Overlord: its body in play, and the first of its parts' actions to come.
     if (ps.boss) {
       // It has no sun: its leader (the Overlord in its Hero slot) is what must be beaten.
@@ -676,25 +676,30 @@ function anchored(p: PlayerState, card: CardInstance): boolean {
   return p.tableau.some((src) => distance(src, card) === 1 && cardPassives(src).some((ps) => ps.type === 'anchor'));
 }
 
-/** Whether the player may set this Lightspeed card now (only one can be face down at a time). */
-export function canSetLightspeed(p: PlayerState): boolean {
+/** Whether the player may set a trap now (only one can be face down at a time). */
+export function canSetTrap(p: PlayerState): boolean {
   return p.lightspeed === null;
 }
 
-/** A card of another kind that can also be set face down at lightspeed (a Lightspeed guard). */
-export function dualLightspeed(defId: string): boolean {
+/** A card of another kind that can also be set face down as a trap (for 1 more energy). */
+export function dualTrap(defId: string): boolean {
   const def = cardDef(defId);
-  return def.kind !== 'lightspeed' && !!def.lightspeed;
+  return def.kind !== 'trap' && !!def.trap;
 }
 
-/** What a card costs: set face down at lightspeed, a Lightspeed guard costs 1 more. */
+/** What a card costs: set face down as a trap, a card of another kind costs 1 more. */
 export function playCost(defId: string, faceDown = false): number {
-  return cardCost(defId) + (faceDown && dualLightspeed(defId) ? 1 : 0);
+  return cardCost(defId) + (faceDown && dualTrap(defId) ? 1 : 0);
 }
 
-/** Whether a Lightspeed guard could be set face down now (its slot free, the energy there). */
+/** Whether a card of another kind could be set face down as a trap now (the trap slot free, the energy there). */
 export function canSetFaceDown(p: PlayerState, defId: string): boolean {
-  return dualLightspeed(defId) && canSetLightspeed(p) && playCost(defId, true) <= p.playsLeft;
+  return dualTrap(defId) && canSetTrap(p) && playCost(defId, true) <= p.playsLeft;
+}
+
+/** Whether a card is Lightspeed: playable in any phase of your day, and in reply on your rival's. */
+export function isLightspeed(defId: string): boolean {
+  return !!cardDef(defId).lightspeed;
 }
 
 /** The choices a card is played with (Command cards), or none. */
@@ -715,9 +720,9 @@ export function dawnEffects(card: CardInstance, p?: PlayerState, state?: GameSta
   return [...own, ...attunedEffects(attunePosition(p.orbit, !!state && planetsEaten(state, p)), attune)];
 }
 
-/** Whether a card stays in the tableau when played (everything but Lightspeed cards, which are set face down). */
+/** Whether a card stays in the tableau when played (everything but traps, which are set face down). */
 export function persists(defId: string): boolean {
-  return cardDef(defId).kind !== 'lightspeed';
+  return cardDef(defId).kind !== 'trap';
 }
 
 /**
@@ -1793,15 +1798,15 @@ function playerById(state: GameState, id: string): PlayerState {
 }
 
 /** Whether a Lightspeed trigger answers what an enemy is doing. */
-export function triggerMatches(t: LightspeedTrigger, ev: ReactEvent): boolean {
+export function triggerMatches(t: TrapTrigger, ev: ReactEvent): boolean {
   if (t.on !== ev.on) return false;
   if (t.on !== 'enemyPlays' || !t.kind) return true;
-  return ev.faceDown ? t.kind === 'lightspeed' : !!ev.defId && defHasRole(cardDef(ev.defId), t.kind);
+  return ev.faceDown ? t.kind === 'trap' : !!ev.defId && defHasRole(cardDef(ev.defId), t.kind);
 }
 
-/** The energy a Lightspeed card costs played from hand in answer (as set face down: a Lightspeed guard's +1). */
+/** The energy a Lightspeed card costs played in reply on the rival's day (what it costs on your own). */
 export function reactCost(defId: string): number {
-  return playCost(defId, true);
+  return cardCost(defId);
 }
 
 /**
@@ -1814,13 +1819,15 @@ export function reactOptions(state: GameState, o: PlayerState, events: ReactEven
   if (o.eliminated) return none;
   const mine = events.filter((ev) => !ev.mineUid || o.tableau.some((c) => c.uid === ev.mineUid));
   if (!mine.length) return none;
-  const answers = (defId: string) => {
-    const ls = cardDef(defId).lightspeed;
-    if (!ls || !mine.some((ev) => triggerMatches(ls.trigger, ev))) return false;
-    return !ls.deploy || freeSlots(o).some((i) => i !== COMMAND_SLOT);
+  // A trap answers its own trigger (one that lands in play needs a free slot to land in).
+  const springs = (defId: string) => {
+    const t = cardDef(defId).trap;
+    if (!t || !mine.some((ev) => triggerMatches(t.trigger, ev))) return false;
+    return !t.deploy || freeSlots(o).some((i) => i !== COMMAND_SLOT);
   };
-  const slot = !!o.lightspeed && answers(o.lightspeed.defId);
-  const hand = o.reactedDay === state.turnNumber ? [] : o.hand.filter((c) => !!cardDef(c.defId).lightspeed && answers(c.defId) && reactCost(c.defId) <= (o.banked ?? 0)).map((c) => c.uid);
+  const slot = !!o.lightspeed && springs(o.lightspeed.defId);
+  // A Lightspeed card answers anything, if the banked energy pays for it and there is room for it to go.
+  const hand = o.reactedDay === state.turnNumber ? [] : o.hand.filter((c) => isLightspeed(c.defId) && reactCost(c.defId) <= (o.banked ?? 0) && hasRoomFor(o, c.defId)).map((c) => c.uid);
   return { slot, hand };
 }
 
@@ -1875,42 +1882,13 @@ function react(state: GameState, action: Extract<Action, { type: 'react' }>) {
   if (!r) throw new GameError('There is nothing to answer.');
   const o = playerById(state, r.playerId);
   const enemy = playerById(state, r.enemyId);
-  let card: CardInstance | undefined;
-  let fromHand = false;
-  if (action.slot) {
-    if (!r.slot || !o.lightspeed) throw new GameError('Your face-down card does not answer this.');
-    card = o.lightspeed;
-    o.lightspeed = null;
-  } else if (action.cardUid) {
-    if (!r.hand.includes(action.cardUid)) throw new GameError('That card does not answer this.');
-    card = o.hand.find((c) => c.uid === action.cardUid)!;
-    const cost = reactCost(card.defId);
-    if ((o.banked ?? 0) < cost) throw new GameError(`It costs ${cost} banked energy.`);
-    o.banked = (o.banked ?? 0) - cost;
-    o.hand = o.hand.filter((c) => c !== card);
-    o.reactedDay = state.turnNumber;
-    fromHand = true;
-  }
-  if (!card) {
+  if (action.slot) springTrap(state, r, o, enemy);
+  else if (action.cardUid) playInReply(state, r, o, enemy, action);
+  else {
     delete state.reaction;
     resume(state, r);
     return;
   }
-  const def = cardDef(card.defId);
-  const ls = def.lightspeed!;
-  const ev = r.events.find((x) => triggerMatches(ls.trigger, x)) ?? r.events[0];
-  const cause = ev.defId ?? (ev.attackerUid ? enemy.tableau.find((c) => c.uid === ev.attackerUid)?.defId : undefined);
-  log(state, `⚡ Lightspeed! ${o.name} ${fromHand ? 'plays' : 'springs'} ${def.name}${cause ? ` in answer to ${enemy.name}'s ${cardDef(cause).name}` : ''}.`);
-  (state.sprung ??= []).push({ ownerId: o.id, defId: card.defId, against: cause, enemyId: enemy.id, trigger: ls.trigger.on });
-  if (ls.deploy) {
-    // A Lightspeed guard lands in the safest free slot, and the attack comes to it.
-    const slot = slotsBySafety().find((i) => freeSlots(o).includes(i) && i !== COMMAND_SLOT)!;
-    place(o, card, slot);
-    r.redirect = card.uid;
-    log(state, `${o.name}'s ${def.name} lands in their tableau, and takes the attack.`);
-  } else o.discard.push(card);
-  resolveEffects(state, o, card, ls.effects, 'spring', { against: enemy, event: ev, reaction: r });
-  if (ls.counter) r.cancelled = true;
   if (state.winnerId || enemy.eliminated) {
     delete state.reaction;
     if (enemy.eliminated && activePlayer(state) === enemy) passOn(state);
@@ -1921,7 +1899,7 @@ function react(state: GameState, action: Extract<Action, { type: 'react' }>) {
     cancelPending(state, enemy, r);
     return;
   }
-  // (Another answer still open to them: the face-down card, or one from hand.)
+  // (Another answer still open to them: a Lightspeed card from hand, after their trap sprang.)
   const more = reactOptions(state, o, r.events);
   if (more.slot || more.hand.length) {
     r.slot = more.slot;
@@ -1932,6 +1910,60 @@ function react(state: GameState, action: Extract<Action, { type: 'react' }>) {
   if (!holdResume) resume(state, r);
 }
 
+/** A face-down trap springs: it answers what set it off (a card that lands in play takes the attack). */
+function springTrap(state: GameState, r: Reaction, o: PlayerState, enemy: PlayerState) {
+  if (!r.slot || !o.lightspeed) throw new GameError('Your face-down trap does not answer this.');
+  const card = o.lightspeed;
+  o.lightspeed = null;
+  const def = cardDef(card.defId);
+  const t = def.trap!;
+  const ev = r.events.find((x) => triggerMatches(t.trigger, x)) ?? r.events[0];
+  const cause = ev.defId ?? (ev.attackerUid ? enemy.tableau.find((c) => c.uid === ev.attackerUid)?.defId : undefined);
+  log(state, `⚡ Trap! ${o.name} springs ${def.name}${cause ? ` in answer to ${enemy.name}'s ${cardDef(cause).name}` : ''}.`);
+  (state.sprung ??= []).push({ ownerId: o.id, defId: card.defId, against: cause, enemyId: enemy.id, trigger: t.trigger.on });
+  if (t.deploy) {
+    // A card that lands as it springs goes in the safest free slot, and the attack comes to it.
+    const slot = slotsBySafety().find((i) => freeSlots(o).includes(i) && i !== COMMAND_SLOT)!;
+    place(o, card, slot);
+    r.redirect = card.uid;
+    log(state, `${o.name}'s ${def.name} lands in their tableau, and takes the attack.`);
+  } else o.discard.push(card);
+  resolveEffects(state, o, card, t.effects, 'spring', { against: enemy, event: ev, reaction: r });
+  if (t.counter) r.cancelled = true;
+}
+
+/**
+ * A Lightspeed card played in reply on the rival's day: paid from banked energy (one a rival day), it is played as
+ * any card is (into a free slot, its effects resolving, heat aimed as chosen: unchosen, at the card attacking, else
+ * their sun), before the move it answers goes on.
+ */
+function playInReply(state: GameState, r: Reaction, o: PlayerState, enemy: PlayerState, action: Extract<Action, { type: 'react' }>) {
+  if (!r.hand.includes(action.cardUid!)) throw new GameError('That card cannot be played in reply.');
+  const card = o.hand.find((c) => c.uid === action.cardUid)!;
+  const def = cardDef(card.defId);
+  const cost = reactCost(card.defId);
+  if ((o.banked ?? 0) < cost) throw new GameError(`It costs ${cost} banked energy.`);
+  const ev = r.events[0];
+  const attacker = ev.attackerUid && enemy.tableau.some((c) => c.uid === ev.attackerUid) ? ev.attackerUid : undefined;
+  const play = { aimUid: attacker, ...action.play };
+  log(state, `⚡ Lightspeed! ${o.name} plays ${def.name} in reply.`);
+  // (Played from the banked energy: the day's energy is set to it for the play, and what is left is banked again.)
+  const day = o.playsLeft;
+  o.playsLeft = o.banked ?? 0;
+  try {
+    playCard(state, o, { type: 'playCard', cardUid: card.uid, ...play }, true);
+  } finally {
+    o.banked = o.playsLeft;
+    o.playsLeft = day;
+  }
+  o.reactedDay = state.turnNumber;
+  const cause = ev.defId ?? (attacker ? enemy.tableau.find((c) => c.uid === attacker)?.defId : undefined);
+  (state.sprung ??= []).push({ ownerId: o.id, defId: card.defId, against: cause, enemyId: enemy.id, trigger: ev.on });
+  // (A Guard played in reply to an attack draws it, as a guard that landed does.)
+  const placed = o.tableau.find((c) => c.uid === card.uid);
+  if (placed && r.pending.kind === 'attack' && isGuard(o, placed)) r.redirect = placed.uid;
+}
+
 /** An answer cancelled the move: a card played goes to its owner's discard pile (or back to hand), its energy spent; an attack is called off. */
 function cancelPending(state: GameState, enemy: PlayerState, r: Reaction) {
   if (r.pending.kind === 'play') {
@@ -1939,7 +1971,7 @@ function cancelPending(state: GameState, enemy: PlayerState, r: Reaction) {
     const card = enemy.hand.find((c) => c.uid === action.cardUid);
     if (!card) return;
     const def = cardDef(card.defId);
-    enemy.playsLeft = Math.max(0, enemy.playsLeft - playCost(def.id, def.kind === 'lightspeed' || !!action.faceDown));
+    enemy.playsLeft = Math.max(0, enemy.playsLeft - playCost(def.id, def.kind === 'trap' || !!action.faceDown));
     enemy.turn.cardsPlayed += 1;
     if (r.returned) {
       log(state, `${enemy.name}'s ${def.name} goes back to their hand.`);
@@ -1947,7 +1979,7 @@ function cancelPending(state: GameState, enemy: PlayerState, r: Reaction) {
     }
     enemy.hand = enemy.hand.filter((c) => c !== card);
     enemy.discard.push(card);
-    log(state, `${action.faceDown || def.kind === 'lightspeed' ? 'The face-down card' : def.name} is cancelled.`);
+    log(state, `${action.faceDown || def.kind === 'trap' ? 'The face-down card' : def.name} is cancelled.`);
     return;
   }
   const attacker = enemy.tableau.find((c) => c.uid === (r.pending as { attackerUid: string }).attackerUid);
@@ -2005,7 +2037,7 @@ function resume(state: GameState, r: Reaction) {
       const def = cardDef(card.defId);
       enemy.hand = enemy.hand.filter((c) => c !== card);
       enemy.discard.push(card);
-      enemy.playsLeft = Math.max(0, enemy.playsLeft - playCost(def.id, def.kind === 'lightspeed' || !!action.faceDown));
+      enemy.playsLeft = Math.max(0, enemy.playsLeft - playCost(def.id, def.kind === 'trap' || !!action.faceDown));
       log(state, `${enemy.name}'s ${def.name} fizzles: what it aimed at is out of reach.`);
     }
   }
@@ -2016,13 +2048,13 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const card = p.hand.find((c) => c.uid === action.cardUid);
   if (!card) throw new GameError('That card is not in your hand.');
   const def: CardDef = cardDef(card.defId);
-  // A Lightspeed guard can be set face down instead, for 1 more energy.
-  const lightspeed = def.kind === 'lightspeed' || (!!action.faceDown && dualLightspeed(def.id));
-  // A rival holding a Lightspeed card that answers this play may answer it first: the play is checked (tried on
+  // A trap is set face down (and a card of another kind that can be set as one may be, for 1 more energy).
+  const asTrap = def.kind === 'trap' || (!!action.faceDown && dualTrap(def.id));
+  // A rival whose trap answers this play (or who holds a Lightspeed card to reply with) may answer it first: the play is checked (tried on
   // a copy), then waits on them (see Reaction).
   if (!answered && !state.noReactions) {
-    const events: ReactEvent[] = [lightspeed ? { on: 'enemyPlays', faceDown: true } : { on: 'enemyPlays', defId: def.id }];
-    const aimed = lightspeed ? undefined : action.enemyUid ?? action.aimUid;
+    const events: ReactEvent[] = [asTrap ? { on: 'enemyPlays', faceDown: true } : { on: 'enemyPlays', defId: def.id }];
+    const aimed = asTrap ? undefined : action.enemyUid ?? action.aimUid;
     if (aimed) events.push({ on: 'targeted', defId: def.id, mineUid: aimed });
     if (wouldAnswer(state, p, events)) {
       const trial = structuredClone(state);
@@ -2030,12 +2062,12 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
       if (openReaction(state, p, events, { kind: 'play', action })) return;
     }
   }
-  const cost = playCost(def.id, lightspeed);
+  const cost = playCost(def.id, asTrap);
   if (p.playsLeft < cost) throw new GameError(p.playsLeft <= 0 ? 'You have no energy left today.' : `${def.name} costs ${cost} energy: you have ${p.playsLeft} left today.`);
-  if (lightspeed && !canSetLightspeed(p)) throw new GameError('You already have a Lightspeed card face down.');
+  if (asTrap && !canSetTrap(p)) throw new GameError('You already have a trap face down.');
   // Consume: one of your other cards in play is given up first (your choice; unchosen, the weakest), and leaves
   // play as any card does. (A failed play throws, and the whole move is undone.)
-  if (def.consume && !lightspeed) {
+  if (def.consume && !asTrap) {
     const chosen = action.sacrificeUid ? consumable(p).find((c) => c.uid === action.sacrificeUid) : undefined;
     if (action.sacrificeUid && !chosen) throw new GameError('Consume one of your own cards in play (not your Hero).');
     const victim = chosen ?? sacrificeOf(p);
@@ -2045,10 +2077,10 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     if (state.winnerId || p.eliminated) return;
   }
   // A Fusion card is played like any other card, into a slot, or (given a host) fused onto a card in play.
-  const fusing = !!def.fusion && !lightspeed && action.hostUid !== undefined;
+  const fusing = !!def.fusion && !asTrap && action.hostUid !== undefined;
   // Into a full tableau, a card replaces one of yours (your choice; unchosen, the weakest), which leaves play
   // as any card does; the new card takes its slot.
-  if (!lightspeed && !fusing && replaces(p, def.id)) {
+  if (!asTrap && !fusing && replaces(p, def.id)) {
     const chosen = action.sacrificeUid ? consumable(p).find((c) => c.uid === action.sacrificeUid) : undefined;
     if (action.sacrificeUid && !chosen) throw new GameError('Replace one of your own cards in play (not your Hero).');
     const old = chosen ?? sacrificeOf(p)!;
@@ -2057,7 +2089,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     leaveTableau(state, p, old);
     if (state.winnerId || p.eliminated) return;
   }
-  const slotted = inSlots(def.id) && !lightspeed && !fusing;
+  const slotted = inSlots(def.id) && !asTrap && !fusing;
 
   const choices = cardChoices(def.id);
   if (choices.length && !choices.includes(action.choice ?? '')) throw new GameError('Choose one of its options.');
@@ -2094,7 +2126,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (def.spendAll) card.spent = spend;
   p.playsLeft -= spend;
   p.turn.cardsPlayed += 1;
-  log(state, lightspeed ? `${p.name} sets a card face down at lightspeed.` : `${p.name} plays ${def.name}.`);
+  log(state, asTrap ? `${p.name} sets a trap face down.` : `${p.name} plays ${def.name}.`);
   // A Harvest relic: the third card played in a day draws.
   const harvest = relicN(p.relics, 'harvest');
   if (harvest && p.turn.cardsPlayed === 3) {
@@ -2103,7 +2135,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     if (state.winnerId || p.eliminated) return;
   }
 
-  if (lightspeed) {
+  if (asTrap) {
     p.lightspeed = card;
     return;
   }
@@ -2403,7 +2435,7 @@ export function hasRole(p: PlayerState, card: CardInstance, kind: CardKind): boo
 
 /** The same, of a card as printed (one being played, or in a pile): a "support card" played is one that resolves and goes. */
 export function defHasRole(def: CardDef, kind: CardKind): boolean {
-  const own = def.kind !== 'command' && def.kind !== 'lightspeed' && def.kind !== 'relic' && def.kind !== 'global';
+  const own = def.kind !== 'command' && def.kind !== 'trap' && def.kind !== 'relic' && def.kind !== 'global';
   // (Played: a card with attack, or one that heats the rival as it is played.)
   if (kind === 'attack') return own && ((def.attack ?? 0) > 0 || (def.onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target'));
   if (kind === 'defence') return own && (def.defence ?? 0) > 0;

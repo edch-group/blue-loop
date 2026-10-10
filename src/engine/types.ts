@@ -9,13 +9,13 @@ import type { GameMode } from './modes';
 
 /**
  * Card types. They matter for synergies ("your attack cards deal +1 heat").
- * Lightspeed cards are played face down and spring during an enemy's day.
+ * Traps are set face down and spring during an enemy's day. (Lightspeed is a keyword, not a kind: see CardDef.lightspeed.)
  * Relics have no attack and never fade, but are Brittle: nothing restores them, and removal reaches them whatever their defence.
  */
-export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command' | 'lightspeed' | 'relic';
-export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'relic', 'global', 'command', 'lightspeed'];
+export type CardKind = 'attack' | 'defence' | 'growth' | 'global' | 'command' | 'trap' | 'relic';
+export const CARD_KINDS: readonly CardKind[] = ['attack', 'defence', 'growth', 'relic', 'global', 'command', 'trap'];
 /** A kind as players read it: Command cards are Heroes (the id stays, so saved decks carry over). */
-export const KIND_NAME: Record<CardKind, string> = { attack: 'attack', defence: 'defence', growth: 'support', global: 'global', command: 'hero', lightspeed: 'lightspeed', relic: 'relic' };
+export const KIND_NAME: Record<CardKind, string> = { attack: 'attack', defence: 'defence', growth: 'support', global: 'global', command: 'hero', trap: 'trap', relic: 'relic' };
 
 /**
  * How rare a card is, shown by a gem at the top of the card: a White Dwarf
@@ -130,18 +130,18 @@ export type Effect = (
   | { type: 'recover'; kind?: CardKind; /** With nothing (of that kind) in your discard pile, draw this many cards instead. */ orDraw?: number; /** No choice: the card most recently discarded (a Command card's dawn). */ latest?: boolean }
   /** You may play this many extra cards today. */
   | { type: 'plays'; amount: number }
-  /** Lightspeed: the enemy who sprang this card may play no more cards today. */
+  /** Trap: the enemy who sprang this card may play no more cards today. */
   | { type: 'halt' }
-  /** Lightspeed: this much heat to the enemy card that attacks (at it, past nothing but its defence). */
+  /** Trap: this much heat to the enemy card that attacks (at it, past nothing but its defence). */
   | { type: 'hitBack'; amount: number }
-  /** Lightspeed: the enemy card it answers goes back to its owner's hand (the card being played, or the attacker). */
+  /** Trap: the enemy card it answers goes back to its owner's hand (the card being played, or the attacker). */
   | { type: 'returnIt' }
   /**
-   * Lightspeed: one of your cards gains this much defence until your next dawn (at 3 or more it is a Guard, and
+   * Trap: one of your cards gains this much defence until your next dawn (at 3 or more it is a Guard, and
    * draws the attack): the card attacked or aimed at (`it`), or your best-defended card (`best`).
    */
   | { type: 'fortify'; amount: number; who: 'it' | 'best' }
-  /** Lightspeed: your card attacked or aimed at moves to your best-defended free slot. */
+  /** Trap: your card attacked or aimed at moves to your best-defended free slot. */
   | { type: 'shiftMine' }
   /**
    * A Lost Overlord's blow: this much heat to the rival card with the most attack (its defence first). `guarded`
@@ -206,31 +206,32 @@ export type Passive =
   | { type: 'eatPlanets' };
 
 /**
- * What a Lightspeed card answers, during an enemy's day (from its owner's face-down slot, or from their hand with
- * banked energy). Each is something the enemy does, caught before it resolves:
+ * What springs a trap, during an enemy's day (from its owner's face-down slot). Each is something the enemy
+ * does, caught before it resolves:
  * - `enemyPlays`: an enemy plays a card (of a kind, if given: `command` is a Hero);
  * - `sunAttacked`: an enemy card attacks your sun;
  * - `cardAttacked`: an enemy card attacks one of your cards;
  * - `targeted`: an enemy plays a card aimed at one of your cards (removal, a shift, heat aimed at it...).
  */
-export type LightspeedTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'sunAttacked' } | { on: 'cardAttacked' } | { on: 'targeted' };
+export type TrapTrigger = { on: 'enemyPlays'; kind?: CardKind } | { on: 'sunAttacked' } | { on: 'cardAttacked' } | { on: 'targeted' };
 
-export interface Lightspeed {
-  trigger: LightspeedTrigger;
+/** A trap: set face down, it springs on the first trigger it meets (see Reaction). */
+export interface Trap {
+  trigger: TrapTrigger;
   /** Cancel what it answers: the card played (it goes to its owner's discard pile, its energy spent), or the attack. */
   counter?: boolean;
   /** Resolved as it springs, before what it answers. "Your target" is the enemy it answers. */
   effects?: Effect[];
   /**
-   * A Lightspeed guard (a card of another kind that can also be set face down, for 1 more energy): as it
-   * springs it lands in a free slot of your tableau, and the attack it answers strikes it instead.
+   * A card of another kind that can also be set face down as a trap, for 1 more energy: as it springs it lands
+   * in a free slot of your tableau, and the attack it answers strikes it instead.
    */
   deploy?: boolean;
 }
 
-/** What an enemy is doing, that a Lightspeed card may answer (see Reaction). */
+/** What an enemy is doing, that a trap (or a Lightspeed card in reply) may answer (see Reaction). */
 export interface ReactEvent {
-  on: LightspeedTrigger['on'];
+  on: TrapTrigger['on'];
   /** The card the enemy is playing (enemyPlays, targeted). */
   defId?: string;
   /** The enemy is setting a card face down (enemyPlays: what it is stays hidden). */
@@ -242,8 +243,9 @@ export interface ReactEvent {
 }
 
 /**
- * A reaction window: the active player's move waits while a rival decides whether to answer it with a
- * Lightspeed card (their face-down one, or one from hand they can pay for with banked energy).
+ * A reaction window: the active player's move waits while a rival answers it. Their face-down trap, if it matches,
+ * springs by itself first; then, if they hold a Lightspeed card their banked energy pays for (one per enemy day),
+ * they may play it in reply, or let the move pass.
  */
 export interface Reaction {
   /** Who may answer. */
@@ -253,7 +255,8 @@ export interface Reaction {
   events: ReactEvent[];
   /** The move waiting (checked, not yet made): a card being played, or an attack. */
   pending: { kind: 'play'; action: Extract<Action, { type: 'playCard' }> } | { kind: 'attack'; attackerUid: string; targetUid: string | null };
-  /** What may answer it: the face-down card (if it matches), and the cards in hand that do (and can be paid for). */
+  /** What may answer it: the face-down trap (if it matches; it springs by itself), and the Lightspeed cards in hand
+   *  that can be paid for. */
   slot: boolean;
   hand: string[];
   /** A card of the reacting player's that the attack (or aimed heat) now strikes instead (a guard that landed). */
@@ -310,8 +313,13 @@ export interface CardDef {
   onLeave?: Effect[];
   /** When this card is recovered from your discard pile to your hand. */
   onRecover?: Effect[];
-  /** Lightspeed cards: what springs it and what it does. */
-  lightspeed?: Lightspeed;
+  /** Traps (and cards that can also be set as one): what springs it and what it does. */
+  trap?: Trap;
+  /**
+   * Lightspeed: it can be played in any phase of your day (dawn and dusk too), and on your rival's day in reply to
+   * a card they play or an attack they make, paid with banked energy. It costs the card a point of power.
+   */
+  lightspeed?: boolean;
   /**
    * A Lost Overlord's part (a limb, its gear, a retainer): the one great action it takes when its turn in the
    * Overlord's round comes (see PlayerState.boss). Destroy the part and the action is lost.
@@ -376,7 +384,7 @@ export interface CardInstance {
   dimmed?: boolean;
   /** Attack added by a Chosen effect, while it stays in play. */
   attackBonus?: number;
-  /** Defence added by a Lightspeed card, until its owner's next dawn. */
+  /** Defence added by a trap, until its owner's next dawn. */
   fortified?: number;
   /** Attack given up today (Offering): taken off its attack until its owner's next dawn. */
   spentAttack?: number;
@@ -482,7 +490,7 @@ export interface PlayerState {
    */
   tableau: CardInstance[];
   discard: CardInstance[];
-  /** A face-down Lightspeed card waiting to spring (only one at a time). Rivals see only its back. */
+  /** A face-down trap waiting to spring (only one at a time). Rivals see only its back. (Named for older saves.) */
   lightspeed: CardInstance | null;
   /**
    * A Lost Overlord (a campaign's wormhole guardian): it draws and plays no cards; each day it takes one great
@@ -555,8 +563,8 @@ export interface GameState {
   challenge?: { kind: 'mine' | 'frost' | 'lord'; days?: number; spawn?: string[]; per?: number; broken: number };
   /** Campaign: a Reliquary Obelisk on the field was broken (its relics are the attacker's, whoever wins). */
   vaultOpened?: boolean;
-  /** Lightspeed cards that sprang during this move, and the enemy card that sprang each (if a card did). */
-  sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: LightspeedTrigger['on'] }[];
+  /** Traps that sprang (or Lightspeed cards played in reply) during this move, and the enemy card that sprang each (if a card did). */
+  sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: TrapTrigger['on'] }[];
   /** The attack this move made (only this move's state): the attacker and what it struck (null, the sun). */
   struck?: { attackerUid: string; targetUid: string | null };
   /** Campaign battle rules (see GameSetup.campaign). */
@@ -649,7 +657,7 @@ export interface PlayerSetup {
   bossHealth?: number;
   /** The card that leads it, if not the one in its Hero slot (a Lost Lord); none at all for a mine or a wave. */
   bossLeader?: string;
-  /** Campaign battles: a Lightspeed card already set face down (a garrison). */
+  /** Campaign battles: a trap already set face down (a garrison). */
   lightspeed?: string;
   modifiers?: BattleModifiers;
   conditions?: { name: string; text: string; short?: string; galaxy?: boolean }[];
@@ -694,7 +702,7 @@ export type Action =
       hostUid?: string;
       /** Which empty slot of your tableau the card goes in (default: the most defended one free). */
       slot?: number;
-      /** A card that can also be set at lightspeed (a Lightspeed guard): set it face down instead, for 1 more energy. */
+      /** A card that can also be set as a trap: set it face down instead, for 1 more energy. */
       faceDown?: boolean;
       /** A card with choices (Command cards): the one picked. */
       choice?: string;
@@ -730,7 +738,8 @@ export type Action =
   /** A player gives up (at any time, not only on their day): their rival wins. */
   | { type: 'concede'; playerId: string }
   /**
-   * The reacting player's answer in a reaction window: spring their face-down card (`slot`), play a Lightspeed
-   * card from hand (`cardUid`), or neither (let it pass).
+   * The reacting player's answer in a reaction window: spring their face-down trap (`slot`), play a Lightspeed
+   * card from hand in reply (`cardUid`, with its choices as a card played has them: where it goes, what it aims at),
+   * or neither (let it pass).
    */
-  | { type: 'react'; cardUid?: string; slot?: boolean };
+  | { type: 'react'; cardUid?: string; slot?: boolean; play?: { slot?: number; aimUid?: string; enemyUid?: string; allyUid?: string; choice?: string } };

@@ -1,5 +1,6 @@
 import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
+import { LIGHTSPEED_CARDS } from './cards-lightspeed';
 import { EXPANSION, EXPANSION_META } from './cards-expansion';
 import { ATTUNE_CARDS, ATTUNE_COSTS } from './cards-attune';
 import { RACE_CARDS } from './cards-races';
@@ -189,44 +190,44 @@ export const CARDS: CardDef[] = [
   {
     id: 'null_field',
     name: 'Null Field',
-    kind: 'lightspeed',
-    text: '{lightspeed}. When your rival plays an armed card, cancel it.',
-    lightspeed: { trigger: { on: 'enemyPlays', kind: 'attack' }, counter: true },
+    kind: 'trap',
+    text: '{trap}. When your rival plays an armed card, cancel it.',
+    trap: { trigger: { on: 'enemyPlays', kind: 'attack' }, counter: true },
   },
   {
     id: 'signal_jammer',
     name: 'Signal Jammer',
-    kind: 'lightspeed',
-    text: '{lightspeed}. When your rival plays a support card, cancel it.',
-    lightspeed: { trigger: { on: 'enemyPlays', kind: 'growth' }, counter: true },
+    kind: 'trap',
+    text: '{trap}. When your rival plays a support card, cancel it.',
+    trap: { trigger: { on: 'enemyPlays', kind: 'growth' }, counter: true },
   },
   {
     id: 'frost_snare',
     name: 'Frost Snare',
-    kind: 'lightspeed',
-    text: '{lightspeed}. When a rival card attacks one of yours, first 4 heat to the attacker.',
-    lightspeed: { trigger: { on: 'cardAttacked' }, effects: [{ type: 'hitBack', amount: 4 }] },
+    kind: 'trap',
+    text: '{trap}. When a rival card attacks one of yours, first 4 heat to the attacker.',
+    trap: { trigger: { on: 'cardAttacked' }, effects: [{ type: 'hitBack', amount: 4 }] },
   },
   {
     id: 'solar_mirror',
     name: 'Solar Mirror',
-    kind: 'lightspeed',
-    text: "{lightspeed}. When a rival card attacks your sun, return it to its owner's hand.",
-    lightspeed: { trigger: { on: 'sunAttacked' }, effects: [{ type: 'returnIt' }] },
+    kind: 'trap',
+    text: "{trap}. When a rival card attacks your sun, return it to its owner's hand.",
+    trap: { trigger: { on: 'sunAttacked' }, effects: [{ type: 'returnIt' }] },
   },
   {
     id: 'decoy_array',
     name: 'Decoy Array',
-    kind: 'lightspeed',
-    text: '{lightspeed}. When a rival card attacks one of yours, that card gains 3 defence and stands Guard until your next dawn.',
-    lightspeed: { trigger: { on: 'cardAttacked' }, effects: [{ type: 'fortify', amount: 3, who: 'it' }] },
+    kind: 'trap',
+    text: '{trap}. When a rival card attacks one of yours, that card gains 3 defence and stands Guard until your next dawn.',
+    trap: { trigger: { on: 'cardAttacked' }, effects: [{ type: 'fortify', amount: 3, who: 'it' }] },
   },
   {
     id: 'temporal_snare',
     name: 'Temporal Snare',
-    kind: 'lightspeed',
-    text: '{lightspeed}. When your rival plays a card, cancel it. They may play no more cards today.',
-    lightspeed: { trigger: { on: 'enemyPlays' }, counter: true, effects: [{ type: 'halt' }] },
+    kind: 'trap',
+    text: '{trap}. When your rival plays a card, cancel it. They may play no more cards today.',
+    trap: { trigger: { on: 'enemyPlays' }, counter: true, effects: [{ type: 'halt' }] },
   },
 
   // ---- Aureline: lancers. Many attack cards, each making the others hit harder ----
@@ -374,7 +375,7 @@ export const CARDS: CardDef[] = [
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
   },
 
-  // ---- Race cards for resonance, recovery, stability, command synergies and lightspeed ----
+  // ---- Race cards for resonance, recovery, stability, command synergies and traps ----
   {
     id: 'shard_renewal',
     name: 'Shard Renewal',
@@ -456,10 +457,10 @@ export const CARDS: CardDef[] = [
   {
     id: 'riptide_ambush',
     name: 'Riptide Ambushers',
-    kind: 'lightspeed',
+    kind: 'trap',
     race: 2,
-    text: '{lightspeed}. When a rival card attacks one of yours, shift yours to your best-defended free slot, then 3 heat to the attacker.',
-    lightspeed: { trigger: { on: 'cardAttacked' }, effects: [{ type: 'shiftMine' }, { type: 'hitBack', amount: 3 }] },
+    text: '{trap}. When a rival card attacks one of yours, shift yours to your best-defended free slot, then 3 heat to the attacker.',
+    trap: { trigger: { on: 'cardAttacked' }, effects: [{ type: 'shiftMine' }, { type: 'hitBack', amount: 3 }] },
   },
   {
     id: 'regrowth_pod',
@@ -705,7 +706,7 @@ const CARD_META: Record<string, { rarity?: Rarity; character?: boolean; name?: s
   the_brood_queen: { character: true, rarity: 'anomaly' },
 };
 // The second set joins the pool (for building decks; the starters use only the first).
-CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS, ...BIG_CARDS, ...RELIC_CARDS, ...PLAIN_CARDS, ...REMOVAL_CARDS);
+CARDS.push(...EXPANSION, ...FUSION_CARDS, ...ATTUNE_CARDS, ...RACE_CARDS, ...DUSK_CARDS, ...BIG_CARDS, ...RELIC_CARDS, ...PLAIN_CARDS, ...REMOVAL_CARDS, ...LIGHTSPEED_CARDS);
 // The Heroes as they now fight (heroes-battle.ts): lasting, with abilities to choose from each day, in
 // place of the old choice of dawn effect.
 for (const c of CARDS) {
@@ -726,7 +727,7 @@ for (const [id, profile] of Object.entries(PLAIN_EXISTING)) {
   const s = plainStats(profile, c.race, c.cost ?? 1);
   const kind = s.attack > 0 ? 'attack' : 'defence';
   Object.assign(c, { kind, attack: s.attack, health: s.health, defence: s.sturdy || undefined, text: plainText(profile, s.sturdy) });
-  for (const k of ['onPlay', 'onTurn', 'onDusk', 'onLeave', 'onRecover', 'passive', 'choices', 'attune', 'lightspeed', 'spendAll', 'consume'] as const) delete c[k];
+  for (const k of ['onPlay', 'onTurn', 'onDusk', 'onLeave', 'onRecover', 'passive', 'choices', 'attune', 'trap', 'lightspeed', 'spendAll', 'consume'] as const) delete c[k];
   if (profile === 'wall') c.passive = [{ type: 'taunt' }];
   PLAIN_PROFILE[id] = profile;
 }
@@ -755,7 +756,7 @@ const raiseKeyword = (text: string, kw: string, n: number) =>
   new RegExp(`\\{${kw}:\\d+\\}`).test(text) ? text.replace(new RegExp(`\\{${kw}:(\\d+)\\}`), (_, k: string) => `{${kw}:${Number(k) + n}}`) : `{${kw}:${n}}. ${text}`;
 for (const c of CARDS) {
   const t = raceTrait(c.race);
-  if (!t || c.fusion || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
+  if (!t || c.fusion || c.kind === 'trap' || c.kind === 'relic' || isBurst(c)) continue;
   if (t.sturdy) {
     c.defence = (c.defence ?? 0) + t.sturdy;
     c.text = raiseKeyword(c.text, 'sturdy', t.sturdy);
@@ -770,11 +771,11 @@ for (const c of CARDS) {
 /** Whether a card has Darkspeed (its race's trait: the Nyxari): it can act the day it comes into play. Cards that never stand in play don't. */
 /** Darkspeed (the Nyxari): only cards that can act have it, those that attack and Heroes (abilities). */
 export function hasDarkspeed(def: CardDef): boolean {
-  return !!raceTrait(def.race)?.ambush && def.kind !== 'lightspeed' && !isBurst(def) && ((def.attack ?? 0) > 0 || def.kind === 'command');
+  return !!raceTrait(def.race)?.ambush && def.kind !== 'trap' && !isBurst(def) && ((def.attack ?? 0) > 0 || def.kind === 'command');
 }
 
 export function isBurst(def: CardDef): boolean {
-  if (def.kind === 'command' || def.kind === 'lightspeed' || def.kind === 'relic' || def.stability !== undefined) return false;
+  if (def.kind === 'command' || def.kind === 'trap' || def.kind === 'relic' || def.stability !== undefined) return false;
   // (A wall, plain or not, stands in play for its defence alone.)
   if ((def.defence ?? 0) > 0 && def.health !== undefined) return false;
   return !def.onTurn?.length && !def.onDusk?.length && !def.passive?.length && !def.choices?.length && !def.attune && !def.onLeave?.length && !(def.attack ?? 0);
@@ -881,7 +882,7 @@ export const abilityBudget = (cost: number) => 2 * cost + 1;
 const health0 = (c: CardDef) => c.health ?? Math.max(BALANCE.minHealth, Math.min(BALANCE.maxHealth, 1 + (c.cost ?? 1) + (c.kind === 'defence' ? 1 : 0)));
 /** A unit's stats against its budget (attack, its own Sturdy, stability), or null for a card with no budget. */
 export function statPoints(c: CardDef): number | null {
-  if (c.kind === 'command' || c.kind === 'lightspeed' || c.kind === 'relic' || c.kind === 'global' || c.token || isBurst(c)) return null;
+  if (c.kind === 'command' || c.kind === 'trap' || c.kind === 'relic' || c.kind === 'global' || c.token || isBurst(c)) return null;
   return Math.max(0, c.attack ?? 0) + (c.defence ?? 0) + health0(c);
 }
 for (const c of CARDS) {
@@ -918,7 +919,7 @@ const setKeyword = (text: string, kw: string, n: number) =>
   new RegExp(`\\{${kw}(:\\d+)?\\}`).test(text) ? text.replace(new RegExp(`\\{${kw}(:\\d+)?\\}`), `{${kw}:${n}}`) : `{${kw}:${n}}. ${text}`;
 for (const c of CARDS) {
   const t = raceTrait(c.race);
-  if (!t || c.kind === 'lightspeed' || c.kind === 'relic' || isBurst(c)) continue;
+  if (!t || c.kind === 'trap' || c.kind === 'relic' || isBurst(c)) continue;
   if (t.sturdy && !c.fusion && (c.defence ?? 0) > 0) c.text = setKeyword(c.text, 'sturdy', c.defence ?? 0);
   if (t.sting) c.text = setKeyword(c.text, 'sting', (c.passive ?? []).reduce((n, x) => n + (x.type === 'retaliate' ? x.amount : 0), 0) + t.sting);
   if (t.attune && c.attune) c.text = setKeyword(c.text, 'attune', c.attune + t.attune);
@@ -926,11 +927,11 @@ for (const c of CARDS) {
 }
 
 /** What a card is, as players read it: a unit (it stays in play) or a surge (it resolves and goes), or a Hero, Relic, Lightspeed or global card. */
-export type ShownKind = 'unit' | 'surge' | 'command' | 'lightspeed' | 'relic' | 'global';
-export const SHOWN_KINDS: readonly ShownKind[] = ['unit', 'surge', 'relic', 'global', 'command', 'lightspeed'];
-export const SHOWN_KIND_NAME: Record<ShownKind, string> = { unit: 'entity', surge: 'technology', command: 'hero', lightspeed: 'lightspeed', relic: 'relic', global: 'global' };
+export type ShownKind = 'unit' | 'surge' | 'command' | 'trap' | 'relic' | 'global';
+export const SHOWN_KINDS: readonly ShownKind[] = ['unit', 'surge', 'relic', 'global', 'command', 'trap'];
+export const SHOWN_KIND_NAME: Record<ShownKind, string> = { unit: 'entity', surge: 'technology', command: 'hero', trap: 'trap', relic: 'relic', global: 'global' };
 export function shownKind(def: CardDef): ShownKind {
-  if (def.kind === 'command' || def.kind === 'lightspeed' || def.kind === 'relic' || def.kind === 'global') return def.kind;
+  if (def.kind === 'command' || def.kind === 'trap' || def.kind === 'relic' || def.kind === 'global') return def.kind;
   return isBurst(def) ? 'surge' : 'unit';
 }
 
@@ -983,7 +984,7 @@ export function unfusable(id: string): string | null {
   if (!d) return 'A fused card cannot be fused again.';
   if (d.kind === 'command') return 'Heroes cannot be fused (a deck needs exactly two).';
   if (d.kind === 'global') return 'Global cards cannot be fused.';
-  if (d.kind === 'lightspeed') return 'Lightspeed cards cannot be fused.';
+  if (d.kind === 'trap') return 'Traps cannot be fused.';
   if (d.kind === 'relic') return 'Relics cannot be fused.';
   return null;
 }

@@ -17,7 +17,7 @@ import {
   RANK_TIERS,
   rankOf,
   xpToNext,
-  canSetLightspeed,
+  canSetTrap,
   reactCost,
   canSetFaceDown,
   cardDef,
@@ -38,6 +38,7 @@ import {
   isGuard,
   replaces as replacesCard,
   persists,
+  isLightspeed,
   commandCard,
   inSlots,
   fusionHosts,
@@ -359,7 +360,7 @@ const UNMARKED = new Set(['dawn', 'dusk', 'vigil', 'dimmed', 'abilities', 'act',
  * What a card does only as it is played (or before): once it is on the board, nothing more. Marked only where its
  * text gives it a dawn, dusk or vigil (it goes on happening), or on a Hero (whose abilities come round each day).
  */
-const AS_PLAYED = new Set(['lightspeed', 'consume', 'fusion', 'offering', 'rootbreak', 'erode', 'decay', 'restore', 'renew', 'recover', 'recall', 'shift', 'displace', 'destroy', 'eject', 'chosen', 'plant', 'spend', 'global', 'orbit']);
+const AS_PLAYED = new Set(['lightspeed', 'trap', 'consume', 'fusion', 'offering', 'rootbreak', 'erode', 'decay', 'restore', 'renew', 'recover', 'recall', 'shift', 'displace', 'destroy', 'eject', 'chosen', 'plant', 'spend', 'global', 'orbit']);
 
 /** A card's mechanics in play, each once, in the order its text gives them, with the number it carries (if any). */
 function cardMechanics(c: CardInstance): { id: string; n: string; name: string; tip: string; group: string }[] {
@@ -1634,15 +1635,15 @@ export class App {
     return parts;
   }
 
-  /** Whether it is day (cards are played by day; while a dawn or dusk plays out, only Lightspeed cards can be). */
+  /** Whether a card can be played now (cards are played by day; while a dawn or dusk plays out, only Lightspeed cards can be). */
   private dayUnderWay(defId: string): boolean {
-    return this.phase === 'day' || cardDef(defId).kind === 'lightspeed';
+    return this.phase === 'day' || isLightspeed(defId);
   }
 
   /** Whether a card in hand could be played now (energy, room in the tableau, a free Lightspeed slot). */
   private canPlayNow(me: PlayerState, defId: string): boolean {
     if (!this.dayUnderWay(defId)) return false;
-    return (cardCost(defId) <= me.playsLeft && hasRoomFor(me, defId) && (cardDef(defId).kind !== 'lightspeed' || canSetLightspeed(me))) || canSetFaceDown(me, defId);
+    return (cardCost(defId) <= me.playsLeft && hasRoomFor(me, defId) && (cardDef(defId).kind !== 'trap' || canSetTrap(me))) || canSetFaceDown(me, defId);
   }
 
   /** End the day, checking first if there are still cards that could be played. */
@@ -2215,7 +2216,7 @@ export class App {
     if (action.type !== 'playCard') return null;
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
-    const faceDown = !!action.faceDown || cardDef(card.defId).kind === 'lightspeed';
+    const faceDown = !!action.faceDown || cardDef(card.defId).kind === 'trap';
     return { defId: card.defId, uid: card.uid, actorId: actor.id, own: true, caption: faceDown ? 'you set it face down' : 'you play', option: action.choice, target: action.enemyUid ?? action.aimUid };
   }
 
@@ -2236,19 +2237,20 @@ export class App {
     if (action.type !== 'playCard') return null;
     const card = actor.hand.find((c) => c.uid === action.cardUid);
     if (!card) return null;
-    if (cardDef(card.defId).kind === 'lightspeed' || action.faceDown) return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
+    if (cardDef(card.defId).kind === 'trap' || action.faceDown) return { defId: card.defId, actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down` };
     return { defId: card.defId, actorId: actor.id, option: action.choice, target: action.enemyUid ?? action.aimUid };
   }
 
-  /** A Lightspeed card that just sprang (revealed from face down into its owner's discard pile), announced for everyone. */
+  /** A trap that just sprang (or a Lightspeed card played in reply), announced for everyone. */
   private sprungLightspeed(_prev: GameState, next: GameState): Stage | null {
-    // A Lightspeed card that answered this move (sprung face down, or played from hand), and what it answered.
+    // A trap that answered this move (or a Lightspeed card played in reply), and what it answered.
     const why = next.sprung?.[next.sprung.length - 1];
     const now = why && next.players.find((p) => p.id === why.ownerId);
     if (!why || !now) return null;
     // (Announced by a small tag above the card in the preview pane: a banner across the screen hid what happened.)
     sound.flare();
-    const stage: Stage = { defId: why.defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} springs`, against: why.against };
+    const trap = !isLightspeed(why.defId);
+    const stage: Stage = { defId: why.defId, actorId: now.id, caption: `⚡ ${now.name.toLowerCase()} ${trap ? 'springs' : 'replies'}`, against: why.against };
     // It shows for a few seconds, then fades away by itself (not lingering until someone acts).
     window.setTimeout(() => {
       if (this.stage !== stage) return;
@@ -3107,8 +3109,8 @@ export class App {
       return refuse();
     }
     // (Another card in your hand, while one waits to be placed: that one is played instead.)
-    if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) {
-      this.showToast('You already have a Lightspeed card face down: only one at a time.', 'info');
+    if (cardDef(card.defId).kind === 'trap' && !canSetTrap(me)) {
+      this.showToast('You already have a trap face down: only one at a time.', 'info');
       return refuse();
     }
     const noRoom = roomProblem(me, card.defId);
@@ -4954,7 +4956,7 @@ export class App {
             kind('relic', 'Relic', 'No attack: a lasting bonus. Brittle: nothing restores it, and removal reaches it whatever its defence.'),
             kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. It leads from its own slot until it is beaten down or replaced, with an ability to use each day, and never returns to your hand.`),
             kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
-            kind('lightspeed', 'Lightspeed', "Face down, springs on the first trigger. From hand, you pick the moment."),
+            kind('trap', 'Trap', 'Set face down. Springs on the first trigger it meets.'),
           ),
       ],
       keywords: [
@@ -5525,10 +5527,10 @@ export class App {
     const lightspeed = ls
       ? side === 'mine'
         ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(plainText(cardDef(ls.defId).text))}">${cardBackFace()}</button>`
-        : `<div class="card card-table card-back ls-card ls-hidden" title="A Lightspeed card is set face down. It springs during your day.">${cardBackFace()}</div>`
+        : `<div class="card card-table card-back ls-card ls-hidden" title="A trap is set face down. It springs during your day.">${cardBackFace()}</div>`
       : choosingSlot && pend && canSetFaceDown(p, activePlayer(st).hand.find((h) => h.uid === pend.uid)?.defId ?? '')
-        ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down at lightspeed, for 1 more energy"><span class="slot-def">⚡</span><i>face down +1</i></button>`
-        : '<div class="slot-empty slot-ls" title="Lightspeed: one card can be set face down here"><span class="slot-def">⚡</span></div>';
+        ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down as a trap, for 1 more energy"><span class="slot-def">⚡</span><i>trap +1</i></button>`
+        : '<div class="slot-empty slot-ls" title="Trap: one card can be set face down here"><span class="slot-def">⚡</span></div>';
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
@@ -5636,7 +5638,7 @@ export class App {
       ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
       ${relics || counter ? `<aside class="relic-actives" aria-label="Relics">${counter}${relics}</aside>` : ''}
       <div class="turn-controls turn-corner">
-        <div class="plays ${myTurn || banked ? '' : 'plays-off'}" title="${myTurn ? 'Energy left today: each card costs the number on its gem. What you leave unspent is banked through your rival\'s day, to answer them at lightspeed.' : 'Banked energy: to play a Lightspeed card from hand in answer to your rival'}">
+        <div class="plays ${myTurn || banked ? '' : 'plays-off'}" title="${myTurn ? 'Energy left today: each card costs the number on its gem. What you leave unspent is banked through your rival\'s day, to answer them at lightspeed.' : 'Banked energy: to play a Lightspeed card in reply to your rival'}">
           <small>${myTurn ? 'energy' : banked ? 'banked' : 'waiting'}</small>
           <span class="plays-pips">${myTurn ? pips : bankPips}</span>
         </div>
@@ -6107,7 +6109,7 @@ export class App {
       const me = activePlayer(s);
       const faceDown =
         this.pending!.step === 'slot' && canSetFaceDown(me, picked.defId)
-          ? `<button class="btn stage-ls-btn" data-act="choose-slot" data-arg="ls" title="Set it face down in your Lightspeed slot: it springs when its trigger comes">⚡ set face down <small>+1 energy</small></button>`
+          ? `<button class="btn stage-ls-btn" data-act="choose-slot" data-arg="ls" title="Set it face down as a trap: it springs on the first trigger it meets">⚡ set as trap <small>+1 energy</small></button>`
           : '';
       return `<div class="stage stage-picked">${html}${faceDown}</div>`;
     }
@@ -6124,21 +6126,22 @@ export class App {
         .replace(/ data-card="[^"]*"/, '');
     // (Your own card keeps its uid here, so it flies from here to where it lands.)
     const card = st.faceDown ? `<div class="card card-back">${cardBackFace()}</div>` : still('stage', st.defId, st.option).replace('<div class="card ', st.uid ? `<div data-uid="${st.uid}" class="card ` : '<div class="card ');
-    // A sprung Lightspeed card: the card that sprang it stands where a played card does (plain, to be read),
-    // and the Lightspeed card beside it on the left, the same size.
+    // A sprung trap (or a Lightspeed card played in reply): the card that set it off stands where a played card does
+    // (plain, to be read), and the answer beside it on the left, the same size.
+    const tag = isLightspeed(st.defId) ? '⚡ lightspeed' : 'trap';
     if (st.against) {
       const trigger = s.sprung?.find((x) => x.ownerId === st.actorId)?.trigger ?? 'enemyPlays';
       const how = { enemyPlays: 'in answer to this', sunAttacked: 'against its attack', targeted: 'against this', cardAttacked: 'against its attack' }[trigger] ?? 'in answer to this';
       return `
       <div class="stage stage-sprung stage-pair">
-        <div class="stage-ls"><span class="stage-ls-tag">⚡ lightspeed</span>${card}</div>
+        <div class="stage-ls"><span class="stage-ls-tag">${tag}</span>${card}</div>
         ${still('stage-against', st.against)}
-        <div class="stage-caption">${esc(`${actor.name.toLowerCase()} springs ${cardDef(st.defId).name.toLowerCase()} ${how}`)}</div>
+        <div class="stage-caption">${esc(`${actor.name.toLowerCase()} ${isLightspeed(st.defId) ? 'plays' : 'springs'} ${cardDef(st.defId).name.toLowerCase()} ${how}`)}</div>
       </div>`;
     }
     return `
       <div class="stage ${st.caption && !st.faceDown ? 'stage-sprung' : ''} ${st.confirm ? 'stage-confirm' : ''}">
-        ${st.caption && !st.faceDown && st.caption.startsWith('⚡') ? '<span class="stage-ls-tag stage-ls-tag-solo">⚡ lightspeed</span>' : ''}
+        ${st.caption && !st.faceDown && st.caption.startsWith('⚡') ? `<span class="stage-ls-tag stage-ls-tag-solo">${tag}</span>` : ''}
         ${card}
         ${/* (A plain play needs no words: only a card set face down, or sprung, says what happened.) */ st.caption && st.caption !== 'you play' ? `<div class="stage-caption">${esc(st.caption)}</div>` : ''}
         ${st.confirm && !st.faceDown ? `<button class="btn stage-ok" data-act="stage-ok" title="${esc(actor.name)} waits until you have read their card">OK</button>` : ''}
@@ -6302,7 +6305,7 @@ export class App {
             ${playerAvatar(p.avatar ?? pictureFor(p.name), 'player-emblem')}
             <h2 class="sys-name">${esc((p.deckName ?? 'custom deck').toLowerCase())}</h2>
             ${commands ? `<p class="muted center-text">Heroes in play: ${commands}</p>` : ''}
-            ${p.lightspeed ? `<p class="muted center-text">⚡ ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A Lightspeed card is set face down.'}</p>` : ''}
+            ${p.lightspeed ? `<p class="muted center-text">⚡ ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A trap is set face down.'}</p>` : ''}
             ${p.conditions?.length ? `<div class="sys-conditions">${p.conditions.map((c) => `<div><b>${esc(c.name.toLowerCase())}</b>${esc(c.text)}</div>`).join('')}</div>` : ''}
             <div class="sys-stats">
               <span>heat ${p.heat}/${supernovaThreshold(p)}</span><span>⬡ ${p.shields}</span><span>${HAND_ICON} ${p.hand.length} in hand</span><span>▤ ${p.deck.length} in deck</span><span>${p.discard.length} discarded</span><span>${p.tableau.length}/${BALANCE.tableauSlots} in play</span>

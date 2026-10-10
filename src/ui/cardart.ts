@@ -46,7 +46,8 @@ const PAL: Record<string, Pal> = {
   korrath: { sky: ['#141110', '#3a302a', '#a8602e'], glow: '#ffa040', accent: '#e2b06a', deep: '#0c0907' },
   seren: { sky: ['#070c24', '#22306a', '#9aa8d8'], glow: '#f0f4ff', accent: '#a9c4ff', deep: '#050920' },
   pyrr: { sky: ['#1c0505', '#6a140c', '#f06a24'], glow: '#ffd060', accent: '#ff6a1e', deep: '#160302' },
-  lightspeed: { sky: ['#2a1a08', '#6a4210', '#e8b45a'], glow: '#ffe2a0', accent: '#fff6dc', deep: '#170d03' },
+  trap: { sky: ['#2a1a08', '#6a4210', '#e8b45a'], glow: '#ffe2a0', accent: '#fff6dc', deep: '#170d03' },
+  relic: { sky: ['#1a1408', '#4a3a1a', '#c9a24e'], glow: '#ffe7a8', accent: '#fff3c4', deep: '#0e0a04' },
   // The Lost Overlords: dried blood and embers, out past the last stars.
   overlord: { sky: ['#0a0406', '#3a0c10', '#9a3a22'], glow: '#ff6a3a', accent: '#ffb070', deep: '#050203' },
 };
@@ -928,6 +929,9 @@ const OBELISK = (S: Scene, n: number) =>
     : S.glow(80, 61, 10, '#ffe9a8', 0.95) + S.crystal(80, 61, 14, 6, 0, '#fff2c8')) +
   S.motes(80, 60, 18, 40, '#ffe0a0');
 
+/** Lightspeed: streaks of light across a card's picture, as if it arrived faster than it could be seen. */
+const streaks = (S: Scene, y0: number, c = '#fff6dc') => [0, 1, 2].map((i) => S.beam(0, y0 + i * 9, 46 + i * 14, y0 + i * 9 - 4, 0.9, c)).join('');
+
 const ART: Record<string, Draw> = {
   // ---- Challenges (cards-bosses.ts) ----
   antimatter_crystal: (S) =>
@@ -1249,7 +1253,20 @@ const ART2: Record<string, Draw> = {
   relay_station: (S) => S.ground(88) + `<line x1="80" y1="88" x2="80" y2="30" stroke="#dfe6f0" stroke-width="3"/>` + S.panel(70, 26, 20, 8, 2) + S.rings(80, 30, 10, 4, 10, '#fff3b0', 0.7) + S.card(130, 40, 14, '#c8ffd0', 14),
   archive_vault: (S) => S.panel(40, 30, 80, 56, 4) + [52, 68, 84, 100].map((x, i) => S.card(x + 6, 56, (i - 1.5) * 4, i % 2 ? '#c8ffd0' : '#fff3b0', 14)).join('') + S.glow(80, 30, 26, '#c8ffd0', 0.5),
   supply_cache: (S) => S.ground(86) + [[56, 66], [80, 58], [104, 66], [68, 50], [92, 50]].map(([x, y]) => S.panel(x - 12, y - 8, 24, 16, 2)).join('') + S.glow(80, 44, 20, '#fff3b0', 0.5),
-  // ---- Neutral lightspeed ----
+  // ---- Lightspeed: each with its streaks of light ----
+  flash_interceptor: (S) => streaks(S, 30) + S.hex(92, 52, 26, S.linear([[0, '#e6f6ff'], [1, '#2a5585']]), '#ffffff') + S.glow(92, 52, 12, '#bfe6ff', 0.8),
+  reflex_coolant: (S) => streaks(S, 24, '#bfe6ff') + S.crystal(96, 52, 46, 14, 10, '#e6f6ff') + S.crystal(116, 60, 30, 10, -14, '#9fd0ff') + S.motes(104, 52, 14, 30, '#ffffff'),
+  snap_shield: (S) => streaks(S, 36) + S.dome(96, 78, 46, '#bfe6ff') + S.rings(96, 78, 30, 3, 8, '#e6f6ff', 0.6),
+  point_defence: (S) => streaks(S, 22, '#ffe0a0') + S.panel(28, 60, 24, 18, 4) + S.beam(52, 66, 150, 28, 2.4, '#ffb070') + S.sun(150, 28, 5, '#fff', 6),
+  interceptor_wing: (S) => streaks(S, 40, '#ffe0a0') + [[86, 44], [112, 30], [112, 58]].map(([x, y]) => `<polygon points="${x + 16},${y} ${x - 8},${y - 7} ${x - 3},${y} ${x - 8},${y + 7}" fill="${S.linear([[0, '#ffffff'], [1, '#e08a5a']], 0, 0, 1, 0)}" stroke="#fff" stroke-width="0.5"/>`).join('') + S.motes(100, 44, 10, 30, '#ffe0a0'),
+  quickdraw_relay: (S) => streaks(S, 28, '#c8ffd0') + [0, 1, 2].map((i) => S.card(84 + i * 18, 54 - i * 3, -12 + i * 12, '#c8ffd0', 18)).join(''),
+  warding_idol: (S) => streaks(S, 26, '#ffe7a8') + `<path d="M92 84 L84 46 L92 26 L100 46 Z" fill="${S.linear([[0, '#fff3c4'], [1, '#8a6a2a']])}" stroke="#fff" stroke-width="0.6"/>` + S.rings(92, 50, 18, 3, 8, '#ffe7a8', 0.5) + S.ground(90, '#0e0a04'),
+  dawnflash_guard: (S) => streaks(S, 30, '#ffd98a') + aureline(S, 96, 30, 1.15, { item: 'shield', halos: 2, eye: '#2a6fd0', cloak: '#ffe0a0', garb: 'armour' }),
+  shard_flare: (S) => streaks(S, 26, '#ffc8e0') + S.crystal(100, 50, 48, 16, 18, '#ffc8e0') + S.sun(100, 50, 6, '#fff', 8),
+  brine_veil: (S) => streaks(S, 32, '#7ff0e0') + S.waves(70, '#7ff0e0', 3, 3, 0.7) + S.dome(98, 74, 40, '#9ff0e0'),
+  sudden_spore: (S) => streaks(S, 24, '#c5ff8a') + S.ground(90, '#0e0a1c') + S.mushroom(100, 88, 34, 22, '#c5ff8a', 6) + S.motes(100, 44, 16, 40, '#c5ff8a', 1.2),
+  rapid_rivets: (S) => streaks(S, 30, '#ffa040') + `<rect x="74" y="40" width="50" height="34" rx="3" fill="${S.linear([[0, '#e2b06a'], [1, '#3a302a']])}" stroke="#ffa040" stroke-width="1"/>` + [82, 99, 116].map((x) => `<circle cx="${x}" cy="57" r="3" fill="#ffd090"/>`).join('') + S.motes(99, 57, 10, 30, '#ffa040', 1.2),
+  // ---- Neutral traps ----
   flare_trap: (S) => S.rings(80, 52, 10, 4, 10, '#ffe2a0', 0.8) + S.sun(80, 52, 8, '#ffb070', 8) + S.bolt(10, 20, 70, 48, '#fff6dc', 4, 1.4),
   counter_pulse: (S) => S.dome(80, 80, 60, '#ffe2a0') + S.rings(80, 80, 20, 4, 12, '#fff6dc', 0.6) + S.beam(150, 10, 104, 46, 2, '#ffb070'),
   snare_beacon: (S) => S.panel(70, 48, 20, 30, 4) + S.glow(80, 44, 14, '#fff6dc', 1) + S.rings(80, 44, 14, 4, 12, '#ffe2a0', 0.6) + S.card(126, 60, 14, '#ffe2a0', 16),

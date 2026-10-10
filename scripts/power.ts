@@ -79,10 +79,12 @@ export function power(c: CardDef): number {
   for (const p of c.passive ?? []) v += passive(p, dawns);
   if (c.defence) v += c.defence * 0.5;
   if (c.attack) v += c.attack * 0.9 * later;
-  if (c.lightspeed) {
-    const ls = 0.8 + sum(c.lightspeed.effects) + (c.lightspeed.counter ? 1.5 : 0);
+  // (Lightspeed, playable in any phase and in reply: about a point of power.)
+  if (c.lightspeed) v += 1;
+  if (c.trap) {
+    const ls = 0.8 + sum(c.trap.effects) + (c.trap.counter ? 1.5 : 0);
     // (A card that is either played or set face down for more energy: worth the better of the two, at its cost.)
-    v = c.kind === 'lightspeed' ? v + ls : Math.max(v, ls * 0.7);
+    v = c.kind === 'trap' ? v + ls : Math.max(v, ls * 0.7);
   }
   if (c.choices) v += 1.5;
   if (c.attune) v += c.attune * dawns * 0.5;

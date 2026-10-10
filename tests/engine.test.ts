@@ -1083,10 +1083,10 @@ describe('lightspeed', () => {
     expect(s.players[1].tableau).toHaveLength(0);
   });
 
-  it('can be played from hand on the rival day with banked energy: one from hand per rival day', () => {
+  it('a Lightspeed card can be played in reply on the rival day with banked energy: one in reply per rival day', () => {
     let s = twoPlayer();
     const ada = activePlayer(s);
-    give(ada, ['flare_trap', 'flare_trap']);
+    give(ada, ['snap_shield', 'snap_shield']);
     ada.playsLeft = 1;
     s = endTurn(s);
     // Ada banked the energy she left unspent.
@@ -1096,15 +1096,48 @@ describe('lightspeed', () => {
     a1.health = a2.health = 9;
     s = applyAction(s, { type: 'attack', attackerUid: a1.uid, targetUid: null });
     expect(s.reaction?.hand.length).toBe(2);
+    const shields = s.players[0].shields;
     s = applyAction(s, { type: 'react', cardUid: s.reaction!.hand[0] });
     expect(s.players[0].banked).toBe(0);
-    expect(s.players[0].hand.filter((c) => c.defId === 'flare_trap')).toHaveLength(1);
-    // The second attack finds no answer: one from hand a day (and no energy left to pay for it).
+    expect(s.players[0].hand.filter((c) => c.defId === 'snap_shield')).toHaveLength(1);
+    // Its shields went up before the attack landed (and took some of it).
+    expect(s.log.some((l) => /Lightspeed! .* plays Snap Shield in reply/.test(l.text))).toBe(true);
+    expect(s.players[0].shields).toBeLessThanOrEqual(shields + 2);
+    // The second attack finds no answer: one in reply a day (and no energy left to pay for it).
     s = applyAction(s, { type: 'attack', attackerUid: a2.uid, targetUid: null });
     expect(s.reaction).toBeUndefined();
     // Banked energy is gone at her own dawn.
     s = endTurn(s);
     expect(s.players[0].banked).toBeUndefined();
+  });
+
+  it('a trap is only set face down: held in hand, it answers nothing on the rival day', () => {
+    let s = twoPlayer();
+    const ada = activePlayer(s);
+    give(ada, ['flare_trap']);
+    ada.playsLeft = 2;
+    s = endTurn(s);
+    const [a1] = give(activePlayer(s), ['siege_array'], 'tableau');
+    a1.health = 9;
+    s = applyAction(s, { type: 'attack', attackerUid: a1.uid, targetUid: null });
+    expect(s.reaction).toBeUndefined();
+  });
+
+  it('a Guard played in reply to an attack draws it', () => {
+    let s = twoPlayer();
+    const ada = activePlayer(s);
+    give(ada, ['flash_interceptor']);
+    ada.playsLeft = 2;
+    s = endTurn(s);
+    const [a1] = give(activePlayer(s), ['siege_array'], 'tableau');
+    a1.health = 9;
+    const heat = s.players[0].heat;
+    s = applyAction(s, { type: 'attack', attackerUid: a1.uid, targetUid: null });
+    s = applyAction(s, { type: 'react', cardUid: s.reaction!.hand[0] });
+    const guard = s.players[0].tableau.find((c) => c.defId === 'flash_interceptor');
+    expect(guard).toBeDefined();
+    expect(s.players[0].heat).toBe(heat);
+    expect((guard!.dented ?? 0) + (2 - (guard!.health ?? 2))).toBeGreaterThan(0);
   });
 });
 

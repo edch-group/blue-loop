@@ -173,7 +173,7 @@ Control over what a card does each day, alongside the dawn effects that happen b
 
 Every player's turn runs in three parts, each announced with a banner ("dawn", "day", "dusk" for your own; "<name>'s dawn" and so on for a rival's): a phase's effects play out only once its banner has gone, the next banner comes when they are done, and the AI makes its first move only once the day's banner has gone. [direction: actions at dusk/dawn wait for the banner; the AI too]
 - **Dawn**: your cards un-dim, dawn effects resolve (dawn heat strikes the rival's sun), Anchor mends, you get the day's energy.
-- **Day**: you play cards, attack, and use your Hero. Cards are played by day only: until the day's banner (while your dawn, or the dusk before it, plays out) the hand waits, its cards not lit as playable, Lightspeed cards excepted. [direction: no cards played at dawn but Lightspeed]
+- **Day**: you play cards, attack, and use your Hero. Cards are played by day only: until the day's banner (while your dawn, or the dusk before it, plays out) the hand waits, its cards not lit as playable, Lightspeed cards excepted (traps too wait for day). [direction: no cards played at dawn but Lightspeed]
 - **Dusk**: as you end your day, your cards' **dusk** effects resolve, left to right, once you have acted (all passive cooling comes now). A card **played today** rests instead (unless it has Darkspeed): its dusk first works at the dusk after the day it lands, as a dawn card first works at the next dawn. Attacking or acting does not stop a card's dusk (it used to, which left Nightfall, a 1-stability Darkspeed attacker, with a dusk that could never fire once it attacked). Its effects replay on the board just before the next player's dawn.
 - **Hand limit**: after your dusk you may hold at most 5 cards (`maxHand`); you pick the cards over that to discard, in the hand itself (the middle of the board reads "discard 2 cards"; tap a card to mark it, again to keep it; End Day confirms once enough are marked; no pop-up) (any you don't pick, the costliest go, a Hero kept while none leads your tableau). Drawing past 5 is wasted unless the cards are played, so draw is worth less to a deck that can't spend it.
 
@@ -369,7 +369,7 @@ Each is explained once, in `src/engine/keywords.ts`: in a game, beside the zoome
 | grows N | Grows by 1 each day, up to N |
 | plays +N | N extra plays each day |
 | orbit ±N | Moves the planets round a sun |
-| lightspeed, global | Card types (see below) |
+| trap, global | Card types (see below); Lightspeed is a keyword (see Traps and Lightspeed) |
 
 ## Fusion [design review]
 
@@ -424,20 +424,19 @@ The counterplay is to hit them: attacks and aimed heat wear one down over a few 
 
 The dominance check doesn't compare Relics with other kinds (lasting but brittle is a trade it can't price). Each starter runs one (Wildfire two): see Balancing the races.
 
-## Lightspeed cards [design review]
+## Traps and Lightspeed [design review]
 
-**Lightspeed cards answer your rival's move, before it resolves.** Each has a trigger: a specific thing the rival does on their own day. There are two ways to have one ready:
+[direction: traps are their own card type, replacing the Lightspeed cards that went face down; Lightspeed is a keyword any card can carry, playable in any phase]
 
-- **Face down.** On your day, set it face down (for its cost). It takes no slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies in the Lightspeed slot, right of its owner's five (no defence there), and the owner's pill shows ⚡.
-- **From hand.** On the rival's day, play it straight from your hand, paid for with **banked energy**: whatever energy you left unspent at the end of your day is banked through their day (shown in amber where your energy pips are, "banked"), and is gone at your own next dawn. **One from hand per rival day.** So holding energy back is a choice, and so is what to spend your one answer on.
+**Traps** answer your rival's move, before it resolves. Each has a trigger: a specific thing the rival does on their own day. On your day, set it **face down** (for its cost). It takes no slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies in the trap slot, right of its owner's five (no defence there). It **springs on the first trigger it meets**, by itself: you can't hold it back for a better moment, which is the price of hiding it. A trap is never played from hand.
 
-At most two answers can come in a rival's day: the face-down card, and one from hand.
+**Lightspeed** is a keyword, not a type: an entity, a technology or a relic can be Lightspeed. A Lightspeed card can be played **in any phase of your day** (at your dawn and dusk too, while everything else waits for day), and **on your rival's day in reply** to a card they play or an attack they make. A reply is paid for with **banked energy**: whatever energy you left unspent at the end of your day is banked through their day (shown in amber where your energy pips are), and is gone at your own next dawn. **One reply per rival day.** It is played as any card is (into your safest free slot; its heat at the card attacking, else their sun), then the move it answered goes on: a Guard played in reply to an attack draws it. Lightspeed takes **a point of the card's power**: each Lightspeed card is a little weaker than a card of its cost without it.
 
-**The reaction window.** When the rival does something a Lightspeed card of yours could answer (its trigger, and you can pay for it), their move waits: you are shown the move (the card being played, or the card attacking and what it attacks) and your cards that could answer it, and choose one, or **let it pass**. A face-down card is never sprung by itself: its owner chooses (and may keep it for a better moment). The answer resolves first, then the move goes on: unless it was cancelled, or its attacker was sent away. If what it aimed at has moved or gone, a play fizzles (its energy spent); an attack goes to a Guard that landed or rose to Guard (a card fortified by an answer stands Guard until its owner's next dawn, so a sun attack can be drawn onto it). Only moves are answered (a card played, an attack): never dawn or dusk effects, or a Hero's ability. While a window is open nothing else can happen (online, only the one answering may move; what they could answer with is theirs alone to see). The AI answers when an answer leaves it clearly better off; it plans its own moves without knowing whether its rival could answer.
+**The reaction window.** When the rival plays a card or attacks, their move waits if you have an answer: a face-down trap whose trigger it is springs first, by itself; then, if you hold a Lightspeed card your banked energy pays for (and haven't replied yet today), you are shown the move and your cards that could reply, and choose one, or **let it pass**. The answers resolve first, then the move goes on: unless a trap cancelled it, or its attacker was sent away. If what it aimed at has moved or gone, a play fizzles (its energy spent); an attack goes to a Guard that landed or rose to Guard. Only moves are answered (a card played, an attack): never dawn or dusk effects, or a Hero's ability. While a window is open nothing else can happen. The AI replies when a reply leaves it clearly better off.
 
-**Triggers:** your rival plays a card (of a kind: an armed card, a support card, a Hero); a rival card attacks your sun; a rival card attacks one of your cards; your rival plays a card aimed at one of yours (removal, a shift, heat aimed at it).
+**Triggers:** your rival plays a card (of a kind: an armed card, a technology, a Hero); a rival card attacks your sun; a rival card attacks one of your cards; your rival plays a card aimed at one of yours (removal, a shift, heat aimed at it).
 
-**Effects** (beyond the usual heat, shields, draw...): **cancel** the move (a card cancelled goes to the discard pile, its energy spent; an attack is called off, the attacker spent); **4 heat to the attacker** (hitBack); **return** the card being played (back to hand, its energy spent) or the attacker (to its owner's hand); **gain defence** until your next dawn, on the card attacked or your best-defended card (at 3 or more it is a Guard and draws the attack); **shift** the card attacked to your best-defended free slot.
+**Trap effects** (beyond the usual heat, shields, draw...): **cancel** the move (a card cancelled goes to the discard pile, its energy spent; an attack is called off, the attacker spent); **4 heat to the attacker**; **return** the card being played (back to hand, its energy spent) or the attacker (to its owner's hand); **gain defence** until your next dawn, on the card attacked or your best-defended card (at 3 or more it is a Guard and draws the attack); **shift** the card attacked to your best-defended free slot.
 
 | Card | Cost | Answers | Effect |
 | --- | --- | --- | --- |
@@ -459,13 +458,30 @@ At most two answers can come in a rival's day: the face-down card, and one from 
 | Ghost Signal | 1 | rival plays a card aimed at one of yours | It goes back to their hand (its energy spent) |
 | Refraction Veil (Xel'Naru) | 2 | rival plays a card aimed at one of yours | Cancel it |
 
-**Dual cards** can be played either way: into a slot as an ordinary card, or as Lightspeed (face down, or from hand on the rival's day) for **1 more energy**:
-- **Lightspeed guards** (Blink Bulwark, Sunflash Aegis, Riptide Sentinel, Veil Sentry): when a rival card attacks one of yours, it lands in your safest free slot and takes the attack instead (on its defence first). With no free slot it can't answer.
-- **Umbral Snare** (Nyxari): when a rival card attacks your sun, 3 heat to the attacker and 2 shields.
-- **Mirror Veil** (Nyxari): when your rival plays a card aimed at one of yours, cancel it.
-- **Night Ambush** (Nyxari): when a rival card attacks one of yours, cancel the attack and 2 heat to their sun.
+**Cards that can also be set as a trap** go into a slot as an ordinary card, or face down as a trap for **1 more energy**:
+- Blink Bulwark, Sunflash Aegis, Riptide Sentinel, Veil Sentry: when a rival card attacks one of yours, it lands in your safest free slot and takes the attack instead (on its defence first). With no free slot it can't answer.
+- Umbral Snare (Nyxari): when a rival card attacks your sun, 3 heat to the attacker and 2 shields.
+- Mirror Veil (Nyxari): when your rival plays a card aimed at one of yours, cancel it.
+- Night Ambush (Nyxari): when a rival card attacks one of yours, cancel the attack and 2 heat to their sun.
 
-(Lightspeed cards used to spring by themselves, face down only, on looser triggers: any heat about to reach your sun, any card of a kind played. They were weak, and their answers small: a shield or two, a card drawn. Now every answer is a decision, and most are strong; what keeps them in check is the trigger, the energy held back to pay for one from hand, and the one-from-hand limit.)
+**Lightspeed cards** (cards-lightspeed.ts), each a point under its peers:
+
+| Card | Kind | Cost | Does | Its peer |
+| --- | --- | --- | --- | --- |
+| Flash Interceptor | entity | 2 | Guard, Sturdy 2, 2 stability | a wall: Guard, Sturdy 3, 3 stability |
+| Interceptor Wing | entity | 2 | 2 attack, 2 stability | a striker: 3 and 3 |
+| Reflex Coolant | technology | 1 | Cool 2 | Cryo Vault: cool 3 |
+| Snap Shield | technology | 1 | Shield 2 | Nova Shell: heat 2, shield 1 |
+| Point Defence | technology | 1 | Heat 2 | Coronal Lance: heat 3 |
+| Quickdraw Relay | technology | 1 | Draw 1 | Deep-Space Scanners: draw 2 |
+| Warding Idol | relic | 2 | Dawn: shield 1 | Aegis Idol: every card +1 shield |
+| Dawnflash Guard (Aureline) | entity | 2 | Guard, Sturdy 1, dawn shield 1 | |
+| Shard Flare (Xel'Naru) | technology | 1 | Heat 1, cool 1 | Thermal Exchange: heat 2, cool 1 |
+| Brine Veil (Vorthane) | technology | 2 | Shield 3 | |
+| Sudden Spore (Ixquor) | technology | 1 | Plant 1 | Seasonal Bloom: plant 1, attune |
+| Rapid Rivets (Korrath) | technology | 1 | Repair 2 | Temper: repair 3, shield 1 |
+
+Their pictures are drawn in code (cardart.ts), each with streaks of light across it.
 
 ## Rarity [design review]
 

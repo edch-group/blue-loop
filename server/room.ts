@@ -280,8 +280,8 @@ function describe(prev: GameState, next: GameState, action: Action, actorId: str
   if (action.type === 'playCard') {
     const card = prev.players.find((p) => p.id === actorId)!.hand.find((c) => c.uid === action.cardUid);
     // (Still waiting on an answer at lightspeed: a card being set face down stays face down.)
-    if (card && next.reaction && (cardDef(card.defId).kind === 'lightspeed' || action.faceDown)) last.faceDown = true;
-    else if (card && cardDef(card.defId).kind === 'lightspeed') {
+    if (card && next.reaction && (cardDef(card.defId).kind === 'trap' || action.faceDown)) last.faceDown = true;
+    else if (card && cardDef(card.defId).kind === 'trap') {
       // Set face down (unless it was cancelled on the way, in which case it is in the discard pile for all to see).
       const actor = next.players.find((p) => p.id === actorId)!;
       if (actor.lightspeed?.uid === card.uid) last.faceDown = true;

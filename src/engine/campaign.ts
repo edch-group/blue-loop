@@ -1042,14 +1042,14 @@ export function attackOptions(s: CampaignState, factionId: string): { toId: stri
 export interface GarrisonBonus {
   /** Cards that start the defence already in the defender's tableau. */
   tableau: string[];
-  /** A stationed Lightspeed card, set face down from the start (only the first). */
+  /** A stationed trap, set face down from the start (only the first). */
   lightspeed?: string;
 }
 
 /**
  * What a system's stationed cards do when it is attacked: they start the
  * battle already in the defender's tableau (a stationed Command card with its
- * first choice), and a stationed Lightspeed card starts set face down (only
+ * first choice), and a stationed trap starts set face down (only
  * one can be).
  */
 export function garrisonBonus(n: CampaignNode): GarrisonBonus {
@@ -1057,7 +1057,7 @@ export function garrisonBonus(n: CampaignNode): GarrisonBonus {
   for (const g of n.garrison) {
     if (g.status !== 'stationed') continue;
     const def = cardDef(g.defId);
-    if (def.kind === 'lightspeed') {
+    if (def.kind === 'trap') {
       b.lightspeed ??= g.defId;
       continue;
     }

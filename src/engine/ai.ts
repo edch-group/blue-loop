@@ -10,7 +10,7 @@ import {
   cardAttack,
   commandCard,
   applyAction,
-  canSetLightspeed,
+  canSetTrap,
   canSetFaceDown,
   cardChoices,
   cardCost,
@@ -114,7 +114,7 @@ export function keepAIScores(on: boolean) {
   aiScores = on ? [] : null;
 }
 
-/** What a face-down Lightspeed card is worth to its owner (a counter waiting to spring). */
+/** What a face-down trap is worth to its owner (a counter waiting to spring). */
 let LIGHTSPEED_VALUE = tuning('LSV', 3);
 
 /** How far below zero the AI counts on its sun getting, when valuing a Thermosiphon card. */
@@ -410,9 +410,9 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
   for (const card of me.hand) {
     if (seen.has(card.defId)) continue;
     seen.add(card.defId);
-    // A Lightspeed guard can also be set face down (for 1 more energy).
+    // A card that can also be set as a trap may be set face down (for 1 more energy).
     if (canSetFaceDown(me, card.defId)) plays.push({ type: 'playCard', cardUid: card.uid, faceDown: true });
-    if (cardDef(card.defId).kind === 'lightspeed' && !canSetLightspeed(me)) continue;
+    if (cardDef(card.defId).kind === 'trap' && !canSetTrap(me)) continue;
     if (cardCost(card.defId) > me.playsLeft) continue;
     const choices = opt(cardChoices(card.defId));
     const foes = opt(enemyChoices(state, me, card.defId).map((c) => c.uid));
@@ -586,7 +586,7 @@ export function chooseAIAction(state: GameState): Action {
   }
   if (!abilities.length && !attacks.length && !me.hand.some((c) => cardCost(c.defId) <= me.playsLeft)) return { type: 'endTurn' };
 
-  // The AI cannot see its rivals' face-down Lightspeed cards (or their hands), so it plans as if no answer
+  // The AI cannot see its rivals' face-down traps (or their hands), so it plans as if no answer
   // would come: no reaction windows in its look-ahead.
   const view = structuredClone(state);
   view.noReactions = true;

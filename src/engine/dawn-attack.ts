@@ -30,7 +30,7 @@ export const DAWN_ATTACK_TEXT: Record<string, string> = {
   hymn_of_the_sun: '{heat:2}. {dawn}: {heat:1} per 2 attack cards you control (up to 4).',
   hive_colossus: '{dawn}: {heat:1} per 2 cards you control (up to 5).',
   dreadnought: '{sturdy:2}.',
-  nyx_night_ambush: '{lightspeed} for 1 more energy: when an enemy attacks one of your cards (or aims heat at it), cancel that and {heat:2} to them.',
+  nyx_night_ambush: '{trap} for 1 more energy: when an enemy attacks one of your cards (or aims heat at it), cancel that and {heat:2} to them.',
   nyx_shade_stalker: '{sting:1}.',
   nyx_dusk_raider: '{dawn}: with 3+ Nyxari cards, {heat:1}.',
   nyx_unmaker_blade: '{destroy:1}.',
