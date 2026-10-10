@@ -1784,3 +1784,20 @@ describe('relic powers, part two', () => {
     expect(s.players[0].tableau.find((x) => x.uid === c.uid)!.slot).toBe(to);
   });
 });
+
+describe('the paradise planet', () => {
+  it('renews your cards each dawn your dead planet (a paradise now) faces your sun', () => {
+    const s = twoPlayer(11);
+    const [ada] = s.players;
+    ada.relics = [{ power: 'paradise' as never, n: 1, name: 'Test paradise' }];
+    const [c] = give(ada, ['halo_ward'], 'tableau');
+    c.maxHealth = 5;
+    c.health = 1;
+    ada.orbit = -1;
+    let t = endTurn(s);
+    t = endTurn(t);
+    const me = t.players[0];
+    expect(currentPlanet(me, t)).toBe('dead');
+    expect(me.tableau.find((x) => x.uid === c.uid)!.health).toBeGreaterThan(1);
+  });
+});

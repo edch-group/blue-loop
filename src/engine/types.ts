@@ -414,6 +414,14 @@ export interface BattleModifiers {
   openingHand?: number;
   /** Extra energy every day. */
   extraPlays?: number;
+  /**
+   * The planets, kinder (the skill tree's planet branch): more cards from the abundant one, more energy from the
+   * industrial one, cooling from the dead one, and the dead one a paradise (renew, each dawn it faces the sun).
+   */
+  abundantDraw?: number;
+  industrialPlays?: number;
+  deadCool?: number;
+  paradise?: number;
 }
 
 export interface TurnStats {

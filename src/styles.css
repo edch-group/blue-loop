@@ -2833,6 +2833,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .vit-planet-tag { cursor: default; font-size: max(8px, calc(var(--vs) * 0.075)); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 .vt-dead { color: #7d828d; }
 .vt-abundant { color: #2f9a72; }
+.vt-paradise { color: #2aa6a0; }
 .vt-industrial { color: #c06d24; }
 
 /* ---------- Profile, collection and shop ---------- */
@@ -6365,3 +6366,44 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .sd-card.owned { box-shadow: 0 0 0 2px var(--ink), 0 3px 10px rgba(70, 76, 100, 0.1); }
 @media (max-width: 720px) { .sd-offers { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; } }
 
+
+/* ---- The skill tree, its branches in their own colours (--bc), its header and its tips ---- */
+.up-head.up-head-tree { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; }
+.up-back { justify-self: start; padding: 8px 14px; border-radius: 999px; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft); background: rgba(255, 255, 255, 0.7); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.14); }
+.up-back:hover { color: var(--ink); background: #fff; }
+.up-title-big { grid-column: 2; display: grid; justify-items: center; gap: 6px; text-align: center; }
+.up-title-big h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.6rem, calc(5.4 * var(--vh)), 2.6rem); letter-spacing: 0.5em; text-indent: 0.5em; text-transform: uppercase; color: var(--ink); }
+.up-xp { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); color: var(--ink); }
+.up-xp .cur { width: 1.2em; height: 1.2em; }
+.up-xp b { font-size: 1.15rem; font-weight: 500; }
+.up-xp small { margin-left: 4px; font-size: 0.56rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-faint); }
+.up-plan { display: grid; justify-items: center; gap: 6px; margin-top: 2px; }
+.up-plan .up-plan-acts { margin-top: 0; }
+.up-heart-buy i .cur-xp { width: 1.2em; height: 1.2em; }
+@media (max-height: 560px) { .up-title-big { gap: 2px; } .up-plan-list { font-size: 0.5rem; } }
+
+.up-node-ring circle.on { stroke: var(--bc, #3a4256); }
+.up-node-ring circle.plan { stroke: color-mix(in srgb, var(--bc, #6f9fd8) 40%, #fff); }
+.up-node.owned .up-node-disc { color: var(--bc, #3a4256); }
+.up-node.planned .up-node-disc { color: var(--bc); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bc) 45%, #fff), 0 3px 10px rgba(70, 76, 100, 0.12); }
+.up-node-plus { background: var(--bc, #6f9fd8); }
+.up-line.lit { border-top-color: color-mix(in srgb, var(--bc, #3a4256) 75%, transparent); }
+/* A skill that can take a point: a dashed ring turning slowly round it, as round a star the flagship can jump to
+   on the map; under the pointer, the ring fills softly and the disc lifts. */
+.up-node.afford .up-node-disc::after {
+  content: ''; position: absolute; inset: -8px; width: auto; height: auto; top: -8px; right: -8px; border-radius: 50%; background: none; box-shadow: none;
+  border: 1.5px dashed color-mix(in srgb, var(--bc, #8d93a8) 80%, #8d93a8); animation: cmp-spin 10s linear infinite; transition: background 0.15s;
+}
+.up-node.tier-3.afford .up-node-disc::after { inset: -12px; top: -12px; right: -12px; }
+.up-node:hover .up-node-disc::after { background: color-mix(in srgb, var(--bc, #8d93a8) 14%, transparent); }
+.up-node:hover .up-node-disc { transform: scale(1.12); }
+@media (prefers-reduced-motion: reduce) { .up-node.afford .up-node-disc::after { animation: none; } }
+
+/* A skill's tip: beside it (never over it), at once. */
+.up-tip {
+  position: absolute; z-index: 10; width: max-content; max-width: min(280px, 60vw); padding: 10px 14px; border-radius: 12px; pointer-events: none;
+  display: grid; gap: 4px; background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08), 0 8px 24px rgba(40, 46, 70, 0.16);
+}
+.up-tip b { font-family: var(--display); font-weight: 500; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); }
+.up-tip span { font-size: 0.78rem; line-height: 1.35; color: var(--ink); }
+.up-tip small { font-size: 0.68rem; line-height: 1.35; color: var(--ink-faint); }

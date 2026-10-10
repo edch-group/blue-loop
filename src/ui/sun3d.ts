@@ -286,6 +286,15 @@ function planetMap(pl: string): Uint8ClampedArray {
           if (dd < 1.25) v += dd < 0.8 ? -0.24 * (1 - dd / 0.8) - 0.06 : 0.2 * (1 - Math.abs(dd - 1) / 0.25);
         }
         col = mix([92, 96, 106], [206, 210, 218], clamp01(v));
+      } else if (pl === 'paradise') {
+        // A Paradise relic's dead world, brought to life: turquoise shallows, white sand, and blossoming green isles.
+        const land = fbm3(x * 2.2 + 9, y * 2.2, z * 2.2 + 1, 5);
+        const bloom = fbm3(x * 9, y * 9 + 3, z * 9, 3);
+        const sea: RGB = mix([40, 170, 190], [120, 220, 214], clamp01((land - 0.3) * 4));
+        const isle: RGB = mix([70, 176, 96], [246, 196, 222], clamp01((bloom - 0.62) * 4));
+        col = land > 0.55 ? isle : land > 0.52 ? [240, 232, 200] : sea;
+        const cloud = clamp01((fbm3(x * 3 + 4, y * 6, z * 3, 5) - 0.58) * 3);
+        col = mix(col, [255, 255, 255], cloud * 0.8);
       } else if (pl === 'abundant') {
         // Oceans and green continents, ice at the poles, and wisps of cloud.
         const land = fbm3(x * 1.8 + 3, y * 1.8, z * 1.8 + 7, 5);
@@ -329,7 +338,7 @@ function planetAt(map: Uint8ClampedArray, lon: number, v: number, spin: number, 
   return out;
 }
 /** Each planet's trail along the orbit, and its notches: deeper than the planet, to read on the white board. */
-const TRAIL_RGB: Record<string, RGB> = { dead: [112, 118, 132], abundant: [40, 158, 112], industrial: [214, 120, 36] };
+const TRAIL_RGB: Record<string, RGB> = { dead: [112, 118, 132], paradise: [52, 176, 170], abundant: [40, 158, 112], industrial: [214, 120, 36] };
 /**
  * Each sun's orbit as drawn, by player: it follows the real orbit a notch at
  * a time (each step easing in and out), so a change at the start of a day,
@@ -559,7 +568,10 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
     const o = notchEase(shownOrbit(canvas.dataset.pid ?? '', real, performance.now()));
     const wrap = ((o % 9) + 9) % 9;
     const fi = Math.min(2, Math.floor(wrap / 3));
-    const facing = PLANETS[fi];
+    // (A Paradise relic: the dead world is a living one.)
+    const paradise = canvas.dataset.paradise === '1';
+    const look = (pl: string) => (pl === 'dead' && paradise ? 'paradise' : pl);
+    const facing = look(PLANETS[fi]);
     const stage = wrap - fi * 3;
     const ringAt = (deg: number): [number, number] => [c[0] + Math.cos((deg * Math.PI) / 180) * ORBIT_R * vs, c[1] + Math.sin((deg * Math.PI) / 180) * ORBIT_R * vs];
     const colour = (pl: string, a: number) => `rgba(${TRAIL_RGB[pl].join(', ')}, ${a})`;
@@ -589,7 +601,7 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
       });
     });
     const glow: V3 = [c[0], c[1], R * 0.5];
-    PLANETS.forEach((pl, i) => {
+    PLANETS.map(look).forEach((pl, i) => {
       const pr = vs * 0.07;
       const ang = ((90 - (i * 3 + 1 - o) * 40) * Math.PI) / 180;
       const ctr: V3 = [c[0] + Math.cos(ang) * ORBIT_R * vs, c[1] + Math.sin(ang) * ORBIT_R * vs, 0];
@@ -622,10 +634,11 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
           // Lit from the sun: a soft terminator, darker towards the outline, and a glint of sunlight.
           const sun = Math.max(0, dot3(n, light));
           const lit = 0.5 + 0.62 * Math.pow(sun, 0.8) - 0.16 * (1 - mu);
-          const spec = Math.pow(Math.max(0, dot3(n, half)), pl === 'abundant' ? 40 : 18) * (pl === 'abundant' ? 90 : 36);
+          const wet = pl === 'abundant' || pl === 'paradise';
+          const spec = Math.pow(Math.max(0, dot3(n, half)), wet ? 40 : 18) * (wet ? 90 : 36);
           for (let q = 0; q < 3; q++) planetOut[q] = Math.min(255, tex[q] * lit + spec);
           // The living world's air glows at its rim.
-          if (pl === 'abundant') {
+          if (wet) {
             const k = Math.pow(1 - mu, 3) * 0.6;
             for (let q = 0; q < 3; q++) planetOut[q] += (AIR[q] - planetOut[q]) * k;
           }

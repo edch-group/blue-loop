@@ -670,6 +670,18 @@ class SoundBoard {
     );
     [587.33, 880, 1174.66, 1760].forEach((f, i) => this.bell(f, hit + 0.3 + i * 0.13, 0.03));
   }
+  /**
+   * A point placed on a skill: a battery charging up, a rising whine with a pulse of clicks, pitched higher with each
+   * point already in that skill (`step` 0, 1, 2...).
+   */
+  charge(step: number) {
+    const f = 220 * 2 ** (step * 5 / 12);
+    this.voice(f, { dur: 0.42, attack: 0.02, gain: 0.03, type: 'sawtooth', to: f * 2.2, cutoff: 2600 });
+    this.voice(f * 2, { dur: 0.36, attack: 0.03, gain: 0.014, type: 'square', to: f * 4.4, cutoff: 3400, detune: 8 });
+    for (let k = 0; k < 4; k++) this.voice(f * (2 + k * 0.5), { dur: 0.05, attack: 0.002, gain: 0.012, type: 'triangle', delay: 0.06 + k * 0.08, cutoff: 6000 });
+    // (A small chime as it tops up.)
+    this.voice(f * 4, { dur: 0.5, attack: 0.004, gain: 0.016, delay: 0.38, cutoff: 7000 });
+  }
   upgrade() {
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.bell(f, i * 0.16, 0.035));
   }

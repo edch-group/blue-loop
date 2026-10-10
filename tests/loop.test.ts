@@ -18,6 +18,7 @@ import {
   wormholePetals,
   STARTER_OFFERS,
   armyBonus,
+  migrateMeta,
   starterAddProblem,
   legalIn,
   cardDef,
@@ -107,19 +108,27 @@ describe('the strip', () => {
 describe('the skill tree', () => {
   it("brings the new branches' skills to the flagship: its battles, repair, finds, surrenders and rewards", () => {
     let meta = { ...emptyMeta(), xp: 9999 };
-    for (const id of ['cryo', 'cryo', 'plating', 'doctrine', 'scouts', 'scouts', 'dread', 'plunder', 'study', 'choice']) meta = buyUpgrade(meta, id);
+    for (const id of ['cryo', 'cryo', 'plating', 'abundance', 'scouts', 'scouts', 'dread', 'plunder', 'study', 'choice']) meta = buyUpgrade(meta, id);
     const run = runBonuses(meta, 1);
-    expect(run.mods).toMatchObject({ startingHeat: -2, maxHealthDelta: 2, openingHand: 1 });
+    expect(run.mods).toMatchObject({ startingHeat: -2, maxHealthDelta: 2, abundantDraw: 1 });
     const s = createCampaign({ seed: 11, race: 1, run });
     const plain = createCampaign({ seed: 11, race: 1, run: runBonuses(emptyMeta(), 1) });
     const b = armyBonus(s, flag(s));
     const p = armyBonus(plain, flag(plain));
     expect(b.mods.startingHeat ?? 0).toBe((p.mods.startingHeat ?? 0) - 2);
-    expect(b.mods.openingHand ?? 0).toBe((p.mods.openingHand ?? 0) + 1);
+    expect(b.mods.abundantDraw ?? 0).toBe((p.mods.abundantDraw ?? 0) + 1);
     expect(b.loot).toBeCloseTo(p.loot + 0.2);
     expect(b.dread).toBe(p.dread + 1);
     expect(run).toMatchObject({ plunder: 2, choices: 1 });
     expect(run.xpBonus).toBeCloseTo(0.1);
+  });
+});
+
+describe('skills taken out of the tree', () => {
+  it('give back the XP spent on them', () => {
+    const meta = migrateMeta({ ...emptyMeta(), xp: 10, upgrades: { doctrine: 2, secondsun: 1, cryo: 1 } });
+    expect(meta.xp).toBe(10 + 25 + 50 + 200);
+    expect(meta.upgrades).toEqual({ cryo: 1 });
   });
 });
 

@@ -40,7 +40,8 @@ export type RelicPower =
   | 'sear'
   | 'devour'
   | 'fortress'
-  | 'phoenix';
+  | 'phoenix'
+  | 'paradise';
 
 export interface RelicPowerDef {
   /** Always at work, answering what happens, or kept for once a battle (a button on the battle's right). */
@@ -89,6 +90,7 @@ export const RELIC_POWERS: Record<RelicPower, RelicPowerDef> = {
   sear: { kind: 'trigger', amounts: [1, 1, 2], text: (n) => `Dawn: ${n} heat to the rival card with the most attack.` },
   devour: { kind: 'once', amounts: [1, 1, 1], text: () => 'Once a battle: the rival card with the least stability left is destroyed (not their Overlord).', effects: () => [{ type: 'devour' }] },
   fortress: { kind: 'once', amounts: [2, 3, 4], text: (n) => `Once a battle: your best-defended card gains ${n} defence and stands Guard until your next dawn.`, effects: (n) => [{ type: 'fortify', amount: n, who: 'best' }] },
+  paradise: { kind: 'trigger', amounts: [1, 1, 2], text: (n) => `Your dead planet becomes a paradise planet: each dawn it faces your sun, renew ${n} (your cards regain ${n} stability).` },
   phoenix: { kind: 'once', amounts: [1, 1, 1], text: () => 'Once a battle: the card most recently put in your discard pile comes back to your hand.', effects: () => [{ type: 'recover', latest: true }] },
 };
 
@@ -102,10 +104,10 @@ export const SLOT_POWERS: Record<SlotKind, RelicPower[]> = {
   facet: ['splash', 'nova', 'bounty', 'sear'],
   ring: ['mend', 'vigour', 'aegis', 'thorns'],
   carapace: ['walls', 'vigour', 'renew', 'thorns'],
-  gland: ['gift', 'recycle', 'renew', 'reclaim'],
+  gland: ['gift', 'recycle', 'renew', 'reclaim', 'paradise'],
   mask: ['flurry', 'recall', 'bounty', 'devour'],
   plate: ['walls', 'aegis', 'mend', 'anchor'],
-  star: ['shift', 'firstLight', 'gift', 'duskShift'],
+  star: ['shift', 'firstLight', 'gift', 'duskShift', 'paradise'],
   ember: ['nova', 'recycle', 'starfall', 'sear'],
 };
 

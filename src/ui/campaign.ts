@@ -189,10 +189,10 @@ const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: 
   plating: { icon: glyph('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17ZM12 7.5v9M7.5 12h9'), unit: "max health on the flagship's sun in battle", value: (l) => `+${2 * l}` },
   mend: { icon: glyph('M14.5 4.5a4 4 0 0 0-4.8 5.3L4.5 15a2.1 2.1 0 0 0 3 3l5.2-5.2a4 4 0 0 0 5.3-4.8l-2.5 2.5-2.4-.6-.6-2.4Z'), unit: 'heat repaired each turn on the map', value: (l) => `${l}` },
   mantle: { icon: glyph('M12 4.5c4.2 0 7.5 2 7.5 4.5S16.2 13.5 12 13.5 4.5 11.5 4.5 9 7.8 4.5 12 4.5ZM12 13.5c-3.6 0-6.5 2.8-7 6.5h14c-.5-3.7-3.4-6.5-7-6.5Z'), unit: "shield on the sun every day of battle", value: (l) => `+${l}` },
-  doctrine: { icon: glyph('M5 4.5h10.5a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2ZM5 17.5a2 2 0 0 1 2-2h10.5M9 8.5h5M9 11.5h5'), unit: 'cards in the opening hand', value: (l) => `+${l}` },
-  insight: { icon: glyph('M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12ZM12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z'), unit: 'card drawn every day of battle', value: (l) => `+${l}` },
-  calm: { icon: glyph('M4 9.5h11a2.5 2.5 0 1 0-2.5-2.5M4 13.5h14a2.5 2.5 0 1 1-2.5 2.5M4 17.5h7'), unit: 'cooling every day of battle', value: (l) => `${l}` },
-  secondsun: { icon: glyph('M9 7.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9ZM16.5 5a3 3 0 1 1 0 6M16.5 13a3 3 0 1 1 0 6'), unit: 'energy every day of battle', value: (l) => `+${l}` },
+  abundance: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM5 10c3 1 5 0 7-2M9 19c0-3 2-5 6-5'), unit: 'more cards drawn on the abundant planet', value: (l) => `+${l}` },
+  foundry: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM4.5 9.5h15M4.5 14.5h15M10 4.5v15'), unit: 'more energy on the industrial planet', value: (l) => `+${l}` },
+  coldworld: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM12 8.5v7M9 10l6 4M15 10l-6 4'), unit: 'cooling each dawn the dead planet faces you', value: (l) => `${2 * l}` },
+  gardens: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM12 16c-3-1-4-4-1-7 1 3 3 3 4 1 1 3-1 6-3 6Z'), unit: 'stability renewed each dawn the paradise planet faces you', value: (l) => `${l}` },
   scouts: { icon: glyph('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM15.5 15.5l5 5'), unit: 'more chance of gear', value: (l) => `+${10 * l}%` },
   dread: { icon: glyph('M5 9.5v5h3l6 4.5v-14l-6 4.5ZM17.5 9a4 4 0 0 1 0 6M19.5 6.5a7.5 7.5 0 0 1 0 11'), unit: 'tiers of neutral system that surrender', value: (l) => `${l}` },
   plunder: { icon: glyph('M4.5 9.5h15l-1.5 10h-12ZM8 9.5a4 4 0 0 1 8 0M10 13.5h4'), unit: 'materials for every battle won', value: (l) => `+${2 * l}` },
@@ -391,7 +391,50 @@ export class CampaignView {
     },
   });
 
-  constructor(private host: CampaignHost) {}
+  constructor(private host: CampaignHost) {
+    // The skill tree's tips: shown at once on a hover (or press), level with the skill and to its right (to its left
+    // where the screen ends), never over it; with the map's star chime and a ring lit round it.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('pointerover', (e) => {
+        const node = (e.target as Element | null)?.closest?.('.up-node') as HTMLElement | null;
+        const id = node?.dataset.arg ?? null;
+        if (id === this.upHover) return;
+        this.upHover = id;
+        if (node && e.pointerType !== 'touch') sound.starHover(Array.from(node.parentElement?.querySelectorAll('.up-node') ?? []).indexOf(node) / 7.3);
+        this.showUpTip();
+      });
+    }
+  }
+
+  /** The skill under the pointer (its tip shown). */
+  private upHover: string | null = null;
+
+  /** Lay the hovered skill's tip beside it (or take it away). */
+  private showUpTip() {
+    const sky = document.querySelector('.up-sky') as HTMLElement | null;
+    sky?.querySelector('.up-tip')?.remove();
+    const node = this.upHover && sky ? (sky.querySelector(`.up-node[data-arg="${this.upHover}"]`) as HTMLElement | null) : null;
+    if (!sky || !node) return;
+    const tip = document.createElement('div');
+    tip.className = 'up-tip';
+    tip.innerHTML = `<b>${esc(node.dataset.upTitle ?? '')}</b><span>${esc(node.dataset.upText ?? '')}</span><small>${esc(node.dataset.upNote ?? '')}</small>`;
+    sky.appendChild(tip);
+    // (Measured on screen, laid out in the page's own pixels: the page may be zoomed.)
+    const box = sky.getBoundingClientRect();
+    const k = box.width / (sky.offsetWidth || box.width) || 1;
+    const discBox = (node.querySelector('.up-node-disc') ?? node).getBoundingClientRect();
+    const disc = { left: (discBox.left - box.left) / k, right: (discBox.right - box.left) / k, top: (discBox.top - box.top) / k, height: discBox.height / k };
+    const gap = 14;
+    const w = tip.offsetWidth, h = tip.offsetHeight, width = sky.offsetWidth;
+    // To its right, level with it; to its left where the screen ends; up (or down) only as far as the screen needs.
+    let left = disc.right + gap;
+    if (left + w > width - 4) left = disc.left - gap - w;
+    let top = disc.top + disc.height / 2 - h / 2;
+    const bottom = Math.min(sky.offsetHeight, (window.innerHeight - box.top) / k);
+    top = Math.max(4, Math.min(top, bottom - h - 8));
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
+  }
 
   // ---- Lifecycle ------------------------------------------------------------
 
@@ -659,8 +702,11 @@ export class CampaignView {
           sound.error();
           break;
         }
+        // (A battery charging up, higher with each point already in it.)
+        sound.charge(levelOf(plan, arg));
         this.upPending.push(arg);
-        sound.hover();
+        // (The tree is drawn afresh: its tip goes back beside it.)
+        requestAnimationFrame(() => this.showUpTip());
         break;
       }
       case 'cmp-up-undo':
@@ -1113,16 +1159,18 @@ export class CampaignView {
   private renderShop(real: MetaState): string {
     // (The tree drawn as it would stand with the points placed: those still to confirm marked as such.)
     const meta = this.plannedMeta(real);
-    const branches: { g: MetaGroup; title: string; dir: number }[] = [
+    // [direction: each branch its own colour; its petal deepens in it the more points are poured in]
+    const branches: { g: MetaGroup; title: string; dir: number; colour: string }[] = [
       // (One off each of the seven petals the flower shows above the foot of the screen, every 30° from left to right.)
-      { g: 'sun', title: 'a cooler sun', dir: 180 },
-      { g: 'command', title: 'a sharper command', dir: 210 },
-      { g: 'flagship', title: 'a tougher flagship', dir: 240 },
-      { g: 'perk', title: 'run perks', dir: 270 },
-      { g: 'start', title: 'a stronger start', dir: 300 },
-      { g: 'spoils', title: 'spoils of war', dir: 330 },
-      { g: 'lore', title: 'lasting wisdom', dir: 360 },
+      { g: 'sun', title: 'a cooler sun', dir: 180, colour: '#5f9fdc' },
+      { g: 'command', title: 'kinder planets', dir: 210, colour: '#4fae84' },
+      { g: 'flagship', title: 'a tougher flagship', dir: 240, colour: '#c99a3e' },
+      { g: 'perk', title: 'run perks', dir: 270, colour: '#9a7fd0' },
+      { g: 'start', title: 'a stronger start', dir: 300, colour: '#d9814f' },
+      { g: 'spoils', title: 'spoils of war', dir: 330, colour: '#c4564a' },
+      { g: 'lore', title: 'lasting wisdom', dir: 360, colour: '#3fa9a4' },
     ];
+    const colourOf = (g: MetaGroup) => branches.find((b) => b.g === g)?.colour ?? '#6f9fd8';
     // Where a skill lies, from the Stellari's heart (at the foot of the sky, half of it below), in units of the
     // sky's reach R (a true circle, set in CSS): out along its branch by tier, its tier's skills fanned across it.
     // Each branch leaves the tip of one of the flower's own petals (they point every 30°, the tips 0.345 R out).
@@ -1134,8 +1182,8 @@ export class CampaignView {
       return [k * Math.cos(r), k * Math.sin(r)];
     };
     // A line from one point to another (in R): CSS works out its length and angle.
-    const line = (a: [number, number], b: [number, number], cls: string) =>
-      `<span class="up-line ${cls}" style="--x1:${a[0].toFixed(4)};--y1:${a[1].toFixed(4)};--x2:${b[0].toFixed(4)};--y2:${b[1].toFixed(4)}"></span>`;
+    const line = (a: [number, number], b: [number, number], cls: string, colour = '') =>
+      `<span class="up-line ${cls}" style="--x1:${a[0].toFixed(4)};--y1:${a[1].toFixed(4)};--x2:${b[0].toFixed(4)};--y2:${b[1].toFixed(4)}${colour ? `;--bc:${colour}` : ''}"></span>`;
     for (const br of branches) {
       const skills = META_UPGRADES.filter((u) => u.group === br.g);
       for (const tier of [1, 2, 3]) {
@@ -1169,20 +1217,15 @@ export class CampaignView {
       // The petal nearest the branch: the flower's petals point every 30° (rotation 0 is straight up, 270° on screen).
       const deg = Math.round(br.dir / 30) * 30;
       const rot = (deg - 270 + 360) % 360;
-      // (The petal as it shows: the outer lobe of its ellipse, beyond its two neighbours, from 170 out to its tip at
-      // 330: filled outward from there.)
-      const from = 170 / 330;
-      const front = ((from + f * (1 - from)) * 100).toFixed(1);
-      const edge = Math.min(100, +front + (f > 0 && f < 1 ? 1.5 : 0)).toFixed(1);
+      // (The petal as it shows: the outer lobe of its ellipse, beyond its two neighbours, washed in its branch's
+      // colour, deeper the more of the branch is learnt: a faint tint with the first point, full with the last.)
       const ell = (t: number, fill: string) => `<ellipse cx="500" cy="170" rx="95" ry="330" transform="rotate(${t} 500 170)" fill="${fill}"/>`;
-      fills.push(`<radialGradient id="up-fill-${br.g}" gradientUnits="userSpaceOnUse" cx="500" cy="170" r="330">
-          <stop offset="0%" class="blue"/><stop offset="${f > 0 ? front : 0}%" class="blue"/><stop offset="${f > 0 ? edge : 0}%" class="none"/>
-        </radialGradient>
-        <mask id="up-lobe-${br.g}" maskUnits="userSpaceOnUse" x="70" y="-260" width="860" height="860">
+      if (f > 0)
+        fills.push(`<mask id="up-lobe-${br.g}" maskUnits="userSpaceOnUse" x="70" y="-260" width="860" height="860">
           <path d="M500 170 L405 170 A95 330 0 0 1 595 170 Z" transform="rotate(${rot} 500 170)" fill="#fff"/>${ell(rot - 30, '#000')}${ell(rot + 30, '#000')}
         </mask>
-        <rect x="70" y="-260" width="860" height="860" mask="url(#up-lobe-${br.g})" fill="url(#up-fill-${br.g})"/>`);
-      stems.push(line(place(deg, TIP), pos.get(first.id)!, levelOf(meta, first.id) ? 'lit' : ''));
+        <rect x="70" y="-260" width="860" height="860" mask="url(#up-lobe-${br.g})" fill="${br.colour}" fill-opacity="${(0.14 + 0.66 * f).toFixed(3)}"/>`);
+      stems.push(line(place(deg, TIP), pos.get(first.id)!, levelOf(meta, first.id) ? 'lit' : '', br.colour));
     }
     // The links: the heart to each first tier, each skill to what it needs.
     const links = skills
@@ -1193,7 +1236,7 @@ export class CampaignView {
         if (!needs) return [];
         return needs.map(([r, n]) => {
           const [x0, y0] = pos.get(r)!;
-          return line([x0, y0], [x, y], levelOf(meta, r) >= n ? 'lit' : '');
+          return line([x0, y0], [x, y], levelOf(meta, r) >= n ? 'lit' : '', colourOf(u.group));
         });
       })
       .join('');
@@ -1215,47 +1258,43 @@ export class CampaignView {
         const note = `${branchOf(u.group)} · ${u.tier === 3 ? 'capstone' : `tier ${u.tier ?? 1}`} · level ${level} of ${u.max}${level > had ? ` (${level - had} to confirm)` : ''}. ${
           maxed ? 'Complete.' : needs.length ? `Needs ${needs.join(' and ')}.` : why ? why : `Tap to place a point: ${u.cost(level)} XP.`
         }`;
-        return `<button class="up-node tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed ? 'afford' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-tip-title="${esc(u.name.toLowerCase())}" data-tip="${esc(vals)}" data-tip-note="${esc(note)}" aria-label="${esc(u.name)}">
+        return `<button class="up-node tier-${u.tier ?? 1} ${had ? 'owned' : ''} ${level > had ? 'planned' : ''} ${maxed ? 'maxed' : ''} ${open ? '' : 'locked'} ${!why && !maxed ? 'afford' : ''}" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)};--bc:${colourOf(u.group)}" data-act="cmp-up-pick" data-arg="${esc(u.id)}" data-up-title="${esc(u.name.toLowerCase())}" data-up-text="${esc(vals)}" data-up-note="${esc(note)}" aria-label="${esc(u.name)}">
           <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true">${ring(level, u.max, had)}</svg>${look?.icon ?? ''}</span>
           ${level > had ? `<i class="up-node-plus">+${level - had}</i>` : ''}
         </button>`;
       })
       .join('');
-    // Top left: the experience to spend, and the points placed, to confirm (or take back).
+    // Under the title: the experience to spend; with points placed, what they'll learn and cost, to confirm.
     const spend = (real.xp ?? 0) - (meta.xp ?? 0);
     const placed = [...new Set(this.upPending)].map((id) => {
       const n = this.upPending.filter((x) => x === id).length;
       return `${esc(metaUpgrade(id)?.name.toLowerCase() ?? id)}${n > 1 ? ` ×${n}` : ''}`;
     });
-    const heart = this.upPending.length
-      ? `<div class="up-heart up-heart-plan">
-          <small>to learn</small>
+    const plan = this.upPending.length
+      ? `<div class="up-plan">
           <p class="up-plan-list">${placed.join(' · ')}</p>
-          <span class="up-heart-purse">${XP_MARK}<strong>${spend}</strong><em>XP of ${real.xp ?? 0}</em></span>
           <div class="up-plan-acts">
-            <button class="up-heart-buy" data-act="cmp-up-confirm">confirm</button>
+            <button class="up-heart-buy" data-act="cmp-up-confirm">confirm<i>${XP_MARK}${spend}</i></button>
             <button class="up-plan-undo" data-act="cmp-up-undo">undo</button>
             <button class="up-plan-undo" data-act="cmp-up-clear">clear</button>
           </div>
         </div>`
-      : `<div class="up-heart">
-          <span class="up-heart-purse">${XP_MARK}<strong>${real.xp ?? 0}</strong></span>
-          <small>experience to spend</small>
-          <p>Earned on every run, won or lost. Hover a skill to see what it does; tap to place a point, then confirm.</p>
-        </div>`;
+      : '';
     return `
       <div class="up-shop up-tree">
-        <header class="up-head">
-          <div class="up-title"><h3>skills</h3>${real.runs ? `<small>best run: ${real.best} galax${real.best === 1 ? 'y' : 'ies'} crossed · ${real.runs} run${real.runs === 1 ? '' : 's'}</small>` : ''}</div>
-          <span class="up-purse">${XP_MARK}<b>${real.xp ?? 0}</b></span>
-          <button class="icon-btn" data-act="cmp-shop" aria-label="Close">×</button>
+        <header class="up-head up-head-tree">
+          <button class="up-back" data-act="cmp-shop" aria-label="Back">‹ back</button>
+          <div class="up-title-big">
+            <h3>skills</h3>
+            <span class="up-xp">${XP_MARK}<b>${(real.xp ?? 0) - spend}</b><small>experience to spend</small></span>
+            ${plan}
+          </div>
         </header>
         <div class="up-sky">
           <span class="up-flower">${stellariaFlower()}</span>
           <span class="up-flower-fill"><svg viewBox="70 -260 860 860" aria-hidden="true">${fills.join('')}</svg></span>
           ${stems.join('')}
           ${links}
-          ${heart}
           ${nodes}
         </div>
       </div>`;

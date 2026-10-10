@@ -78,11 +78,11 @@ export const META_UPGRADES: MetaUpgrade[] = [
   { id: 'plating', group: 'sun', tier: 2, requires: [['cryo', 1]], name: 'Stellar plating', text: '+2 max health on the flagship\'s sun in battle.', max: 2, cost: rising(45, 35) },
   { id: 'mend', group: 'sun', tier: 2, requires: [['cryo', 2]], name: 'Field repair', text: 'The flagship repairs 1 heat at the start of every turn on the map.', max: 2, cost: rising(50, 40) },
   { id: 'mantle', group: 'sun', tier: 3, requires: [['plating', 1], ['mend', 1]], name: 'Halo mantle', text: "+1 shield on the flagship's sun every day of battle.", max: 1, cost: flat(180) },
-  // A sharper command.
-  { id: 'doctrine', group: 'command', tier: 1, name: 'Battle doctrine', text: 'One more card in the opening hand of every battle.', max: 2, cost: rising(25, 25) },
-  { id: 'insight', group: 'command', tier: 2, requires: [['doctrine', 1]], name: 'Insight', text: 'Draw 1 more card every day of battle.', max: 1, cost: flat(90) },
-  { id: 'calm', group: 'command', tier: 2, requires: [['doctrine', 2]], name: 'Cold focus', text: "The flagship's sun cools 1 at the start of every day of battle.", max: 1, cost: flat(90) },
-  { id: 'secondsun', group: 'command', tier: 3, requires: [['insight', 1], ['calm', 1]], name: 'Second sun', text: '+1 energy every day of battle.', max: 1, cost: flat(200) },
+  // Kinder planets [direction: skills that upgrade the planets, rather than straight draws or energy].
+  { id: 'abundance', group: 'command', tier: 1, name: 'Fertile orbit', text: 'The abundant planet draws 1 more card each day it faces your sun.', max: 2, cost: rising(25, 25) },
+  { id: 'foundry', group: 'command', tier: 2, requires: [['abundance', 1]], name: 'Deep foundries', text: 'The industrial planet gives 1 more energy each day it faces your sun.', max: 1, cost: flat(90) },
+  { id: 'coldworld', group: 'command', tier: 2, requires: [['abundance', 2]], name: 'Cold world', text: 'The dead planet cools your sun by 2 each dawn it faces it.', max: 1, cost: flat(90) },
+  { id: 'gardens', group: 'command', tier: 3, requires: [['foundry', 1], ['coldworld', 1]], name: 'Paradise', text: 'The dead planet becomes a paradise planet: each dawn it faces your sun, your cards regain 1 stability.', max: 1, cost: flat(200) },
   // Spoils of war.
   { id: 'scouts', group: 'spoils', tier: 1, name: 'Salvage crews', text: 'The flagship is likelier to find gear when it takes a system or wins a battle.', max: 3, cost: rising(20, 15) },
   { id: 'dread', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Terror broadcasts', text: 'The weakest neutral systems surrender to the flagship without a battle.', max: 1, cost: flat(70) },
@@ -97,6 +97,22 @@ export const META_UPGRADES: MetaUpgrade[] = [
   ...[4, 5, 6, 7].map((race) => ({ id: `race:${race}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(10) })),
   ...GENERALS.flatMap((heroes) => heroes.slice(1).map((hero) => ({ id: `hero:${hero}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(6) }))),
 ];
+
+/** Skills taken out of the tree, with what each level cost: a save that bought them has its XP back. */
+const RETIRED: Record<string, number[]> = { doctrine: [25, 50], insight: [90], calm: [90], secondsun: [200] };
+
+/** A save brought up to date: the XP spent on skills since taken out of the tree, refunded. */
+export function migrateMeta(meta: MetaState): MetaState {
+  const gone = Object.keys(meta.upgrades ?? {}).filter((id) => RETIRED[id]);
+  if (!gone.length) return meta;
+  const upgrades = { ...meta.upgrades };
+  let back = 0;
+  for (const id of gone) {
+    back += RETIRED[id].slice(0, upgrades[id]).reduce((t, c) => t + c, 0);
+    delete upgrades[id];
+  }
+  return { ...meta, upgrades, xp: (meta.xp ?? 0) + back };
+}
 
 export function metaUpgrade(id: string): MetaUpgrade | undefined {
   return META_UPGRADES.find((u) => u.id === id);
@@ -249,10 +265,10 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
       ...(l('cryo') ? { startingHeat: -l('cryo') } : {}),
       ...(l('plating') ? { maxHealthDelta: 2 * l('plating') } : {}),
       ...(l('mantle') ? { shieldPerTurn: l('mantle') } : {}),
-      ...(l('doctrine') ? { openingHand: l('doctrine') } : {}),
-      ...(l('insight') ? { extraDraw: l('insight') } : {}),
-      ...(l('calm') ? { coolPerTurn: l('calm') } : {}),
-      ...(l('secondsun') ? { extraPlays: l('secondsun') } : {}),
+      ...(l('abundance') ? { abundantDraw: l('abundance') } : {}),
+      ...(l('foundry') ? { industrialPlays: l('foundry') } : {}),
+      ...(l('coldworld') ? { deadCool: 2 * l('coldworld') } : {}),
+      ...(l('gardens') ? { paradise: l('gardens') } : {}),
     },
     mend: l('mend'),
     loot: 0.1 * l('scouts'),

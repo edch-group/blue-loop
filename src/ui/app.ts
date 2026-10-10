@@ -2766,7 +2766,7 @@ export class App {
       root.querySelectorAll(`[data-anchor="player:${pid}"] .vit`).forEach((vit) => {
         // (With its shields badge and its planet's state, as the board draws it: rebuilt without them, the badge vanished.)
         const side = vit.closest('.tableau-rival') ? 'rival' : 'mine';
-        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit, eaten: planetsEaten(next, p), shieldsHtml: shieldBadge(pid, sun.shields, side) });
+        vit.outerHTML = vitals({ heat: sun.heat, threshold: supernovaThreshold(p), shields: sun.shields, dead: sun.eliminated && !this.dying.has(pid), id: pid, orbit: p.orbit, eaten: planetsEaten(next, p), paradise: relicN(p.relics, 'paradise') + (p.modifiers?.paradise ?? 0) > 0, shieldsHtml: shieldBadge(pid, sun.shields, side) });
       });
       setShieldBadge(root, pid, sun.shields);
       animateSuns();
@@ -5430,7 +5430,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          ${p.boss ? this.bossVitals(p) : `<div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>`}
+          ${p.boss ? this.bossVitals(p) : `<div class="vitals ${sunAim ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), paradise: relicN(p.relics, 'paradise') + (p.modifiers?.paradise ?? 0) > 0, shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>`}
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>

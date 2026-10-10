@@ -267,7 +267,7 @@ export function playsAllowed(state: GameState, p: PlayerState): number {
   const extra = passives(p).reduce((sum, { passive }) => sum + (passive.type === 'extraPlay' && (!passive.planet || currentPlanet(p, state) === passive.planet) ? passive.amount : 0), 0);
   // Later seats get an extra play on their first day to make up for moving second.
   const catchUp = p.turnsTaken === 1 && state.players.indexOf(p) > 0 && state.players.length <= BALANCE.catchUpMaxPlayers ? BALANCE.laterSeatPlays : 0;
-  const industry = currentPlanet(p, state) === 'industrial' ? BALANCE.industrialPlays : 0;
+  const industry = currentPlanet(p, state) === 'industrial' ? BALANCE.industrialPlays + (p.modifiers?.industrialPlays ?? 0) : 0;
   return Math.min(p.turnsTaken, BALANCE.maxPlays) + extra + catchUp + industry + (p.modifiers?.extraPlays ?? 0);
 }
 
@@ -851,8 +851,8 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   const round = state.round + (state.players.indexOf(p) > state.activePlayerIndex ? 0 : 1);
   const f: TurnForecast = { heat: 0, targetId: target?.id ?? null, shields: 0, cool: 0, selfHeat: 0, unstable: 0, unstableRound: state.round + 1, round, draw: 0, plays: 0, planet, planetDraw: 0, planetPlays: 0 };
   if (p.eliminated) return f;
-  if (planet === 'abundant' && p.turnsTaken > 0) f.planetDraw = BALANCE.abundantDraw;
-  if (planet === 'industrial') f.planetPlays = BALANCE.industrialPlays;
+  if (planet === 'abundant' && p.turnsTaken > 0) f.planetDraw = BALANCE.abundantDraw + (p.modifiers?.abundantDraw ?? 0);
+  if (planet === 'industrial') f.planetPlays = BALANCE.industrialPlays + (p.modifiers?.industrialPlays ?? 0);
   f.draw += f.planetDraw;
   f.plays += f.planetPlays;
   // Run the effects on a copy, so growth and the like carry from one effect to the next (its dawn, then its dusk).
@@ -1559,7 +1559,7 @@ function startTurn(state: GameState) {
     p.orbit = (p.orbit + 1) % ORBIT_LENGTH;
     if (currentPlanet(p) !== before) log(state, `The ${currentPlanet(p)} planet swings round to face ${p.name}'s sun.`);
   }
-  const abundance = currentPlanet(p, state) === 'abundant' ? BALANCE.abundantDraw : 0;
+  const abundance = currentPlanet(p, state) === 'abundant' ? BALANCE.abundantDraw + (p.modifiers?.abundantDraw ?? 0) : 0;
   // Draw (your opening hand covers your first day).
   if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
   if (state.winnerId) return;
@@ -1621,7 +1621,20 @@ function dawn(state: GameState, p: PlayerState) {
       if (could) (p.dawnChoices ??= []).push({ uid: card.uid, kind });
     }
   }
-  // Relics' dawns: a sear, a repair, a card given, and a Recall or Shift that waits on its holder as a card's does.
+  // Relics' dawns: a paradise planet's renewal, a sear, a repair, a card given, and a Recall or Shift that waits on its
+  // holder as a card's does.
+  // (The dead planet, as the skill tree may have it: cooling, or a paradise.)
+  const deadFacing = currentPlanet(p, state) === 'dead' && !planetsEaten(state, p);
+  const paradise = relicN(p.relics, 'paradise') + (p.modifiers?.paradise ?? 0);
+  if (paradise && deadFacing) {
+    log(state, `The paradise planet faces ${p.name}'s sun: renew ${paradise}.`);
+    for (const c of p.tableau) if (cardDef(c.defId).kind !== 'relic') mend(state, p, c, paradise);
+  }
+  const deadCool = p.modifiers?.deadCool ?? 0;
+  if (deadCool && deadFacing) {
+    cool(state, p, deadCool, 'the cold dead planet');
+    notePulse(state, p, null, 'cool', p, deadCool);
+  }
   relicSear(state, p);
   if (state.winnerId || p.eliminated) return;
   const mendBy = relicN(p.relics, 'mend');
