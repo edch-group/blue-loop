@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activePlayer, applyAction, baseHealth, createGame, freeSlots, hasRoomFor, PRESET_DECKS, deckProblems } from '../src/engine';
+import { activePlayer, applyAction, baseHealth, createGame, freeSlots, hasRoomFor } from '../src/engine';
 import type { CardInstance, PlayerState } from '../src/engine/types';
 
 let n = 0;
@@ -54,9 +54,4 @@ describe('the Blood Cult', () => {
     expect(t.players[0].hand.length).toBe(hand - 1 + 4);
   });
 
-  it('has a legal Lost Races starter', () => {
-    const d = PRESET_DECKS.find((x) => x.name === 'Blood Rite')!;
-    expect(deckProblems(d.cards, 'lost')).toEqual([]);
-    expect(deckProblems(d.cards, 'core').length).toBeGreaterThan(0);
-  });
 });

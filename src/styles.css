@@ -6518,3 +6518,21 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 
 /* A card that heats one target, aimed from the hand: it stays put, lit, while the beam runs from it to the pointer. */
 .hand > .card.card-aiming { box-shadow: 0 0 0 2px #fff, 0 0 18px 4px rgba(224, 110, 60, 0.55), var(--shadow); }
+/* (The trap slot's mark: the trap symbol, drawn in its amber.) */
+.slot-ls .slot-def .kw-ico { width: 1.15em; height: 1.15em; stroke-width: 1.5; }
+
+/* How the rival's moves are confirmed: a pill of three, bottom left (normal, auto-confirm, skip all). */
+.confirm-pill {
+  position: fixed; z-index: 16; left: calc(var(--pad-l, 0px) + 16px); bottom: calc(var(--pad-b, 0px) + 16px);
+  display: flex; padding: 3px; gap: 2px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 0 0 1px rgba(120, 126, 150, 0.22), 0 4px 14px rgba(70, 76, 100, 0.14);
+}
+.confirm-pill button {
+  border: 0; background: none; cursor: pointer; border-radius: 999px; padding: 6px 12px; white-space: nowrap;
+  font-family: var(--display); font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft);
+}
+.confirm-pill button:hover { color: var(--ink); }
+.confirm-pill button.on { background: var(--ink); color: #fff; }
+@media (max-height: 560px) { .confirm-pill { left: calc(var(--pad-l, 0px) + 8px); bottom: calc(var(--pad-b, 0px) + 8px); } .confirm-pill button { padding: 5px 8px; font-size: 0.5rem; letter-spacing: 0.1em; } }
+.table-view.zoom-rival > .confirm-pill, .table-view.zoom-mine > .confirm-pill { opacity: 0; pointer-events: none; }
+.confirm-pill .cp-short { display: none; }
+@media (max-height: 560px) { .confirm-pill .cp-long { display: none; } .confirm-pill .cp-short { display: inline; } }

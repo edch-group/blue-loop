@@ -6,9 +6,10 @@ import { activePlayer, replaces, isGuard, guards, attackProblem, cardAttack, cou
   baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver,
   isDraw, playsAllowed, supernovaThreshold, tableauFull } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
+import { TEST_DECKS } from './fixture-decks';
 
 const twoPlayer = (seed = 1) =>
-  createGame({ seed, players: [{ name: 'Ada', isAI: false }, { name: 'Bo', isAI: false }] });
+  createGame({ seed, players: [{ name: 'Ada', isAI: false, deck: TEST_DECKS[0].cards }, { name: 'Bo', isAI: false, deck: TEST_DECKS[1].cards }] });
 
 let uid = 1000;
 /** Put specific cards in a player's hand (or tableau), for testing exact situations. */

@@ -426,6 +426,10 @@ The dominance check doesn't compare Relics with other kinds (lasting but brittle
 
 ## Traps and Lightspeed [design review]
 
+**Starters: one per race** (Solar Lancers, Shard Overload, Abyssal Tide, Hive Bloom, Night Court, Forge Clans, Starwatch, Wildfire), each rebuilt to run a trap or two, a couple of Lightspeed cards and repair; the themed and mixed presets (Orbit Riders, Ambush, Demolition, Absolute Zero, Graftworks, Overcharge, Blood Rite) are retired, and the four Core starters stay as they were. (The older big-card and relic swaps are folded into the lists.) [direction: remake starter decks, one per race]
+
+**Confirming the rival's moves:** a pill bottom left, three ways. **Normal**: each of their cards waits on the preview pane for your OK. **Auto-confirm**: it shows a moment, then lands by itself (Lightspeed replies still ask). **Skip all**: auto-confirm, and your Lightspeed replies are let pass too, until the rival's day ends, when it is back to auto-confirm. The trap slot is marked with the trap symbol.
+
 [direction: traps are their own card type, replacing the Lightspeed cards that went face down; Lightspeed is a keyword any card can carry, playable in any phase]
 
 **Traps** answer your rival's move, before it resolves. Each has a trigger: a specific thing the rival does on their own day. On your day, set it **face down** (for its cost). It takes no slot, and **only one can be face down at a time**. Rivals see only that one is set: it lies in the trap slot, right of its owner's five (no defence there). It **springs on the first trigger it meets**, by itself: you can't hold it back for a better moment, which is the price of hiding it. A trap is never played from hand.

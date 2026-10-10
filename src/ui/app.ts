@@ -860,8 +860,16 @@ export class App {
   private menuLeaving = false;
   /** The page last drawn, so a new one can come in with a little rise. */
   private shownPage = '';
+  /**
+   * Confirming the rival's moves (the pill, bottom left): `normal`, each of their cards waits on the stage for your
+   * OK; `auto`, it shows a moment, then lands by itself; `skip`, that, and your Lightspeed replies are let pass too
+   * (until the day ends, when it is back to auto).
+   */
+  private confirmMode: 'normal' | 'auto' | 'skip' = 'normal';
   /** Auto-confirm: a rival's card waits on the stage for a moment, then lands by itself. */
-  private autoConfirm = false;
+  private get autoConfirm(): boolean {
+    return this.confirmMode !== 'normal';
+  }
   /** This game's anonymous summary, for balancing (a fresh game on this device; sent when it ends). */
   private statsRec: GameStats | null = null;
   /** The How to Play tab showing. */
@@ -955,7 +963,7 @@ export class App {
     try {
       const saved = localStorage.getItem(SPEED_KEY) as Speed | null;
       if (saved && saved in SPEED_FACTOR) this.speed = saved;
-      this.autoConfirm = localStorage.getItem(AUTO_CONFIRM_KEY) === '1';
+      this.confirmMode = localStorage.getItem(AUTO_CONFIRM_KEY) === '1' ? 'auto' : 'normal';
     } catch {
       // ignore
     }
@@ -1453,10 +1461,12 @@ export class App {
       if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, last.action);
       // (A new day isn't under way until its dawn has played out: the hand waits.)
       if (turnPassed) this.phase = 'dawn';
+      if (turnPassed && this.confirmMode === 'skip' && activePlayer(next).id === you) this.confirmMode = 'auto';
       this.render();
       this.surfaceLog(prev);
       this.animate(prev, next, last.action, actor, before);
       this.announcePhases(actor, next, turnPassed);
+      this.skipReply();
     };
     // The rival's card takes effect once the viewer has read it and said OK.
     if (this.stage?.confirm && !isGameOver(next)) {
@@ -1532,6 +1542,33 @@ export class App {
     if (last.faceDown) return { defId: 'null_field', actorId: actor.id, faceDown: true, caption: `${actor.name.toLowerCase()} sets a card face down`, confirm };
     if (last.played) return { defId: last.played, actorId: actor.id, confirm, option: last.action.type === 'playCard' ? last.action.choice : undefined, target: last.action.type === 'playCard' ? last.action.enemyUid : undefined };
     return null;
+  }
+
+  /** Set how the rival's moves are confirmed (auto and normal are kept between games; skip lasts the day). */
+  private setConfirmMode(mode: 'normal' | 'auto' | 'skip') {
+    this.confirmMode = mode;
+    try {
+      localStorage.setItem(AUTO_CONFIRM_KEY, mode === 'normal' ? '0' : '1');
+      markDirty();
+    } catch {
+      // ignore
+    }
+    sound.hover();
+    this.refreshSettings();
+    if (this.autoConfirm && this.stage?.confirm) this.confirmStage();
+    if (mode === 'skip') this.skipReply();
+    this.render();
+  }
+
+  /** Skip all: a Lightspeed reply waiting on you is let pass (online too, where it is yours to make). */
+  private skipReply() {
+    const s = this.state;
+    if (this.confirmMode !== 'skip' || !s?.reaction || isGameOver(s)) return;
+    const who = s.players.find((p) => p.id === s.reaction!.playerId);
+    if (!who || who.isAI || (this.online && who.id !== this.viewer().id)) return;
+    window.setTimeout(() => {
+      if (this.state === s && this.confirmMode === 'skip') this.dispatch({ type: 'react' });
+    }, 250);
   }
 
   /** A rival's card arriving on the stage to be read: it flies in from their side of the board, with a sound. */
@@ -2079,6 +2116,8 @@ export class App {
         }
       // (A new day isn't under way until its dawn has played out: the hand waits.)
       if (turnPassed) this.phase = 'dawn';
+      // (Skip all lasts the rival's day: as it ends, and yours begins, it is back to auto-confirm.)
+      if (turnPassed && this.confirmMode === 'skip' && activePlayer(next).id === this.viewer().id) this.confirmMode = 'auto';
       this.render();
       if (before) {
         this.surfaceLog(prev);
@@ -2289,7 +2328,8 @@ export class App {
     // A reaction window: an AI answering decides after a moment; anyone else is waited on.
     if (s.reaction) {
       const who = s.players.find((p) => p.id === s.reaction!.playerId);
-      if (!who?.isAI || this.online) return;
+      if (!who?.isAI) return this.skipReply();
+      if (this.online) return;
       const answer = chooseAIAction(s);
       this.aiTimer = window.setTimeout(() => {
         this.aiTimer = null;
@@ -3952,16 +3992,9 @@ export class App {
         this.render();
         return;
       case 'toggle-autoconfirm':
-        this.autoConfirm = !this.autoConfirm;
-        try {
-          localStorage.setItem(AUTO_CONFIRM_KEY, this.autoConfirm ? '1' : '0');
-          markDirty();
-        } catch {
-          // ignore
-        }
-        this.refreshSettings();
-        if (this.autoConfirm && this.stage?.confirm) this.confirmStage();
-        return;
+        return this.setConfirmMode(this.autoConfirm ? 'normal' : 'auto');
+      case 'confirm-mode':
+        return this.setConfirmMode(arg as 'normal' | 'auto' | 'skip');
       case 'speed': {
         const order: Speed[] = ['slow', 'normal', 'fast'];
         this.speed = order[(order.indexOf(this.speed) + 1) % order.length];
@@ -5575,8 +5608,8 @@ export class App {
         ? `<button class="card card-table card-back ls-card" data-act="inspect" data-card="${ls.defId}" title="Set face down: ${esc(cardDef(ls.defId).name)}. ${esc(plainText(cardDef(ls.defId).text))}">${cardBackFace()}</button>`
         : `<div class="card card-table card-back ls-card ls-hidden" title="A trap is set face down. It springs during your day.">${cardBackFace()}</div>`
       : choosingSlot && pend && canSetFaceDown(p, activePlayer(st).hand.find((h) => h.uid === pend.uid)?.defId ?? '')
-        ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down as a trap, for 1 more energy"><span class="slot-def">⚡</span><i>trap +1</i></button>`
-        : '<div class="slot-empty slot-ls" title="Trap: one card can be set face down here"><span class="slot-def">⚡</span></div>';
+        ? `<button class="slot-empty slot-ls slot-choosable" data-act="choose-slot" data-arg="ls" title="Set it face down as a trap, for 1 more energy"><span class="slot-def">${mechanicMark('trap')}</span><i>trap +1</i></button>`
+        : `<div class="slot-empty slot-ls" title="Trap: one card can be set face down here"><span class="slot-def">${mechanicMark('trap')}</span></div>`;
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
@@ -5683,6 +5716,11 @@ export class App {
     return `
       ${skills ? `<div class="hero-skills">${skills}</div>` : ''}
       ${relics || counter ? `<aside class="relic-actives" aria-label="Relics">${counter}${relics}</aside>` : ''}
+      <div class="confirm-pill" role="radiogroup" aria-label="Your rival's moves">${(
+        [['normal', 'normal', 'normal', "Each of your rival's cards waits for your OK"], ['auto', 'auto-confirm', 'auto', "Your rival's cards show a moment, then land by themselves"], ['skip', 'skip all', 'skip', 'Auto-confirm, and Lightspeed replies let pass, until the day ends']] as const
+      )
+        .map(([m, label, short, tip]) => `<button class="${this.confirmMode === m ? 'on' : ''}" data-act="confirm-mode" data-arg="${m}" role="radio" aria-checked="${this.confirmMode === m}" title="${tip}" aria-label="${label}"><span class="cp-long">${label}</span><span class="cp-short">${short}</span></button>`)
+        .join('')}</div>
       <div class="turn-controls turn-corner">
         <div class="plays ${myTurn || banked ? '' : 'plays-off'}" title="${myTurn ? 'Energy left today: each card costs the number on its gem. What you leave unspent is banked through your rival\'s day, to answer them at lightspeed.' : 'Banked energy: to play a Lightspeed card in reply to your rival'}">
           <small>${myTurn ? 'energy' : banked ? 'banked' : 'waiting'}</small>
@@ -6155,7 +6193,7 @@ export class App {
       const me = activePlayer(s);
       const faceDown =
         this.pending!.step === 'slot' && canSetFaceDown(me, picked.defId)
-          ? `<button class="btn stage-ls-btn" data-act="choose-slot" data-arg="ls" title="Set it face down as a trap: it springs on the first trigger it meets">⚡ set as trap <small>+1 energy</small></button>`
+          ? `<button class="btn stage-ls-btn" data-act="choose-slot" data-arg="ls" title="Set it face down as a trap: it springs on the first trigger it meets">${mechanicMark('trap')} set as trap <small>+1 energy</small></button>`
           : '';
       return `<div class="stage stage-picked">${html}${faceDown}</div>`;
     }
@@ -6351,7 +6389,7 @@ export class App {
             ${playerAvatar(p.avatar ?? pictureFor(p.name), 'player-emblem')}
             <h2 class="sys-name">${esc((p.deckName ?? 'custom deck').toLowerCase())}</h2>
             ${commands ? `<p class="muted center-text">Heroes in play: ${commands}</p>` : ''}
-            ${p.lightspeed ? `<p class="muted center-text">⚡ ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A trap is set face down.'}</p>` : ''}
+            ${p.lightspeed ? `<p class="muted center-text">${mechanicMark('trap')} ${p.id === me.id ? `Set face down: ${esc(cardDef(p.lightspeed.defId).name.toLowerCase())}` : 'A trap is set face down.'}</p>` : ''}
             ${p.conditions?.length ? `<div class="sys-conditions">${p.conditions.map((c) => `<div><b>${esc(c.name.toLowerCase())}</b>${esc(c.text)}</div>`).join('')}</div>` : ''}
             <div class="sys-stats">
               <span>heat ${p.heat}/${supernovaThreshold(p)}</span><span>⬡ ${p.shields}</span><span>${HAND_ICON} ${p.hand.length} in hand</span><span>▤ ${p.deck.length} in deck</span><span>${p.discard.length} discarded</span><span>${p.tableau.length}/${BALANCE.tableauSlots} in play</span>

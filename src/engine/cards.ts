@@ -1092,191 +1092,95 @@ const twoOf = (...ids: string[]) => ids.flatMap((id) => [id, id]);
 // most days can play a 2 and a 1 early and fill 4 energy later, with a few 3s and 4s as its bombs; a deck
 // that ramps (Hive Bloom) can run a higher curve.
 export const PRESET_DECKS: DeckList[] = [
+  // One starter per race (rebuilt with traps, Lightspeed cards and repair). [direction: one starter per race; the
+  // themed and mixed presets retired]
   {
-    // Attack cards that power each other up: a Sunforge and a Focusing Array boosting them all, Lancer
-    // Squadrons and Sunlance Charges growing with the attack and Command cards around them, a Halo
-    // Sentinel guarding the line, a Sunlit Return and a Recall Beacon to bring the best attack cards back,
-    // an Ion Cannon, Rally Banners to recall a card and play it again, and a Prism of Dawn set face down
-    // against the counter-attack. At the top: Aurelia, the Archon and the Sun Throne.
+    // Aureline: armed cards that power each other up (Sunforge, Focusing Array, the Squadron), Guards that mend (Halo Wards, Dawn Rampart, Vanguard), a Dawnflash Guard and Point Defence at lightspeed, Prism of Dawn and Flare Trap set against the counter-attack.
     name: 'Solar Lancers',
     cards: [
-      ...twoOf('command_directive', 'helio_lancer', 'rally_banner'),
-      'sunlance_charge', 'lancer_squadron', 'aureline_cantor', 'solar_aegis', 'ignition_protocol', 'coronal_chorus',
-      'hymn_of_the_sun', 'sunforge', 'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_ward',
-      'halo_sentinel', 'sunlit_return', 'prism_of_dawn', 'ion_cannon', 'aureline_sunguard', 'dawnstar_cannon',
-      'recall_beacon', 'glory_charge', 'aureline_archon', 'dawn_rampart', 'aurelia_first_light', 'the_sun_throne',
+      ...twoOf('command_directive', 'halo_ward'), 'helio_lancer', 'ember_idol', 'rally_banner', 'sunlance_charge',
+      'lancer_squadron', 'solar_aegis', 'ignition_protocol', 'coronal_chorus', 'hymn_of_the_sun', 'sunforge',
+      'focusing_array', 'aureline_war_herald', 'aureline_sun_priest', 'halo_sentinel', 'sunlit_return',
+      'prism_of_dawn', 'ion_cannon', 'recall_beacon', 'aureline_archon', 'dawn_rampart', 'aurelia_first_light',
+      'the_sun_throne', 'dawnflash_guard', 'point_defence', 'flare_trap', 'aureline_vanguard'
     ],
   },
   {
-    // Cards that pay off as they leave play (Martyrs, Echo Shards, Prism Wards, Kyr'Vessa), recalled with
-    // Phase Shift and Shard Echo to do it again (and with Shard Recall); Ember Shards recovered by the
-    // Reliquarist; a Prism Conduit cooled by the attack cards beside it; a Coolant Protocol, a Prism Vent,
-    // and a Prism Sanctum to run hot safely, with Precession Engines (attuned twice over), a Crystal Storm
-    // and a Searing Core to press.
+    // Xel'Naru: run hot and profit from it, crystals that burst as they leave, recall to play them again; Shard Flare and Reflex Coolant at lightspeed, Refraction Veil set face down, Prism Wards and a Vent mending.
     name: 'Shard Overload',
     cards: [
-      ...twoOf('precession_engine', 'martyr_crystal', 'prism_ward', 'war_council', 'ember_shard', 'echo_shard'),
-      'coolant_protocol', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion', 'xelnaru_reliquarist', 'prism_conduit',
-      'phase_shift', 'shard_recall', 'shard_echo', 'prism_colossus', 'tactical_withdrawal', 'star_breaker',
-      'crystal_storm', 'xelnaru_warden', 'shard_tempest', 'searing_core', 'prism_sanctum', 'crystal_reliquary',
+      ...twoOf('precession_engine', 'martyr_crystal', 'prism_ward', 'war_council'), 'ember_shard', 'astral_orrery',
+      'echo_shard', 'coronal_storm', 'coolant_protocol', 'overload_core', 'kyrvessa_prism_queen', 'xelnaru_champion',
+      'xelnaru_reliquarist', 'prism_conduit', 'shard_recall', 'prism_colossus', 'star_breaker', 'crystal_storm',
+      'xelnaru_warden', 'shard_tempest', 'prism_sanctum', 'crystal_reliquary', 'shard_flare', 'reflex_coolant',
+      'refraction_veil', 'prism_vent'
     ],
   },
   {
-    // Shields and defence: Tide Pylons around the Wardens, a Trench-Warden, the Aegis Monolith and a
-    // Leviathan Shell guarding the line, Returning Tide to bring a fallen defence card back, Undertows to
-    // wear rival cards away, Brine Lashes, Riptides and Jelly Swarms hitting harder behind shields, and a
-    // Riptide Ambusher and an Ink Cloud set face down against a big hit.
+    // Vorthane: shields built up and kept, stinging attackers, heat from the shields held; Brine Veils and Snap Shield at lightspeed, Ink Cloud and the Riptide Ambush set face down, Pylons and Undertow Shrine mending.
     name: 'Abyssal Tide',
     cards: [
-      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'undertow', 'tide_regent', 'riptide', 'brine_lash', 'tidal_graft'),
-      'tidal_wave', 'jelly_swarm', 'abyssal_titan', 'siphon_tendril', 'the_admiralty', 'riptide_ambush',
+      ...twoOf('bell_warden', 'tide_pylon', 'abyssal_choir', 'tide_regent', 'riptide', 'brine_veil'), 'undertow',
+      'brine_lash', 'bulwark_prime', 'tidal_graft', 'tidal_wave', 'abyssal_titan', 'the_admiralty', 'riptide_ambush',
       'trench_warden', 'stinging_veil', 'hero_of_rathune', 'ommarath_deep_bell', 'returning_tide', 'aegis_monolith',
-      'tidebreaker', 'leviathan_shell',
+      'tidebreaker', 'ink_cloud', 'undertow_shrine', 'snap_shield'
     ],
   },
   {
-    // Go wide, ramp and keep it coming back: Sporelings, Overgrowth, Hive Relays and the Brood Queen for
-    // the energy to play more (and bigger: a Chitin Fortress, a Solar Bastion), Hive Rooting and a Compost
-    // Cycle to hold the hive in play, and Spore Husks recovered from the discard pile (by the Compost Cycle
-    // and a Regrowth Pod) to draw more, and Seasonal Blooms planting Saplings and taking their orbit's bonus.
+    // Ixquor: a wide board of saplings and spores that grows and pays off in heat; Sudden Spores at lightspeed, Spore Trap against a Hero, Thorn Hedge and Canopy mending.
     name: 'Hive Bloom',
     cards: [
-      ...twoOf('creeping_vines', 'spore_husk', 'logistics_command', 'rot_bloom', 'hive_relay', 'spore_cloud', 'seed_burst'),
-      'seasonal_bloom', 'seasonal_bloom', 'hive_warrior', 'chamber_protocol', 'hive_rooting', 'compost_cycle', 'sporelings',
-      'overgrowth', 'chitin_fortress', 'ixquor_brood_tender', 'the_brood_queen', 'sporestorm',
-      'hive_tyrant', 'spore_drone', 'spore_catalyst', 'solar_bastion',
-    ],
-  },
-  // Mixed decks, each built round one of the game's mechanics rather than one race (the emblem is the race
-  // it leans on most). The first four (one per race) are the races' own, and the campaign's.
-  {
-    // Attunement: Orreries, Ecliptic Lances, Moon Wardens and Precession Engines take their bonus from where
-    // the Orbit stands (shields at the dead planet, cards at the abundant one, heat at the industrial one),
-    // so the deck steers its Orbit (Slingshots, Gravity Assists, the Solstice Choir, the Grand Orrery) onto
-    // the industrial planet and knocks its rival's off theirs (Gravity Wells, Tidal Brakes).
-    name: 'Orbit Riders',
-    mixed: true,
-    cover: 'grand_orrery',
-    cards: [
-      ...twoOf('logistics_command', 'orrery', 'ecliptic_lance', 'solstice_choir', 'moon_warden', 'precession_engine', 'orbital_slingshot'),
-      ...twoOf('gravity_assist', 'tidal_brake', 'sunward_lance', 'cryo_vault'),
-      'tide_regent', 'grand_orrery', 'gravity_well', 'coronal_lance', 'heat_sink', 'photon_drill', 'perihelion_forge', 'deep_scanners',
+      ...twoOf('creeping_vines', 'spore_husk', 'logistics_command', 'rot_bloom', 'spore_cloud', 'sudden_spore'),
+      'hive_relay', 'seed_burst', 'seasonal_bloom', 'furnace_engine', 'chamber_protocol', 'hive_rooting',
+      'compost_cycle', 'sporelings', 'chitin_fortress', 'ixquor_brood_tender', 'the_brood_queen', 'sporestorm',
+      'hive_tyrant', 'spore_drone', 'solar_bastion', 'spore_trap', 'thorn_hedge', 'canopy'
     ],
   },
   {
-    // Lightspeed: a trap face down (Prisms of Dawn and Counter Pulses against attack cards), Guards that
-    // spring out of the Lightspeed slot to take a hit (Blink Bulwarks), a Xel'Naru Warden and a Twilight
-    // Sentry standing guard, and Aureline attack cards forged and boosted behind them, with an attuned
-    // Ecliptic Lance. (The Sunflash Aegis pair and the Riptide Sentinel made way when 1-energy cards lost
-    // their third day and the Sentinel went up to 3 energy: 40% to 47% against the other starters.)
-    name: 'Ambush',
-    mixed: true,
-    cover: 'prism_of_dawn',
-    cards: [
-      ...twoOf('command_directive', 'prism_of_dawn', 'counter_pulse', 'blink_bulwark', 'helio_lancer', 'shard_reactor'),
-      ...twoOf('coronal_lance', 'cryo_vault', 'photon_drill'),
-      'xelnaru_warden', 'twilight_sentry', 'plasma_relay', 'ecliptic_lance', 'war_council', 'gravity_sling', 'dawnstar_cannon', 'aureline_archon', 'sunforge', 'focusing_array', 'deep_scanners', 'deflector_grid',
-    ],
-  },
-  {
-    // Removal: tear the rival's tableau down faster than they build it. Ion Cannons, Void Bolts and
-    // Shatter Points destroy, Tractor Beams and Tidebreakers eject, Entropy Pulses and Fault Lines erode,
-    // the Maelstrom wears everything; the Star Breaker and the Event Horizon finish the job.
-    name: 'Demolition',
-    mixed: true,
-    cover: 'event_horizon',
-    cards: [
-      ...twoOf('war_council', 'ion_cannon', 'void_bolt', 'entropy_pulse', 'scatter_shot', 'tidebreaker', 'cryo_vault', 'shard_reactor'),
-      'command_breaker', 'tractor_beam', 'shatter_point', 'fault_line', 'maelstrom', 'star_breaker',
-      'event_horizon', 'the_shardmind', 'heat_sink', 'deflector_grid', 'deep_scanners', 'xelnaru_warden', 'photon_drill', 'coronal_lance',
-    ],
-  },
-  {
-    // Thermosiphon: run your own sun far below zero (Cryo Vaults, Cold Fronts, the Ice Age) and every
-    // Thermosiphon card gets stronger the colder it is: Cryo Lances and Absolute Zero for heat, Frostbound
-    // Sentinels, Rime Bastions and the Glacier Hull for shields.
-    name: 'Absolute Zero',
-    mixed: true,
-    cover: 'absolute_zero',
-    cards: [
-      ...twoOf('coolant_protocol', 'cryo_lance', 'frostbound_sentinel', 'rime_bastion', 'cryo_vault', 'cold_front', 'glacier_shell', 'coolant_array', 'shard_reactor'),
-      'absolute_zero', 'glacier_hull', 'ice_age', 'deep_freeze', 'prism_vent', 'the_shardmind',
-      'heat_sink', 'photon_drill', 'helio_lancer', 'dawnstar_cannon', 'gravity_sling', 'deep_scanners',
-    ],
-  },
-  {
-    // Fusion: a few sturdy hosts (Plasma Relays, Vanguards, Dawnstar Cannons, Trench Wardens), and grafts to
-    // stack on them, each adding its dawn effect to the host's: no free slots needed, so the hand never
-    // jams. Reinforced Plating and Barnacle Shells keep the loaded hosts standing.
-    name: 'Graftworks',
-    mixed: true,
-    cover: 'sunforged_lens',
-    cards: [
-      ...twoOf('tide_regent', 'plasma_relay', 'aureline_vanguard', 'thermal_graft', 'sunforged_lens', 'shield_lattice', 'reinforced_plating', 'shard_splice'),
-      ...twoOf('barnacle_shell', 'coolant_shunt'),
-      'the_admiralty', 'dawnstar_cannon', 'trench_warden', 'bastion_node',
-      'data_splice', 'siphon_tendril', 'deep_scanners', 'coronal_lance', 'photon_drill', 'helio_lancer',
-    ],
-  },
-  {
-    // Spend All: cheap cards and energy (Relay Stations, Overcharges, Glory Charges, Phase Shifts) build a
-    // big day, then a Solar Torrent, a Meltdown or a Radiant Barrage spends it all at once; Deep Freeze and
-    // the Abyssal Rampart do the same for defence, the Overflow Archive and Hive Surge for cards.
-    name: 'Overcharge',
-    mixed: true,
-    cover: 'solar_torrent',
-    cards: [
-      ...twoOf('ignition_protocol', 'solar_torrent', 'meltdown', 'radiant_barrage', 'relay_station', 'overcharge', 'glory_charge', 'deep_freeze', 'gravity_sling'),
-      'the_admiralty', 'overflow_archive', 'abyssal_rampart', 'hive_surge', 'overgrowth', 'phase_shift',
-      'coronal_lance', 'cryo_vault', 'heat_sink', 'deep_scanners', 'fracture_lens', 'sporelings',
-    ],
-  },
-  // ---- The newer races (after the mixed starters, so saved deck picks keep their place) ----
-  {
-    // Nyxari: cheap attackers that strike the day they land (Darkspeed), wearing the rival's cards down
-    // into the Unmakers' reach; a few Veilwalker traps and Guards, and a Null Shroud for the rival's Hero.
-    // (No shield cards: Darkspeed does nothing for them. Umbral Snares, Mirror Veils, the Veil Lantern and
-    // the Aegis Idol made way for Nightfalls, a third Shade Stalker, a second Phantom Strike and the Ember
-    // Idol: 35% to 46% against the other starters.)
+    // Nyxari: Darkspeed strikers and Unmaker removal, Night Ambushes and Veil Sentries kept face down as traps; Point Defence, Interceptor Wing and Flash Interceptor at lightspeed, Ghost Signal against removal.
     name: 'Night Court',
     cards: [
-      ...twoOf('nyx_nightfall', 'nyx_night_ambush', 'nyx_veil_sentry', 'nyx_gloom_warden', 'nyx_shade_stalker', 'nyx_dusk_raider', 'nyx_unmaker_blade', 'nyx_void_rend', 'nyx_phantom_strike', 'coronal_lance'),
-      // (Attack in place of draw: cheap as the deck is, it drew far more than it could ever play.)
-      'nyx_shade_stalker', 'photon_drill', 'plasma_relay', 'nyx_unravel',
-      'nyx_hollow_reaper', 'nyx_shadow_court', 'nyx_null_shroud',
-      'nyx_hero_vesh', 'nyx_hero_kael', 'nyx_hero_nyxara',
+
+      ...twoOf('nyx_nightfall', 'nyx_night_ambush', 'nyx_veil_sentry', 'nyx_shade_stalker', 'nyx_unmaker_blade', 'nyx_phantom_strike'),
+      'nyx_gloom_warden', 'nyx_dusk_raider', 'nyx_void_rend', 'coronal_storm', 'coronal_lance', 'ember_idol',
+      'nyx_unravel', 'nyx_hollow_reaper', 'nyx_shadow_court', 'nyx_null_shroud', 'nyx_hero_vesh', 'nyx_hero_kael',
+      'nyx_hero_nyxara', 'point_defence', 'interceptor_wing', 'flash_interceptor', 'ghost_signal', 'deflector_grid'
     ],
   },
   {
-    // Korrath: Forgeborn grafts hammered onto a few heavy cards, Bastion-kin Guards in front of them, and
-    // repair to keep the plating whole.
+    // Korrath: plated walls and grafts that turn defence into heat, and repair everywhere (Smith, Foundry, Shieldwalls, Temper); Rapid Rivets at lightspeed, Frost Snare against the attack.
     name: 'Forge Clans',
     cards: [
-      ...twoOf('kor_rivet_graft', 'kor_slag_graft', 'kor_anvil_graft', 'kor_forge_hammer', 'kor_shieldwall', 'kor_bastion_kin', 'kor_iron_sentinel', 'kor_siege_ram', 'kor_molten_pour', 'siege_array', 'plasma_relay'),
-      'kor_master_smith', 'kor_rampart_lord', 'kor_foundry', 'kor_ore_hauler', 'coronal_lance',
-      'kor_hero_durga', 'kor_hero_brannoc', 'kor_hero_anvil_king',
+
+      ...twoOf('kor_rivet_graft', 'kor_slag_graft', 'kor_anvil_graft', 'kor_forge_hammer', 'kor_shieldwall', 'kor_iron_sentinel', 'kor_siege_ram', 'rapid_rivets'),
+      'warden_totem', 'kor_bastion_kin', 'kor_molten_pour', 'siege_array', 'bulwark_prime', 'kor_master_smith',
+      'kor_rampart_lord', 'kor_foundry', 'kor_ore_hauler', 'kor_hero_durga', 'kor_hero_brannoc',
+      'kor_hero_anvil_king', 'kor_temper', 'frost_snare'
     ],
   },
   {
-    // Seren: attuned cards (twice over, Star-charted) riding an orbit that Tidecasters push round, and
-    // Seers drawing and recovering.
+    // Seren: turn the orbit to the right planet and attune to it; Quickdraw Relay, Reflex Coolant and a Warding Idol at lightspeed, Snare Beacon against a Hero.
     name: 'Starwatch',
     cards: [
-      ...twoOf('ser_astral_lance', 'ser_tide_turner', 'ser_planet_shepherd', 'ser_eclipse_caster', 'ser_twin_moons', 'ser_star_chart', 'ser_orrery_keeper', 'ser_stargazer', 'ser_star_needle', 'ser_moonwell', 'ecliptic_lance'),
-      'ser_oracle', 'ser_lantern_of_ages', 'ser_constellation', 'ser_almanac', 'solstice_choir',
-      'ser_hero_ilyath', 'ser_hero_maren', 'ser_hero_aster',
+
+      ...twoOf('ser_astral_lance', 'ser_tide_turner', 'ser_planet_shepherd', 'ser_eclipse_caster', 'ser_orrery_keeper', 'ser_moonwell'),
+      'ser_twin_moons', 'ser_star_chart', 'dyson_sphere', 'ser_stargazer', 'ser_star_needle', 'ecliptic_lance',
+      'ser_oracle', 'ser_lantern_of_ages', 'ser_constellation', 'ser_almanac', 'ser_hero_ilyath', 'ser_hero_maren',
+      'ser_hero_aster', 'quickdraw_relay', 'reflex_coolant', 'snare_beacon', 'deflector_grid', 'warding_idol'
     ],
   },
   {
-    // Pyrr: Cinderborn running their own sun hot (and hitting harder for it), Flarekin spending a big day
-    // all at once, Heat Blooms and Vent Coolers to stay just short of supernova.
+    // Pyrr: burn hot, spend everything, sting; Point Defence and Snap Shield at lightspeed, Flare Trap against a sun attack.
     name: 'Wildfire',
     cards: [
-      ...twoOf('pyr_flare_imp', 'pyr_cinder_brute', 'pyr_ash_walker', 'pyr_heat_bloom', 'pyr_ember_guard', 'pyr_flare_burst', 'pyr_pyre_shield', 'pyr_flarekin_dancer', 'pyr_stoker', 'pyr_vent_cooler', 'pyr_banked_embers'),
-      'pyr_magma_heart', 'pyr_supernova_charge', 'pyr_flare_temple', 'pyr_solar_tyrant', 'coolant_array',
-      'pyr_hero_ignis', 'pyr_hero_ashka', 'pyr_hero_pyrrhus',
+
+      ...twoOf('pyr_cinder_brute', 'pyr_heat_bloom', 'pyr_ember_guard', 'pyr_flare_burst', 'pyr_pyre_shield', 'pyr_flarekin_dancer', 'pyr_stoker', 'point_defence'),
+      'crown_first_sun', 'pyr_vent_cooler', 'pyr_banked_embers', 'coronal_storm', 'pyr_magma_heart',
+      'pyr_supernova_charge', 'pyr_flare_temple', 'pyr_solar_tyrant', 'pyr_hero_ignis', 'pyr_hero_ashka',
+      'pyr_hero_pyrrhus', 'flare_trap', 'snap_shield', 'deflector_grid'
     ],
-  },  // ---- Core (modes.ts): one deck per core race, built round its one mechanic ----
+  },
+  // The Core game's starters (Core cards only).
   {
     // Forge: attack cards lined up beside the Sunforges, Focusing Array and Halo Sentinels that boost them.
     name: 'Sunforge',
@@ -1313,49 +1217,7 @@ export const PRESET_DECKS: DeckList[] = [
       'the_worldroot', 'spore_catalyst', 'hive_relay', 'ixquor_brood_warden', 'ixquor_rootfall', 'the_brood_queen',
     ],
   },
-  // (Lost Races, added after the Core starters so every saved starter keeps its place.)
-  {
-    // Blood Cult: Thralls, Vessels and Chalices put down to be consumed, by Crimson Rites, Offerings and
-    // Bloodfeasts, each one leaving play firing its own payoff and the Hemomancers' and Sanguine Priests'.
-    name: 'Blood Rite',
-    cards: [
-      ...twoOf('bc_hero_sanguis', 'bc_blood_thrall', 'bc_willing_vessel', 'bc_martyrs_chalice', 'bc_crimson_rite', 'bc_blood_offering', 'bc_sanguine_priest', 'bc_hemomancer', 'bc_bloodfeast', 'bc_exsanguinate', 'nyx_shade_stalker', 'nyx_phantom_strike', 'coronal_lance', 'plasma_relay'),
-      'nyx_hero_nyxara', 'cryo_vault',
-    ],
-  },
 ];
-
-/**
- * The big cards (cards-big.ts) in the starters: one copy of a cheap card each makes way for one, so the
- * days with five energy (and more, with bonus energy) have something to spend it on.
- */
-const BIG_SWAPS: Record<string, [string, string][]> = {
-  'Solar Lancers': [['rally_banner', 'zenith_array']],
-  'Shard Overload': [['echo_shard', 'coronal_storm'], ['prism_ward', 'great_collapse']],
-  'Abyssal Tide': [['brine_lash', 'bulwark_prime']],
-  'Hive Bloom': [['seasonal_bloom', 'furnace_engine'], ['seed_burst', 'black_sun']],
-  'Night Court': [['nyx_void_rend', 'coronal_storm'], ['nyx_shade_stalker', 'great_collapse']],
-  'Forge Clans': [['plasma_relay', 'bulwark_prime'], ['kor_molten_pour', 'black_sun']],
-  Starwatch: [['ser_star_needle', 'furnace_engine'], ['ser_star_chart', 'dyson_sphere']],
-  Wildfire: [['pyr_banked_embers', 'coronal_storm'], ['pyr_vent_cooler', 'supernova_lance']],
-};
-/** The Relics (cards-relics.ts) in the starters: one each (two in Wildfire), each to its deck's plan. */
-const RELIC_SWAPS: Record<string, [string, string][]> = {
-  'Solar Lancers': [['helio_lancer', 'ember_idol']],
-  'Shard Overload': [['ember_shard', 'astral_orrery']],
-  'Abyssal Tide': [['undertow', 'tide_pearl']],
-  'Hive Bloom': [['hive_relay', 'chrono_stone']],
-  'Night Court': [['coronal_lance', 'ember_idol']],
-  'Forge Clans': [['kor_shieldwall', 'warden_totem']],
-  Starwatch: [['ser_twin_moons', 'frost_reliquary']],
-  Wildfire: [['pyr_flare_imp', 'ember_idol'], ['pyr_ash_walker', 'crown_first_sun']],
-};
-for (const d of PRESET_DECKS) {
-  for (const [out, inn] of [...(BIG_SWAPS[d.name] ?? []), ...(RELIC_SWAPS[d.name] ?? [])]) {
-    const at = d.cards.lastIndexOf(out);
-    if (at >= 0) d.cards[at] = inn;
-  }
-}
 
 /**
  * The race most of these cards belong to (its costliest Hero's on a tie; undefined for all-neutral cards). A deck
