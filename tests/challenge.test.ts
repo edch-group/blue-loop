@@ -72,6 +72,9 @@ describe('challenges', () => {
       const won = { ...g, winnerId: g.players[0].id, players: g.players.map((p, i) => (i === 1 ? { ...p, eliminated: true } : p)) };
       s = applyCampaignAction(s, { type: 'finishBattle', game: won });
       expect(LOST_LORDS.some((id) => flagship(s!, s!.playerId)!.deck.includes(id))).toBe(true);
+      // (And the map shows it as the battle's loot.)
+      expect(s.loot?.won).toBe(true);
+      expect(s.loot?.cards.some((id) => LOST_LORDS.includes(id))).toBe(true);
     }
     let f = nextTo('frost')!;
     const army = flagship(f, f.playerId)!;

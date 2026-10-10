@@ -6534,3 +6534,17 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .confirm-pill button.on { background: var(--ink); color: #fff; }
 @media (max-height: 560px) { .confirm-pill { left: calc(var(--pad-l, 0px) + 8px); bottom: calc(var(--pad-b, 0px) + 8px); } .confirm-pill button { padding: 5px 8px; font-size: 0.5rem; letter-spacing: 0.1em; } }
 .table-view.zoom-rival > .confirm-pill, .table-view.zoom-mine > .confirm-pill { opacity: 0; pointer-events: none; }
+
+/* A battle's loot, on the map as you come back: what it paid, the relics found, the cards gained. */
+.loot-rows { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; margin: 4px 0 14px; }
+.loot-row { display: flex; align-items: baseline; gap: 6px; font-family: var(--display); letter-spacing: 0.08em; }
+.loot-row b { font-size: 1.15rem; color: var(--ink); }
+.loot-row span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.16em; color: var(--ink-soft); }
+.loot-row svg { width: 16px; height: 16px; align-self: center; }
+.loot-relics { display: grid; gap: 10px; margin: 0 auto 14px; max-width: 420px; }
+.loot-relic { display: flex; align-items: center; gap: 12px; text-align: left; }
+.loot-relic .cmp-relic { flex: none; animation: none; }
+.loot-relic b { display: block; font-family: var(--display); font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.72rem; color: var(--ink); }
+.loot-relic small { color: var(--ink-soft); font-size: 0.8rem; line-height: 1.35; }
+.loot-cards { justify-content: center; margin-bottom: 12px; }
+.loot-card { cursor: default; }

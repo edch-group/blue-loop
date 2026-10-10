@@ -101,11 +101,9 @@ const WAVE_EXTRA_MS = 450;
 /** Whether a day's effect is the table's heat, loosed as a heat wave from the Stellari (not a card's). */
 const isWave = (p: TurnPulse) => p.kind === 'unstable' && !p.uid;
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
-import { CampaignView, cardHtml, loadCampaign } from './campaign';
+import { CampaignView, loadCampaign } from './campaign';
 import { relicMark } from './relic-art';
 
-/** Hero gear's mark, in a battle's finds. */
-const GEAR_ICON = '<svg viewBox="0 0 16 16"><path d="M8 1.8 13.5 4v4c0 3.4-2.4 5.6-5.5 6.4C4.9 13.6 2.5 11.4 2.5 8V4z"/></svg>';
 import { closeTour, tourShowing } from './tour';
 import { shownKind, isBurst, isBossCard, bossIntent, relicN, relicOf, RELIC_POWERS, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
@@ -2252,9 +2250,6 @@ export class App {
   }
 
   /** Leave a campaign battle: hand the result (or the battle to auto-resolve) back to the map. */
-  /** The card picked to salvage on a campaign battle's result. */
-  private salvagePick: string | null = null;
-
   private returnToCampaign(auto: boolean, salvage?: string | null) {
     closeTour();
     if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
@@ -2264,7 +2259,6 @@ export class App {
     this.sheet = null;
     this.pending = null;
     this.campaign.finishBattle(this.state!, auto, salvage);
-    this.salvagePick = null;
     this.render();
   }
 
@@ -3828,12 +3822,10 @@ export class App {
         this.render();
         return this.showBanner('campaign', this.campaign.turnLine(), 120, 'campaign');
       case 'campaign-return':
-        return this.returnToCampaign(false, this.state && this.campaign.salvageFor(this.state).length ? this.salvagePick : undefined);
+        // (What it won, salvage to pick included, waits on the map.)
+        return this.returnToCampaign(false);
       case 'campaign-return-none':
         return this.returnToCampaign(false, null);
-      case 'salvage-pick':
-        this.salvagePick = arg ?? null;
-        return this.render();
       case 'ranked-find':
         return this.findRanked();
       case 'ranked-cancel':
@@ -5400,41 +5392,9 @@ export class App {
     const why = draw
       ? `Every sun went supernova together in round ${s.round}.${this.campaignBattle ? ' Your flagship pulls back, unbroken.' : ''}`
       : quitter ? `${quitter.id === viewer.id ? 'You' : solo ? 'Your rival' : esc(quitter.name)} conceded in round ${s.round}.` : `The last sun standing after ${s.round} round${s.round === 1 ? "" : "s"}.`;
-    // A campaign battle won: up to three of the beaten side's cards to salvage, one to take.
-    const salvage = this.campaignBattle ? this.campaign.salvageFor(s) : [];
-    const pick = salvage.find((x) => x.id === this.salvagePick);
-    const salvageHtml = salvage.length
-      ? `<div class="salvage">
-          <div class="salvage-title">${this.campaign.salvageTitle(s)}</div>
-          <div class="salvage-cards">${salvage
-            .map((x) => `<button class="cmp-pick ${x.id === this.salvagePick ? 'cmp-pick-on' : ''}" data-act="salvage-pick" data-arg="${x.id}">${cardHtml(x.id)}</button>`)
-            .join('')}</div>
-        </div>`
-      : '';
-    // And whatever turned up in the wreckage: gear for your hero, modules for your ship.
-    const finds = this.campaignBattle ? this.campaign.findsFor(s) : [];
-    // Each find is just its mark (what it does, ringed by its quality): everything about it on hover or press.
-    const findsHtml = finds.length
-      ? `<div class="salvage finds">
-          <div class="salvage-title">found</div>
-          <div class="finds-row">${finds
-            .map((f) => {
-              const note = f.note ?? (f.cursed ? 'Cursed.' : '');
-              // (A relic: its painted badge, as down the right of the map.)
-              return f.art
-                ? `<button class="find find-relic rarity-${f.rarity} ${f.cursed ? 'find-cursed' : ''}" data-tip-title="${esc(f.name.toLowerCase())}" data-tip="${esc(f.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${f.name}. ${f.text}`)}">${f.art}</button>`
-                : `<button class="find rarity-${f.rarity} ${f.cursed ? 'find-cursed' : ''}" data-tip-title="${esc(f.name.toLowerCase())}" data-tip="${esc(f.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${f.name}. ${f.text}`)}">${effectMark(f.mark)}<i class="find-kind">${GEAR_ICON}</i></button>`;
-            })
-            .join('')}</div>
-        </div>`
-      : '';
-    // What a campaign battle won pays: materials.
-    const spoils = this.campaignBattle ? this.campaign.spoilsFor(s) : 0;
-    const spoilsHtml = spoils ? `<div class="result-rewards"><span>+${spoils} materials</span></div>` : '';
+    // (A campaign battle's spoils, salvage and finds are shown on the map, as its loot, once you are back there.)
     const actions = this.campaignBattle
-      ? salvage.length
-        ? `<div class="result-actions"><button class="btn-primary" data-act="campaign-return" ${pick ? '' : 'disabled'}>confirm</button><button class="btn" data-act="campaign-return-none">leave it</button></div>`
-        : '<button class="btn-primary" data-act="campaign-return">return to the campaign</button>'
+      ? '<button class="btn-primary" data-act="campaign-return">continue</button>'
       : this.online && this.net.ranked
         ? '<div class="result-actions"><button class="btn-primary" data-act="ranked-again">find another match</button><button class="btn" data-act="to-menu">return to menu</button></div>'
         : this.online
@@ -5443,13 +5403,10 @@ export class App {
           : '<div class="result-actions"><button class="btn-primary" data-act="online-rematch">play again</button><button class="btn" data-act="to-menu">return to menu</button></div>'
         : '<button class="btn-primary" data-act="to-menu">return to menu</button>';
     return `
-      <div class="game-result ${solo && !draw ? (won ? 'result-win' : 'result-loss') : ''} ${salvage.length || finds.length ? 'result-spoils' : ''}">
+      <div class="game-result ${solo && !draw ? (won ? 'result-win' : 'result-loss') : ''}">
         <h2>${title}</h2>
         <p>${why}</p>
         ${this.resultExtra}
-        ${spoilsHtml}
-        ${findsHtml}
-        ${salvageHtml}
         ${actions}
       </div>`;
   }

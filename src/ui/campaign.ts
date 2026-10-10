@@ -625,7 +625,7 @@ export class CampaignView {
   /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */
   private moveSpent(): boolean {
     const s = this.state;
-    if (!s || s.phase !== 'player' || s.battle || s.conquest || s.cardRewards.length || s.boon || s.winner) return false;
+    if (!s || s.phase !== 'player' || s.battle || s.conquest || s.loot || s.cardRewards.length || s.boon || s.winner) return false;
     const a = flagship(s, s.playerId);
     // (Moved, or with nowhere to go at all: there is no waiting, so time moves on by itself.)
     return !!a && armyMoves(s, a).length === 0;
@@ -966,6 +966,9 @@ export class CampaignView {
         break;
       case 'cmp-card':
         if (this.apply({ type: 'chooseCard', defId: arg || null })) sound.buy();
+        break;
+      case 'cmp-loot-ok':
+        if (this.apply({ type: 'dismissLoot' })) sound.buy();
         break;
       case 'cmp-end-turn':
         // Hold where it stands for a turn (the collapse still comes on).
@@ -2181,6 +2184,27 @@ export class CampaignView {
     if (s.conquest) {
       const n = nodeById(s, s.conquest.nodeId);
       return this.modal(`${lower(n.name)} has fallen`, `<div class="center-row"><button class="btn-primary" data-act="cmp-conquer">take it · ${MATERIALS}+${n.yield.materials}</button></div>`, false, '', 'cmp-modal-narrow');
+    }
+    // What the last battle brought: shown once you are back on the map, before any card to choose.
+    if (s.loot) {
+      const l = s.loot;
+      const rows = [
+        l.materials ? `<div class="loot-row">${MATERIALS}<b>+${l.materials}</b><span>materials</span></div>` : '',
+        l.xp ? `<div class="loot-row"><b>+${l.xp}</b><span>experience</span></div>` : '',
+        l.petals ? `<div class="loot-row"><b>+${l.petals}</b><span>Stellari petals</span></div>` : '',
+      ].join('');
+      const relics = l.relics
+        .map((r) => `<div class="loot-relic"><span class="cmp-relic ${r.cursed ? 'cursed' : ''}">${relicMark(r.name, r.slot)}</span><div><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div></div>`)
+        .join('');
+      const cards = l.cards.map((id) => `<div class="cmp-pick loot-card">${cardHtml(id)}</div>`).join('');
+      return this.modal(
+        l.won ? 'loot' : 'what was saved',
+        `${rows ? `<div class="loot-rows">${rows}</div>` : ''}${relics ? `<div class="loot-relics">${relics}</div>` : ''}${cards ? `<div class="cmp-cards loot-cards">${cards}</div>` : ''}
+         <div class="center-row"><button class="btn-primary" data-act="cmp-loot-ok">take it</button></div>`,
+        false,
+        '',
+        'cmp-modal-narrow',
+      );
     }
     const reward = s.cardRewards[0];
     if (reward) {

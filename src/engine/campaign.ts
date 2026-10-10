@@ -591,6 +591,16 @@ export interface CampaignLogEntry {
   who?: string;
 }
 
+/** What a battle brought the player (see CampaignState.loot). */
+export interface Loot {
+  won: boolean;
+  materials: number;
+  xp: number;
+  petals: number;
+  relics: Relic[];
+  cards: string[];
+}
+
 export interface CampaignState {
   version: 6;
   /** Core (a core race's run: core races, their cards and Core's rules) or Lost Races (unset: Lost Races). */
@@ -638,6 +648,11 @@ export interface CampaignState {
   lordsWon?: string[];
   /** A Frost Line's reward waiting to be chosen: more max health for good, or cooling now. */
   boon?: { source: string };
+  /**
+   * What the player's last battle brought them, shown on the map as they come back to it (then let go): won or not,
+   * and everything gained (materials, experience, petals, relics, cards put in their deck or reserve).
+   */
+  loot?: Loot;
   /** Whose part of the turn it is: the player's, then the AI factions' in turn. */
   phase: 'player' | 'ai';
   /** AI factions still to act this turn (their turns pause while the player defends). */
@@ -691,6 +706,8 @@ export type CampaignAction =
   /** Hand back the battle once it is over (or ask for it to be auto-resolved from here). */
   /** `salvage`: the card the player salvaged from the beaten side (salvageOptions), or null to take none. */
   | { type: 'finishBattle'; game: GameState; auto?: boolean; salvage?: string | null }
+  /** The player has seen what their last battle brought them. */
+  | { type: 'dismissLoot' }
   /** A Frost Line's reward: 5 more max health on the flagship's sun for good, or 6 cooling now. */
   | { type: 'takeBoon'; pick: 'health' | 'cool' }
   | { type: 'conquer'; choice: ConquestChoice }
@@ -924,6 +941,35 @@ export function deckRemoveProblem(army: Army, defId: string): string | null {
 /** Materials for recycling a card: half its armory price (at least 1). */
 export function recycleValue(defId: string): number {
   return Math.max(1, Math.floor(armoryPrice(defId) * CAMPAIGN.recycleShare));
+}
+
+/** Where the player stands, to tell what a battle brought them (see lootSince). */
+function lootMark(s: CampaignState) {
+  const f = factionById(s, s.playerId);
+  const cards = [...s.armies.filter((a) => a.owner === f.id).flatMap((a) => a.deck), ...f.reserve];
+  return { materials: f.materials, xp: s.xp ?? 0, petals: s.petals, relics: new Set((f.relics ?? []).map((r) => r.id)), cards };
+}
+
+/** What the player gained since the mark: materials, experience, petals, relics, and cards put in a deck or the reserve. */
+function lootSince(s: CampaignState, before: ReturnType<typeof lootMark>, won: boolean): Loot {
+  const now = lootMark(s);
+  const f = factionById(s, s.playerId);
+  const had = new Map<string, number>();
+  for (const id of before.cards) had.set(id, (had.get(id) ?? 0) + 1);
+  const cards: string[] = [];
+  for (const id of now.cards) {
+    const n = had.get(id) ?? 0;
+    if (n > 0) had.set(id, n - 1);
+    else cards.push(id);
+  }
+  return {
+    won,
+    materials: Math.max(0, now.materials - before.materials),
+    xp: Math.max(0, now.xp - before.xp),
+    petals: Math.max(0, now.petals - before.petals),
+    relics: (f.relics ?? []).filter((r) => !before.relics.has(r.id)),
+    cards,
+  };
 }
 
 /** Bring a saved campaign up to the current rules (saves from before version 4 aren't kept: see the UI). */
@@ -2503,7 +2549,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
   if (s.battle && action.type !== 'finishBattle') throw new GameError('Finish the battle first.');
   if (s.phase === 'ai' && action.type !== 'finishBattle' && action.type !== 'chooseCard' && action.type !== 'aiStep') throw new GameError('Wait for the other factions to finish their turns.');
   if (s.conquest && action.type !== 'conquer') throw new GameError('Decide the fate of the conquered system first.');
-  if (s.cardRewards.length && !['chooseCard', 'finishBattle', 'conquer', 'aiStep'].includes(action.type)) throw new GameError('Choose your new card first.');
+  if (s.cardRewards.length && !['chooseCard', 'finishBattle', 'conquer', 'aiStep', 'dismissLoot'].includes(action.type)) throw new GameError('Choose your new card first.');
 
   switch (action.type) {
     case 'move': {
@@ -2564,9 +2610,19 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     }
     case 'finishBattle': {
       if (!s.battle) throw new GameError('There is no battle to finish.');
-      resolveBattle(s, action.auto ? simulateBattle(action.game) : action.game, action.salvage);
+      const before = lootMark(s);
+      const game = action.auto ? simulateBattle(action.game) : action.game;
+      const mine = game.players.find((p) => !p.isAI);
+      resolveBattle(s, game, action.salvage);
+      const loot = lootSince(s, before, !!mine && game.winnerId === mine.id);
+      // (Shown on the map only if it brought something.)
+      if (loot.materials || loot.xp || loot.petals || loot.relics.length || loot.cards.length) s.loot = loot;
+      else delete s.loot;
       break;
     }
+    case 'dismissLoot':
+      delete s.loot;
+      break;
     case 'takeBoon': {
       if (!s.boon) throw new GameError('There is nothing to choose.');
       const army = flagship(s, s.playerId);

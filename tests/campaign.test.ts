@@ -438,6 +438,16 @@ describe('salvage', () => {
   });
 });
 
+describe('loot', () => {
+  it('a battle won leaves its loot to be shown on the map, until it is seen', () => {
+    const t = winBattle(attack(fresh()));
+    expect(t.loot?.won).toBe(true);
+    expect(t.loot!.xp + t.loot!.materials + t.loot!.cards.length + t.loot!.relics.length).toBeGreaterThan(0);
+    const u = applyCampaignAction(t, { type: 'dismissLoot' });
+    expect(u.loot).toBeUndefined();
+  });
+});
+
 describe('losing and drawing', () => {
   it('ends the run when the player loses a battle, but not on a draw', async () => {
     const { applyAction, DRAW } = await import('../src/engine/game');
