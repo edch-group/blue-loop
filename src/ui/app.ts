@@ -4942,6 +4942,7 @@ export class App {
             fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”. Passive heat comes at dawn and always strikes the sun; heat as a card is played can be aimed at a rival card instead."),
             fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun. Passive cooling comes at dusk.'),
             fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat. They fade at your Dawn.'),
+            fact(`${keywordHtml('repair', undefined, { named: true })}`, 'Mends worn defence on your cards and slots, most worn first.'),
             fact('Attacks', "Once a day, a card's attack strikes the rival's sun or one of their cards (which hits back)."),
             fact('Energy', `Cards cost energy (the green gem). You get 1 on your first day, 2 on your second, then ${B.maxPlays} a day. The industrial planet and energy cards add more on top.`),
             fact('Orbit', `Three planets take turns facing your sun, ${B.orbitTurns} days each.`),

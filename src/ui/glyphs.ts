@@ -612,11 +612,12 @@ export function costDots(def: CardDef): string {
 
 const escText = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-/** Heat, cool and shields are drawn as symbols on cards: two chevrons up, two down, a hex (as the shields' lattice by the sun). */
+/** Heat, cool, shields and repair are drawn as symbols on cards: two chevrons up, two down, a hex (as the shields' lattice by the sun), a wrench. */
 const SYMBOL_SVG: Record<string, string> = {
   heat: '<polyline points="2,6.5 6,2.5 10,6.5"/><polyline points="2,10.5 6,6.5 10,10.5"/>',
   cool: '<polyline points="2,1.5 6,5.5 10,1.5"/><polyline points="2,5.5 6,9.5 10,5.5"/>',
   shield: '<path class="kw-ico-fill" d="M6 1.2 10.2 3.6 10.2 8.4 6 10.8 1.8 8.4 1.8 3.6Z"/><path d="M6 3.9 7.8 4.95 7.8 7.05 6 8.1 4.2 7.05 4.2 4.95Z" stroke-width="0.9"/>',
+  repair: '<path d="M8.4 1.4a2.4 2.4 0 0 0-2.7 3.2L1.6 8.7a1.15 1.15 0 0 0 1.7 1.7l4.1-4.1a2.4 2.4 0 0 0 3.2-2.7L9 5.2 7.5 4.5 6.8 3Z"/>',
 }
 
 /** Marks for what a hero's ability or a boon does, by its effect (the heat, cool and shield symbols, and a few more). */
@@ -625,7 +626,6 @@ const EFFECT_SVG: Record<string, string> = {
   draw: '<rect x="3" y="1.8" width="6" height="8.4" rx="1.2" class="kw-ico-fill"/>',
   energy: '<circle cx="6" cy="6" r="3.2" class="kw-ico-fill"/>',
   wall: '<path d="M2 9.8h8M2.6 9.8V5.2h6.8v4.6M2.6 5.2 6 2.2l3.4 3"/>',
-  repair: '<path d="M6 2.2v7.6M2.2 6h7.6"/>',
   time: '<circle cx="6" cy="6" r="4"/><path d="M6 3.6V6l1.8 1.2"/>',
   plant: '<path d="M6 10.4V5.2M6 5.2C6 3 7.8 1.8 9.8 1.8 9.8 4 8.2 5.2 6 5.2zM6 7C6 5.2 4.6 4.2 2.4 4.2 2.4 6.2 3.8 7 6 7z"/>',
   star: '<path d="M6 1.6 7.2 4.6 10.4 4.8 7.9 6.8 8.7 9.9 6 8.2 3.3 9.9 4.1 6.8 1.6 4.8 4.8 4.6z" class="kw-ico-fill"/>',

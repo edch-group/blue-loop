@@ -12,8 +12,8 @@ export interface Keyword {
   /** As it reads on a card. */
   name: string;
   /** Colour family on the card. */
-  group: 'defence' | 'resonance' | 'stability' | 'recovery' | 'removal' | 'shields' | 'lightspeed' | 'global' | 'orbit' | 'heat' | 'cool' | 'tempo' | 'timing';
-  /** Drawn as a symbol and its number on a card (heat, cool, shields), not as a word. */
+  group: 'defence' | 'resonance' | 'stability' | 'recovery' | 'removal' | 'shields' | 'lightspeed' | 'global' | 'orbit' | 'heat' | 'cool' | 'repair' | 'tempo' | 'timing';
+  /** Drawn as a symbol and its number on a card (heat, cool, shields, repair), not as a word. */
   symbol?: boolean;
   /** What it means, for a given value (or in general, without one). */
   explain: (value?: string) => string;
@@ -45,7 +45,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   shield: { name: 'shields', group: 'shields', symbol: true, explain: () => 'Blocks heat on your sun. Fades at dawn.' },
   guard: { name: 'guard', group: 'defence', explain: () => 'Must be attacked first (heat aimed by cards played goes where it likes).' },
   sturdy: { name: 'sturdy', group: 'defence', explain: () => 'Extra defence.' },
-  repair: { name: 'repair', group: 'defence', explain: () => 'Mends worn defence.' },
+  repair: { name: 'repair', group: 'repair', symbol: true, explain: () => 'Mends worn defence on your cards and slots.' },
   bulwark: { name: 'bulwark', group: 'defence', explain: (v) => reach(v, 'Extra defence for neighbours') },
   resonance: { name: 'resonance', group: 'resonance', explain: (v) => reach(v, "Boosts neighbours' heat, cooling and shields") },
   forge: { name: 'forge', group: 'resonance', explain: () => 'Boosts neighbouring armed cards (those with 1+ attack).' },

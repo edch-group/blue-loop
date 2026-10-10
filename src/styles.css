@@ -3035,6 +3035,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .kw-heat { --kwc: #d0592a; }
 .kw-tempo { --kwc: #7a9a2a; }
 .kw-cool { --kwc: #1e9bd7; }
+.kw-repair { --kwc: #3f8a7e; }
 /* Heat, cool and shields: a symbol and its number. */
 /* Laid out as plain inline text, so the number and the words round it share one baseline;
    the icon stands on that baseline, as tall as a capital. */
@@ -5720,7 +5721,7 @@ body:has(.game-result) .dock { visibility: hidden; }
 .yield-cool { color: #3d8fd1; }
 .yield-shield { color: #4f86c6; }
 .yield-draw, .yield-plays { color: #3f9a68; }
-.yield-repair { color: #7a7f8f; }
+.yield-repair { color: #3f8a7e; }
 .yield-selfHeat { color: #a8473a; background: rgba(255, 236, 230, 0.95); }
 /* A card's mechanics, each as its own mark in its keyword's colour (its number beside it, where it has one), after
    what it gives each day. The strip keeps within the card's width, wrapping away from it (up over yours, down
@@ -6511,3 +6512,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cmp-relic:not(:has(img)) svg { stroke: #e8dcb6; }
 .cmp-relic.cursed:not(:has(img)) { background: radial-gradient(circle at 35% 28%, #7a3e46, #4a2129 62%, #2e141a); }
 .cmp-relic.cursed:not(:has(img)) svg { stroke: #f0c9b8; }
+/* Repair, a core keyword beside heat, cool and shields: its own colour wherever its mark shows. */
+.eff-repair { color: #3f8a7e; }
+.find .eff-repair, :is(.hero-pick-mark, .boon-mark) .eff-repair, :is(.sh-socket, .sh-mod-face) .eff-repair { color: #3f8a7e; }
