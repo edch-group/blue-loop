@@ -1703,10 +1703,11 @@ describe('relic powers', () => {
     expect(after[2]).toBeLessThan(before[2]);
   });
 
-  it('Vigour steadies every card put into play; a dawn Recall waits on its holder', () => {
+  it('Vigour steadies every card put into play; a Recall relic is called on when its holder likes, once a day', () => {
     const s = twoPlayer(6);
     const [ada] = s.players;
     ada.relics = [relic('vigour', 2), relic('recall', 1)];
+    ada.skills = [{ id: 'relic-r', name: 'Test recall', text: 'Once per day: Recall 1.', hero: '', effects: [], cost: 0, once: false, relic: 'Test recall', choices: { kind: 'recall', times: 1 } }];
     const [c] = give(ada, ['helio_lancer'], 'tableau');
     void c;
     const [d] = give(ada, ['helio_lancer'], 'hand');
@@ -1715,7 +1716,14 @@ describe('relic powers', () => {
     expect(placed.health).toBe(baseHealth('helio_lancer') + 2);
     t = endTurn(t);
     t = endTurn(t);
+    // (Nothing asked at dawn.)
+    expect(t.players[0].dawnChoices ?? []).toHaveLength(0);
+    t = applyAction(t, { type: 'heroSkill', index: 0 });
     expect(t.players[0].dawnChoices?.[0]).toMatchObject({ kind: 'recall', relic: 'Test recall' });
+    t = applyAction(t, { type: 'dawnChoice' });
+    expect(() => applyAction(t, { type: 'heroSkill', index: 0 })).toThrow(/today/);
+    t = endTurn(endTurn(t));
+    expect(() => applyAction(t, { type: 'heroSkill', index: 0 })).not.toThrow();
   });
 
   it('Recycle answers a discard pile shuffled back with a blow', () => {

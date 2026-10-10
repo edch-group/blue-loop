@@ -398,7 +398,7 @@ export function relicBonus(relics: Relic[] | undefined, hero = ''): { boons: str
     else if (r.power === 'walls') out.walls += n;
     else if (r.power === 'edge') out.guns += n;
     else if (r.power === 'herald') out.start = true;
-    else if (def.kind === 'once') out.skills.push({ id: `relic-${r.id}`, name: r.name, text: def.text(n), hero, effects: def.effects!(n), cost: 0, once: true, relic: r.name, ...(def.choices ? { choices: def.choices(n) } : {}) });
+    else if (def.kind === 'once' || def.kind === 'daily') out.skills.push({ id: `relic-${r.id}`, name: r.name, text: def.text(n), hero, effects: def.effects!(n), cost: 0, once: def.kind === 'once', relic: r.name, ...(def.choices ? { choices: def.choices(n) } : {}) });
     else out.powers.push({ power: r.power, n, name: r.name });
   }
   return out;

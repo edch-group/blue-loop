@@ -3,7 +3,7 @@ import { BALANCE } from './balance';
 import { CARDS, cardDef, cardIn as cardInMode, hasDarkspeed, isBurst, PRESET_DECKS } from './cards';
 import { isBossCard } from './cards-bosses';
 import { inMode, setRulesMode } from './modes';
-import { relicN, relicOf, type RelicPower } from './relics';
+import { relicN, relicOf, RELIC_POWERS, type RelicPower } from './relics';
 import { raceTrait } from './races';
 import { randomInt, shuffleInPlace } from './rng';
 import type { Action, CardDef, CardInstance, CardKind, Condition, Count, Effect, FieldId, GameSetup, GameState, LightspeedTrigger, Passive, ReactEvent, Reaction, Planet, PlayerState, TurnPulse, TurnStats } from './types';
@@ -1655,10 +1655,11 @@ function dawn(state: GameState, p: PlayerState) {
     p.hand.push(newCard(state, given));
     log(state, `${p.name}'s ${relicOf(p.relics, 'gift')!.name} gives them ${cardDef(given).name}.`);
   }
-  for (const kind of ['recall', 'shift'] as const) {
-    const relic = relicOf(p.relics, kind);
-    const could = kind === 'recall' ? p.tableau.some(returnable) : p.tableau.some((c) => c.slot !== COMMAND_SLOT);
-    if (relic && could) (p.dawnChoices ??= []).push({ uid: `relic:${relic.name}`, kind, relic: relic.name });
+  // (A battle begun before its once-a-day relics were buttons: they become them now.)
+  for (const r of p.relics ?? []) {
+    const def = RELIC_POWERS[r.power];
+    if (def.kind !== 'daily' || p.skills?.some((k) => k.relic === r.name)) continue;
+    (p.skills ??= []).push({ id: `relic-${r.name}`, name: r.name, text: def.text(r.n), hero: commandCard(p)?.defId ?? '', effects: def.effects!(r.n), cost: 0, once: false, relic: r.name, ...(def.choices ? { choices: def.choices(r.n) } : {}) });
   }
   // (Cards no longer fade with the days: they stand until beaten down or removed.) Anchor mends its neighbours.
   for (const card of p.tableau) if (anchored(p, card) && cardDef(card.defId).kind !== 'relic') mend(state, p, card, 1);
@@ -2331,8 +2332,9 @@ export function applyAction(prev: GameState, action: Action): GameState {
       else k.usedTurn = state.turnNumber;
       log(state, k.relic ? `${p.name} calls on the ${k.relic}.` : `${p.name} calls on ${cardDef(k.hero).name}: ${k.name}.`);
       resolveEffects(state, p, { uid: `skill-${k.id}`, defId: k.hero }, k.effects, 'play');
-      // (A relic's Recall 2: its choices, one after another, before anything else.)
-      for (let i = 0; i < (k.choices?.times ?? 0); i++) if (p.tableau.some(returnable)) (p.dawnChoices ??= []).push({ uid: `relic:${k.relic ?? k.name}`, kind: k.choices!.kind, relic: k.relic ?? k.name });
+      // (A relic's Recall 2, or its Shift: its choices, one after another, before anything else.)
+      const could = k.choices?.kind === 'shift' ? p.tableau.some((c) => c.slot !== COMMAND_SLOT) : p.tableau.some(returnable);
+      for (let i = 0; i < (k.choices?.times ?? 0); i++) if (could) (p.dawnChoices ??= []).push({ uid: `relic:${k.relic ?? k.name}`, kind: k.choices!.kind, relic: k.relic ?? k.name });
       if (p.eliminated) passOn(state);
       break;
     }

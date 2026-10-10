@@ -1685,11 +1685,6 @@ export class App {
     const me = activePlayer(this.state!);
     const over = me.hand.length - BALANCE.maxHand;
     this.sheet = null;
-    // A Dusk Shift relic: first, a card to move as the day ends (or let it be).
-    if (this.duskMove === undefined && relicN(me.relics, 'duskShift') && me.tableau.some((c) => c.slot !== COMMAND_SLOT)) {
-      this.duskShifting = true;
-      return this.render();
-    }
     const duskShift = this.duskMove ?? undefined;
     if (over > 0) {
       const picked = (this.discarding ?? []).filter((u) => me.hand.some((c) => c.uid === u));
@@ -5616,8 +5611,10 @@ export class App {
         if (!k.relic) return '';
         const why = heroSkillProblem(s, me, i);
         const ready = !why && act && !busy;
-        const note = k.spent ? 'Used.' : '';
-        return `<button class="cmp-relic relic-active ${k.spent ? 'spent' : ''} ${ready ? 'ready' : ''}" ${ready ? `data-act="hero-skill" data-arg="${i}"` : ''} data-tip-title="${esc(k.relic.toLowerCase())}" data-tip="${esc(k.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${k.relic}. ${k.text}`)}">${relicMark(k.relic, '')}</button>`;
+        // (Once a battle, it is spent for good; once a day, until tomorrow.)
+        const used = k.spent || (!k.once && k.usedTurn === s.turnNumber);
+        const note = k.spent ? 'Used.' : used ? 'Used today.' : '';
+        return `<button class="cmp-relic relic-active ${used ? 'spent' : ''} ${ready ? 'ready' : ''}" ${ready ? `data-act="hero-skill" data-arg="${i}"` : ''} data-tip-title="${esc(k.relic.toLowerCase())}" data-tip="${esc(k.text)}" data-tip-note="${esc(note)}" aria-label="${esc(`${k.relic}. ${k.text}`)}">${relicMark(k.relic, '')}</button>`;
       })
       .join('');
     // A relic that counts the day's attacks (three, and it strikes): its token, filling as they are made.

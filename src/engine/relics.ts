@@ -44,15 +44,15 @@ export type RelicPower =
   | 'paradise';
 
 export interface RelicPowerDef {
-  /** Always at work, answering what happens, or kept for once a battle (a button on the battle's right). */
-  kind: 'passive' | 'trigger' | 'once';
+  /** Always at work, answering what happens, or kept for the right moment: once a battle, or once a day (a button on the battle's right). */
+  kind: 'passive' | 'trigger' | 'once' | 'daily';
   /** Its number, by rarity: white dwarf, stellar, anomaly. */
   amounts: [number, number, number];
   text: (n: number) => string;
-  /** A once-a-battle power's effects, as its holder calls on it. */
+  /** A once-a-battle (or once-a-day) power's effects, as its holder calls on it. */
   effects?: (n: number) => Effect[];
-  /** A once-a-battle power's choices for its holder to make, one after another (Recall 2: two cards back to hand). */
-  choices?: (n: number) => { kind: 'recall'; times: number };
+  /** Its choices for its holder to make, one after another (Recall 2: two cards back to hand). */
+  choices?: (n: number) => { kind: 'recall' | 'shift'; times: number };
 }
 
 
@@ -67,8 +67,8 @@ export const RELIC_POWERS: Record<RelicPower, RelicPowerDef> = {
   flurry: { kind: 'trigger', amounts: [1, 2, 3], text: (n) => `When you attack with 3 cards in one turn, deal ${n} heat to any target.` },
   splash: { kind: 'trigger', amounts: [1, 1, 2], text: (n) => `Splash damage: attacks deal ${n} heat either side of the target.` },
   recycle: { kind: 'trigger', amounts: [4, 5, 6], text: (n) => `Every time you recycle your discard pile, deal ${n} heat to any target.` },
-  recall: { kind: 'trigger', amounts: [1, 1, 1], text: () => 'Dawn: Recall 1.' },
-  shift: { kind: 'trigger', amounts: [1, 1, 1], text: () => 'Dawn: Shift 1.' },
+  recall: { kind: 'daily', amounts: [1, 1, 1], text: () => 'Once per day: Recall 1.', effects: () => [], choices: () => ({ kind: 'recall', times: 1 }) },
+  shift: { kind: 'daily', amounts: [1, 1, 1], text: () => 'Once per day: Shift 1.', effects: () => [], choices: () => ({ kind: 'shift', times: 1 }) },
   mend: { kind: 'trigger', amounts: [2, 3, 4], text: (n) => `Dawn: Repair ${n}.` },
   gift: { kind: 'trigger', amounts: [1, 2, 3], text: () => 'Dawn: add a random card to your hand.' },
   bounty: { kind: 'trigger', amounts: [1, 2, 3], text: (n) => `Each rival card you destroy: cool ${n}.` },
@@ -80,7 +80,7 @@ export const RELIC_POWERS: Record<RelicPower, RelicPowerDef> = {
   starfall: { kind: 'once', amounts: [1, 2, 3], text: (n) => `Once per battle: deal ${n} heat to the rival's sun, +2 for each of your cards that hasn't attacked this turn.`, effects: (n) => [{ type: 'heat', amount: n, to: 'target', plus: { of: 'rested', per: 0.5 } }] },
   overcharge: { kind: 'once', amounts: [2, 2, 3], text: (n) => `Once per battle: +${n} energy.`, effects: (n) => [{ type: 'plays', amount: n }] },
   recallTwo: { kind: 'once', amounts: [2, 2, 2], text: (n) => `Once per battle: recall ${n}.`, effects: () => [], choices: (n) => ({ kind: 'recall', times: n }) },
-  duskShift: { kind: 'trigger', amounts: [1, 1, 1], text: () => 'Dusk: Shift 1.' },
+  duskShift: { kind: 'daily', amounts: [1, 1, 1], text: () => 'Once per day: Shift 1.', effects: () => [], choices: () => ({ kind: 'shift', times: 1 }) },
   reclaim: { kind: 'trigger', amounts: [1, 1, 1], text: (n) => `Cards in your discard pile can be played for +${n} energy.` },
   thorns: { kind: 'trigger', amounts: [1, 2, 3], text: (n) => `Your cards hit back for +${n}.` },
   leech: { kind: 'trigger', amounts: [1, 1, 2], text: (n) => `Attacking the rival's sun cools yours by ${n}.` },

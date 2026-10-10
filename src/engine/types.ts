@@ -622,7 +622,7 @@ export interface BattleSkill {
   /** A relic's once-a-battle power (its name): shown with the relics, on the battle's right, not with the hero. */
   relic?: string;
   /** Choices it leaves its holder to make, one after another (a relic's Recall 2). */
-  choices?: { kind: 'recall'; times: number };
+  choices?: { kind: 'recall' | 'shift'; times: number };
 }
 
 export interface PlayerSetup {
