@@ -3588,9 +3588,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-heart .cmp-bb { padding: 44px 44px 0; }
 
 /* ---- Campaign: regional stability and the collapse ---- */
-.cmp-stability { display: grid; gap: 4px; padding: 6px 12px; border-radius: 999px; background: var(--glass-strong); border: 1px solid #fff; box-shadow: var(--shadow); }
-.cmp-stability .stability-bar i { width: clamp(8px, calc(1.6 * var(--vw)), 16px); }
-.cmp-stability.unstable .stability-label { color: #b0544a; font-weight: 700; }
 .cmp-link-gone { stroke: rgba(70, 60, 70, 0.22); stroke-dasharray: 1 10; }
 .cmp-ring-collapse { width: 92px; height: 92px; background: radial-gradient(circle, rgba(60, 20, 30, 0.22), transparent 70%); border: 2px dashed rgba(190, 70, 60, 0.75); animation: cmp-collapse-spin 9s linear infinite; }
 @keyframes cmp-collapse-spin { to { transform: translate(-50%, -50%) rotate(-360deg); } }
@@ -3601,7 +3598,6 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-collapsed .cmp-star { filter: grayscale(1); opacity: 0.55; }
 .cmp-collapsed .cmp-label { text-decoration: line-through; opacity: 0.5; }
 .cmp-collapsed .cmp-turf { display: none; }
-@media (max-width: 700px) { .cmp-stability .stability-label { font-size: 0.42rem; } }
 .cmp-actions .btn small { display: block; font-family: var(--body, inherit); text-transform: none; letter-spacing: 0; font-size: 0.68rem; color: var(--ink-soft); }
 
 /* ---- Campaign: the base, full screen (the deck builder, the armoury and its keepers, missions) ---- */
@@ -3640,9 +3636,8 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* ---- Campaign header: turn and stability on the left (the same height), resources centred, buttons right ---- */
 .cmp-top { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; }
 .cmp-top-left { position: relative; display: flex; align-items: stretch; gap: 8px; justify-self: start; }
-.cmp-top-left > button.cmp-turn, .cmp-top-left > .cmp-stability { height: 44px; box-sizing: border-box; }
+.cmp-top-left > button.cmp-turn { height: 44px; box-sizing: border-box; }
 .cmp-top-left > button.cmp-turn { display: flex; align-items: center; gap: 6px; padding: 0 16px; border-radius: 999px; }
-.cmp-top-left > .cmp-stability { align-content: center; }
 .cmp-top > .cmp-purse { justify-self: center; }
 .cmp-top > .cmp-nav { justify-self: end; margin-left: 0; }
 
@@ -3666,7 +3661,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-guide-x { position: absolute; top: 4px; right: 6px; width: 18px; height: 18px; border: 0; background: none; color: var(--ink-faint); font-size: 0.8rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
 .cmp-guide:hover .cmp-guide-x { opacity: 1; }
 @media (max-width: 700px) {
-  .cmp-top-left > button.cmp-turn, .cmp-top-left > .cmp-stability { height: 36px; }
+  .cmp-top-left > button.cmp-turn { height: 36px; }
   .cmp-guide { grid-template-columns: 30px minmax(0, 1fr) auto; }
   .cmp-guide-face .cmp-portrait { width: 40px; height: 40px; }
   .cmp-guide-text { font-size: 0.7rem; }
@@ -3928,11 +3923,8 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 @media (max-width: 780px) {
   .cmp-top { gap: 6px; }
   .cmp-top-left { gap: 6px; }
-  .cmp-top-left > button.cmp-turn, .cmp-top-left > .cmp-stability { height: 38px; }
+  .cmp-top-left > button.cmp-turn { height: 38px; }
   .cmp-top-left > button.cmp-turn { padding: 0 10px; }
-  .cmp-stability { padding: 4px 10px; }
-  .cmp-stability .stability-label { font-size: 0.42rem; }
-  .cmp-stability .stability-bar i { width: 6px; }
   .cmp-purse { gap: 8px; }
   .cmp-purse small { display: none; }
 }
@@ -5460,12 +5452,10 @@ button.cmp-rs-offer:hover, button.cmp-rs-offer:focus-visible { transform: transl
 .cmp-stellaria .stellaria-flower ellipse, .cmp-stellaria .stellaria-flower path { fill: rgba(206, 178, 246, 0.28); stroke: #b493e6; stroke-width: 5; }
 .cmp-heart-glow { width: 150px; height: 150px; margin: -75px 0 0 -75px; }
 /* The header keeps to one line on a phone. */
-.cmp-turn, .cmp-stability .stability-label { white-space: nowrap; }
+.cmp-turn { white-space: nowrap; }
 .cmp-turn small { margin-right: 6px; }
 @media (max-width: 960px) {
   .cmp-top { gap: 8px; }
-  .cmp-top-left > .cmp-stability { width: auto; max-width: 170px; padding: 4px 10px; }
-  .cmp-stability .stability-label { font-size: 0.42rem; letter-spacing: 0.12em; }
   .cmp-top-left > button.cmp-turn { padding: 0 10px; font-size: 0.62rem; }
   .cmp-purse { flex: none; gap: 8px; }
   /* (Too narrow to centre the resources: they follow the turn and stability instead of running under them.) */
@@ -6591,3 +6581,48 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 
 /* A phone on its side: the deck boxes smaller, so more of them fit. */
 @media (max-height: 560px) { .db-boxes { --bw: clamp(62px, calc(22 * var(--vh)), 92px); } }
+
+/* ---- The loot cache: a sealed crate back on the map; tapped, it bursts and its rewards come out one at a time,
+   each lit by a living gold shimmer, then "take it". ---- */
+.loot-overlay { display: grid; place-items: center; }
+.loot-cache { display: grid; justify-items: center; gap: 10px; padding: 0; border: 0; background: none; cursor: pointer; animation: loot-float 3.2s ease-in-out infinite; }
+.loot-cache-art { width: min(190px, 34vh); height: auto; overflow: visible; filter: drop-shadow(0 10px 22px rgba(60, 60, 90, 0.18)); }
+.loot-cache-glow { animation: loot-glow 2.2s ease-in-out infinite; transform-origin: 60px 56px; }
+.loot-cache-seam { animation: loot-seam 1.6s ease-in-out infinite; }
+.loot-cache-lid { transform-box: fill-box; transform-origin: 50% 100%; }
+.loot-cache-tap { font-family: var(--display); font-size: 0.72rem; letter-spacing: 0.24em; text-transform: uppercase; color: #9a7429; }
+@media (hover: hover) { .loot-cache:hover .loot-cache-lid { transform: translateY(-2px) rotate(-2deg); } }
+@keyframes loot-float { 50% { transform: translateY(-6px); } }
+@keyframes loot-glow { 50% { opacity: 0.55; transform: scale(1.08); } }
+@keyframes loot-seam { 50% { stroke: #fff4cf; opacity: 0.6; } }
+/* Burst: a flash of gold light flung out from the middle, then the rewards one by one. */
+.loot-burst { position: fixed; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 246, 214, 1), rgba(255, 214, 110, 0.7) 40%, transparent 70%);
+  box-shadow: 0 0 60px 30px rgba(255, 220, 140, 0.6);
+  animation: loot-burst 0.9s cubic-bezier(.2,.8,.2,1) both; }
+.loot-burst::before { content: ''; position: absolute; inset: -400%; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 226, 150, 0.55) 0 4deg, transparent 4deg 18deg);
+  -webkit-mask: radial-gradient(circle, #000 20%, transparent 70%); mask: radial-gradient(circle, #000 20%, transparent 70%);
+  animation: loot-rays 0.9s ease-out both; }
+@keyframes loot-burst { 0% { transform: scale(0.2); opacity: 1; } 60% { opacity: 1; } 100% { transform: scale(60); opacity: 0; } }
+@keyframes loot-rays { from { transform: scale(0.3) rotate(0deg); opacity: 1; } to { transform: scale(1.4) rotate(40deg); opacity: 0; } }
+.loot-items { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px; max-width: min(760px, 92vw); max-height: 74vh; overflow: auto; padding: 18px; }
+.loot-item {
+  position: relative; display: grid; place-items: center; padding: 12px 16px; border-radius: 16px;
+  background: linear-gradient(160deg, #fffdf6, #fbf4e1); box-shadow: 0 0 0 1.5px rgba(214, 170, 80, 0.85), 0 0 22px 4px rgba(236, 196, 110, 0.45), 0 10px 26px rgba(90, 70, 30, 0.14);
+  animation: loot-in 0.55s cubic-bezier(.2,1.4,.4,1) both, loot-halo 2.4s ease-in-out infinite;
+  animation-delay: calc(450ms + var(--i) * 420ms), calc(1000ms + var(--i) * 420ms);
+  overflow: hidden;
+}
+/* (The shimmer: a band of light sweeping across each reward, again and again.) */
+.loot-item::after { content: ''; position: absolute; inset: -40%; pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 238, 180, 0.0) 42%, rgba(255, 236, 170, 0.75) 50%, rgba(255, 238, 180, 0) 58%, transparent 62%);
+  transform: translateX(-60%); animation: loot-shine 2.6s ease-in-out infinite; animation-delay: calc(900ms + var(--i) * 420ms); mix-blend-mode: screen; }
+.loot-item .loot-card, .loot-item .cmp-pick { margin: 0; }
+.loot-item .loot-relic { max-width: 320px; }
+.loot-take { margin-top: 6px; animation: loot-in 0.4s ease-out both; animation-delay: calc(450ms + var(--i) * 420ms + 200ms); }
+.loot-opened { flex-direction: column; display: flex; align-items: center; justify-content: center; }
+@keyframes loot-in { from { opacity: 0; transform: translateY(18px) scale(0.6); } }
+@keyframes loot-halo { 50% { box-shadow: 0 0 0 1.5px rgba(240, 200, 110, 1), 0 0 34px 8px rgba(246, 210, 120, 0.6), 0 10px 26px rgba(90, 70, 30, 0.14); } }
+@keyframes loot-shine { 0% { transform: translateX(-60%); } 55%, 100% { transform: translateX(60%); } }
+@media (prefers-reduced-motion: reduce) { .loot-cache, .loot-cache-glow, .loot-cache-seam, .loot-item, .loot-item::after { animation: none; } .loot-burst { display: none; } .loot-take { animation: none; } }

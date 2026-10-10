@@ -170,11 +170,11 @@ export const CAMPAIGN = {
    * from the rim inwards: one a turn, one more every `collapseRamp` turns after that. Each is marked a turn
    * before it goes. Whatever stands there is lost (an army falls back, if it can).
    */
-  stabilityTurns: 8,
+  stabilityTurns: 4,
   collapseRamp: 12,
   /** Each new universe gives way sooner: this many turns fewer, down to the least. */
-  stabilityStep: 2,
-  stabilityMin: 3,
+  stabilityStep: 1,
+  stabilityMin: 2,
   /** The counter: stabilise a collapsing system you hold, for materials, holding it together this many turns more (once per system). */
   stabiliseCost: 8,
   stabiliseTurns: 4,
@@ -1510,11 +1510,20 @@ function clog(s: CampaignState, text: string, at?: string | string[], who?: stri
  * Cards a faction can be offered: its own race's cards (twice as often), neutral cards, globals and the
  * fine-tuned Command cards (a deck starts with two of its race's first leader); Anomalies are rarest.
  */
-function offerPool(f: Faction, mode?: GameMode): string[] {
+function offerPool(f: Faction, mode?: GameMode, universe = 1): string[] {
   // (Generals are recruited, not bought: no Hero cards of the race's own.)
   return CARDS.filter((c) => !(c.kind === 'command' && GENERALS[f.race]?.includes(c.id)) && (c.race === undefined || c.race === f.race) && legalIn(mode, c.id)).flatMap((c) =>
-    Array(OFFER_WEIGHT[c.rarity ?? 'dwarf'] * (c.race === f.race ? 2 : 1)).fill(c.id) as string[],
+    Array(offerWeight(c.rarity ?? 'dwarf', universe) * (c.race === f.race ? 2 : 1)).fill(c.id) as string[],
   );
+}
+
+/**
+ * How often a card of a rarity turns up among rewards, in a universe: through every wormhole the rarer cards come
+ * a little more often (no promises: only the odds move).
+ */
+export function offerWeight(rarity: keyof typeof OFFER_WEIGHT, universe: number): number {
+  const on = Math.max(0, universe - 1);
+  return OFFER_WEIGHT[rarity] * 2 + (rarity === 'stellar' ? on : rarity === 'anomaly' ? Math.round(on * 0.6) : 0);
 }
 
 /** Cards an armoury can stock: any card but Heroes, globals and those made in play. */
@@ -1558,7 +1567,7 @@ export function deepIn(s: CampaignState, n: CampaignNode): boolean {
 }
 
 function randomCardChoices(s: CampaignState, f: Faction): string[] {
-  const pool = [...new Set(shuffleInPlace(s, offerPool(f, s.mode)))];
+  const pool = [...new Set(shuffleInPlace(s, offerPool(f, s.mode, s.universe)))];
   // (Wide offers, bought between runs: more to choose from.)
   return pool.slice(0, CAMPAIGN.cardChoices + (f.id === s.playerId ? s.run?.choices ?? 0 : 0));
 }
@@ -1956,7 +1965,9 @@ function spoilsRng(game: GameState, salt: string): () => number {
 }
 
 /** How fine a find is, by where it was found (r: a roll, 0–1): better the deeper the system lies. */
-function findRarity(n: CampaignNode, r: number): ItemRarity {
+function findRarity(n: CampaignNode, r: number, universe = 1): ItemRarity {
+  // (Through every wormhole the roll leans a little toward the finer finds.)
+  r *= Math.max(0.55, 1 - 0.07 * Math.max(0, universe - 1));
   return n.heart || depth(n) <= 2 ? (r < 0.4 ? 'anomaly' : 'stellar') : n.tier >= 1 ? (r < 0.15 ? 'anomaly' : r < 0.6 ? 'stellar' : 'dwarf') : r < 0.25 ? 'stellar' : 'dwarf';
 }
 
@@ -1981,7 +1992,7 @@ export function battleFinds(s: CampaignState, game: GameState): { items: Relic[]
   const modules: ShipModule[] = [];
   if (next() < HEROES.itemChance + (army ? armyBonus(s, army).loot : 0)) {
     const slots = RACE_SLOTS[f.race];
-    const slot = slots[Math.floor(next() * slots.length)].kind, rarity = findRarity(n, next()), roll = next();
+    const slot = slots[Math.floor(next() * slots.length)].kind, rarity = findRarity(n, next(), s.universe), roll = next();
     items.push(makeRelic(`item${++uid}`, slot, rarity, f.race, roll, next() < CAMPAIGN.curseChance));
   }
   // (No modules any more: the flagship is not fitted out.)
@@ -2004,7 +2015,7 @@ export function vaultFinds(s: CampaignState, game: GameState): Relic[] {
   return Array.from({ length: n.vault ?? 0 }, () => {
     const slots = RACE_SLOTS[f.race];
     const slot = slots[Math.floor(next() * slots.length)].kind;
-    return makeRelic(`item${++uid}`, slot, findRarity(n, next()), f.race, next(), false);
+    return makeRelic(`item${++uid}`, slot, findRarity(n, next(), s.universe), f.race, next(), false);
   });
 }
 
@@ -2070,7 +2081,7 @@ function overlordBounty(s: CampaignState, f: Faction, army?: Army) {
   gainXp(s, CAMPAIGN.xpBoss);
   clog(s, `${lord.name} falls: ${f.name} gathers ${petals} Stellari petal${petals === 1 ? '' : 's'} from its remains.`, undefined, f.id);
   const fits = (id: string) => rarityOf(id) !== 'dwarf' && cardDef(id).kind !== 'command' && (!army || deckAddProblem({ ...f, reserve: [id] }, army, id) === null);
-  const options = [...new Set(shuffleInPlace(s, offerPool(f, s.mode)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices + (s.run?.vault ?? 0));
+  const options = [...new Set(shuffleInPlace(s, offerPool(f, s.mode, s.universe)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices + (s.run?.vault ?? 0));
   if (options.length) s.cardRewards.push({ source: `${lord.name}'s hoard`, options, ...(army ? { toDeck: army.id } : {}), take: 'claims' });
 }
 
@@ -2338,7 +2349,7 @@ function takeCache(s: CampaignState, f: Faction, n: CampaignNode, army: Army) {
 
 /** A relic found by an army in a system it took: better the deeper the system lies, and now and then cursed. */
 function findItem(s: CampaignState, f: Faction, army: Army, n: CampaignNode) {
-  const rarity = findRarity(n, nextRandom(s));
+  const rarity = findRarity(n, nextRandom(s), s.universe);
   const slots = RACE_SLOTS[f.race];
   const kind: SlotKind = slots[randomInt(s, slots.length)].kind;
   const relic = makeRelic(`item${++s.uidCounter}`, kind, rarity, f.race, nextRandom(s), nextRandom(s) < CAMPAIGN.curseChance);

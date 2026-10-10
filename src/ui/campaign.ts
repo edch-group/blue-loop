@@ -27,8 +27,6 @@ import {
   armyMoves,
   buyProblem,
   flagship,
-  regionalStability,
-  universeStability,
   META_UPGRADES,
   upgradeOpen,
   buyStarterCard,
@@ -208,6 +206,34 @@ function portrait(cardId: string): string {
 /** One of the Lost Races: a faded figure, half gone into the dark. */
 /** How long the flagship takes to fly in as a campaign starts (seconds). */
 const ARRIVAL_FLIGHT = 3.2;
+/** A burst cache: when its first reward comes out, and the gap between each (ms; the CSS's --i steps match). */
+const LOOT_FIRST = 450;
+const LOOT_STEP = 420;
+/**
+ * A loot cache: a sealed crate of pale metal bound in gold, a seam of light along its lid and a star clasp at its
+ * front. (Its lid and body are separate, so the lid can fly off as it bursts.)
+ */
+const LOOT_CACHE = `<svg class="loot-cache-art" viewBox="0 0 120 110" aria-hidden="true">
+  <defs>
+    <linearGradient id="lcBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbfaf6"/><stop offset="1" stop-color="#d9d6cc"/></linearGradient>
+    <linearGradient id="lcGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3d58a"/><stop offset=".5" stop-color="#c99a3e"/><stop offset="1" stop-color="#f0cf7e"/></linearGradient>
+    <radialGradient id="lcGlow"><stop offset="0" stop-color="#fff6d8"/><stop offset="1" stop-color="#ffd772" stop-opacity="0"/></radialGradient>
+  </defs>
+  <ellipse cx="60" cy="100" rx="44" ry="7" fill="#3b3a4a" opacity=".14"/>
+  <circle class="loot-cache-glow" cx="60" cy="56" r="52" fill="url(#lcGlow)"/>
+  <g class="loot-cache-body">
+    <path d="M16 50h88l-6 46H22z" fill="url(#lcBody)" stroke="#b7b2a5" stroke-width="1.2"/>
+    <path d="M26 50v46M94 50v46" stroke="url(#lcGold)" stroke-width="6"/>
+    <path d="M16 62h88" stroke="url(#lcGold)" stroke-width="3"/>
+    <path d="M60 58l3.2 6.5 7.1 1-5.2 5 1.3 7-6.4-3.4-6.4 3.4 1.3-7-5.2-5 7.1-1z" fill="url(#lcGold)" stroke="#9a7429" stroke-width=".8"/>
+  </g>
+  <path class="loot-cache-seam" d="M18 50h84" stroke="#ffe7a3" stroke-width="2.5" stroke-linecap="round"/>
+  <g class="loot-cache-lid">
+    <path d="M14 50c0-14 10-24 22-24h48c12 0 22 10 22 24z" fill="url(#lcBody)" stroke="#b7b2a5" stroke-width="1.2"/>
+    <path d="M26 50c0-14 4-22 10-24M94 50c0-14-4-22-10-24" stroke="url(#lcGold)" stroke-width="6" fill="none"/>
+    <path d="M14 50h92" stroke="url(#lcGold)" stroke-width="3"/>
+  </g>
+</svg>`;
 /** The opening shot: the longest the camera rides alongside the flagship, and how long it takes to pull back. */
 const CINE_RIDE_MAX = 10;
 const CINE_REVEAL = 4.2;
@@ -353,6 +379,8 @@ export class CampaignView {
 
   /** What happened in the last battle or turn, shown once the player is free to read it. */
   private sheet: Sheet | null = null;
+  /** The cache of the last battle's rewards, burst open (its rewards coming out). */
+  private lootOpen = false;
   /** On the way into a pending battle (so the map, drawn meanwhile, sends it only once). */
   private enteringBattle = false;
   /** New-campaign setup choices (the hero: an index into the race's heroes). */
@@ -984,7 +1012,18 @@ export class CampaignView {
       case 'cmp-card':
         if (this.apply({ type: 'chooseCard', defId: arg || null })) sound.buy();
         break;
+      case 'cmp-loot-open': {
+        if (this.lootOpen || !s?.loot) break;
+        this.lootOpen = true;
+        const l = s.loot;
+        const n = [l.materials, l.xp, l.petals].filter(Boolean).length + l.relics.length + l.cards.length;
+        sound.cacheOpen();
+        // (Each reward chimes as it comes out.)
+        for (let i = 0; i < n; i++) window.setTimeout(() => sound.lootChime(i), LOOT_FIRST + i * LOOT_STEP);
+        break;
+      }
       case 'cmp-loot-ok':
+        this.lootOpen = false;
         if (this.apply({ type: 'dismissLoot' })) sound.buy();
         break;
       case 'cmp-end-turn':
@@ -1054,7 +1093,6 @@ export class CampaignView {
         <header class="cmp-top">
           <div class="cmp-top-left">
             ${this.renderGalaxy()}
-            ${this.renderStability()}
             ${scene ? this.renderStory(scene) : ''}
           </div>
           <div class="cmp-purse">
@@ -1343,23 +1381,6 @@ export class CampaignView {
         <div class="sd-body">
           <section class="sd-pool"><h4>${have.length} of ${offers.length} in deck <small>white dwarf ${starterCardPrice('dwarf')} · stellar ${starterCardPrice('stellar')} · anomaly ${starterCardPrice('anomaly')}</small></h4><div class="sd-grid sd-offers">${cards}</div></section>
         </div>
-      </div>`;
-  }
-
-  /** Regional stability: the lead-up's turns draining away, then how fast the universe is collapsing. */
-  private renderStability(): string {
-    const s = this.state!;
-    const left = regionalStability(s);
-    const total = universeStability(s);
-    const segments = Array.from({ length: total }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
-    const columns = CAMPAIGN.columns + 1 - s.collapseCol;
-    const tip = left
-      ? `Regional stability: ${left} move${left === 1 ? '' : 's'} left. Then the strip collapses from the near end, a whole column with every move, each marked a move before it goes. Whatever stands there is lost.`
-      : `The strip is collapsing: a column with every move, from the near end. Marked systems go next: be out of them. ${columns} column${columns === 1 ? '' : 's'} left, the wormhole last.`;
-    return `
-      <div class="cmp-stability ${left ? '' : 'unstable'}" data-tip="${esc(tip)}">
-        <span class="stability-label">${left ? `regional stability ${left}` : `collapsing · ${columns} left`}</span>
-        <div class="stability-bar">${segments}</div>
       </div>`;
   }
 
@@ -2245,26 +2266,24 @@ export class CampaignView {
       const n = nodeById(s, s.conquest.nodeId);
       return this.modal(`${lower(n.name)} has fallen`, `<div class="center-row"><button class="btn-primary" data-act="cmp-conquer">take it · ${MATERIALS}+${n.yield.materials}</button></div>`, false, '', 'cmp-modal-narrow');
     }
-    // What the last battle brought: shown once you are back on the map, before any card to choose.
+    // What the last battle brought: a sealed cache, once you are back on the map, before any card to choose. Tapped,
+    // it bursts open and its rewards come out one at a time, each lit gold; then they are taken.
     if (s.loot) {
       const l = s.loot;
-      const rows = [
+      const items = [
         l.materials ? `<div class="loot-row">${MATERIALS}<b>+${l.materials}</b><span>materials</span></div>` : '',
         l.xp ? `<div class="loot-row"><b>+${l.xp}</b><span>experience</span></div>` : '',
-        l.petals ? `<div class="loot-row"><b>+${l.petals}</b><span>Stellari petals</span></div>` : '',
-      ].join('');
-      const relics = l.relics
-        .map((r) => `<div class="loot-relic"><span class="cmp-relic ${r.cursed ? 'cursed' : ''}">${relicMark(r.name, r.slot)}</span><div><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div></div>`)
-        .join('');
-      const cards = l.cards.map((id) => `<div class="cmp-pick loot-card">${cardHtml(id)}</div>`).join('');
-      return this.modal(
-        l.won ? 'loot' : 'what was saved',
-        `${rows ? `<div class="loot-rows">${rows}</div>` : ''}${relics ? `<div class="loot-relics">${relics}</div>` : ''}${cards ? `<div class="cmp-cards loot-cards">${cards}</div>` : ''}
-         <div class="center-row"><button class="btn-primary" data-act="cmp-loot-ok">take it</button></div>`,
-        false,
-        '',
-        'cmp-modal-narrow',
-      );
+        l.petals ? `<div class="loot-row">${PETAL}<b>+${l.petals}</b><span>Stellari petals</span></div>` : '',
+        ...l.relics.map((r) => `<div class="loot-relic"><span class="cmp-relic ${r.cursed ? 'cursed' : ''}">${relicMark(r.name, r.slot)}</span><div><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div></div>`),
+        ...l.cards.map((id) => `<div class="cmp-pick loot-card">${cardHtml(id)}</div>`),
+      ].filter(Boolean);
+      if (!this.lootOpen)
+        return `<div class="overlay overlay-soft loot-overlay"><button class="loot-cache" data-act="cmp-loot-open" aria-label="Open the cache">${LOOT_CACHE}<span class="loot-cache-tap">${l.won ? 'victory · tap to open' : 'what was saved · tap to open'}</span></button></div>`;
+      return `<div class="overlay overlay-soft loot-overlay loot-opened">
+        <div class="loot-burst" aria-hidden="true"></div>
+        <div class="loot-items">${items.map((h, i) => `<div class="loot-item" style="--i:${i}">${h}</div>`).join('')}</div>
+        <button class="btn-primary loot-take" style="--i:${items.length}" data-act="cmp-loot-ok">take it</button>
+      </div>`;
     }
     const reward = s.cardRewards[0];
     if (reward) {

@@ -562,6 +562,21 @@ class SoundBoard {
     this.voice(70, { dur: 1.4, attack: 0.004, gain: 0.3, to: 28, type: 'sine', delay: 1.9 });
     this.breath({ dur: 0.8, freq: 700, to: 60, type: 'lowpass', q: 0.8, gain: 0.25, attack: 0.004, delay: 1.9 });
   }
+  /**
+   * A loot cache bursting open: a heavy low thud as its seal gives, a short rush of air, and a warm swell of low
+   * bells (A major, from A3) as the light pours out. (Nothing shrill.)
+   */
+  cacheOpen() {
+    this.voice(82, { dur: 0.9, attack: 0.004, gain: 0.32, to: 41, type: 'sine' });
+    this.breath({ dur: 0.5, freq: 900, to: 140, type: 'lowpass', q: 0.8, gain: 0.2, attack: 0.004 });
+    this.breath({ dur: 1.1, freq: 600, to: 1500, type: 'bandpass', q: 0.7, gain: 0.04, attack: 0.3, delay: 0.08 });
+    ['A3', 'C#4', 'E4', 'A4'].forEach((n, i) => this.bell(hz(n), 0.1 + i * 0.07, 0.04));
+  }
+  /** A reward coming out of a burst cache: a soft bell, each a step higher up the scale (A major pentatonic, from A4). */
+  lootChime(i: number) {
+    const scale = ['A4', 'B4', 'C#5', 'E5', 'F#5', 'A5'];
+    this.bell(hz(scale[Math.min(i, scale.length - 1)]), 0, 0.03);
+  }
   /** A star under the pointer: a soft glassy chime, each star its own note of a pentatonic scale. */
   starHover(seed: number) {
     const now = performance.now();
