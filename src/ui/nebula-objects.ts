@@ -428,20 +428,6 @@ function beam(): Float32Array {
   return new Float32Array(out);
 }
 
-/**
- * Column-major 4x4 for a shape facing a direction: its local +z along `f` (unit), rolled about it by `roll`, scaled
- * along each local axis, at (x, y, z).
- */
-function facing(x: number, y: number, z: number, f: number[], roll: number, sx: number, sy: number, sz: number): Float32Array {
-  // Right and up across the facing (world up as the guide).
-  let r = [f[2], 0, -f[0]];
-  const rl = Math.hypot(r[0], r[2]) || 1;
-  r = [r[0] / rl, 0, r[2] / rl];
-  const u = [f[1] * r[2] - f[2] * r[1], f[2] * r[0] - f[0] * r[2], f[0] * r[1] - f[1] * r[0]];
-  const c = Math.cos(roll), s = Math.sin(roll);
-  const X = [0, 1, 2].map((i) => c * r[i] + s * u[i]), Y = [0, 1, 2].map((i) => -s * r[i] + c * u[i]);
-  return new Float32Array([X[0] * sx, X[1] * sx, X[2] * sx, 0, Y[0] * sy, Y[1] * sy, Y[2] * sy, 0, f[0] * sz, f[1] * sz, f[2] * sz, 0, x, y, z, 1]);
-}
 
 /** Column-major 4x4: translate, rotate about x then y, scale. */
 function model(x: number, y: number, z: number, rx: number, ry: number, s: number): Float32Array {
@@ -930,35 +916,49 @@ export class MapObjects {
     const gl = this.gl;
     const heart = this.list.find((o) => o.heart);
     if (!heart || heart.dead) return;
-    const R = 0.26;
-    // (Just past the sun, its petals clear of it: the sun is 0.072 across, the flower R.)
-    const x = heart.x + R * 0.75 + 0.1, z = heart.z, y = R + 0.12 + (heart.y ?? 0);
-    // Facing the camera full on (as the home screen's flower faces the viewer).
-    const d = [cam.eye[0] - x, cam.eye[1] - y, cam.eye[2] - z];
-    const dl = Math.hypot(d[0], d[1], d[2]) || 1;
-    const f = d.map((v) => v / dl);
+    // Floating just over the heart star, facing up, half closed like a tulip: two whorls of six petals cupped round
+    // its heart (the outer leaning further out), its spikes rising inside like stamens, the whole of it turning
+    // slowly and bobbing as if it breathed.
+    const L = 0.38;
+    const bob = 0.012 * Math.sin(time * 0.9);
+    const base = [heart.x, (heart.y ?? 0) + 0.1 + bob, heart.z];
     const turn = (time * 4 * Math.PI) / 180;
-    const solid = this.solids(cam, time, fade);
-    // (Over the land, never into it: the hills past the strip rise behind it.)
-    gl.disable(gl.DEPTH_TEST);
-    // (A little breath, as if it were alive.)
     const b = 1 + 0.03 * Math.sin(time * 0.9);
-    // The outer petals a little behind, the inner spikes a little in front: depth as the camera moves.
-    const back = [x - f[0] * 0.03, y - f[1] * 0.03, z - f[2] * 0.03];
-    const front = [x + f[0] * 0.03, y + f[1] * 0.03, z + f[2] * 0.03];
+    // A part standing from the base at azimuth `az`, leaning out by `lean` (radians from upright): its own
+    // across (x), along (y, from the base up) and through (z) axes, scaled.
+    const part = (az: number, lean: number, sx: number, sy: number, lift: number) => {
+      const out = [Math.cos(az), 0, Math.sin(az)];
+      const U = [out[0] * Math.sin(lean), Math.cos(lean), out[2] * Math.sin(lean)];
+      const W = [-Math.sin(az), 0, Math.cos(az)];
+      const N = [U[1] * W[2] - U[2] * W[1], U[2] * W[0] - U[0] * W[2], U[0] * W[1] - U[1] * W[0]];
+      const o = [base[0] + U[0] * lift, base[1] + U[1] * lift, base[2] + U[2] * lift];
+      return { m: new Float32Array([W[0] * sx, W[1] * sx, W[2] * sx, 0, U[0] * sy, U[1] * sy, U[2] * sy, 0, N[0] * sx, N[1] * sx, N[2] * sx, 0, o[0], o[1], o[2], 1]), mid: [o[0] + U[0] * sy * 0.5, o[1] + U[1] * sy * 0.5, o[2] + U[2] * sy * 0.5] };
+    };
+    const parts: { buf: WebGLBuffer; n: number; m: Float32Array; mid: number[] }[] = [];
+    // (The petal's ellipse spans -1..1 along its length: lifted by its half-length, its tip sits on the base.)
     for (let i = 0; i < 12; i++) {
-      solid.draw(this.petalBuf, this.counts.petal, facing(back[0], back[1], back[2], f, turn + (i * Math.PI) / 6, R * b, R * b, R), 5, [1, 1, 1], 1);
+      const outer = i % 2 === 0;
+      const half = (L / 2) * b * (outer ? 1 : 0.92);
+      const p = part(turn + (i * Math.PI) / 6, outer ? 0.42 : 0.24, L * (outer ? 0.72 : 0.6) * b, half, half);
+      parts.push({ buf: this.petalBuf, n: this.counts.petal, ...p });
     }
     for (let i = 0; i < 18; i++) {
-      const a = -turn * 0.6 + ((i * 20 + 10) * Math.PI) / 180;
-      solid.draw(this.spikeBuf, this.counts.spike, facing(front[0], front[1], front[2], f, a, R * b, R * b, R), 5, [1, 1, 1], 1);
+      const p = part(-turn * 0.6 + ((i * 20 + 10) * Math.PI) / 180, 0.12 + 0.08 * (i % 3), L * 0.55 * b, L * 0.75 * b, 0);
+      parts.push({ buf: this.spikeBuf, n: this.counts.spike, ...p });
     }
+    // (Drawn over the land, never into it: furthest first, so the near petals lie over the far ones.)
+    const dist = (q: number[]) => (q[0] - cam.eye[0]) ** 2 + (q[1] - cam.eye[1]) ** 2 + (q[2] - cam.eye[2]) ** 2;
+    parts.sort((a, c) => dist(c.mid) - dist(a.mid));
+    gl.disable(gl.DEPTH_TEST);
+    const solid = this.solids(cam, time, fade);
+    for (const q of parts) solid.draw(q.buf, q.n, q.m, 5, [1, 1, 1], 1);
     solid.done();
     const sprite = this.sprites(cam, time, fade);
-    sprite.draw(x, y, z, R * 1.2, 0, [1, 1, 1], 0.35);
+    sprite.draw(base[0], base[1] + L * 0.45, base[2], L * 1.1, 0, [1, 1, 1], 0.3);
     sprite.done();
     gl.enable(gl.DEPTH_TEST);
   }
+
 
   /**
    * What lies under the galaxy, on the layer behind the map: a black hole at the bottom of its well, its
