@@ -5973,7 +5973,9 @@ body:has(.game-result) .dock { visibility: hidden; }
 .card.card-full .card-glyph { position: absolute; inset: 0; height: auto; padding: 0; z-index: 0; overflow: hidden; border-radius: inherit; }
 .card.card-full .card-glyph .art-wrap { width: 100%; margin: 0; filter: none; }
 .card.card-full .card-glyph .art-frame { border-radius: inherit; box-shadow: none; -webkit-mask: none; mask: none; }
-.card.card-full .card-glyph .gem, .card.card-full .card-glyph .cost-dots { display: none; }
+.card.card-full .card-glyph .gem, .card.card-full:not(.card-costed) .card-glyph .cost-dots { display: none; }
+/* (Safari lets a picture on a layer of its own spill past a rounded overflow clip: the mask makes it hold.) */
+.card.card-full .card-glyph { isolation: isolate; -webkit-mask-image: -webkit-radial-gradient(white, black); mask-image: radial-gradient(white, black); }
 .card.card-full::after {
   content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
   background: linear-gradient(180deg, rgba(10, 4, 6, 0.35) 0%, transparent 22%, transparent 46%, rgba(10, 4, 6, 0.88) 72%, rgba(10, 4, 6, 0.96) 100%);
@@ -6548,3 +6550,5 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .loot-relic small { color: var(--ink-soft); font-size: 0.8rem; line-height: 1.35; }
 .loot-cards { justify-content: center; margin-bottom: 12px; }
 .loot-card { cursor: default; }
+/* A full-art card that costs energy (a Lost Lord): its cost in the top left corner, clear of its name. */
+.card.card-full.card-costed .card-glyph .cost-dots { top: calc(var(--cw) * 0.05); left: calc(var(--cw) * 0.05); bottom: auto; transform: none; z-index: 3; }
