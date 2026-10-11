@@ -187,52 +187,50 @@ const BOSS_PHRASES: [number, string][][] = [
 ];
 
 /**
- * The reverser's audio worklet: overlapping slices of what comes in (half a second each, half overlapping, each
- * shaped by a Hann window so they add up evenly), each played out reversed.
+ * The effects that play backwards in reversed time: all of them but the boosters (which run for as long as a ship
+ * flies, with no end to turn round).
  */
-const REVERSER = `
-class Reverser extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.L = Math.round(sampleRate * 0.5);
-    this.hop = this.L >> 1;
-    this.inBuf = [new Float32Array(this.L), new Float32Array(this.L)];
-    this.out = [new Float32Array(this.L * 2), new Float32Array(this.L * 2)];
-    this.w = new Float32Array(this.L);
-    for (let i = 0; i < this.L; i++) this.w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / this.L);
-    this.pos = 0;
-    this.since = 0;
-    this.read = 0;
+const REVERSIBLE = [
+  'hover', 'boomTick', 'clockTick', 'encounter', 'heatWave', 'earthquake', 'cacheOpen', 'lootChime', 'xpFill', 'levelUp',
+  'starHover', 'rustle', 'handLift', 'repair', 'click', 'draw', 'shuffle', 'play', 'buy', 'flare', 'launch', 'whoosh',
+  'thermo', 'impact', 'hurt', 'strike', 'block', 'swing', 'clash', 'crack', 'shield', 'hero', 'charge', 'upgrade',
+  'objective', 'turn', 'endTurn', 'supernova', 'blocked', 'error', 'clip',
+] as const;
+/** How long a reversed effect is rendered for (long enough for its hall to die away), and for the longest ones. */
+const REVERSE_SFX_SECONDS = 6;
+const REVERSE_SFX_LONG: Record<string, number> = { earthquake: 9, supernova: 10, hero: 9, objective: 8, encounter: 9 };
+/**
+ * A reversed score's loop, in seconds: one whole pass of its form (the battle theme's three times round, where the
+ * arpeggio rests once; the voyage's four; the boss track's thirty-two bars); the ambient score has none, so two minutes.
+ */
+const REVERSE_LOOP: Record<MusicScene, number> = {
+  ambient: 120,
+  battle: 3 * 4 * 4 * 8 * (60 / BATTLE_BPM / 2),
+  voyage: 4 * 4 * 4 * 6 * CAMPAIGN_EIGHTH,
+  boss: BOSS_FORM_BARS * 8 * (60 / BOSS_BPM / 2),
+};
+/** The rate reversed scores are rendered at (plenty for the scores, and half the memory of a full-rate loop). */
+const REVERSE_RATE = 32000;
+
+/**
+ * The first `length` frames of a render, back to front. Given `trim`, the silence it ends on is dropped first, so
+ * the reversed sound starts at once (from the last of its tail).
+ */
+function reverseBuffer(ctx: AudioContext, src: AudioBuffer, length: number, trim = false): AudioBuffer | null {
+  const channels = [0, 1].map((c) => src.getChannelData(c));
+  if (trim) {
+    let end = 0;
+    for (const d of channels) for (let i = length - 1; i > end; i--) if (Math.abs(d[i]) > 1e-4) { end = i; break; }
+    length = end + 1;
   }
-  process(inputs, outputs) {
-    const inp = inputs[0], out = outputs[0];
-    const n = out[0].length, L = this.L, M = L * 2;
-    for (let i = 0; i < n; i++) {
-      for (let c = 0; c < 2; c++) {
-        const x = inp[c] ? inp[c][i] : inp[0] ? inp[0][i] : 0;
-        this.inBuf[c][this.pos] = x;
-        out[c] && (out[c][i] = this.out[c][this.read]);
-        this.out[c][this.read] = 0;
-      }
-      this.pos = (this.pos + 1) % L;
-      this.read = (this.read + 1) % M;
-      if (++this.since >= this.hop) {
-        this.since = 0;
-        // The last L samples, reversed and windowed, laid into what plays from here on.
-        for (let c = 0; c < 2; c++) {
-          const src = this.inBuf[c], dst = this.out[c];
-          for (let k = 0; k < L; k++) {
-            const s = src[(this.pos - 1 - k + L) % L];
-            dst[(this.read + k) % M] += s * this.w[k];
-          }
-        }
-      }
-    }
-    return true;
-  }
+  if (length < 2) return null;
+  const out = ctx.createBuffer(2, length, src.sampleRate);
+  channels.forEach((d, c) => {
+    const o = out.getChannelData(c);
+    for (let i = 0; i < length; i++) o[i] = d[length - 1 - i];
+  });
+  return out;
 }
-registerProcessor('reverser', Reverser);
-`;
 
 class SoundBoard {
   private ctx: AudioContext | null = null;
@@ -263,7 +261,20 @@ class SoundBoard {
   muted = false;
   musicOn = true;
 
-  constructor() {
+  /** A board rendering offline (into an OfflineAudioContext) to be reversed, rather than the one playing. */
+  private offline = false;
+
+  constructor(offline = false) {
+    if (offline) {
+      this.offline = true;
+      return;
+    }
+    // In reversed time, every effect is rendered and played backwards instead (see reverseEffect).
+    const self = this as unknown as Record<string, (...a: unknown[]) => void>;
+    for (const name of REVERSIBLE) {
+      const forwards = self[name].bind(this);
+      self[name] = (...args: unknown[]) => (this.reversed ? void this.reverseEffect(name, args) : forwards(...args));
+    }
     try {
       this.muted = localStorage.getItem(PREFS_KEY) === 'muted';
       this.musicOn = localStorage.getItem(MUSIC_KEY) !== 'off';
@@ -340,72 +351,89 @@ class SoundBoard {
     }
   }
 
+  /**
+   * The mixing desk: master (and, live, the limiter), the hall, the effects and every score's faders. Offline
+   * (`from` the live board) it shares the live board's hall and noise, so a reversed sound is the very same sound.
+   */
+  private build(ctx: AudioContext, from?: SoundBoard) {
+    const master = ctx.createGain();
+    // (Offline, the render goes out raw: it is played back through the live board's master and limiter.)
+    master.gain.value = from ? 1 : 0.8;
+    if (from) master.connect(ctx.destination);
+    else {
+      // Gentle limiter so swells never clip.
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -14;
+      comp.ratio.value = 3;
+      master.connect(comp).connect(ctx.destination);
+      this.reverseBus = ctx.createGain();
+      this.reverseBus.gain.value = 0.0001;
+      this.reverseBus.connect(master);
+    }
+    this.master = master;
+
+    this.reverb = ctx.createConvolver();
+    // (A hall is only shared at the same rate: a convolver will not take another's.)
+    const hall = from?.reverb?.buffer;
+    this.reverb.buffer = hall && hall.sampleRate === ctx.sampleRate ? hall : this.impulse(4.5, 2.6);
+    const wet = ctx.createGain();
+    wet.gain.value = 0.55;
+    this.reverb.connect(wet).connect(master);
+
+    this.sfx = ctx.createGain();
+    this.sfx.gain.value = 0.9;
+    this.sfx.connect(master);
+    this.sfx.connect(this.reverb);
+    this.sfxDry = ctx.createGain();
+    this.sfxDry.gain.value = 0.9;
+    this.sfxDry.connect(master);
+
+    this.musicBus = ctx.createGain();
+    this.musicBus.gain.value = 0.0001;
+    this.musicBus.connect(master);
+    this.musicBus.connect(this.reverb);
+
+    this.battleBus = ctx.createGain();
+    this.battleBus.gain.value = 0.0001;
+    this.battleBus.connect(master);
+    const battleSend = ctx.createGain();
+    battleSend.gain.value = 0.25;
+    this.battleBus.connect(battleSend).connect(this.reverb);
+    this.battleLush = ctx.createGain();
+    this.battleLush.gain.value = 0.0001;
+    this.battleLush.connect(master);
+    this.battleLush.connect(this.reverb);
+    this.bossBus = ctx.createGain();
+    this.bossBus.gain.value = 0.0001;
+    this.bossBus.connect(master);
+    const bossSend = ctx.createGain();
+    bossSend.gain.value = 0.3;
+    this.bossBus.connect(bossSend).connect(this.reverb);
+    this.bossLush = ctx.createGain();
+    this.bossLush.gain.value = 0.0001;
+    this.bossLush.connect(master);
+    this.bossLush.connect(this.reverb);
+    this.campaignBus = ctx.createGain();
+    this.campaignBus.gain.value = 0.0001;
+    this.campaignBus.connect(master);
+    this.campaignBus.connect(this.reverb);
+
+    if (from?.noiseBuf) this.noiseBuf = from.noiseBuf;
+    else {
+      const len = ctx.sampleRate * 2;
+      this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const data = this.noiseBuf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    }
+  }
+
   /** Browsers only allow audio after a user gesture; call from input handlers. */
   unlock() {
     if (document.visibilityState === 'hidden') return;
     if (!this.ctx) {
       const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) return;
-      const ctx = (this.ctx = new Ctx());
-      const master = ctx.createGain();
-      master.gain.value = 0.8;
-      // Gentle limiter so swells never clip.
-      const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -14;
-      comp.ratio.value = 3;
-      master.connect(comp).connect(ctx.destination);
-      this.master = master;
-      this.comp = comp;
-      if (this.reversed) this.routeReverse();
-
-      this.reverb = ctx.createConvolver();
-      this.reverb.buffer = this.impulse(4.5, 2.6);
-      const wet = ctx.createGain();
-      wet.gain.value = 0.55;
-      this.reverb.connect(wet).connect(master);
-
-      this.sfx = ctx.createGain();
-      this.sfx.gain.value = 0.9;
-      this.sfx.connect(master);
-      this.sfx.connect(this.reverb);
-      this.sfxDry = ctx.createGain();
-      this.sfxDry.gain.value = 0.9;
-      this.sfxDry.connect(master);
-
-      this.musicBus = ctx.createGain();
-      this.musicBus.gain.value = 0.0001;
-      this.musicBus.connect(master);
-      this.musicBus.connect(this.reverb);
-
-      this.battleBus = ctx.createGain();
-      this.battleBus.gain.value = 0.0001;
-      this.battleBus.connect(master);
-      const battleSend = ctx.createGain();
-      battleSend.gain.value = 0.25;
-      this.battleBus.connect(battleSend).connect(this.reverb);
-      this.battleLush = ctx.createGain();
-      this.battleLush.gain.value = 0.0001;
-      this.battleLush.connect(master);
-      this.battleLush.connect(this.reverb);
-      this.bossBus = ctx.createGain();
-      this.bossBus.gain.value = 0.0001;
-      this.bossBus.connect(master);
-      const bossSend = ctx.createGain();
-      bossSend.gain.value = 0.3;
-      this.bossBus.connect(bossSend).connect(this.reverb);
-      this.bossLush = ctx.createGain();
-      this.bossLush.gain.value = 0.0001;
-      this.bossLush.connect(master);
-      this.bossLush.connect(this.reverb);
-      this.campaignBus = ctx.createGain();
-      this.campaignBus.gain.value = 0.0001;
-      this.campaignBus.connect(master);
-      this.campaignBus.connect(this.reverb);
-
-      const len = ctx.sampleRate * 2;
-      this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
-      const data = this.noiseBuf.getChannelData(0);
-      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      this.build((this.ctx = new Ctx()));
     }
     for (const url of Object.values(SFX)) this.load(url);
     if (!this.muted) this.mediaPlayback();
@@ -456,6 +484,7 @@ class SoundBoard {
   }
 
   private ready(): AudioContext | null {
+    if (this.offline) return this.ctx;
     if (this.muted || !this.ctx || this.ctx.state !== 'running') return null;
     return this.ctx;
   }
@@ -559,54 +588,138 @@ class SoundBoard {
   }
 
   /**
-   * Time running backwards (Time Dense Space) [direction: music plays in reverse, as do all sounds in combat]:
-   * everything that sounds is caught in overlapping half-second slices and each is played back reversed, so the
-   * score and every blow swell in backwards, a slice behind.
+   * Time running backwards (Time Dense Space) [direction: music plays in reverse, as do all sounds in combat; each
+   * the exact track or sound reversed, not chopped up]: each effect is rendered whole, offline, and played
+   * backwards, swelling in from its hall's tail to the moment it struck; the score is rendered offline a whole loop
+   * at a time and that loop played backwards.
    */
   private master: GainNode | null = null;
-  private comp: DynamicsCompressorNode | null = null;
-  private reverser: AudioWorkletNode | null = null;
+  /** Where reversed sound plays in (straight to the master: the renders carry their own hall). */
+  private reverseBus: GainNode | null = null;
   private reversed = false;
-  private reverserLoading: Promise<void> | null = null;
+  /** The offline boards: one rendering effects (kept, so the throttles on hovers and rustles hold), one the score. */
+  private renderer: SoundBoard | null = null;
+  /** The reversed scores rendered so far (each kept to loop again), and the reversed effects (most recent last). */
+  private reversedLoops = new Map<MusicScene, Promise<AudioBuffer | null>>();
+  private reversedEffects = new Map<string, AudioBuffer>();
+  /** Bumped whenever the score starts or stops, so a reversed render that finishes late is not played. */
+  private musicRun = 0;
+
   setReverse(on: boolean) {
     if (on === this.reversed) return;
+    const playing = !!this.playing;
+    if (playing) this.stopMusic();
     this.reversed = on;
-    if (this.ctx) this.routeReverse();
+    if (!on) {
+      this.reversedLoops.clear();
+      this.reversedEffects.clear();
+    }
+    if (playing) this.startMusic();
   }
 
-  private routeReverse() {
-    const ctx = this.ctx, master = this.master, comp = this.comp;
-    if (!ctx || !master || !comp) return;
-    if (!this.reversed) {
-      if (this.reverser) {
-        try {
-          master.disconnect(this.reverser);
-          this.reverser.disconnect();
-        } catch {
-          // (already apart)
-        }
-        this.reverser = null;
-      }
-      try {
-        master.connect(comp);
-      } catch {
-        // (already joined)
-      }
-      return;
+  /** Render one effect offline on the effects board, then play it backwards. */
+  private async reverseEffect(name: string, args: unknown[]) {
+    const ctx = this.ready();
+    if (!ctx || !this.reverb) return;
+    // The same effect called the same way is the same sound: render it once.
+    const key = `${name} ${JSON.stringify(args)} ${name === 'starHover' ? this.tones.join() : ''}`;
+    const cached = this.reversedEffects.get(key);
+    if (cached) return this.playBackwards(cached);
+    // Recordings must be decoded before the render (it schedules them as it goes).
+    if (name === 'clip') await this.load(args[0] as string);
+    await Promise.all(Object.values(SFX).map((url) => this.load(url)));
+    const seconds = REVERSE_SFX_LONG[name] ?? REVERSE_SFX_SECONDS;
+    const offline = new OfflineAudioContext(2, Math.ceil(ctx.sampleRate * seconds), ctx.sampleRate);
+    const r = (this.renderer ??= new SoundBoard(true));
+    r.ctx = offline as unknown as AudioContext;
+    r.decoded = this.decoded;
+    r.playing = this.playing;
+    r.tones = this.tones;
+    r.build(r.ctx, this);
+    (r as unknown as Record<string, (...a: unknown[]) => void>)[name](...args);
+    const rendered = await offline.startRendering();
+    const reversed = reverseBuffer(ctx, rendered, rendered.length, true);
+    if (!reversed || !this.reversed) return;
+    this.reversedEffects.set(key, reversed);
+    if (this.reversedEffects.size > 48) this.reversedEffects.delete(this.reversedEffects.keys().next().value!);
+    this.playBackwards(reversed);
+  }
+
+  private playBackwards(buffer: AudioBuffer) {
+    const ctx = this.ready();
+    if (!ctx || !this.reversed) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(this.master!);
+    src.start();
+  }
+
+  /**
+   * One whole loop of a score, rendered offline and reversed: scheduled just as it is live (the scheduler's ticks
+   * run as the render reaches them), stopped short of the next pass, and with the tails ringing past the loop's end
+   * folded back onto its start so it loops seamlessly.
+   */
+  private async renderReversed(scene: MusicScene): Promise<AudioBuffer | null> {
+    const live = this.ctx!;
+    const loop = REVERSE_LOOP[scene];
+    const tail = 6;
+    const offline = new OfflineAudioContext(2, Math.ceil(REVERSE_RATE * (loop + tail)), REVERSE_RATE);
+    const r = new SoundBoard(true);
+    r.ctx = offline as unknown as AudioContext;
+    r.decoded = this.decoded;
+    r.build(r.ctx, this);
+    r.scene = scene;
+    r.playing = scene;
+    r.timers = [];
+    for (const [bus, level] of r.faders(scene)) bus.gain.value = level;
+    r.score(r.ctx, scene);
+    const step = 0.25;
+    for (let t = step; t < loop + tail; t += step)
+      void offline.suspend(t).then(() => {
+        // Nothing of the next pass: the scheduler looks half a second ahead, so stop it a little sooner.
+        if (t + 0.6 >= loop) r.playing = null;
+        const now = offline.currentTime;
+        const due = r.timers!.filter((x) => x.at <= now);
+        r.timers = r.timers!.filter((x) => x.at > now);
+        for (const x of due) x.fn();
+        void offline.resume();
+      });
+    const rendered = await offline.startRendering();
+    const length = Math.round(REVERSE_RATE * loop);
+    for (let c = 0; c < 2; c++) {
+      const d = rendered.getChannelData(c);
+      for (let i = length; i < d.length; i++) d[i - length] += d[i];
     }
-    if (this.reverser || !ctx.audioWorklet) return;
-    this.reverserLoading ??= ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([REVERSER], { type: 'application/javascript' })));
-    void this.reverserLoading.then(() => {
-      if (!this.reversed || this.reverser || !this.ctx) return;
-      const node = new AudioWorkletNode(this.ctx, 'reverser', { outputChannelCount: [2] });
-      try {
-        master.disconnect(comp);
-      } catch {
-        // (not joined)
-      }
-      master.connect(node).connect(comp);
-      this.reverser = node;
-    }).catch(() => undefined);
+    return reverseBuffer(live, rendered, length);
+  }
+
+  /** A reversed score's loop: rendered once, then kept. */
+  private reversedLoop(scene: MusicScene) {
+    let loop = this.reversedLoops.get(scene);
+    if (!loop) this.reversedLoops.set(scene, (loop = this.renderReversed(scene).catch(() => null)));
+    return loop;
+  }
+
+  /**
+   * Start the reversed score: render its loop (or reuse it), then loop it backwards. On the map, the battle theme's
+   * is rendered next, ready for the first battle (it takes a few seconds).
+   */
+  private playReversed(scene: MusicScene) {
+    const ctx = this.ctx!;
+    const loop = this.reversedLoop(scene);
+    if (scene === 'ambient') void loop.then(() => {
+      if (this.reversed) void this.reversedLoop('battle');
+    });
+    const run = this.musicRun;
+    void loop.then((buffer) => {
+      if (!buffer || run !== this.musicRun || this.playing !== scene || !this.reversed) return;
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      src.connect(this.reverseBus!);
+      src.start();
+      this.musicNodes.push(src);
+    });
   }
 
   clockTick() {
@@ -1039,8 +1152,9 @@ class SoundBoard {
     this.voice(146.83, { dur: 0.6, attack: 0.04, gain: 0.05, to: 130, cutoff: 500 });
   }
 
-  /** Decoded recordings, by URL (each is fetched once). */
+  /** Decoded recordings, by URL (each is fetched once), and those already decoded (shared with the offline boards). */
   private clips = new Map<string, Promise<AudioBuffer | null>>();
+  private decoded = new Map<string, AudioBuffer>();
 
   /** Decode a recording once (kept for every later play). A data URL is decoded in place; anything else fetched. */
   private load(url: string): Promise<AudioBuffer | null> {
@@ -1050,7 +1164,10 @@ class SoundBoard {
       const bytes = url.startsWith('data:')
         ? Promise.resolve(Uint8Array.from(atob(url.slice(url.indexOf(',') + 1)), (c) => c.charCodeAt(0)).buffer)
         : fetch(url).then((r) => r.arrayBuffer());
-      buf = bytes.then((data) => ctx.decodeAudioData(data)).catch(() => null);
+      buf = bytes
+        .then((data) => ctx.decodeAudioData(data))
+        .then((b) => (this.decoded.set(url, b), b))
+        .catch(() => null);
       this.clips.set(url, buf);
     }
     return buf;
@@ -1060,7 +1177,9 @@ class SoundBoard {
   clip(url: string, gain = 0.85, rate = 1) {
     const ctx = this.ready();
     if (!ctx) return;
-    void this.load(url).then((b) => {
+    // (Already decoded, it plays at once: an offline board schedules everything as the effect is called.)
+    const known = this.decoded.get(url);
+    const play = (b: AudioBuffer | null) => {
       if (!b || !this.ready()) return;
       const src = ctx.createBufferSource();
       src.buffer = b;
@@ -1069,7 +1188,9 @@ class SoundBoard {
       g.gain.value = gain;
       src.connect(g).connect(this.sfx!);
       src.start();
-    });
+    };
+    if (known) play(known);
+    else void this.load(url).then(play);
   }
 
   // ---- Score ---------------------------------------------------------------
@@ -1086,6 +1207,7 @@ class SoundBoard {
 
   /** Each score's faders, with the level and fade-in time it plays at. */
   private faders(scene: MusicScene): [GainNode, number, number][] {
+    if (this.reversed && !this.offline) return [[this.reverseBus!, 1, 0.05]];
     if (scene === 'battle') return [[this.battleBus!, 1.2, 3], [this.battleLush!, 1.2, 3]];
     if (scene === 'boss') return [[this.bossBus!, 1.4, 0.05], [this.bossLush!, 1.4, 0.05]];
     if (scene === 'voyage') return [[this.campaignBus!, 0.6, 0.05]];
@@ -1102,10 +1224,32 @@ class SoundBoard {
       bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), now);
       bus.gain.exponentialRampToValueAtTime(level, now + fade);
     }
-    if (this.scene === 'battle') this.battleScore(ctx, this.battleBus!, this.battleLush!);
-    else if (this.scene === 'boss') this.bossScore(ctx, this.bossBus!, this.bossLush!);
-    else if (this.scene === 'voyage') this.campaignScore(ctx, this.campaignBus!);
-    else this.ambientScore(ctx, this.musicBus);
+    this.musicRun++;
+    if (this.reversed) this.playReversed(this.scene);
+    else this.score(ctx, this.scene);
+  }
+
+  /** Start a score playing (scheduled as it goes: see every and after). */
+  private score(ctx: AudioContext, scene: MusicScene) {
+    if (scene === 'battle') this.battleScore(ctx, this.battleBus!, this.battleLush!);
+    else if (scene === 'boss') this.bossScore(ctx, this.bossBus!, this.bossLush!);
+    else if (scene === 'voyage') this.campaignScore(ctx, this.campaignBus!);
+    else this.ambientScore(ctx, this.musicBus!);
+  }
+
+  /** Offline, the score's timers: run as the render reaches them, not by the window's clock. */
+  private timers: { at: number; fn: () => void; every?: number }[] | null = null;
+  /** Run `fn` every `ms` while the score plays (the scheduler's tick). */
+  private every(fn: () => void, ms: number) {
+    if (this.timers) {
+      const loop = () => (fn(), this.timers!.push({ at: this.ctx!.currentTime + ms / 1000, fn: loop }));
+      this.timers.push({ at: this.ctx!.currentTime + ms / 1000, fn: loop });
+    } else this.musicTimers.push(window.setInterval(fn, ms));
+  }
+  /** Run `fn` once, `ms` from now. */
+  private after(fn: () => void, ms: number) {
+    if (this.timers) this.timers.push({ at: this.ctx!.currentTime + ms / 1000, fn });
+    else this.musicTimers.push(window.setTimeout(fn, ms));
   }
 
   private ambientScore(ctx: AudioContext, bus: GainNode) {
@@ -1146,16 +1290,16 @@ class SoundBoard {
         this.voice(f * 2, opts);
         this.voice(f * 2, { ...opts, detune: 9, gain: 0.014 });
       });
-      this.musicTimers.push(window.setTimeout(pad, 10500 + Math.random() * 3000));
+      this.after(pad, 10500 + Math.random() * 3000);
     };
     const sparkle = () => {
       if (this.playing !== 'ambient') return;
       const f = CHIMES[Math.floor(Math.random() * CHIMES.length)];
       this.voice(f, { dur: 4, attack: 0.6, gain: 0.008 + Math.random() * 0.006, vibrato: 2, out: bus });
-      this.musicTimers.push(window.setTimeout(sparkle, 2500 + Math.random() * 6000));
+      this.after(sparkle, 2500 + Math.random() * 6000);
     };
     pad();
-    this.musicTimers.push(window.setTimeout(sparkle, 3000));
+    this.after(sparkle, 3000);
   }
 
   /** A held, soft note at an exact time: a gentle swell in, a sustain that sags a little, a slow release, late vibrato. */
@@ -1279,7 +1423,7 @@ class SoundBoard {
       }
     };
     tick();
-    this.musicTimers.push(window.setInterval(tick, 200));
+    this.every(tick, 200);
   }
 
   /**
@@ -1696,7 +1840,7 @@ class SoundBoard {
       }
     };
     tick();
-    this.musicTimers.push(window.setInterval(tick, 200));
+    this.every(tick, 200);
   }
 
   /**
@@ -1923,7 +2067,7 @@ class SoundBoard {
       }
     };
     tick();
-    this.musicTimers.push(window.setInterval(tick, 100));
+    this.every(tick, 100);
   }
 
   /** Fade the score out (or cut it at once, when the app is being hidden). */
@@ -1931,6 +2075,7 @@ class SoundBoard {
     if (!this.playing || !this.ctx || !this.musicBus) return;
     const buses = this.faders(this.playing).map(([bus]) => bus);
     this.playing = null;
+    this.musicRun++;
     // Ids from setTimeout and setInterval share one pool, so clearTimeout ends either.
     this.musicTimers.forEach((t) => window.clearTimeout(t));
     this.musicTimers = [];
