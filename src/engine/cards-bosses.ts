@@ -18,12 +18,12 @@ export const BOSS_CARDS: CardDef[] = [
   },
   {
     id: 'colossus_left_fist', overlordPart: 'body', name: 'Colossal Fist', kind: 'attack', health: 6, attack: 3,
-    text: '6 heat to your card with the most attack.',
+    text: '6 heat to your card with the most attack. With no card, your sun takes it.',
     bossAction: { name: 'Crushing Blow', effects: [{ type: 'strikeBest', amount: 6 }] },
   },
   {
     id: 'colossus_right_fist', overlordPart: 'body', name: 'Piston Arm', kind: 'attack', health: 6, attack: 3,
-    text: '2 heat to each of your cards.',
+    text: '2 heat to each of your cards. With no card, your sun takes it.',
     bossAction: { name: 'Hammerfall', effects: [{ type: 'strikeAll', amount: 2 }] },
   },
   {
@@ -47,17 +47,17 @@ export const BOSS_CARDS: CardDef[] = [
   },
   {
     id: 'maws_left_claw', overlordPart: 'body', name: 'Rending Claw', kind: 'attack', health: 5, attack: 3,
-    text: '7 heat to your card with the most attack.',
+    text: '7 heat to your card with the most attack. With no card, your sun takes it.',
     bossAction: { name: 'Rend', effects: [{ type: 'strikeBest', amount: 7 }] },
   },
   {
     id: 'maws_right_claw', overlordPart: 'body', name: 'Raking Talon', kind: 'attack', health: 5, attack: 3,
-    text: '3 heat to each of your cards.',
+    text: '3 heat to each of your cards. With no card, your sun takes it.',
     bossAction: { name: 'Rake', effects: [{ type: 'strikeAll', amount: 3 }] },
   },
   {
     id: 'maws_maw', overlordPart: 'body', name: 'Gaping Maw', kind: 'attack', health: 7, attack: 2,
-    text: 'Your card with the least stability left is destroyed.',
+    text: 'Your card with the least stability left is destroyed. With no card, 5 heat to your sun.',
     bossAction: { name: 'Devour', effects: [{ type: 'devour' }] },
   },
   {
@@ -81,7 +81,7 @@ export const BOSS_CARDS: CardDef[] = [
   },
   {
     id: 'tyrant_greatsword', overlordPart: 'gear', name: 'Ember Greatsword', kind: 'attack', health: 6, attack: 4,
-    text: '4 heat to your card with the most attack, then 1 heat to each of your cards.',
+    text: '4 heat to your card with the most attack, then 1 heat to each of your cards. With no card, your sun takes it.',
     bossAction: { name: 'Cleave', effects: [{ type: 'strikeBest', amount: 4 }, { type: 'strikeAll', amount: 1 }] },
   },
   {
@@ -129,7 +129,7 @@ export const CHALLENGE_CARDS: CardDef[] = [
   },
   {
     id: 'blizzard_herald', overlordPart: 'frost', name: 'Blizzard Herald', kind: 'attack', health: 5, attack: 2,
-    text: '2 heat to each of your cards.',
+    text: '2 heat to each of your cards. With no card, your sun takes it.',
     bossAction: { name: 'Whiteout', effects: [{ type: 'strikeAll', amount: 2 }] },
   },
   // A relic cache, sealed: an inanimate warden standing on a neutral system's battlefield. It never strikes; break it
@@ -159,13 +159,13 @@ export const CHALLENGE_CARDS: CardDef[] = [
     id: 'lord_vessa', overlordPart: 'lost lord', name: 'Vessa of the Quiet Choir', kind: 'growth', rarity: 'anomaly', character: true, cost: 4, health: 7, attack: 3,
     text: '{dawn}: {cool:2}. Draw 1. The last voice of a choir that sang its stars to sleep.',
     onTurn: [{ type: 'cool', amount: 2 }, { type: 'draw', amount: 1 }],
-    bossAction: { name: 'Silence', effects: [{ type: 'strikeAll', amount: 2 }], say: '2 heat to each of your cards.' },
+    bossAction: { name: 'Silence', effects: [{ type: 'strikeAll', amount: 2 }], say: '2 heat to each of your cards. With no card, your sun takes it.' },
   },
   {
     id: 'lord_glasswright', overlordPart: 'lost lord', name: 'The Last Glasswright', kind: 'attack', rarity: 'anomaly', character: true, cost: 5, health: 7, attack: 5, defence: 2,
     text: '{sturdy:2}. {dawn}: {heat:1}. Her people blew suns into glass; she alone remembers how.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
-    bossAction: { name: 'Shatterglass', effects: [{ type: 'strikeBest', amount: 6 }], say: '6 heat to your card with the most attack.' },
+    bossAction: { name: 'Shatterglass', effects: [{ type: 'strikeBest', amount: 6 }], say: '6 heat to your card with the most attack. With no card, your sun takes it.' },
   },
 ];
 for (const c of BOSS_CARDS) Object.assign(c, { cost: 0, token: true });

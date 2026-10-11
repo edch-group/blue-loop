@@ -6915,3 +6915,14 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 }
 /* (A mark alone fills more of its circle.) */
 .table-view .card-yield .yield.mech-bare .kw-ico { height: 0.95em; }
+
+/* A Lost Overlord's next blow: its heat, large in the middle of the part that will strike [direction: show the heat of
+   the attack on a big chip in the centre of the card]. */
+.boss-aim-heat {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5;
+  display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--tcw, 80px) * 0.03);
+  min-width: calc(var(--tcw, 80px) * 0.46); height: calc(var(--tcw, 80px) * 0.46); padding: 0 calc(var(--tcw, 80px) * 0.08);
+  border-radius: 999px; background: #c2401c; color: #fff; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 2px 10px rgba(120, 30, 10, 0.5);
+  font-family: var(--display); font-size: calc(var(--tcw, 80px) * 0.22); line-height: 1; pointer-events: none;
+}
+.boss-aim-heat .kw-ico, .boss-aim-heat svg { width: 0.72em; height: 0.72em; }

@@ -1390,10 +1390,10 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'strikeAll': {
         const t = ctx.against ?? targetOf(state, p);
         if (!t) break;
-        const pool = e.type === 'strikeBest' && e.guarded && guards(t).length ? guards(t) : t.tableau;
-        const hit = e.type === 'strikeAll' ? [...t.tableau] : [...pool].sort((a, b) => cardAttack(state, t, b) - cardAttack(state, t, a) || (b.health ?? 0) - (a.health ?? 0)).slice(0, 1);
-        // (The Frost Line's cold, with no card to strike: their sun.)
-        if (e.type === 'strikeBest' && e.guarded && !hit.length) {
+        const hit = strikeHits(state, t, e);
+        // (The Frost Line's cold, or a Lost Overlord's blow, with no card to strike: their sun. The player chooses:
+        // a card to take it, or the sun.)
+        if (!hit.length && ((e.type === 'strikeBest' && e.guarded) || cardDef(card.defId).bossAction)) {
           applyHeat(state, t, e.amount, p, false, card.uid, false, `${p.name}'s ${cardDef(card.defId).name}`);
           notePulse(state, p, card, 'heat', t, e.amount);
           break;
@@ -1411,8 +1411,16 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'devour': {
         const t = ctx.against ?? targetOf(state, p);
         // (Never a Lost Overlord's own body: what must be beaten down is beaten down.)
-        const victim = t ? [...t.tableau].filter((c) => c.uid !== t.boss?.leader && !destroyImmune(c.defId)).sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0] : undefined;
-        if (!t || !victim) break;
+        const victim = t ? devourVictim(t) : undefined;
+        if (!t) break;
+        // (A Lost Overlord's Devour with nothing to eat bites the sun instead.)
+        if (!victim) {
+          if (cardDef(card.defId).bossAction) {
+            applyHeat(state, t, DEVOUR_SUN_HEAT, p, false, card.uid, false, `${p.name}'s ${cardDef(card.defId).name}`);
+            notePulse(state, p, card, 'heat', t, DEVOUR_SUN_HEAT);
+          }
+          break;
+        }
         log(state, `${p.name}'s ${cardDef(card.defId).name} devours ${t.name}'s ${cardDef(victim.defId).name}.`);
         notePulse(state, p, card, 'heat', t, 1, victim.uid);
         leaveTableau(state, t, victim);
@@ -1851,6 +1859,51 @@ function challengeDay(state: GameState, p: PlayerState) {
   const open = slotsBySafety().filter((i) => freeSlots(p).includes(i) && i !== COMMAND_SLOT).slice(0, c.per ?? 99);
   open.forEach((slot, i) => place(p, newCard(state, c.spawn![i % c.spawn!.length]), slot));
   if (open.length) log(state, c.kind === 'mine' ? `${open.length} more crystal${open.length === 1 ? '' : 's'} grow${open.length === 1 ? 's' : ''} in the mine.` : `A wave: ${open.length} more come out of the cold.`);
+}
+
+/** The cards a strike falls on: the one with the most attack (its Guards first, if it says so), or all of them. */
+function strikeHits(state: GameState, t: PlayerState, e: Extract<Effect, { type: 'strikeBest' | 'strikeAll' }>): CardInstance[] {
+  if (e.type === 'strikeAll') return [...t.tableau];
+  const pool = e.guarded && guards(t).length ? guards(t) : t.tableau;
+  return [...pool].sort((a, b) => cardAttack(state, t, b) - cardAttack(state, t, a) || (b.health ?? 0) - (a.health ?? 0)).slice(0, 1);
+}
+
+/** What a Devour eats: the weakest card it can take (never a Lost Overlord's own body, nor an entrenched one). */
+function devourVictim(t: PlayerState): CardInstance | undefined {
+  return [...t.tableau].filter((c) => c.uid !== t.boss?.leader && !destroyImmune(c.defId)).sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0];
+}
+
+/** The heat a Lost Overlord's Devour deals to the sun when there is no card to eat. */
+export const DEVOUR_SUN_HEAT = 5;
+
+/**
+ * Where a Lost Overlord's next action will land, as things stand: the sun and the cards it will strike, each with
+ * its heat (a Devour's card shows none: it is eaten whole). Empty for an action that strikes nothing (a shield,
+ * a summons).
+ */
+export function bossAim(state: GameState, p: PlayerState): { sun: number; cards: { uid: string; heat: number }[] } {
+  const out = { sun: 0, cards: [] as { uid: string; heat: number }[] };
+  const intent = bossIntent(p);
+  const t = targetOf(state, p);
+  if (!intent || !t) return out;
+  const add = (uid: string, heat: number) => {
+    const had = out.cards.find((x) => x.uid === uid);
+    if (had) had.heat += heat;
+    else out.cards.push({ uid, heat });
+  };
+  for (const e of cardDef(intent.card.defId).bossAction!.effects) {
+    if (e.type === 'heat' && e.to === 'target') out.sun += e.amount;
+    else if (e.type === 'strikeBest' || e.type === 'strikeAll') {
+      const hit = strikeHits(state, t, e);
+      if (hit.length) hit.forEach((c) => add(c.uid, e.amount));
+      else out.sun += e.amount;
+    } else if (e.type === 'devour') {
+      const v = devourVictim(t);
+      if (v) add(v.uid, 0);
+      else out.sun += DEVOUR_SUN_HEAT;
+    }
+  }
+  return out;
 }
 
 /** A Lost Overlord's parts that act, in the order they take their turns: left to right, the Overlord itself last. */

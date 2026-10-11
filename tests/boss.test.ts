@@ -77,3 +77,19 @@ describe('Lost Overlords', () => {
     expect(t.winnerId).toBe(t.players[0].id);
   });
 });
+
+describe('Lost Overlord blows with no card to strike', () => {
+  it('fall on the sun instead (the player chooses: a card to take it, or the sun)', async () => {
+    const { bossAim } = await import('../src/engine/game');
+    let s = battle();
+    const boss = s.players[1];
+    const fist = boss.tableau.find((c) => c.defId === 'colossus_left_fist')!;
+    boss.boss!.intent = fist.uid;
+    const me = s.players[0];
+    me.tableau = me.tableau.filter((c) => c.slot === COMMAND_SLOT && false);
+    expect(bossAim(s, boss)).toEqual({ sun: 6, cards: [] });
+    const heat = me.heat;
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.players[0].heat - heat).toBeGreaterThanOrEqual(6);
+  });
+});

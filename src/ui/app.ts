@@ -109,7 +109,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { relicMark } from './relic-art';
 
 import { closeTour, tourShowing } from './tour';
-import { shownKind, isBurst, isBossCard, bossIntent, relicN, relicOf, RELIC_POWERS, type ShownKind } from '../engine';
+import { shownKind, isBurst, isBossCard, bossIntent, bossAim, relicN, relicOf, RELIC_POWERS, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -1639,6 +1639,33 @@ export class App {
       this.unaim = aim(() => rect('.stage .card'), () => targetRect(this.root.querySelector(`.tableau [data-uid="${target}"]`)), { delay: 640, alive: () => this.stage === stage, kind: removal ? 'plain' : 'attack' });
     }
   }
+
+  /**
+   * A Lost Overlord's next blow, shown ahead: an arrow from the part acting next to each card (or the sun) it will
+   * strike, held until what it aims at changes [direction: a targeting arrow preview of where the boss attacks next].
+   */
+  private syncBossAim() {
+    const s = this.screen === 'game' ? this.state : null;
+    const boss = s && !isGameOver(s) && !this.stage ? s.players.find((p) => p.boss && bossIntent(p)) : undefined;
+    const at = s && boss ? bossAim(s, boss) : null;
+    const foe = s && boss ? s.players.find((p) => p !== boss && !p.eliminated) : undefined;
+    const from = boss ? bossIntent(boss)!.card.uid : '';
+    const key = at && foe && (at.sun || at.cards.length) ? `${from}|${at.sun ? foe.id : ''}|${at.cards.map((x) => x.uid).join(',')}` : '';
+    if (key === this.bossAimKey) return;
+    this.bossAimKey = key;
+    this.bossUnaim.forEach((f) => f());
+    this.bossUnaim = [];
+    if (!key || !at || !foe) return;
+    const root = this.root;
+    const source = () => {
+      const el = root.querySelector(`.tableau [data-uid="${from}"]`);
+      return el ? pageRect(el) : null;
+    };
+    const targets = [...(at.sun ? [`[data-anchor="player:${foe.id}"]`] : []), ...at.cards.map((x) => `.tableau [data-uid="${x.uid}"]`)];
+    this.bossUnaim = targets.map((sel) => aim(source, () => targetRect(root.querySelector(sel)), { alive: () => this.bossAimKey === key }));
+  }
+  private bossAimKey = '';
+  private bossUnaim: (() => void)[] = [];
 
   /** Takes away a staged card's aim (see stageEntrance). */
   private unaim: (() => void) | null = null;
@@ -4370,6 +4397,7 @@ export class App {
     this.placeGalaxyTag();
     fitCardText(this.root);
     this.markKwMore(this.root);
+    this.syncBossAim();
     sizePool(this.root);
     const pool = this.root.querySelector<HTMLElement>('.db-pool');
     if (pool) fitCardText(pool);
@@ -5936,7 +5964,10 @@ export class App {
     // comes next is marked.
     // (A full-art card with a cost of its own, a Lost Lord, shows it: the Overlords' parts have none.)
     const full = isBossCard(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}${opts.owner?.boss?.intent === c.uid ? ' card-intent' : ''}` : '';
-    const actionTag = def.bossAction && (def.overlordPart !== 'lost lord' || opts.owner?.boss) ? `<div class="card-action">${esc(def.bossAction.name.toLowerCase())}</div>` : '';
+    // (Its action's name shows in the inspector only [direction: hide the unique ability pills other than in the
+    // inspector]. The part acting next carries the heat it will deal, large across its middle.)
+    const aimHeat = opts.tableau && opts.owner?.boss?.intent === c.uid && this.state ? Math.max(0, bossAim(this.state, opts.owner).sun, ...bossAim(this.state, opts.owner).cards.map((x) => x.heat)) : 0;
+    const actionTag = aimHeat ? `<b class="boss-aim-heat">${symbolIcon('heat')}<span>${aimHeat}</span></b>` : '';
     return `
       <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}${opts.tableau && c.frozen ? ' card-frozen' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
@@ -6212,8 +6243,8 @@ export class App {
     }
     const hp = leader?.health ?? 0, max = leader?.maxHealth ?? (leader ? baseHealth(leader.defId) : 1);
     const pct = Math.max(0, Math.min(100, (hp / Math.max(1, max)) * 100));
-    return `<div class="vitals boss-vitals" data-anchor="player:${p.id}" title="It has no sun: beat down the Overlord itself (heat sent at it strikes the Overlord, past its shields).">
-      <span class="boss-vitals-label">no sun</span>
+    return `<div class="vitals boss-vitals" data-anchor="player:${p.id}" title="Beat down the Overlord itself: heat sent at it strikes the Overlord, past its shields.">
+      <span class="boss-vitals-label">destroy the overlord</span>
       <b class="boss-vitals-hp">${hp}<small>/${max}</small></b>
       <span class="boss-vitals-bar"><i style="width:${pct.toFixed(1)}%"></i></span>
       ${p.shields ? `<span class="boss-vitals-shields">⛨ ${p.shields}</span>` : ''}
