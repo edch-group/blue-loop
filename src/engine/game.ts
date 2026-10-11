@@ -342,9 +342,10 @@ export function enemyChoices(state: GameState, p: PlayerState, defId: string): C
   const e = enemyEffect(defId);
   const t = targetOf(state, p);
   if (!e || !t) return [];
-  // (Heat it strikes the chosen card with first wears that card's defence down: in reach a little further.)
+  // (Void Bolt's heat comes first, and aimed at the card, can wear its defence down: in reach a little further. Aimed
+  // elsewhere, the destroy finds it as it stands, and may fail.)
   const effects = cardDef(defId).onPlay ?? [];
-  const wear = effects.slice(0, effects.indexOf(e)).reduce((n, x) => n + (x.type === 'heat' && x.at === 'chosen' ? x.amount : 0), 0);
+  const wear = defId === 'void_bolt' ? effects.slice(0, effects.indexOf(e)).reduce((n, x) => n + (x.type === 'heat' && x.to === 'target' ? x.amount : 0), 0) : 0;
   return t.tableau.filter((c) => canReach(t, c, e, wear));
 }
 
@@ -377,8 +378,7 @@ export function aimChoices(state: GameState, p: PlayerState, attack = false): { 
 
 /** Whether a card heats your rival as it is played (it may be aimed then, at their sun or one of their cards). */
 export function aimable(defId: string): boolean {
-  // (Heat at the card chosen for its removal isn't aimed on its own.)
-  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target' && !e.at);
+  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target');
 }
 
 /** Whether a Hero's ability heats your rival (it may be aimed, as a card played is). */
@@ -1133,12 +1133,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (!main) break;
         // Heat as a card is played (or a Hero's ability) goes where it was aimed: a rival card, or their sun
         // (Guards draw it in). Dawn heat, and heat from anything else, strikes the sun.
-        const aimed =
-          when === 'play' && !ctx.against && main === targetOf(state, p)
-            ? e.at === 'chosen'
-              ? main.tableau.find((c) => c.uid === ctx.enemyUid) ?? null
-              : aimedCard(state, p, ctx.aimUid)
-            : null;
+        const aimed = when === 'play' && !ctx.against && main === targetOf(state, p) ? aimedCard(state, p, ctx.aimUid) : null;
         const victim = aimed;
         if (state.winnerId || p.eliminated) break;
         if (victim) {

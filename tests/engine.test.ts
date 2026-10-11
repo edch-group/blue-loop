@@ -2025,7 +2025,7 @@ describe('emblem hero abilities', () => {
 });
 
 describe('Void Bolt', () => {
-  it('heats the card first, then destroys it: a card of defence 3 can be worn down and destroyed', () => {
+  it('heats first, then destroys: its heat aimed at a card of defence 3 wears it down for the destroy', () => {
     let s = twoPlayer(23);
     const [, bo] = s.players;
     // (The middle slot gives defence 3.)
@@ -2033,7 +2033,7 @@ describe('Void Bolt', () => {
     bo.tableau.push(victim);
     expect(cardDefence(bo, victim)).toBe(3);
     give(s.players[0], ['void_bolt']);
-    s = play(s, 'void_bolt', { enemyUid: 'vb1' });
+    s = play(s, 'void_bolt', { aimUid: 'vb1', enemyUid: 'vb1' });
     expect(s.players[1].tableau.some((c) => c.uid === 'vb1')).toBe(false);
   });
 
@@ -2044,6 +2044,6 @@ describe('Void Bolt', () => {
     bo.tableau.push(tough);
     if (cardDefence(bo, tough) < 4) return;
     give(ada, ['void_bolt']);
-    expect(() => play(s, 'void_bolt', { enemyUid: 'vb2' })).toThrow();
+    expect(() => play(s, 'void_bolt', { aimUid: 'vb2', enemyUid: 'vb2' })).toThrow();
   });
 });
