@@ -667,10 +667,7 @@ export class CampaignView {
       this.selected = toId;
       // What was there, found as the ship arrives.
       const found = this.state.log.find((l) => l.seq > seq && / finds /.test(l.text));
-      if (found) {
-        this.host.toast(found.text);
-        sound.buy();
-      }
+      if (found) sound.buy();
       const battle = (this.state as CampaignState).battle;
       if (!battle) {
         this.advance = null;
@@ -887,7 +884,7 @@ export class CampaignView {
         const meta = loadMeta();
         const hero = GENERALS[this.setup.race][this.setup.hero];
         if (!raceUnlocked(meta, this.setup.race) || !heroUnlocked(meta, hero)) {
-          this.host.toast('Unlock that race and hero with Stellari petals first.');
+          this.host.toast('Locked');
           sound.error();
           break;
         }

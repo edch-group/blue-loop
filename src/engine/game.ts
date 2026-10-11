@@ -398,8 +398,18 @@ export function aimChoices(state: GameState, p: PlayerState, attack = false): { 
   if (!t) return { cards: [], sun: true };
   // (A Guard soaks up attacks only [direction: not heat aimed by surges or abilities].)
   const g = attack ? guards(t) : [];
-  // (A Lost Overlord has no sun to aim at: only its body.)
-  return g.length ? { cards: g, sun: false } : { cards: [...t.tableau], sun: !t.boss };
+  // (A Lost Overlord has no sun to aim at: only its body. Nor has the rival in a survival dream: see survivalDream.)
+  const sun = !t.boss && !(survivalDream(state) && t === state.players[1]);
+  return g.length ? { cards: g, sun: false } : { cards: [...t.tableau], sun };
+}
+
+/**
+ * A survival dream [direction: survive answers are never "just kill the opponent"; surviving is about stopping
+ * yourself from dying: attacking cards, removing cards, playing defenders, never the sun]: the rival's sun is out of
+ * reach. Nothing can be aimed at it, and no heat burns it out.
+ */
+export function survivalDream(state: GameState): boolean {
+  return state.challenge?.kind === 'dream' && state.challenge.goal === 'survive';
 }
 
 /** Whether a card heats your rival as it is played (it may be aimed then, at their sun or one of their cards). */
@@ -568,15 +578,14 @@ export function recallsInto(p: PlayerState, defId: string): boolean {
  * replaces one of yours. Only a card that needs one of yours to work on can be held back.
  */
 export function roomProblem(p: PlayerState, defId: string): string | null {
-  const name = cardDef(defId).name;
   // (Offering and Rootbreak need a card of yours to draw on.)
   if (needsAlly(defId) && !allyChoices(p, defId).length) {
     return allyEffectKind(defId) === 'offer'
-      ? `${name} needs an undimmed allied card with attack.`
-      : `${name}'s Rootbreak needs a card of yours that has grown.`;
+      ? 'Needs a ready ally with attack'
+      : 'Needs a grown card of yours';
   }
   // A Consume card needs a card of yours to give up (and then has its slot).
-  if (cardDef(defId).consume && !consumable(p).length) return `${name} needs another card of yours in play to consume.`;
+  if (cardDef(defId).consume && !consumable(p).length) return 'Nothing to consume';
   return null;
 }
 
@@ -1116,6 +1125,11 @@ export function isDraw(state: GameState): boolean {
 
 function supernova(state: GameState, p: PlayerState, decide = true) {
   if (p.eliminated) return;
+  // (The rival's sun in a survival dream: never the way through.)
+  if (survivalDream(state) && p === state.players[1]) {
+    p.heat = Math.min(p.heat, supernovaThreshold(p) - 1);
+    return;
+  }
   // The Unburning: the sun stops one short.
   if (hasPower(p, 'unburning')) {
     p.heat = Math.min(p.heat, supernovaThreshold(p) - 1);
@@ -2368,7 +2382,7 @@ function playInReply(state: GameState, r: Reaction, o: PlayerState, enemy: Playe
   const card = o.hand.find((c) => c.uid === action.cardUid)!;
   const def = cardDef(card.defId);
   const cost = reactCost(card.defId);
-  if ((o.banked ?? 0) < cost) throw new GameError(`It costs ${cost} banked energy.`);
+  if ((o.banked ?? 0) < cost) throw new GameError('Not enough banked energy');
   const ev = r.events[0];
   const attacker = ev.attackerUid && enemy.tableau.some((c) => c.uid === ev.attackerUid) ? ev.attackerUid : undefined;
   const play = { aimUid: attacker, ...action.play };
@@ -2490,7 +2504,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   }
   const cost = hasPower(p, 'freeCards') ? 0 : Math.max(0, playCost(def.id, asTrap) - (card.discount ?? 0));
   if (p.playsLeft < cost) throw new GameError(p.playsLeft <= 0 ? 'You have no energy left today.' : `${def.name} costs ${cost} energy: you have ${p.playsLeft} left today.`);
-  if (asTrap && !canSetTrap(p)) throw new GameError('You already have a trap face down.');
+  if (asTrap && !canSetTrap(p)) throw new GameError('One trap at a time');
   // Consume: one of your other cards in play is given up first (your choice; unchosen, the weakest), and leaves
   // play as any card does. (A failed play throws, and the whole move is undone.)
   if (def.consume && !asTrap) {
@@ -2546,7 +2560,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const shifted = shifts === 'rival' ? target?.tableau.find((c) => c.uid === action.enemyUid) : shifts === 'mine' ? p.tableau.find((c) => c.uid === action.allyUid) : undefined;
   if (shifted && (action.shiftTo === undefined || !shiftSlots(shifted).includes(action.shiftTo))) throw new GameError('Choose a slot to move it into.');
 
-  if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
+  if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError('Pick a rival card or their sun');
 
   p.hand = p.hand.filter((c) => c.uid !== card.uid);
   delete card.discount;
@@ -2686,7 +2700,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
         const rival = targetOf(state, p);
         const victim = rival?.tableau.find((c) => c.uid === action.enemyUid);
         if (!rival) break;
-        if (action.enemyUid && !victim) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
+        if (action.enemyUid && !victim) throw new GameError('Pick a rival card or their sun');
         const n = next.amount ?? 0;
         if (victim) {
           log(state, `${p.name}'s ${name} strikes ${rival.name}'s ${cardDef(victim.defId).name} for ${n}.`);
@@ -2842,7 +2856,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       if (k.pay?.selfHeat) resolveEffects(state, p, hero, [{ type: 'selfHeat', amount: k.pay.selfHeat }], 'play');
       p.abilityTurn = state.turnNumber;
       hero.dimmed = true;
-      if (action.aimUid && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError("Aim at a card in your rival's tableau, or at their sun.");
+      if (action.aimUid && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError('Pick a rival card or their sun');
       log(state, `${p.name}'s ${cardDef(hero.defId).name}: ${k.name}.`);
       resolveEffects(state, p, hero, k.effects, 'play', { aimUid: action.aimUid });
       // (An emblem's ability: its choices, one after another, before anything else.)
@@ -2958,14 +2972,15 @@ export function counterDamage(state: GameState, owner: PlayerState, card: CardIn
 export function attackProblem(state: GameState, p: PlayerState, attackerUid: string, targetUid?: string | null): string | null {
   const card = p.tableau.find((c) => c.uid === attackerUid);
   if (!card) return 'That card is not in play.';
-  if (activePlayer(state).id !== p.id) return 'Only on your own day.';
-  if (cardAttack(state, p, card) <= 0) return `${cardDef(card.defId).name} has no attack.`;
-  if (card.dimmed) return `${cardDef(card.defId).name} is dimmed: it acts again from your next day.`;
-  if (card.frozen) return `${cardDef(card.defId).name} is frozen: it can't attack today.`;
+  if (activePlayer(state).id !== p.id) return 'Not your day';
+  if (cardAttack(state, p, card) <= 0) return 'No attack';
+  if (card.dimmed) return 'Dimmed until your next day';
+  if (card.frozen) return 'Frozen today';
   const { cards, sun } = aimChoices(state, p, true);
   if (targetUid === undefined) return null;
-  if (targetUid === null) return sun ? null : targetOf(state, p)?.boss && !guards(targetOf(state, p)!).length ? 'It has no sun: strike its body (its Overlord is what must fall).' : 'Your rival has a Guard in play: attack it.';
-  return cards.some((c) => c.uid === targetUid) ? null : sun ? "Attack a card in your rival's tableau, or their sun." : 'Your rival has a Guard in play: attack it.';
+  if (targetUid === null && !sun && survivalDream(state)) return 'Survive: their sun is off limits';
+  if (targetUid === null) return sun ? null : targetOf(state, p)?.boss && !guards(targetOf(state, p)!).length ? 'Strike its body' : 'Attack the Guard';
+  return cards.some((c) => c.uid === targetUid) ? null : sun ? 'Pick a rival card or their sun' : 'Attack the Guard';
 }
 
 /**
@@ -3037,12 +3052,12 @@ export function heroAbilityProblem(state: GameState, p: PlayerState, index: numb
   const k = hero ? heroAbilities(p, hero)[index] : undefined;
   if (!hero || !k) return 'No Hero leads your tableau.';
   if (k.choices && !choiceOpen(state, p, k.choices.kind)) return `${k.name} has nothing to choose.`;
-  if (activePlayer(state).id !== p.id) return 'Only on your own day.';
-  if (hero.dimmed) return p.abilityTurn === state.turnNumber ? `${cardDef(hero.defId).name} is dimmed: it has been used today.` : `${cardDef(hero.defId).name} is dimmed: it acts from your next day.`;
-  if ((k.cost ?? 0) > p.playsLeft) return `${k.name} needs ${k.cost} energy.`;
-  if (k.pay?.stability && (hero.health ?? 0) <= k.pay.stability) return `${cardDef(hero.defId).name} hasn't the stability to spare.`;
-  if (k.pay?.sacrifice && !sacrificeOf(p)) return `${k.name} needs another of your cards in play to sacrifice.`;
-  if (k.pay?.selfHeat && p.heat + k.pay.selfHeat >= supernovaThreshold(p)) return `${k.name} would drive your own sun to supernova.`;
+  if (activePlayer(state).id !== p.id) return 'Not your day';
+  if (hero.dimmed) return p.abilityTurn === state.turnNumber ? 'Used today' : 'Dimmed until your next day';
+  if ((k.cost ?? 0) > p.playsLeft) return 'Not enough energy';
+  if (k.pay?.stability && (hero.health ?? 0) <= k.pay.stability) return 'Not enough stability';
+  if (k.pay?.sacrifice && !sacrificeOf(p)) return 'Nothing to sacrifice';
+  if (k.pay?.selfHeat && p.heat + k.pay.selfHeat >= supernovaThreshold(p)) return 'Your sun would burn out';
   return null;
 }
 
@@ -3056,10 +3071,10 @@ export function sacrificeOf(p: PlayerState): CardInstance | undefined {
 export function heroSkillProblem(state: GameState, p: PlayerState, index: number): string | null {
   const k = p.skills?.[index];
   if (!k) return 'No such skill.';
-  if (activePlayer(state).id !== p.id) return 'Only on your own day.';
-  if (k.spent) return `${k.name} has been used this battle.`;
-  if (!k.once && k.usedTurn === state.turnNumber) return `${k.name} has been used today.`;
-  if (k.cost > p.playsLeft) return `${k.name} needs ${k.cost} energy.`;
+  if (activePlayer(state).id !== p.id) return 'Not your day';
+  if (k.spent) return 'Used this battle';
+  if (!k.once && k.usedTurn === state.turnNumber) return 'Used today';
+  if (k.cost > p.playsLeft) return 'Not enough energy';
   return null;
 }
 

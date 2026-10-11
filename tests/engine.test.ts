@@ -242,7 +242,7 @@ describe('commands', () => {
     expect(s.players[1].heat).toBeGreaterThanOrEqual(before + 3 - s.players[1].shields);
     expect(activePlayer(s).playsLeft).toBe(3);
     expect(s.players[0].tableau.find((c) => c.defId === 'ignition_protocol')!.health).toBe(4);
-    expect(() => applyAction(s, { type: 'heroAbility', index: 1 })).toThrow(/used today/);
+    expect(() => applyAction(s, { type: 'heroAbility', index: 1 })).toThrow(/used today/i);
     s = endTurn(endTurn(s));
     expect(heroAbilityProblem(s, activePlayer(s), 1)).toBeNull();
   });
@@ -289,7 +289,7 @@ describe('commands', () => {
     give(me, ['kor_hero_durga']);
     s = play(s, 'kor_hero_durga');
     // (A Hero comes into play dimmed: its abilities wait for the next day.)
-    expect(heroAbilityProblem(s, activePlayer(s), 0)).toMatch(/dimmed/);
+    expect(heroAbilityProblem(s, activePlayer(s), 0)).toMatch(/dimmed/i);
     s = endTurn(endTurn(s));
     const hero = () => activePlayer(s).tableau.find((c) => c.defId === 'kor_hero_durga')!;
     hero().health = 4;
@@ -376,14 +376,14 @@ describe('attacks and dimming', () => {
     s = play(s, 'siege_array');
     const array = () => s.players[0].tableau.find((c) => c.defId === 'siege_array')!;
     expect(cardDef('siege_array').attack).toBeGreaterThan(0);
-    expect(attackProblem(s, activePlayer(s), array().uid)).toMatch(/dimmed/);
+    expect(attackProblem(s, activePlayer(s), array().uid)).toMatch(/dimmed/i);
     s = endTurn(endTurn(s));
     array().health = 6;
     const [chart] = give(s.players[1], ['star_chart'], 'tableau');
     chart.health = 6;
     s = applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: chart.uid });
     expect(array().dimmed).toBe(true);
-    expect(() => applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: chart.uid })).toThrow(/dimmed/);
+    expect(() => applyAction(s, { type: 'attack', attackerUid: array().uid, targetUid: chart.uid })).toThrow(/dimmed/i);
     // Next day, at a card with an attack of its own: that card hits back, at the attacker's health.
     s = endTurn(endTurn(s));
     const [lancer] = give(s.players[1], ['helio_lancer'], 'tableau');
@@ -999,7 +999,7 @@ describe('lightspeed', () => {
     expect(s.players[0].lightspeed?.defId).toBe('null_field');
     expect(s.players[0].tableau).toHaveLength(0);
     expect(s.log.some((l) => l.text.includes('Null Field'))).toBe(false);
-    expect(() => play(s, 'signal_jammer')).toThrow(/face down/);
+    expect(() => play(s, 'signal_jammer')).toThrow(/one trap/i);
   });
 
   it('cancels an enemy attack card during their turn, if its owner springs it (Null Field)', () => {
@@ -1958,7 +1958,7 @@ describe('emblem hero abilities', () => {
     t = endTurn(t);
     const card = activePlayer(t).tableau.find((c) => c.uid === theirs.uid)!;
     card.dimmed = false;
-    expect(attackProblem(t, activePlayer(t), theirs.uid)).toMatch(/frozen/);
+    expect(attackProblem(t, activePlayer(t), theirs.uid)).toMatch(/frozen/i);
     t = endTurn(endTurn(t));
     const thawed = activePlayer(t).tableau.find((c) => c.uid === theirs.uid)!;
     thawed.dimmed = false;

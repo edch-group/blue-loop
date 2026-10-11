@@ -1407,7 +1407,6 @@ export class App {
   /** Queue for a ranked match: the ladder finds a rival within a tier of you, then both go to a room made for you. */
   /** Ranked play keeps your rank on your account: sign in (or create one) first. */
   private askSignIn() {
-    this.showToast('Sign in to play ranked: your rank is kept on your account.', 'info');
     this.authMode = 'signin';
     this.authError = '';
     this.menuPage = 'signin';
@@ -1423,17 +1422,16 @@ export class App {
       queued: () => {
         this.render();
       },
-      match: (room, rival) => {
+      match: (room) => {
         this.ladder?.close();
         this.ladder = null;
         this.net.searching = false;
-        this.showToast(`Matched with ${rival.name} (${rival.rankName.toLowerCase()})`, 'info');
         this.goOnline(room);
       },
       lost: () => {
         this.ladder = null;
         this.net.searching = false;
-        this.showToast("Couldn't reach the ranked ladder.", 'error');
+        this.showToast('Ranked is unreachable', 'error');
         this.render();
       },
       signin: () => {
@@ -1864,7 +1862,7 @@ export class App {
     if (over > 0) {
       const picked = (this.discarding ?? []).filter((u) => me.hand.some((c) => c.uid === u));
       if (picked.length !== over) {
-        if (this.discarding && picked.length < over) this.showToast(`Pick ${over - picked.length} more card${over - picked.length === 1 ? '' : 's'} to discard.`, 'error');
+        if (this.discarding && picked.length < over) this.showToast(`Discard ${over - picked.length} more`, 'error');
         this.discarding = picked;
         return this.render();
       }
@@ -3319,12 +3317,12 @@ export class App {
       );
     };
     if (handCost(card, me) > me.playsLeft && !canSetFaceDown(me, card.defId)) {
-      this.showToast(`${cardDef(card.defId).name} costs ${handCost(card, me)} energy: you have ${me.playsLeft} left today.`, 'info');
+      this.showToast('Not enough energy', 'info');
       return refuse();
     }
     // (Another card in your hand, while one waits to be placed: that one is played instead.)
     if (cardDef(card.defId).kind === 'trap' && !canSetTrap(me)) {
-      this.showToast('You already have a trap face down: only one at a time.', 'info');
+      this.showToast('One trap at a time', 'info');
       return refuse();
     }
     const noRoom = roomProblem(me, card.defId);
@@ -3952,7 +3950,7 @@ export class App {
       case 'online-join': {
         const code = cleanCode(this.net.joinCode);
         if (code.length < 4) {
-          this.showToast('Enter the room code your friend sent you.', 'info');
+          this.showToast('Enter a room code', 'info');
           return;
         }
         return this.goOnline(code);
@@ -3976,7 +3974,7 @@ export class App {
         const link = inviteLink(this.online.code);
         const nav = navigator as Navigator & { share?: (d: { title: string; url: string }) => Promise<void> };
         if (nav.share) void nav.share({ title: 'Blue Loop', url: link }).catch(() => undefined);
-        else void navigator.clipboard?.writeText(link).then(() => this.showToast('Invite link copied.', 'info'), () => undefined);
+        else void navigator.clipboard?.writeText(link);
         return;
       }
       case 'continue':
@@ -4091,7 +4089,7 @@ export class App {
         return this.socialSignIn(act === 'auth-apple' ? 'apple' : 'google');
       case 'signin-go':
         if (isProfane(this.signinName ?? profile().name)) {
-          this.showToast('Keep it clean: pick another name.', 'error');
+          this.showToast('Pick another name', 'error');
           return;
         }
         signIn(this.signinName ?? profile().name);

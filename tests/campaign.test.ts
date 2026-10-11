@@ -183,7 +183,7 @@ describe('economy', () => {
     // (At ten cards, nothing can come out.)
     expect(recycleProblem(s, campaignPlayer(s), shop, plain)).toMatch(/at least 10/);
     s = applyCampaignAction(s, { type: 'buyCard', nodeId: shop.id, index: 0 });
-    expect(buyProblem(s, campaignPlayer(s), nodeById(s, shop.id), 0)).toMatch(/One card bought/);
+    expect(buyProblem(s, campaignPlayer(s), nodeById(s, shop.id), 0)).toMatch(/One purchase/);
     expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize + 1);
     // Recycled from the deck, once.
     const before = campaignPlayer(s).materials;
@@ -191,7 +191,7 @@ describe('economy', () => {
     expect(campaignPlayer(s).materials).toBeGreaterThan(before);
     expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize);
     myArmy(s).deck.push('cryo_vault', 'heat_sink');
-    expect(recycleProblem(s, campaignPlayer(s), nodeById(s, shop.id), 'cryo_vault')).toMatch(/One card recycled/);
+    expect(recycleProblem(s, campaignPlayer(s), nodeById(s, shop.id), 'cryo_vault')).toMatch(/One recycle/);
     // Fused from the deck, once: the two out, the fused one in.
     s = applyCampaignAction(s, { type: 'fuseDeck', nodeId: shop.id, a: 'cryo_vault', b: 'heat_sink' });
     expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize + 1);

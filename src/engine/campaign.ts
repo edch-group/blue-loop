@@ -915,8 +915,8 @@ export function buyProblem(s: CampaignState, f: Faction, n: CampaignNode, index:
   if (n.station?.kind !== 'armory') return `${n.name} has no space station.`;
   const id = n.station.cards[index];
   if (!id) return 'That card has been sold.';
-  if (n.station.used?.buy) return 'One card bought at each station.';
-  if (f.materials < buyPrice(s, f, id)) return `Not enough materials (need ${buyPrice(s, f, id)}, have ${f.materials}).`;
+  if (n.station.used?.buy) return 'One purchase per station';
+  if (f.materials < buyPrice(s, f, id)) return 'Not enough materials';
   return null;
 }
 
@@ -928,7 +928,7 @@ export function recycleProblem(s: CampaignState, f: Faction, n: CampaignNode, de
   const why = stationProblem(s, f, n);
   if (why) return why;
   if (n.station?.kind !== 'armory') return `${n.name} has no space station.`;
-  if (n.station.used?.recycle) return 'One card recycled at each station.';
+  if (n.station.used?.recycle) return 'One recycle per station';
   const army = flagship(s, f.id);
   if (!army) return 'You have no flagship.';
   return deckRemoveProblem(army, defId);
@@ -939,16 +939,16 @@ export function fuseProblem(s: CampaignState, f: Faction, n: CampaignNode, a: st
   const why = stationProblem(s, f, n);
   if (why) return why;
   if (n.station?.kind !== 'armory') return `${n.name} has no space station.`;
-  if (n.station.used?.fuse) return 'One fusion at each station.';
+  if (n.station.used?.fuse) return 'One fusion per station';
   const army = flagship(s, f.id);
   if (!army) return 'You have no flagship.';
   const have = (id: string) => army.deck.filter((x) => x === id).length;
   if (a === b ? have(a) < 2 : !have(a) || !have(b)) return 'Choose two cards of your deck.';
   if ([a, b].includes(army.general) && have(army.general) <= (a === b ? 2 : 1)) return `${cardDef(army.general).name} leads this flagship: their card stays.`;
-  if (army.deck.length - 1 < CAMPAIGN.armySize) return `Fusing would take your deck below ${CAMPAIGN.armySize} cards.`;
+  if (army.deck.length - 1 < CAMPAIGN.armySize) return `${CAMPAIGN.armySize} cards minimum`;
   const problem = fusionProblem(a, b);
   if (problem) return problem;
-  if (f.materials < fusionCost(a, b)) return `Not enough materials (need ${fusionCost(a, b)}, have ${f.materials}).`;
+  if (f.materials < fusionCost(a, b)) return 'Not enough materials';
   return null;
 }
 
@@ -3249,7 +3249,7 @@ function stabilise(s: CampaignState, f: Faction, n: CampaignNode) {
 
 
 function spendMaterials(f: Faction, amount: number) {
-  if (f.materials < amount) throw new GameError(`Not enough materials (need ${amount}, have ${f.materials}).`);
+  if (f.materials < amount) throw new GameError('Not enough materials');
   f.materials -= amount;
 }
 
@@ -3272,7 +3272,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
   if (s.battle && action.type !== 'finishBattle') throw new GameError('Finish the battle first.');
   if (s.phase === 'ai' && action.type !== 'finishBattle' && action.type !== 'chooseCard' && action.type !== 'aiStep') throw new GameError('Wait for the other factions to finish their turns.');
   if (s.conquest && action.type !== 'conquer') throw new GameError('Decide the fate of the conquered system first.');
-  if (s.cardRewards.length && !['chooseCard', 'finishBattle', 'conquer', 'aiStep', 'dismissLoot'].includes(action.type)) throw new GameError('Choose your new card first.');
+  if (s.cardRewards.length && !['chooseCard', 'finishBattle', 'conquer', 'aiStep', 'dismissLoot'].includes(action.type)) throw new GameError('Choose your card first');
 
   switch (action.type) {
     case 'move': {

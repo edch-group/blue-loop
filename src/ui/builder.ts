@@ -275,11 +275,11 @@ export class DeckBuilder {
       case 'db-import': {
         const got = decodeDeck(this.texts.code ?? '');
         if (!got) {
-          this.host.toast("That isn't a deck code. Deck codes start with BL1-.");
+          this.host.toast('Not a deck code');
           return true;
         }
         if (!got.cards.length) {
-          this.host.toast("None of that deck's cards are in this game.");
+          this.host.toast('No playable cards in that deck');
           return true;
         }
         this.panel = null;
@@ -294,11 +294,11 @@ export class DeckBuilder {
         const src = deckById(arg);
         if (!src) return true;
         const code = encodeDeck(src);
-        if (!navigator.clipboard) this.host.toast('Copy the code from the box.');
+        if (!navigator.clipboard) this.host.toast('Copy the code from the box');
         else
           void navigator.clipboard.writeText(code).then(
-            () => this.host.toast('Deck code copied: send it to a friend, who imports it from their decks page.'),
-            () => this.host.toast('Copy the code from the box.'),
+            () => undefined,
+            () => this.host.toast('Copy the code from the box'),
           );
         return true;
       }
@@ -311,13 +311,12 @@ export class DeckBuilder {
           return true;
         }
         if (isProfane(this.texts.note ?? '')) {
-          this.host.toast('Keep it clean: change the note.');
+          this.host.toast('Change the note');
           return true;
         }
         void shareDeck(src, this.texts.note ?? '', profile().name || 'Commander').then((err) => {
           if (err) return this.host.toast(err);
           this.panel = null;
-          this.host.toast(`Shared with the community, credited to ${profile().name || 'Commander'}.`);
           if (this.community) void this.loadCommunity();
           this.host.render();
         });
@@ -344,7 +343,7 @@ export class DeckBuilder {
         const c = this.community?.decks?.find((x) => x.id === arg);
         if (!c) return true;
         if (deckWithCards(c.cards)) {
-          this.host.toast('You already have a deck with these cards.');
+          this.host.toast('Already in your decks');
           return true;
         }
         countDeckSave(c.id);
@@ -366,7 +365,6 @@ export class DeckBuilder {
         void unshareDeck(arg).then((err) => {
           if (err) return this.host.toast(err);
           if (this.community?.decks) this.community.decks = this.community.decks.filter((x) => x.id !== arg);
-          this.host.toast('Taken down. Copies others saved stay theirs.');
           this.host.render();
         });
         return true;
@@ -503,10 +501,10 @@ export class DeckBuilder {
         // A card you don't own (or not enough copies of): offer to craft it.
         if (copies >= owned(arg) && copies < copyLimit(arg)) {
           this.focus = arg;
-          this.host.toast(owned(arg) ? `You own ${owned(arg)} ${cardDef(arg).name}: craft another to add it.` : `You don't own ${cardDef(arg).name} yet: craft it with flux, or find it in a booster.`);
-        } else if (d.cards.length >= BALANCE.maxDeckSize) this.host.toast(`A deck holds at most ${BALANCE.maxDeckSize} cards.`);
-        else if (copies >= copyLimit(arg)) this.host.toast(copyLimit(arg) === 1 ? `${cardDef(arg).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`);
-        else if (cardDef(arg).kind === 'command' && commands >= commandCardsFor(BALANCE.maxDeckSize)) this.host.toast(`A deck holds at most ${commandCardsFor(BALANCE.maxDeckSize)} Heroes (one per ${BALANCE.cardsPerCommand} cards).`);
+          this.host.toast(owned(arg) ? 'Craft another to add it' : 'Not owned yet');
+        } else if (d.cards.length >= BALANCE.maxDeckSize) this.host.toast(`${BALANCE.maxDeckSize} cards max`);
+        else if (copies >= copyLimit(arg)) this.host.toast(copyLimit(arg) === 1 ? 'Anomaly: one per deck' : `${BALANCE.maxCopies} copies max`);
+        else if (cardDef(arg).kind === 'command' && commands >= commandCardsFor(BALANCE.maxDeckSize)) this.host.toast(`One Hero per ${BALANCE.cardsPerCommand} cards`);
         else d.cards.push(arg);
         // (A craft prompt that just opened is drawn in place too.)
         if (this.focus === arg) {
@@ -549,8 +547,7 @@ export class DeckBuilder {
         if (this.fromCommunity && !dup) countDeckSave(this.fromCommunity);
         this.fromCommunity = null;
         const short = this.toCollect(d.cards);
-        if (short) this.host.toast(`Saved. ${short}`);
-        else if (st) this.host.toast(`Saved as a new deck: ${d.name}. The starter stays as it was.`);
+        if (short) this.host.toast(short);
         this.editing = this.starter = null;
         break;
       }
@@ -562,17 +559,18 @@ export class DeckBuilder {
   }
 
   /** A deck from elsewhere (a code, a shared list) kept among your own: what it still needs said, if anything. */
-  private keepDeck(name: string, cards: string[], extra: string) {
+  private keepDeck(name: string, cards: string[], _extra: string) {
     const same = deckWithCards(cards);
     if (same) {
-      this.host.toast(`You already have this deck: ${same.name}.`);
+      this.host.toast('Already in your decks');
       return;
     }
     const mode = guessMode(cards);
     saveDeck({ id: `deck-${Date.now().toString(36)}`, name: name.slice(0, 24) || 'Imported deck', cards: [...cards], mode });
     const short = this.toCollect(cards);
     const why = deckProblems(cards, mode)[0];
-    this.host.toast(`Added to your decks${extra}. ${short || (why ? `Not finished yet: ${why}` : 'Ready to play.')}`);
+    // (Only what is wrong is said: a deck ready to play just appears among yours.)
+    if (short || why) this.host.toast(short || `Not finished yet: ${why}`);
   }
 
   /** What a deck still needs before you can play it: the cards to collect, and the flux crafting them would take. */

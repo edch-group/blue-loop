@@ -220,7 +220,7 @@ const OUT = process.env.OUT ?? 'dreams.jsonl';
 seed = Number(process.env.SEED ?? 1);
 for (const tier of tiers) {
   for (let race = r0; race <= r1; race++) {
-    for (const goal of ['win', 'survive'] as const) {
+    for (const goal of (process.env.GOALS ?? 'win,survive').split(',') as ('win' | 'survive')[]) {
       let got: DreamSpec | null = null;
       for (let i = 0; i < 400 && !got; i++) got = attempt(tier, race, goal);
       if (got) {
