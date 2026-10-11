@@ -36,8 +36,8 @@ export interface MapObject {
   reach?: boolean;
   /** A stable number to vary each one by (spin, phase). */
   seed: number;
-  /** What stands at it: an armoury's anvil hovering over it, or a space station circling it. */
-  prop?: 'anvil' | 'station';
+  /** What stands at it: a space station circling it, or a research station's flask hovering over it. */
+  prop?: 'station' | 'lab';
   /** Which system it is (for the pointer hovering it). */
   id?: string;
 }
@@ -645,8 +645,8 @@ export class MapObjects {
   }
 
   /**
-   * The stations, so they can be found: over an armoury's star an anvil hovers, turning slowly and bobbing, a warm
-   * light under it; round a research station's star a space station circles, its ring turning, its lamps lit.
+   * The stations, so they can be found: round a space station's star the station circles, its ring turning, its lamps
+   * lit; over a research station's star its flask hovers upright, turning slowly and bobbing, its brew glowing.
    */
   private drawProps(cam: Camera, time: number, fade: number) {
     const gl = this.gl;
@@ -680,14 +680,21 @@ export class MapObjects {
       });
       const y0 = o.y ?? 0;
       let x: number, y: number, z: number, yaw: number, S: number, tilt = 0;
-      if (kind === 'anvil') {
-        // Hovering over its star, turning slowly, bobbing.
-        S = 0.13;
+      // (The lab draws itself, upright, and goes on; the station is set on its course below.)
+      if (kind === 'lab') {
+        // Hovering upright over its star (its length standing up), turning slowly, bobbing, its brew's light round it.
+        S = 0.12;
         x = o.x;
         z = o.z;
-        y = y0 + 0.11 + 0.012 * Math.sin(time * 1.3 + o.seed);
-        yaw = time * 0.45 + o.seed;
-        glows.push({ x, y: y - 0.04, z, r: 0.13, c: GOLD, a: 0.5 });
+        y = y0 + 0.1 + 0.012 * Math.sin(time * 1.3 + o.seed);
+        const turn = time * 0.5 + o.seed;
+        const cy = Math.cos(turn), sy = Math.sin(turn);
+        const F = [0, 1, 0], U = [cy, 0, sy], R = [-sy, 0, cy];
+        gl.uniform1f(u('uAlpha'), fade * (o.dim ? 0.55 : 1));
+        gl.uniformMatrix4fv(u('uModel'), false, new Float32Array([F[0] * S, F[1] * S, F[2] * S, 0, U[0] * S, U[1] * S, U[2] * S, 0, R[0] * S, R[1] * S, R[2] * S, 0, x, y, z, 1]));
+        gl.drawArrays(gl.TRIANGLES, 0, model.count);
+        glows.push({ x, y: y + S * 0.35, z, r: 0.12, c: [0.55, 0.78, 1], a: 0.5 });
+        continue;
       } else {
         // Circling its star, a little above it, its ring tipped toward its course and turning on its own.
         S = 0.12;
