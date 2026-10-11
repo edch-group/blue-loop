@@ -257,7 +257,7 @@ export const CHALLENGES: Record<ChallengeKind, { name: string; text: string; rew
   mine: { name: 'Antimatter Mine', text: 'Crystals of antimatter, growing in the dark: break as many as you can in 6 days. They heat your sun while they stand.', reward: '3 materials for every crystal broken' },
   lord: { name: 'Lost Lord', text: 'The last lord of a Lost Race, with their retinue: beat the lord down. Like an Overlord, they play no cards, and take one great action a day.', reward: 'the Lost Lord joins your deck' },
   frost: { name: 'The Frost Line', text: 'Wave after wave out of the cold: survive 6 days (a day more for each Frost Line held before). Each is harder than the last.', reward: '+5 max health on your sun for good, or 6 cooling now' },
-  rift: { name: 'Wormhole', text: 'Enter wormhole? You may not come back.', reward: 'a Lost Race\'s galaxy, and its ruler' },
+  rift: { name: 'Rift', text: 'Enter rift? You may not come back.', reward: 'a Lost Race\'s galaxy, and its ruler' },
 };
 
 export type MapLayout = 'strip' | 'spiral' | 'ring';
@@ -1554,7 +1554,8 @@ export function buildUniverse(s: CampaignState, universe: number, layout?: MapLa
 }
 
 // ---------------------------------------------------------------------------
-// Rifts: a Lost Race's galaxy, through a wormhole off the route (rifts.ts)
+// Rifts: a tear off the route into a Lost Race's galaxy (rifts.ts) [direction: called a rift, not a wormhole: the
+// board's wormholes are the way on at each galaxy's end]
 // ---------------------------------------------------------------------------
 
 /** The Lost Race whose galaxy the run is in (undefined in an ordinary galaxy). */
@@ -1725,7 +1726,7 @@ function buildRift(s: CampaignState, kind: RiftKind) {
   if (mid[0]) mid[0].station = { kind: 'armory', cards: armoryStock(s, mid[0]) };
   if (mid[1]) mid[1].station = { kind: 'research', options: pickResearch(s, mid[1], new Set(me.research?.done ?? [])) };
   spinGalaxy(s, 0);
-  clog(s, `${me.name} comes through the wormhole into ${RIFTS[kind].name}. ${RIFTS[kind].text}`);
+  clog(s, `${me.name} comes through the rift into ${RIFTS[kind].name}. ${RIFTS[kind].text}`);
 }
 
 /** Into a rift: there is no way back. */
@@ -1733,7 +1734,7 @@ function enterRift(s: CampaignState, army: Army, target: CampaignNode) {
   const kind = target.challenge!.rift ?? 'dark';
   target.challenge!.done = 'won';
   army.moved = true;
-  clog(s, `${armyLeader(army)} takes the wormhole at ${target.name}.`, target.id, army.owner);
+  clog(s, `${armyLeader(army)} enters the rift at ${target.name}.`, target.id, army.owner);
   buildRift(s, kind);
 }
 
@@ -2609,7 +2610,7 @@ function revealChallenges(s: CampaignState, f: Faction, n: CampaignNode) {
  */
 function placeChallenges(s: CampaignState) {
   const C = CAMPAIGN.columns, gap = CAMPAIGN.laneGap;
-  // (A wormhole into a Lost Race's galaxy among them, often [direction: wormholes as a potential secret node].)
+  // (A rift into a Lost Race's galaxy among them, often [direction: rifts as a potential secret node].)
   const kinds = shuffleInPlace<ChallengeKind>(s, ['mine', 'frost', 'rift', ...(LOST_LORDS.some((id) => !s.lordsWon?.includes(id)) ? ['lord' as const] : [])]).slice(0, 2);
   const hosts = shuffleInPlace(s, s.nodes.filter((n) => !n.heart && !n.home && !n.station && (n.col ?? 0) >= 2 && (n.col ?? 0) <= C - 2));
   const segDist = (px: number, py: number, a: CampaignNode, b: CampaignNode) => {
@@ -2649,7 +2650,7 @@ function placeChallenges(s: CampaignState) {
     const lord = kind === 'lord' ? shuffleInPlace(s, LOST_LORDS.filter((id) => !s.lordsWon?.includes(id)))[0] : undefined;
     const node: CampaignNode = {
       id: `n${s.nodes.length}`,
-      name: kind === 'rift' ? 'Wormhole' : CHALLENGES[kind].name,
+      name: CHALLENGES[kind].name,
       x: at.x,
       y: at.y,
       h: from.h,

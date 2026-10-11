@@ -393,7 +393,7 @@ type Sheet =
   | { kind: 'attack'; armyId: string; toId: string }
   | { kind: 'help' }
   | { kind: 'settings' }
-  /** A wormhole off the route: entered only once the player says so (there is no way back). */
+  /** A rift off the route: entered only once the player says so (there is no way back). */
   | { kind: 'rift'; armyId: string; toId: string };
 
 /** Map stages already listening for drags and zooms (kept through redraws, which no longer rebuild them). */
@@ -1072,7 +1072,7 @@ export class CampaignView {
           const army = (this.army ? s.armies.find((a) => a.id === this.army) : undefined) ?? flagship(s, s.playerId);
           const move = army ? armyMoves(s, army).find((m) => m.toId === arg) : undefined;
           if (army && move) {
-            // A wormhole: asked first [direction: "enter wormhole? You may not come back"].
+            // A rift: asked first [direction: "enter rift? You may not come back"].
             if (nodeById(s, arg).challenge?.kind === 'rift') {
               this.sheet = { kind: 'rift', armyId: army.id, toId: arg };
               sound.hover();
@@ -2689,7 +2689,7 @@ export class CampaignView {
         const to = nodeById(s, sh.toId);
         const kind = to.challenge?.rift;
         return this.modal(
-          'enter wormhole?',
+          'enter rift?',
           `<p class="center-text">You may not come back.</p>${kind ? `<p class="center-text muted">${esc(RIFTS[kind].name)}</p>` : ''}
            <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-rift-go">enter</button><button class="btn" data-act="cmp-close">stay</button></div>`,
           false,

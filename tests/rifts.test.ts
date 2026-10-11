@@ -10,11 +10,11 @@ const fresh = (seed = 7): CampaignState => {
 };
 const ship = (s: CampaignState) => armiesOf(s, s.playerId)[0];
 
-/** A run with a wormhole of a kind hanging off the arrival, found and open. */
+/** A run with a rift of a kind hanging off the arrival, found and open. */
 function withRift(kind: 'dark' | 'time', seed = 7): CampaignState {
   const s = fresh(seed);
   const home = nodeById(s, ship(s).nodeId);
-  const rift: CampaignNode = { id: `n${s.nodes.length}`, name: 'Wormhole', x: home.x, y: home.y + 300, planets: [], owner: null, links: [home.id], fortification: 0, damage: 0, garrison: [], hazard: [], yield: { materials: 0 }, tier: 0, challenge: { kind: 'rift', hidden: false, from: home.id, rift: kind } };
+  const rift: CampaignNode = { id: `n${s.nodes.length}`, name: 'Rift', x: home.x, y: home.y + 300, planets: [], owner: null, links: [home.id], fortification: 0, damage: 0, garrison: [], hazard: [], yield: { materials: 0 }, tier: 0, challenge: { kind: 'rift', hidden: false, from: home.id, rift: kind } };
   home.links.push(rift.id);
   s.nodes.push(rift);
   return s;

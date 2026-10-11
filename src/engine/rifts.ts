@@ -1,6 +1,6 @@
 /**
- * Rifts: wormholes off the route (secret nodes), each leading into a short, extremely hard galaxy ruled by one of the
- * Lost Races [direction: wormholes as a secret node, each holding one of the four Lost Races; "enter wormhole? You may
+ * Rifts: tears off the route (secret nodes), each leading into a short, extremely hard galaxy ruled by one of the
+ * Lost Races [direction: rifts as a secret node, each holding one of the four Lost Races; "enter rift? You may
  * not come back"]. Gone through, there is no way back: the rift's galaxy is crossed to its ruler, and beaten, its own
  * wormhole leads on into the next galaxy of the run.
  *
