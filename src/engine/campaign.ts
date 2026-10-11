@@ -26,6 +26,9 @@ import type { RelicInPlay } from './relics';
 import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
 import { RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, supersededResearch, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
+import { RIFT_JUMPS, RIFT_KINDS, RIFTS, markedId, marksFor, NYX_MARKS, type NyxMark, type RiftKind } from './rifts';
+const NYX_MARK_NAME = (Object.fromEntries(Object.entries(NYX_MARKS).map(([k, v]) => [k, v.name])) as Record<NyxMark, string>);
+import { RELIC_POWERS, SEREN_POWERS } from './relics';
 import { runBonuses, type RunBonuses } from './meta';
 import {
   contactScene,
@@ -236,7 +239,7 @@ export interface GarrisonCard {
 }
 
 /** A challenge system's kind (see CHALLENGES). */
-export type ChallengeKind = 'mine' | 'lord' | 'frost';
+export type ChallengeKind = 'mine' | 'lord' | 'frost' | 'rift';
 
 /**
  * The Frost Line, harder each time it is held: what stands there at first (with a Rime Golem in front), then the
@@ -254,9 +257,10 @@ export const CHALLENGES: Record<ChallengeKind, { name: string; text: string; rew
   mine: { name: 'Antimatter Mine', text: 'Crystals of antimatter, growing in the dark: break as many as you can in 6 days. They heat your sun while they stand.', reward: '3 materials for every crystal broken' },
   lord: { name: 'Lost Lord', text: 'The last lord of a Lost Race, with their retinue: beat the lord down. Like an Overlord, they play no cards, and take one great action a day.', reward: 'the Lost Lord joins your deck' },
   frost: { name: 'The Frost Line', text: 'Wave after wave out of the cold: survive 6 days (a day more for each Frost Line held before). Each is harder than the last.', reward: '+5 max health on your sun for good, or 6 cooling now' },
+  rift: { name: 'Wormhole', text: 'Enter wormhole? You may not come back.', reward: 'a Lost Race\'s galaxy, and its ruler' },
 };
 
-export type MapLayout = 'strip' | 'spiral';
+export type MapLayout = 'strip' | 'spiral' | 'ring';
 export type MapTerrain = 'flat' | 'rolling' | 'climb';
 
 export interface CampaignNode {
@@ -288,7 +292,14 @@ export interface CampaignNode {
    * A challenge: a secret system off the strip, hidden until the system it hangs off (`from`) is taken. Its own
    * rules and rewards (CHALLENGES); tried once: `done` once fought (won, or lost: then it is dimmed).
    */
-  challenge?: { kind: ChallengeKind; hidden: boolean; from: string; done?: 'won' | 'lost'; lord?: string };
+  challenge?: { kind: ChallengeKind; hidden: boolean; from: string; done?: 'won' | 'lost'; lord?: string; rift?: RiftKind };
+  /** Gone into the dark behind the flagship (a Dark Galaxy's stars): nothing there, no way back. */
+  vanished?: boolean;
+  /** A Dark Prophet waits here (a Dark Galaxy): flown into, they mark one of your cards with a Nyxari keyword. */
+  prophet?: boolean;
+  /** Time Dense Space: the ring it turns on (1 innermost; the arrival the outermost) and its place round it. */
+  spinRing?: number;
+  spinSlot?: number;
   /** Routes from here to the Heart (0 at the Heart): the core is richer and better defended. */
   ring?: number;
   /** A Finite Stellari bloom: the turns of plenty it has left (0: wilted). */
@@ -646,6 +657,14 @@ export interface CampaignState {
   layout?: MapLayout;
   /** How the land lies under the route: flat, rolling hills, or climbing toward the wormhole. */
   terrain?: MapTerrain;
+  /** In a Lost Race's galaxy, through a rift (rifts.ts): which. Unset in the run's ordinary galaxies. */
+  rift?: { kind: RiftKind };
+  /** Time Dense Space: how many times its rings have turned (a step a second, on the player's screen). */
+  spin?: number;
+  /** A Dark Prophet's offer waiting on the player: three of their cards, each with the mark it would take. */
+  prophet?: { nodeId: string; offers: { card: string; mark: NyxMark }[] };
+  /** Aster's gift waiting on the player: three Seren emblems, one to take. */
+  emblemChoice?: Relic[];
   /** A battle the player is fighting (or can auto-resolve). */
   battle: BattleContext | null;
   /** The player won an attack and must decide the system's fate (the army that won it marches in if it is settled). */
@@ -736,7 +755,11 @@ export type CampaignAction =
   /** Let the next faction (in a stepwise end of turn) take its turn. */
   | { type: 'aiStep' }
   /** The petals grabbed so far have been added to the account's lasting progress. */
-  | { type: 'petalsBanked' };
+  | { type: 'petalsBanked' }
+  /** A Dark Prophet's offer: the card to mark (its index among the offers), or null to refuse. */
+  | { type: 'prophetPick'; index: number | null }
+  /** Aster's gift: the Seren emblem taken (its index). */
+  | { type: 'chooseEmblem'; index: number };
 
 // ---------------------------------------------------------------------------
 // Missions
@@ -795,6 +818,13 @@ export const ownedNodes = (s: CampaignState, factionId: string) => s.nodes.filte
 
 /** What a faction can see: the whole strip, every route to the wormhole (there is no fog). */
 export function visibleNodes(s: CampaignState, _factionId: string): Set<string> {
+  // The Dark Galaxy: only the star the flagship stands at, and the stars one jump ahead [direction: complete darkness,
+  // one star ahead at a time].
+  if (s.rift?.kind === 'dark') {
+    const ship = flagship(s, s.playerId);
+    const here = ship ? nodeById(s, ship.nodeId) : null;
+    return new Set(here ? [here.id, ...here.links.filter((id) => !nodeById(s, id).vanished)] : []);
+  }
   // (A challenge stays unseen until the system it hangs off is taken.)
   return new Set(s.nodes.filter((n) => !n.challenge?.hidden).map((n) => n.id));
 }
@@ -870,17 +900,19 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
   const out: { toId: string; battle: boolean; surrender?: boolean }[] = [];
   for (const id of here.links) {
     const n = nodeById(s, id);
-    if (n.collapsed) continue;
+    if (n.collapsed || n.vanished) continue;
+    // (Time Dense Space: inward only, ring by ring, toward its heart.)
+    if (s.rift?.kind === 'time' && (n.spinRing ?? 0) >= (here.spinRing ?? 99) && !n.heart) continue;
     // (Never a move that would end the player's run.)
     if (doomProblem(s, army, id)) continue;
     // A challenge: the player's alone, once found, and tried once.
     if (n.challenge) {
-      if (army.owner === s.playerId && !n.challenge.hidden && !n.challenge.done) out.push({ toId: id, battle: true });
+      if (army.owner === s.playerId && !n.challenge.hidden && !n.challenge.done) out.push({ toId: id, battle: n.challenge.kind !== 'rift' });
       continue;
     }
     const there = armyAt(s, id);
     // (A system it holds, a burnt-out ruin, or a station (a pit stop, never fought over), is passed through freely.)
-    if (n.owner === army.owner || n.station || ((n.ruined || n.cache) && !n.owner && !there)) {
+    if (n.owner === army.owner || n.station || ((n.ruined || n.cache || n.prophet) && !n.owner && !there)) {
       if (!there) out.push({ toId: id, battle: false });
       continue;
     }
@@ -1318,6 +1350,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
 
 /** Turns of regional stability a universe starts with: fewer in each new universe (and more with the Anchored space perk). */
 export function universeStability(s: CampaignState): number {
+  // (A rift's galaxy never gives way: it is short, and hard enough.)
+  if (s.rift) return 999;
   return Math.max(CAMPAIGN.stabilityMin, CAMPAIGN.stabilityTurns - CAMPAIGN.stabilityStep * (s.universe - 1)) + (s.run?.grace ?? 0);
 }
 
@@ -1519,6 +1553,233 @@ export function buildUniverse(s: CampaignState, universe: number, layout?: MapLa
   tell(s, wormholeSightedScene(universe));
 }
 
+// ---------------------------------------------------------------------------
+// Rifts: a Lost Race's galaxy, through a wormhole off the route (rifts.ts)
+// ---------------------------------------------------------------------------
+
+/** The Lost Race whose galaxy the run is in (undefined in an ordinary galaxy). */
+export const riftRace = (s: CampaignState): number | undefined => (s.rift ? RIFTS[s.rift.kind].race : undefined);
+
+/** Time Dense Space's rings, innermost first: how many stars each holds, and how far out it lies. */
+const TIME_RINGS = [
+  { n: 4, r: 420 },
+  { n: 5, r: 720 },
+  { n: 6, r: 1000 },
+  { n: 7, r: 1270 },
+];
+/** The arrival's ring, outermost (one star). */
+const TIME_ARRIVAL = { n: 1, r: 1500 };
+
+/** Where a star of Time Dense Space stands at a spin: each ring turns anticlockwise, half a star's width a step. */
+function spunAt(ring: number, slot: number, spin: number): { x: number; y: number; a: number } {
+  const R = ring > TIME_RINGS.length ? TIME_ARRIVAL : TIME_RINGS[ring - 1];
+  // (Inner rings turn faster, as a galaxy's do: each its own step, so what lines up changes every second.)
+  const a = (2 * Math.PI * slot) / R.n + ring * 0.9 - spin * (Math.PI / R.n);
+  return { x: CAMPAIGN.mapWidth / 2 + Math.cos(a) * R.r, y: CAMPAIGN.mapHeight / 2 + Math.sin(a) * R.r, a };
+}
+
+/**
+ * Time Dense Space turns [direction: a circular galaxy rotating anticlockwise, the stars in reach changing every
+ * second]: each star moves to where its ring now stands, and each star's routes inward go to the star (or two) of
+ * the next ring in now lying across its way. The heart (Aster) is in reach of every star of the innermost ring.
+ * Mutates the state it is given (the player's screen turns it, a step a second; a move made is made as it stands).
+ */
+export function spinGalaxy(s: CampaignState, spin: number) {
+  if (s.rift?.kind !== 'time') return;
+  s.spin = spin;
+  const ringed = s.nodes.filter((n) => n.spinRing !== undefined);
+  for (const n of ringed) {
+    const p = spunAt(n.spinRing!, n.spinSlot ?? 0, spin);
+    n.x = p.x;
+    n.y = p.y;
+  }
+  const heart = s.nodes.find((n) => n.heart);
+  for (const n of s.nodes) n.links = [];
+  const link = (a: CampaignNode, b: CampaignNode) => {
+    if (!a.links.includes(b.id)) a.links.push(b.id);
+    if (!b.links.includes(a.id)) b.links.push(a.id);
+  };
+  const angle = (n: CampaignNode) => Math.atan2(n.y - CAMPAIGN.mapHeight / 2, n.x - CAMPAIGN.mapWidth / 2);
+  const gap = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  for (const n of ringed) {
+    const inner = n.spinRing! - 1;
+    if (inner === 0) {
+      if (heart) link(n, heart);
+      continue;
+    }
+    const ring = ringed.filter((m) => m.spinRing === inner);
+    const width = Math.PI / TIME_RINGS[inner - 1].n;
+    for (const m of ring) if (gap(angle(n), angle(m)) <= width * 1.1) link(n, m);
+  }
+}
+
+/** A blank system for a rift's galaxy. */
+function riftNode(s: CampaignState, used: Set<string>, x: number, y: number, tier: number, col: number, lane: number): CampaignNode {
+  const name = nodeName(s, used);
+  const tints: MapPlanet['tint'][] = ['weapons', 'defences', 'economy', 'resources'];
+  return {
+    id: `n${s.nodes.length}`,
+    name,
+    x,
+    y,
+    planets: Array.from({ length: 2 + randomInt(s, 2) }, (_, j) => ({ name: `${name} ${['I', 'II', 'III'][j]}`, tint: tints[randomInt(s, tints.length)] })),
+    owner: null,
+    links: [],
+    fortification: 0,
+    damage: 0,
+    garrison: [],
+    hazard: [],
+    yield: { materials: 5 + randomInt(s, 4) + tier },
+    tier,
+    col,
+    lane,
+  };
+}
+
+/**
+ * Through a rift, into a Lost Race's galaxy [direction: shorter than a normal galaxy, about 5 jumps; extremely
+ * challenging]: its ruler at the end, its stations stocked with the race's own, every fight against the race at
+ * its strongest. The Dark Galaxy is a short strip, two lanes wide, in the dark; Time Dense Space a disc of turning
+ * rings round its heart.
+ */
+function buildRift(s: CampaignState, kind: RiftKind) {
+  const me = campaignPlayer(s);
+  s.rift = { kind };
+  s.universeStart = s.turn;
+  s.collapseCol = 0;
+  s.conquered = 0;
+  s.nodes = [];
+  s.armies = s.armies.filter((a) => a.owner === me.id);
+  s.galaxy = undefined;
+  s.terrain = 'flat';
+  s.spin = 0;
+  const used = new Set<string>();
+  // (Past anything the run's own galaxy holds at its far end.)
+  const tier = 2 * (s.universe - 1) + 3;
+  const W = CAMPAIGN.mapWidth, H = CAMPAIGN.mapHeight;
+  let home: CampaignNode;
+  const heart: CampaignNode = { ...riftNode(s, used, W / 2, H / 2, tier + 1, RIFT_JUMPS, 0), name: cardDef(RIFTS[kind].ruler).name, planets: [], yield: { materials: 0 }, heart: true };
+  if (kind === 'dark') {
+    s.layout = 'strip';
+    // A short strip in the dark: the arrival, four columns of two, and Nyxara past the end.
+    const L = 2, C = RIFT_JUMPS;
+    const place = (c: number, l: number) => ({ x: CAMPAIGN.mapMargin + 600 + c * CAMPAIGN.colGap, y: H / 2 + (l - (L - 1) / 2) * CAMPAIGN.laneGap * 1.2 + Math.round((nextRandom(s) - 0.5) * 80) });
+    const p0 = place(0, (L - 1) / 2);
+    home = riftNode(s, used, p0.x, p0.y, tier, 0, 0);
+    s.nodes.push(home);
+    const grid: CampaignNode[][] = [];
+    for (let c = 1; c < C; c++) {
+      grid[c] = [];
+      for (let l = 0; l < L; l++) {
+        const p = place(c, l);
+        const n = riftNode(s, used, p.x, p.y, tier, c, l);
+        grid[c][l] = n;
+        s.nodes.push(n);
+      }
+    }
+    const ph = place(C, (L - 1) / 2);
+    Object.assign(heart, { id: `n${s.nodes.length}`, x: ph.x, y: ph.y, col: C });
+    s.nodes.push(heart);
+    const link = (a: CampaignNode, b: CampaignNode) => {
+      a.links.push(b.id);
+      b.links.push(a.id);
+    };
+    for (let l = 0; l < L; l++) link(home, grid[1][l]);
+    for (let c = 1; c < C; c++) {
+      for (let l = 0; l < L; l++) link(grid[c][l], c + 1 < C ? grid[c + 1][l] : heart);
+      if (c + 1 < C) link(grid[c][nextRandom(s) < 0.5 ? 0 : 1], grid[c + 1][nextRandom(s) < 0.5 ? 0 : 1]);
+    }
+    for (const n of s.nodes) n.links = [...new Set(n.links)];
+    // A Dark Prophet, now and then, somewhere along the way [direction: a chance to run into a Dark Prophet].
+    if (nextRandom(s) < 0.6) grid[1 + randomInt(s, C - 2)][randomInt(s, L)].prophet = true;
+  } else {
+    s.layout = 'ring';
+    // Rings round Aster, the arrival on the outermost: inward a ring a jump.
+    heart.x = W / 2;
+    heart.y = H / 2;
+    heart.col = RIFT_JUMPS;
+    s.nodes.push(heart);
+    const p0 = spunAt(TIME_RINGS.length + 1, 0, 0);
+    home = { ...riftNode(s, used, p0.x, p0.y, tier, 0, 0), spinRing: TIME_RINGS.length + 1, spinSlot: 0 };
+    s.nodes.push(home);
+    TIME_RINGS.forEach((R, i) => {
+      const ring = i + 1;
+      for (let j = 0; j < R.n; j++) {
+        const p = spunAt(ring, j, 0);
+        s.nodes.push({ ...riftNode(s, used, p.x, p.y, tier, RIFT_JUMPS - ring, j), spinRing: ring, spinSlot: j });
+      }
+    });
+  }
+  home.owner = me.id;
+  home.home = me.id;
+  home.yield = { materials: 0 };
+  const army = flagship(s, me.id);
+  if (army) {
+    army.nodeId = home.id;
+    army.moved = army.refit = false;
+    army.steps = 0;
+  } else raiseArmy(s, me, me.hero ?? GENERALS[me.race][0], home.id);
+  // A space station and a research station of the race's own, along the way.
+  const open = (n: CampaignNode) => !n.home && !n.heart && !n.prophet;
+  const mid = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 1 && (n.col ?? 0) <= RIFT_JUMPS - 2));
+  if (mid[0]) mid[0].station = { kind: 'armory', cards: armoryStock(s, mid[0]) };
+  if (mid[1]) mid[1].station = { kind: 'research', options: pickResearch(s, mid[1], new Set(me.research?.done ?? [])) };
+  spinGalaxy(s, 0);
+  clog(s, `${me.name} comes through the wormhole into ${RIFTS[kind].name}. ${RIFTS[kind].text}`);
+}
+
+/** Into a rift: there is no way back. */
+function enterRift(s: CampaignState, army: Army, target: CampaignNode) {
+  const kind = target.challenge!.rift ?? 'dark';
+  target.challenge!.done = 'won';
+  army.moved = true;
+  clog(s, `${armyLeader(army)} takes the wormhole at ${target.name}.`, target.id, army.owner);
+  buildRift(s, kind);
+}
+
+/**
+ * The Dark Galaxy: the stars behind the flagship go out [direction: stars players leave vanish into the darkness
+ * behind them, so they cannot double back].
+ */
+function darkenBehind(s: CampaignState) {
+  if (s.rift?.kind !== 'dark') return;
+  const ship = flagship(s, s.playerId);
+  if (!ship) return;
+  const col = nodeById(s, ship.nodeId).col ?? 0;
+  for (const n of s.nodes) if ((n.col ?? 0) < col && n.id !== ship.nodeId) n.vanished = true;
+}
+
+/** A Dark Prophet's offer: three of the flagship's cards, each with a Nyxari mark it can take, chosen at random. */
+function prophetOffers(s: CampaignState, army: Army): { card: string; mark: NyxMark }[] {
+  const cards = shuffleInPlace(s, [...new Set(army.deck)]).filter((id) => marksFor(cardDef(id)).length);
+  return cards.slice(0, 3).map((card) => {
+    const marks = marksFor(cardDef(card));
+    return { card, mark: marks[randomInt(s, marks.length)] };
+  });
+}
+
+/** Aster's gift: the three Seren emblems, one to take. */
+function serenEmblems(s: CampaignState): Relic[] {
+  const names: Record<string, string> = { paradise: 'Paradise Seed', orbitShift: "Tidecaller's Astrolabe", starsworn: 'Starsworn Circlet' };
+  return SEREN_POWERS.map((power) => {
+    const n = RELIC_POWERS[power].amounts[2];
+    return { id: `item${++s.uidCounter}`, name: names[power] ?? power, slot: 'star' as SlotKind, rarity: 'anomaly' as ItemRarity, boons: [], power, n, text: RELIC_POWERS[power].text(n) };
+  });
+}
+
+/** The cards a rift's sentinels fight with: the race's own, the heavier the deeper. */
+function riftDeck(s: CampaignState, n: CampaignNode): string[] {
+  const race = riftRace(s)!;
+  const pool = shuffleInPlace(s, CARDS.filter((c) => c.race === race && c.kind !== 'command' && legalIn(s.mode, c.id)).map((c) => c.id));
+  const size = n.heart ? 20 : Math.min(20, CAMPAIGN.enemyDeck + 6);
+  const deck: string[] = [];
+  for (let i = 0; deck.length < size && i < pool.length * 2; i++) {
+    const id = pool[i % pool.length];
+    if (deck.filter((x) => x === id).length < copyLimit(id)) deck.push(id);
+  }
+  return deck;
+}
+
 /** A new army, led by `general`, standing in `nodeId`. */
 function raiseArmy(s: CampaignState, f: Faction, general: string, nodeId: string): Army {
   // A new army can be refitted on the turn it is raised, but marches from the next.
@@ -1581,6 +1842,13 @@ function clog(s: CampaignState, text: string, at?: string | string[], who?: stri
  * Cards a faction can be offered: its own race's cards (twice as often), neutral cards, globals and the
  * fine-tuned Command cards (a deck starts with two of its race's first leader); Anomalies are rarest.
  */
+/** A rift's galaxy: rewards are its race's cards alone [direction: all rewards exclusively Nyxari (Seren) cards]. */
+function riftPool(s: CampaignState): string[] | null {
+  const race = riftRace(s);
+  if (race === undefined) return null;
+  return CARDS.filter((c) => c.race === race && c.kind !== 'command' && legalIn(s.mode, c.id)).flatMap((c) => Array(offerWeight(c.rarity ?? 'dwarf', s.universe + 2)).fill(c.id) as string[]);
+}
+
 function offerPool(f: Faction, mode?: GameMode, universe = 1): string[] {
   // (Generals are recruited, not bought: no Hero cards of the race's own.)
   return CARDS.filter((c) => !(c.kind === 'command' && GENERALS[f.race]?.includes(c.id)) && (c.race === undefined || c.race === f.race) && legalIn(mode, c.id)).flatMap((c) =>
@@ -1607,7 +1875,9 @@ const STOCK = CARDS.filter((c) => c.kind !== 'command' && c.kind !== 'global' &&
  */
 function armoryStock(s: CampaignState, n: CampaignNode): string[] {
   const near = deepIn(s, n);
-  const of = (r: ItemRarity) => shuffleInPlace(s, STOCK.filter((c) => (c.rarity ?? 'dwarf') === r && legalIn(s.mode, c.id)).map((c) => c.id));
+  // (A rift's galaxy: its race's cards alone.)
+  const race = riftRace(s);
+  const of = (r: ItemRarity) => shuffleInPlace(s, STOCK.filter((c) => (c.rarity ?? 'dwarf') === r && legalIn(s.mode, c.id) && (race === undefined || c.race === race)).map((c) => c.id));
   const dwarfs = of('dwarf');
   const stellar = of('stellar');
   const anomaly = of('anomaly');
@@ -1618,7 +1888,9 @@ function armoryStock(s: CampaignState, n: CampaignNode): string[] {
     for (const c of chances) if (nextRandom(s) < c) rares.push((nextRandom(s) < (near ? 0.45 : 0.2) ? anomaly : stellar).shift()!);
   }
   // (A Quartermaster, from the skill tree: more on every shelf.)
-  return shuffleInPlace(s, [...rares, ...dwarfs.slice(0, CAMPAIGN.armoryStock + (s.run?.stock ?? 0) - rares.length)]);
+  // (A rift's race may have no rare of a kind left to give: what there is.)
+  const got = rares.filter(Boolean);
+  return shuffleInPlace(s, [...got, ...dwarfs.slice(0, CAMPAIGN.armoryStock + (s.run?.stock ?? 0) - got.length)]);
 }
 
 /**
@@ -1627,7 +1899,9 @@ function armoryStock(s: CampaignState, n: CampaignNode): string[] {
  */
 function pickResearch(s: CampaignState, n: CampaignNode, taken: Set<string>): string[] {
   const near = deepIn(s, n);
-  const free = RESEARCH.filter((r) => !taken.has(r.id) && !RETIRED_RESEARCH.has(r.id));
+  // (A rift's galaxy offers its race's own upgrades; nowhere else does.)
+  const race = riftRace(s);
+  const free = RESEARCH.filter((r) => !taken.has(r.id) && !RETIRED_RESEARCH.has(r.id) && r.race === race);
   const fits = shuffleInPlace(s, free.filter((r) => (near ? r.tier >= 2 : r.tier <= 2)));
   const rest = shuffleInPlace(s, free.filter((r) => !fits.includes(r)));
   return [...fits, ...rest].slice(0, CAMPAIGN.researchOptions).map((r) => r.id);
@@ -1639,7 +1913,7 @@ export function deepIn(s: CampaignState, n: CampaignNode): boolean {
 }
 
 function randomCardChoices(s: CampaignState, f: Faction): string[] {
-  const pool = [...new Set(shuffleInPlace(s, offerPool(f, s.mode, s.universe)))];
+  const pool = [...new Set(shuffleInPlace(s, riftPool(s) ?? offerPool(f, s.mode, s.universe)))];
   // (Wide offers, bought between runs: more to choose from.)
   return pool.slice(0, CAMPAIGN.cardChoices + (f.id === s.playerId ? s.run?.choices ?? 0 : 0));
 }
@@ -1654,6 +1928,8 @@ function randomCardChoices(s: CampaignState, f: Faction): string[] {
  * system's guard has its owner's race's cards among them. No hero: it is beaten when its cards run out.
  */
 function stationDeck(s: CampaignState, n: CampaignNode, race?: number): string[] {
+  // (A rift's galaxy: its own race, at its strongest.)
+  if (s.rift && race === undefined) return riftDeck(s, n);
   if (n.heart) {
     const w = wardenDeck(s).filter((id) => cardDef(id).kind !== 'command');
     // (The wormhole's guardian: bigger in every universe.)
@@ -1827,8 +2103,9 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   // The defender: an army standing there (its own deck), else the system's own guard (its race's plain
   // deck), else neutral sentinels, or at the Heart its Wardens.
   // The wormhole's guardian: a Lost Overlord, its body in play (see cards-bosses.ts).
-  const lord = target.heart && !owner && !guard ? overlordById(s.overlord ?? OVERLORDS[0].id) : null;
-  const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s flagship`) : owner ? `${target.name} Station` : lord ? lord.name : `${target.name} Sentinels`;
+  const ruler = target.heart && !owner && !guard && s.rift ? RIFTS[s.rift.kind].ruler : null;
+  const lord = target.heart && !owner && !guard && !ruler ? overlordById(s.overlord ?? OVERLORDS[0].id) : null;
+  const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s flagship`) : owner ? `${target.name} Station` : lord ? lord.name : ruler ? cardDef(ruler).name : `${target.name} Sentinels`;
   const defenderDeck = guard ? guard.deck : stationDeck(s, target, owner?.race);
   const { hull: atkHull, ...atkShip } = flagshipSetup(s, army);
   const defShip = guard ? flagshipSetup(s, guard) : null;
@@ -1854,13 +2131,16 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       ...(lord ? { boss: true, bossHealth: overlordHealth(s.universe) } : {}),
       // (A system's damage is its own: an army standing there brings its own.)
       heatDelta: (guard ? guard.damage : target.damage) + atk.foeHeat,
-      ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : lord ? {} : { rooms: stationRooms(target) }),
+      ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : lord ? {} : ruler ? { hero: ruler, heroStats: { attack: CAMPAIGN.heroAttack + 2, defence: CAMPAIGN.heroDefence + 2 }, rooms: { defence: [3, 3, 3, 3, 3], attack: [1, 1, 1, 1, 1], command: 3 } } : { rooms: stationRooms(target) }),
       // (A relic cache on a neutral system's field, for the player to break: after the garrison, in the slots left.)
-      tableau: lord ? [lord.hero, ...lord.parts] : [...(defShip?.tableau ?? []), ...g.tableau, ...(target.vault && !owner && !guard && army.owner === s.playerId ? [target.vault > 1 ? 'reliquary_obelisk_2' : 'reliquary_obelisk'] : [])],
+      tableau: lord ? [lord.hero, ...lord.parts] : ruler ? [ruler] : [...(defShip?.tableau ?? []), ...g.tableau, ...(target.vault && !owner && !guard && army.owner === s.playerId ? [target.vault > 1 ? 'reliquary_obelisk_2' : 'reliquary_obelisk'] : [])],
       lightspeed: g.lightspeed,
       // (A Lost Overlord's sun is its own: well beyond any system's, and more in every universe.)
       modifiers: lord
         ? [{ maxHealthDelta: overlordHealth(s.universe) - BALANCE.supernovaAt }, starBoth, atk.foeMods].reduce(mergeModifiers, fx?.modifiers ?? {})
+        : ruler
+          ? // (A Lost Race's ruler: a sun past any system's, a shield every day, and a fuller hand.)
+            [{ maxHealthDelta: 6 + 2 * (s.universe - 1), shieldPerTurn: 1, extraDraw: 1 }, atk.foeMods].reduce(mergeModifiers, {})
         : capDefence([fortified, wardens, guard ? {} : core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {}), fx?.modifiers, !!guard),
       ...(def?.skills.length ? { skills: def.skills } : {}),
       ...(guard && def?.boons.length ? { heroBoons: { hero: guard.general, boons: def.boons } } : {}),
@@ -1888,20 +2168,31 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   const here = nodeById(s, army.nodeId);
   const target = nodeById(s, toId);
   if (!here.links.includes(toId)) throw new GameError('There is no route between those systems.');
+  if (target.vanished) throw new GameError(`${target.name} is gone into the dark.`);
+  if (s.rift?.kind === 'time' && (target.spinRing ?? 0) >= (here.spinRing ?? 99) && !target.heart) throw new GameError('Time Dense Space only lets you inward.');
   if (target.collapsed) throw new GameError(`${target.name} has collapsed. There is nothing left there.`);
   const doom = doomProblem(s, army, toId);
   if (doom) throw new GameError(doom);
   if (target.challenge) {
     if (target.challenge.hidden || target.challenge.done || f.id !== s.playerId) throw new GameError('There is nothing there to try.');
-    startChallenge(s, army, target);
+    if (target.challenge.kind === 'rift') enterRift(s, army, target);
+    else startChallenge(s, army, target);
     return;
   }
   // A space station or research station is a pit stop [direction: neither should ever have a battle]: flown into
   // freely (while no other ship is docked there), never fought over, never taken.
-  if (target.owner === f.id || target.station || ((target.ruined || target.cache) && !target.owner && !armyAt(s, toId))) {
+  if (target.owner === f.id || target.station || ((target.ruined || target.cache || target.prophet) && !target.owner && !armyAt(s, toId))) {
     if (armyAt(s, toId)) throw new GameError(`${target.station ? 'A ship is already docked at' : 'An army already stands in'} ${target.name}.`);
     army.nodeId = toId;
     if (target.cache && !army.lost) takeCache(s, f, target, army);
+    // A Dark Prophet: three of the flagship's cards, offered a Nyxari mark (one to take, for good).
+    if (target.prophet && f.id === s.playerId) {
+      target.prophet = false;
+      target.owner = f.id;
+      const offers = prophetOffers(s, army);
+      if (offers.length) s.prophet = { nodeId: target.id, offers };
+      clog(s, `A Dark Prophet waits at ${target.name}.`, target.id, f.id);
+    }
     army.steps = (army.steps ?? 0) + 1;
     // (A hero who marches fast may go on, but not after a battle.)
     if (army.steps >= 1 + armyBonus(s, army).march) army.moved = true;
@@ -2153,13 +2444,13 @@ function takeSalvage(s: CampaignState, f: Faction, army: Army | undefined, id: s
  * Anomaly cards for the flagship's deck (none it already holds as many of as it may).
  */
 function overlordBounty(s: CampaignState, f: Faction, army?: Army) {
-  const lord = overlordById(s.overlord ?? OVERLORDS[0].id);
+  const lord = s.rift ? { name: cardDef(RIFTS[s.rift.kind].ruler).name } : overlordById(s.overlord ?? OVERLORDS[0].id);
   const petals = Math.max(1, Math.round(CAMPAIGN.bossPetals * s.universe * (1 + (s.run?.petalBonus ?? 0)))) + (s.run?.tithe ?? 0);
   s.petals += petals;
   gainXp(s, CAMPAIGN.xpBoss);
   clog(s, `${lord.name} falls: ${f.name} gathers ${petals} Stellari petal${petals === 1 ? '' : 's'} from its remains.`, undefined, f.id);
   const fits = (id: string) => rarityOf(id) !== 'dwarf' && cardDef(id).kind !== 'command' && (!army || deckAddProblem({ ...f, reserve: [id] }, army, id) === null);
-  const options = [...new Set(shuffleInPlace(s, offerPool(f, s.mode, s.universe)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices + (s.run?.vault ?? 0));
+  const options = [...new Set(shuffleInPlace(s, riftPool(s) ?? offerPool(f, s.mode, s.universe)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices + (s.run?.vault ?? 0));
   if (options.length) s.cardRewards.push({ source: `${lord.name}'s hoard`, options, ...(army ? { toDeck: army.id } : {}), take: 'claims' });
 }
 
@@ -2275,6 +2566,8 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
   if (n.heart) {
     if (army && s.armies.includes(army)) army.nodeId = n.id;
     if (f.id === s.playerId) overlordBounty(s, f, army);
+    // Aster, beaten, grants one of the Seren's emblems.
+    if (f.id === s.playerId && s.rift?.kind === 'time') s.emblemChoice = serenEmblems(s);
     crossWormhole(s, f);
     return;
   }
@@ -2316,7 +2609,8 @@ function revealChallenges(s: CampaignState, f: Faction, n: CampaignNode) {
  */
 function placeChallenges(s: CampaignState) {
   const C = CAMPAIGN.columns, gap = CAMPAIGN.laneGap;
-  const kinds = shuffleInPlace<ChallengeKind>(s, ['mine', 'frost', ...(LOST_LORDS.some((id) => !s.lordsWon?.includes(id)) ? ['lord' as const] : [])]).slice(0, 2);
+  // (A wormhole into a Lost Race's galaxy among them, often [direction: wormholes as a potential secret node].)
+  const kinds = shuffleInPlace<ChallengeKind>(s, ['mine', 'frost', 'rift', ...(LOST_LORDS.some((id) => !s.lordsWon?.includes(id)) ? ['lord' as const] : [])]).slice(0, 2);
   const hosts = shuffleInPlace(s, s.nodes.filter((n) => !n.heart && !n.home && !n.station && (n.col ?? 0) >= 2 && (n.col ?? 0) <= C - 2));
   const segDist = (px: number, py: number, a: CampaignNode, b: CampaignNode) => {
     const vx = b.x - a.x, vy = b.y - a.y, len = vx * vx + vy * vy || 1;
@@ -2355,7 +2649,7 @@ function placeChallenges(s: CampaignState) {
     const lord = kind === 'lord' ? shuffleInPlace(s, LOST_LORDS.filter((id) => !s.lordsWon?.includes(id)))[0] : undefined;
     const node: CampaignNode = {
       id: `n${s.nodes.length}`,
-      name: CHALLENGES[kind].name,
+      name: kind === 'rift' ? 'Wormhole' : CHALLENGES[kind].name,
       x: at.x,
       y: at.y,
       h: from.h,
@@ -2370,7 +2664,7 @@ function placeChallenges(s: CampaignState) {
       tier: from.tier,
       col: from.col,
       lane: from.lane,
-      challenge: { kind, hidden: true, from: from.id, ...(lord ? { lord } : {}) },
+      challenge: { kind, hidden: true, from: from.id, ...(lord ? { lord } : {}), ...(kind === 'rift' ? { rift: RIFT_KINDS[randomInt(s, RIFT_KINDS.length)] } : {}) },
     };
     from.links.push(node.id);
     s.nodes.push(node);
@@ -2399,7 +2693,7 @@ function startChallenge(s: CampaignState, army: Army, target: CampaignNode) {
       ? { kind, days: 6, spawn: ['antimatter_crystal'], per: 2, broken: 0 }
       : kind === 'frost'
         ? { kind, broken: 0, ...FROST_LINES[Math.min(level, FROST_LINES.length - 1)].waves }
-        : { kind, broken: 0 };
+        : { kind: kind as 'lord', broken: 0 };
   const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players: [me, side], campaign: true, mode: s.mode, challenge });
   clog(s, `${armyLeader(army)} takes on ${CHALLENGES[kind].name}.`, [army.nodeId, target.id], f.id);
   s.battle = { attacker: f.id, defender: null, fromId: army.nodeId, nodeId: target.id, armyId: army.id, defenderArmyId: null, game, challenge: { kind, damage: army.damage } };
@@ -2602,6 +2896,9 @@ function crossWormhole(s: CampaignState, f: Faction) {
   }
   clog(s, `${f.name} takes the wormhole, grabbing ${petals} Stellari petal${petals === 1 ? '' : 's'} on the way through.`);
   tell(s, wormholeCrossedScene(s.universe, petals));
+  // (Out of a rift's galaxy, on into the run's next.)
+  s.rift = undefined;
+  s.spin = undefined;
   buildUniverse(s, s.universe + 1);
 }
 
@@ -2611,6 +2908,7 @@ function crossWormhole(s: CampaignState, f: Faction) {
 
 function newTurn(s: CampaignState) {
   s.turn += 1;
+  darkenBehind(s);
   s.phase = 'player';
   for (const a of s.armies) {
     a.moved = a.refit = false;
@@ -2757,6 +3055,29 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
         clog(s, `${f.name}'s sun drinks in the cold: cooled by 6.`);
       }
       s.boon = undefined;
+      break;
+    }
+    case 'prophetPick': {
+      if (!s.prophet) throw new GameError('There is no prophet waiting.');
+      const offer = action.index === null ? null : s.prophet.offers[action.index];
+      const army = flagship(s, s.playerId);
+      if (action.index !== null && !offer) throw new GameError('That is not one of the offers.');
+      if (offer && army) {
+        const i = army.deck.indexOf(offer.card);
+        if (i >= 0) {
+          army.deck[i] = markedId(offer.mark, offer.card);
+          clog(s, `The Dark Prophet marks ${cardDef(offer.card).name}: ${NYX_MARK_NAME[offer.mark]}, for good.`, s.prophet.nodeId, f.id);
+        }
+      } else clog(s, 'The Dark Prophet is turned away.', s.prophet.nodeId, f.id);
+      s.prophet = undefined;
+      break;
+    }
+    case 'chooseEmblem': {
+      const pick = s.emblemChoice?.[action.index];
+      if (!pick) throw new GameError('There is no emblem to choose.');
+      (f.relics ??= []).push(pick);
+      clog(s, `${f.name} takes ${pick.name}.`, undefined, f.id);
+      s.emblemChoice = undefined;
       break;
     }
     case 'conquer': {

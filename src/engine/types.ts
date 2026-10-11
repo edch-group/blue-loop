@@ -296,6 +296,8 @@ export interface CardDef {
   onDusk?: Effect[];
   /** Attunement: at each of your dawns it also gains its orbit position's bonus (attunement.ts), this many times over. */
   attune?: number;
+  /** Darkspeed on this card alone (a Dark Prophet's mark): it can act the day it comes into play. */
+  darkspeed?: boolean;
   /** A Hero's abilities: while it leads from your Hero slot, once on each of your days, you may use one. */
   abilities?: HeroAbility[];
   /**
@@ -440,6 +442,8 @@ export interface BattleModifiers {
   paradise?: number;
   /** Extra defence on this side's Guards (Bastion). */
   guardDefence?: number;
+  /** Every attacker of this side can attack the day it comes into play (Night Doctrine). */
+  darkspeed?: number;
 }
 
 export interface TurnStats {

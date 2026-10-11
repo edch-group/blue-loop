@@ -33,6 +33,8 @@ export interface ResearchProject {
   needs?: string;
   icon: 'energy' | 'march' | 'sight' | 'mend' | 'hull' | 'draw' | 'loot' | 'cool' | 'dread';
   effect: ResearchEffect;
+  /** A Lost Race's own: offered only in its rift's galaxy (rifts.ts), never anywhere else. */
+  race?: number;
 }
 
 export const RESEARCH_BRANCHES = ['power', 'armour', 'command', 'navigation'] as const;
@@ -64,9 +66,25 @@ const BRANCHES: P[][] = [
   ],
 ];
 
-export const RESEARCH: ResearchProject[] = BRANCHES.flatMap((list, b) =>
-  list.map((p, i) => ({ ...p, branch: b as ResearchProject['branch'], tier: (i + 1) as ResearchProject['tier'], ...(i ? { needs: list[i - 1].id } : {}) })),
-);
+/**
+ * The Lost Races' own upgrades, offered only in their rift's galaxy [direction: exclusive Nyxari research upgrades]:
+ * the Nyxari's, and the Seren's.
+ */
+const RACE_PROJECTS: ResearchProject[] = [
+  { id: 'nyx_doctrine', race: 4, name: 'Night Doctrine', text: 'Your attackers can attack the day they come into play.', cost: 0, turns: 0, icon: 'energy', effect: { mods: { darkspeed: 1 } } },
+  { id: 'nyx_veil', race: 4, name: 'Veil of Night', text: '+1 shield on your sun every day of battle.', cost: 0, turns: 0, icon: 'hull', effect: { mods: { shieldPerTurn: 1 } } },
+  { id: 'nyx_eclipse', race: 4, name: 'Eclipse Core', text: 'Your sun starts every battle 3 cooler.', cost: 0, turns: 0, icon: 'cool', effect: { mods: { startingHeat: -3 } } },
+  { id: 'ser_charts', race: 6, name: 'Star Charts', text: '+1 card every day of battle.', cost: 0, turns: 0, icon: 'draw', effect: { mods: { extraDraw: 1 } } },
+  { id: 'ser_tides', race: 6, name: 'Tidecalling', text: 'The abundant planet draws 1 more and the industrial planet gives 1 more energy.', cost: 0, turns: 0, icon: 'energy', effect: { mods: { abundantDraw: 1, industrialPlays: 1 } } },
+  { id: 'ser_stillness', race: 6, name: 'Stilled Hour', text: 'Your sun cools 1 every day of battle.', cost: 0, turns: 0, icon: 'cool', effect: { mods: { coolPerTurn: 1 } } },
+].map((p) => ({ ...p, branch: 0 as const, tier: 1 as const }) as ResearchProject);
+
+export const RESEARCH: ResearchProject[] = [
+  ...BRANCHES.flatMap((list, b) =>
+    list.map((p, i) => ({ ...p, branch: b as ResearchProject['branch'], tier: (i + 1) as ResearchProject['tier'], ...(i ? { needs: list[i - 1].id } : {}) })),
+  ),
+  ...RACE_PROJECTS,
+];
 
 const BY_ID = new Map(RESEARCH.map((r) => [r.id, r]));
 export const researchProject = (id: string) => BY_ID.get(id);
@@ -81,7 +99,7 @@ export interface ResearchState {
 export function supersededResearch(done: string[], id: string): boolean {
   const p = researchProject(id);
   // (Retired upgrades, kept by older saves, add up as they always did.)
-  return !!p && !RETIRED_RESEARCH.has(id) && done.some((o) => o !== id && researchProject(o)?.icon === p.icon && researchProject(o)!.tier > p.tier);
+  return !!p && !RETIRED_RESEARCH.has(id) && p.race === undefined && done.some((o) => o !== id && researchProject(o)?.race === undefined && researchProject(o)?.icon === p.icon && researchProject(o)!.tier > p.tier);
 }
 
 /** Everything a faction's research gives each of its armies. */

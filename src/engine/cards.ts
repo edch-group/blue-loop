@@ -1,3 +1,4 @@
+import { isMarked, markedDef } from './rifts';
 import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
 import { LIGHTSPEED_CARDS } from './cards-lightspeed';
@@ -772,7 +773,7 @@ for (const c of CARDS) {
 /** Whether a card has Darkspeed (its race's trait: the Nyxari): it can act the day it comes into play. Cards that never stand in play don't. */
 /** Darkspeed (the Nyxari): only cards that can act have it, those that attack and Heroes (abilities). */
 export function hasDarkspeed(def: CardDef): boolean {
-  return !!raceTrait(def.race)?.ambush && def.kind !== 'trap' && !isBurst(def) && ((def.attack ?? 0) > 0 || def.kind === 'command');
+  return (!!def.darkspeed || !!raceTrait(def.race)?.ambush) && def.kind !== 'trap' && !isBurst(def) && ((def.attack ?? 0) > 0 || def.kind === 'command');
 }
 
 export function isBurst(def: CardDef): boolean {
@@ -967,8 +968,19 @@ export function cardDef(defId: string): CardDef {
   return cardIn(defId, rulesMode());
 }
 
+/** A card marked by the Dark Prophet (rifts.ts): built once, then kept. */
+const MARKED = new Map<string, CardDef>();
+function markedCard(id: string): CardDef | undefined {
+  if (!isMarked(id)) return undefined;
+  const cached = MARKED.get(id);
+  if (cached) return cached;
+  const def = markedDef(id, (b) => BY_ID.get(b) ?? fusedDef(b));
+  if (def) MARKED.set(id, def);
+  return def;
+}
+
 function lostDef(defId: string): CardDef {
-  const def = BY_ID.get(defId) ?? fusedDef(defId);
+  const def = BY_ID.get(defId) ?? fusedDef(defId) ?? markedCard(defId);
   if (!def) throw new Error(`Unknown card: ${defId}`);
   return def;
 }

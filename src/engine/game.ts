@@ -95,6 +95,8 @@ export function createGame(setup: GameSetup): GameState {
       } else if (safest.length) place(p, card, safest.shift()!);
     }
     if (ps.lightspeed && cardDef(ps.lightspeed).kind === 'trap') p.lightspeed = newCard(state, ps.lightspeed);
+    // (Aster's Orbit emblem: the planets already swung round as the battle begins.)
+    if (relicN(p.relics, 'orbitShift')) p.orbit = (p.orbit + relicN(p.relics, 'orbitShift')) % ORBIT_LENGTH;
     // A Lost Overlord: its body in play, and the first of its parts' actions to come.
     if (ps.boss) {
       // It has no sun: its leader (the Overlord in its Hero slot) is what must be beaten.
@@ -789,6 +791,8 @@ export function dawnEffects(card: CardInstance, p?: PlayerState, state?: GameSta
   let attune = (def.attune ?? 0) + extras(card).reduce((n, d) => n + (d.attune ?? 0), 0);
   // Star-charted (the Seren): attuned cards attune once more.
   if (attune) attune += raceTrait(def.race)?.attune ?? 0;
+  // (Aster's Starsworn emblem: the Hero leading the tableau attunes too.)
+  if (p && card.slot === COMMAND_SLOT && def.kind === 'command') attune += relicN(p.relics, 'starsworn');
   if (!attune || !p) return own;
   return [...own, ...attunedEffects(attunePosition(p.orbit, !!state && planetsEaten(state, p)), attune)];
 }
@@ -2431,7 +2435,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   place(p, card, slot);
   // A card comes into play dimmed: it can first act (attack, or a Hero's ability) on its owner's next day.
   // (Darkspeed, the Nyxari: their cards that can act, attackers and Heroes, come in ready to.)
-  if (!hasDarkspeed(cardDef(card.defId))) card.dimmed = card.fresh = true;
+  // (Night Doctrine, a Nyxari upgrade: every attacker of its side comes in ready.)
+  if (!hasDarkspeed(cardDef(card.defId)) && !(p.modifiers?.darkspeed && (cardDef(card.defId).attack ?? 0) > 0)) card.dimmed = card.fresh = true;
   if (choices.length) {
     card.choice = action.choice;
     log(state, `${p.name} chooses: ${choiceLabel(action.choice!)}.`);

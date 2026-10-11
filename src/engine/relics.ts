@@ -51,7 +51,9 @@ export type RelicPower =
   | 'freeze'
   | 'displace'
   | 'bargain'
-  | 'echo';
+  | 'echo'
+  | 'orbitShift'
+  | 'starsworn';
 
 export interface RelicPowerDef {
   /** Always at work, answering what happens, or kept for the right moment: once a battle, or once a day (a button on the battle's right). */
@@ -117,6 +119,10 @@ export const RELIC_POWERS: Record<RelicPower, RelicPowerDef> = {
   bargain: { kind: 'ability', amounts: [2, 2, 3], text: (n) => `Hero ability: a card in your hand costs ${n} less.`, ability: (n) => ({ name: 'Bargain', text: `A card in hand costs ${n} less.`, choice: { kind: 'discount', times: 1, amount: n } }) },
   // (A card played may come into play as a random Hero of any race, in its slot, and turn back as it leaves.)
   echo: { kind: 'trigger', amounts: [10, 10, 10], text: (n) => `Cards you play have a ${n}% chance to become a random Hero while in play.` },
+  // The Seren's emblems, granted by Aster alone (never rolled) [direction: Aster grants 1 of 3 Seren emblems: the
+  // paradise planet, orbit +3, your Hero gains attunement 3].
+  orbitShift: { kind: 'trigger', amounts: [3, 3, 3], text: (n) => `Your orbit +${n} as each battle begins.` },
+  starsworn: { kind: 'trigger', amounts: [3, 3, 3], text: (n) => `Your Hero gains {attune:${n}}.` },
   phoenix: { kind: 'once', amounts: [1, 1, 1], text: () => 'Once per battle: return your last discarded card to your hand.', effects: () => [{ type: 'recover', latest: true }] },
 };
 
@@ -130,15 +136,17 @@ export const SLOT_POWERS: Record<SlotKind, RelicPower[]> = {
   facet: ['splash', 'nova', 'bounty', 'sear', 'multishot'],
   ring: ['mend', 'vigour', 'aegis', 'thorns', 'steady'],
   carapace: ['walls', 'vigour', 'renew', 'thorns', 'ram', 'steady'],
-  gland: ['gift', 'recycle', 'renew', 'reclaim', 'paradise', 'steady', 'bargain'],
+  gland: ['gift', 'recycle', 'renew', 'reclaim', 'steady', 'bargain'],
   mask: ['flurry', 'recall', 'bounty', 'devour', 'freeze', 'displace'],
   plate: ['walls', 'aegis', 'mend', 'anchor', 'ward'],
-  star: ['shift', 'firstLight', 'gift', 'duskShift', 'paradise', 'grasp', 'displace', 'echo'],
+  star: ['shift', 'firstLight', 'gift', 'duskShift', 'grasp', 'displace', 'echo'],
   ember: ['nova', 'recycle', 'starfall', 'sear', 'multishot'],
 };
 
 /** Every power (a relic's roll falls on its kind's own half the time, else on any power at all). */
-export const ALL_POWERS = Object.keys(RELIC_POWERS) as RelicPower[];
+/** The Seren's emblems: Aster's to grant, never found any other way. */
+export const SEREN_POWERS: RelicPower[] = ['paradise', 'orbitShift', 'starsworn'];
+export const ALL_POWERS = (Object.keys(RELIC_POWERS) as RelicPower[]).filter((p) => !SEREN_POWERS.includes(p));
 
 /**
  * The power a relic of a kind carries, by its roll (0–1): never one already held (`held`), while any other is left
