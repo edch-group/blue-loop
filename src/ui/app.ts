@@ -5583,11 +5583,10 @@ export class App {
       const days = s.challenge.days ?? 1;
       const goal = s.challenge.goal === 'win' ? (days > 1 ? `win within ${days} days · day ${Math.min(days, s.players[0].turnsTaken)}` : 'win this day') : 'survive their day';
       // (A lesson is untimed; a challenge is timed as a dream is.)
-      const lesson = this.puzzle?.kind === 'lesson' ? lessonById(this.puzzle.id) : undefined;
-      if (lesson) return `<div class="mid-hint boss-hint dream-hint"><small>lesson · ${esc(lesson.name)}</small><b>${goal}</b></div>`;
+      // (A lesson or a challenge says what it is where a galaxy's name would be: nothing over the board's middle.)
+      if (this.puzzle) return '';
       this.armDreamClock();
-      const label = this.puzzle?.kind === 'challenge' ? `challenge ${CHALLENGES.findIndex((c) => c.id === this.puzzle!.id) + 1}` : 'a dream of the lost';
-      return `<div class="mid-hint boss-hint dream-hint"><small>${label}</small><b>${goal}</b><span class="dream-clock">${this.dreamLeft()}</span></div>`;
+      return `<div class="mid-hint boss-hint dream-hint"><small>a dream of the lost</small><b>${goal}</b><span class="dream-clock">${this.dreamLeft()}</span></div>`;
     }
     // A challenge's clock (the mine's count too), with nothing acting next. (Against a Lost Overlord or Lord, the
     // card that acts next burns on the board: that says enough.)
@@ -5721,6 +5720,17 @@ export class App {
 
   /** The galaxy's trade-off (a campaign battle's), named under the Stellari. */
   private renderGalaxyTag(): string {
+    // A lesson or a challenge: its name where a galaxy's would be [direction: the lesson title where the galaxy mods sit;
+    // nothing over the middle of the board].
+    const s = this.state;
+    if (this.puzzle && s && !isGameOver(s)) {
+      const lesson = this.puzzle.kind === 'lesson' ? lessonById(this.puzzle.id) : undefined;
+      if (lesson) return `<div class="galaxy-tag puzzle-tag"><b>${esc(lesson.name)}</b><span>${esc(lesson.teaches)}</span></div>`;
+      const days = s.challenge?.days ?? 1;
+      const goal = s.challenge?.goal === 'survive' ? 'survive their day' : days > 1 ? `win within ${days} days · day ${Math.min(days, s.players[0].turnsTaken)}` : 'win this day';
+      this.armDreamClock();
+      return `<div class="galaxy-tag puzzle-tag"><b>challenge ${CHALLENGES.findIndex((c) => c.id === this.puzzle!.id) + 1}</b><span>${goal} · <i class="dream-clock">${this.dreamLeft()}</i></span></div>`;
+    }
     const g = this.state?.players.flatMap((p) => p.conditions ?? []).find((c) => c.galaxy);
     if (!g) return '';
     return `<div class="galaxy-tag" title="${esc(g.text)}"><b>${esc(g.name.toLowerCase())}</b>${g.short ? `<span>${esc(g.short)}</span>` : ''}</div>`;
