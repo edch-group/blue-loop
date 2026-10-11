@@ -493,6 +493,17 @@ class SoundBoard {
     this.lastHover = now;
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
+  /**
+   * A clock's hand moving on: day or dusk coming in (they have no banner). A low, dry, wooden tick, the escapement's
+   * catch, and its fainter tock just after, nothing bright.
+   */
+  clockTick() {
+    this.breath({ dur: 0.05, freq: 900, type: 'bandpass', q: 3.5, gain: 0.16, attack: 0.003 });
+    this.voice(170, { dur: 0.1, attack: 0.003, gain: 0.12, to: 120, type: 'triangle', cutoff: 900 });
+    this.breath({ dur: 0.04, freq: 700, type: 'bandpass', q: 3.5, gain: 0.07, attack: 0.003, delay: 0.085 });
+    this.voice(140, { dur: 0.08, attack: 0.003, gain: 0.06, to: 105, type: 'triangle', cutoff: 800, delay: 0.085 });
+  }
+
   /** The boosters' running sound while a ship is under way (built when it starts, let go once it has faded out). */
   private thrustNodes: { gain: GainNode; stop: () => void } | null = null;
   private thrustOff = 0;

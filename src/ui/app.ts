@@ -1896,7 +1896,24 @@ export class App {
     if (!s || isGameOver(s) || this.needsHandoff()) return;
     const p = activePlayer(s);
     if (p.isAI || p.id !== this.viewer().id) return;
-    this.showBanner('day', `round ${roman(s.round)}`, delay, 'game', () => this.setPhase('day'), this.orbitLine(s, p));
+    // (Dawn's banner, then day ticks in once it has gone.)
+    this.showBanner('dawn', `round ${roman(s.round)}`, delay, 'game', () => this.setPhase('dawn'), this.orbitLine(s, p));
+    this.phaseTick(delay + BANNER_SHOWN_MS + 150, () => {
+      this.setPhase('day');
+      this.render();
+    });
+  }
+
+  /**
+   * Day and dusk come in without a banner [direction: only dawn shows a banner each turn; the other two phases make a
+   * noise like a clock hand moving as the player enters them]: the phase changes with a tick.
+   */
+  private phaseTick(delay: number, onShow: () => void, screen: Screen = 'game') {
+    window.setTimeout(() => {
+      if (this.screen !== screen) return;
+      onShow();
+      sound.clockTick();
+    }, Math.max(0, delay));
   }
 
   /** For the day's banner: the planet facing the player's sun today, and what it gives (a card drawn, or energy). */
@@ -1912,9 +1929,10 @@ export class App {
   }
 
   /**
-   * Each day runs dawn, day, dusk, each with its banner: as a day ends, "dusk" (the dusk's effects), then the
-   * next player's "dawn" (their dawn effects play out), then their "day" once the dawn
-   * has played out. The viewer's own read plainly ("dawn"); everyone else's carry their name.
+   * Each day runs dawn, day, dusk: as a day ends, dusk ticks in (the dusk's effects), then the next player's "dawn"
+   * banner (their dawn effects play out), then their day ticks in once the dawn has played out. Only dawn has a
+   * banner; day and dusk come in with a clock's tick. The viewer's own reads plainly ("dawn"); everyone else's carries
+   * their name.
    */
   private announcePhases(actor: PlayerState, next: GameState, turnPassed: boolean, animate = true) {
     // A new player's turn: the board comes out of any tableau it was zoomed onto, so the whole table is in view.
@@ -1930,16 +1948,16 @@ export class App {
       const t = this.dayTimeline(next, actor, animate);
       // (Until the day's banner, it isn't day: no cards are played but Lightspeed ones.)
       this.phase = t.dusk !== null ? 'dusk' : 'dawn';
-      if (t.dusk !== null) this.showBanner(named(actor, 'dusk'), `day ${next.turnNumber - 1}`, t.dusk, 'game', () => this.setPhase('dusk'));
-      if (t.dawn !== null) this.showBanner(named(now, 'dawn'), round, t.dawn, 'game', () => this.setPhase('dawn'));
-      this.showBanner(named(now, 'day'), round, t.day, 'game', () => {
+      if (t.dusk !== null) this.phaseTick(t.dusk, () => this.setPhase('dusk'));
+      if (t.dawn !== null) this.showBanner(named(now, 'dawn'), round, t.dawn, 'game', () => this.setPhase('dawn'), this.orbitLine(next, now));
+      this.phaseTick(t.day, () => {
         this.setPhase('day');
         // (The hand's cards light up as playable now it is day.)
         if (now.id === you) {
           this.render();
           this.nudgeDailyRelics();
         }
-      }, this.orbitLine(next, now));
+      });
     }
   }
 
@@ -1953,11 +1971,6 @@ export class App {
       else if (days === 1 && t === `— Dusk: ${actor.name}.`) return true;
     }
     return false;
-  }
-
-  /** Whether this player's dawn did something (its effects, or the table's, played out on the board). */
-  private dawnHappened(next: GameState, now: PlayerState): boolean {
-    return (next.turnPulses ?? []).some((p) => p.kind !== 'start' && (p.source === now.id || !p.uid));
   }
 
   /** Your day begins: each once-a-day relic ready to use pulses once, down the right, as a reminder. */
@@ -2792,17 +2805,19 @@ export class App {
    */
   private dayTimeline(next: GameState, actor: PlayerState, animate: boolean): { dusk: number | null; dawn: number | null; day: number; pulses: number[] } {
     const now = activePlayer(next);
-    const wants = { dusk: this.duskHappened(next, actor), dawn: this.dawnHappened(next, now) };
+    // (Dawn's banner shows every turn; a dusk in which nothing happened passes with no tick.)
+    const wants = { dusk: this.duskHappened(next, actor), dawn: true };
     if (!animate || reducedMotion()) return { dusk: wants.dusk ? 0 : null, dawn: wants.dawn ? 0 : null, day: 0, pulses: [] };
     const step = PULSE_STEP * SPEED_FACTOR[this.speed];
     const at: { dusk: number | null; dawn: number | null } = { dusk: null, dawn: null };
     let t = 0;
-    // A phase's banner (the dusk's always before the dawn's), then its effects once it has gone.
+    // A phase's start (the dusk's always before the dawn's), then its effects: after the dawn's banner has gone, or
+    // just after the dusk's tick (it has no banner).
     const banner = (phase: 'dusk' | 'dawn') => {
       if (phase === 'dawn' && wants.dusk && at.dusk === null) banner('dusk');
       if (!wants[phase] || at[phase] !== null) return;
       at[phase] = t;
-      t += BANNER_SHOWN_MS + 150;
+      t += phase === 'dawn' ? BANNER_SHOWN_MS + 150 : 350;
     };
     const pulses: number[] = [];
     let phase: 'dusk' | 'dawn' = 'dawn';
