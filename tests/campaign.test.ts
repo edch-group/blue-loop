@@ -23,6 +23,7 @@ import {
   researchProblem,
   GENERALS,
   heroState,
+  armyDeck,
   armyDeckProblems,
   armyBonus,
   researchProject,
@@ -611,5 +612,25 @@ describe('Dreams of the Lost', () => {
     after = winBattle(s);
     expect(after.petals).toBeGreaterThan(petals);
     expect(after.cardRewards.at(-1)?.options.every((id) => cardDef(id).rarity === 'stellar' || cardDef(id).rarity === 'anomaly')).toBe(true);
+  });
+});
+
+describe('Heroes earned by conquest', () => {
+  it("unlock in order, by stars conquered with the one before, and bring stronger decks the later they come", async () => {
+    const { heroUnlocked, emptyMeta, HERO_UNLOCK_STARS } = await import('../src/engine/meta');
+    const [veyra, aurex, solenne] = GENERALS[0];
+    const meta = emptyMeta();
+    expect(heroUnlocked(meta, veyra)).toBe(true);
+    expect(heroUnlocked(meta, aurex)).toBe(false);
+    expect(heroUnlocked({ ...meta, conquests: { [veyra]: HERO_UNLOCK_STARS[1] } }, aurex)).toBe(true);
+    expect(heroUnlocked({ ...meta, conquests: { [veyra]: 99, [aurex]: HERO_UNLOCK_STARS[2] - 1 } }, solenne)).toBe(false);
+    expect(heroUnlocked({ ...meta, conquests: { [aurex]: HERO_UNLOCK_STARS[2] } }, solenne)).toBe(true);
+    const rare = (hero: string) => armyDeck(0, hero).filter((id) => cardDef(id).rarity === 'stellar' || cardDef(id).rarity === 'anomaly').length;
+    expect(rare(aurex)).toBeGreaterThan(rare(veyra));
+    expect(rare(solenne)).toBeGreaterThan(rare(aurex));
+    // A run counts the stars it takes, for its hero.
+    let s = fresh();
+    s = settle(winBattle(attack(s)));
+    expect(s.starsTaken).toBeGreaterThan(0);
   });
 });

@@ -80,6 +80,8 @@ export interface MetaState {
   deck: Record<string, string[]>;
   /** Starter cards bought for good, by race: one taken out of the deck goes back in for nothing. */
   owned?: Record<string, string[]>;
+  /** Stars conquered in all, by the hero who led the run (what unlocks the race's next hero). */
+  conquests?: Record<string, number>;
   /** The most universes crossed in one run, and runs begun. */
   best: number;
   runs: number;
@@ -132,7 +134,7 @@ export const META_UPGRADES: MetaUpgrade[] = [
   { id: 'legacy', group: 'lore', tier: 3, requires: [['petals', 1], ['tithe', 1]], name: 'Legacy', text: '+1 petal for every battle won.', max: 1, cost: flat(170) },
   // Unlocks (petals): the other races, and each race's later heroes.
   ...[4, 5, 6, 7].map((race) => ({ id: `race:${race}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(10) })),
-  ...GENERALS.flatMap((heroes) => heroes.slice(1).map((hero) => ({ id: `hero:${hero}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(6) }))),
+  // (Heroes are no longer bought: each is unlocked by the stars conquered with the one before it, heroUnlocked.)
 ];
 
 /** Skills taken out of the tree, with what each level cost: a save that bought them has its XP back. */
@@ -209,9 +211,28 @@ export function raceUnlocked(meta: MetaState, race: number): boolean {
   return STARTING_RACES.includes(race) || levelOf(meta, `race:${race}`) > 0;
 }
 
-/** A race's first hero is free; its others are unlocked with petals. */
+/**
+ * The stars a race's heroes must have conquered (in all, over every run they led) to unlock the next [direction: a
+ * race's heroes in order (Veyra, Aurex, Solenne for the Aureline): about 20 stars with the first unlocks the second,
+ * 50 with the second the third; one very good run, or a few middling ones]. The first is open from the start.
+ */
+export const HERO_UNLOCK_STARS = [0, 20, 50];
+
+/** The hero before this one in its race's order, and the stars needed with them (null: the first, open from the start). */
+export function heroUnlockNeed(hero: string): { after: string; stars: number } | null {
+  const race = GENERALS.find((h) => h.includes(hero));
+  const i = race ? race.indexOf(hero) : 0;
+  return race && i > 0 ? { after: race[i - 1], stars: HERO_UNLOCK_STARS[i] ?? 50 } : null;
+}
+
+/** Stars conquered with a hero leading, over every run. */
+export const heroConquests = (meta: MetaState, hero: string) => meta.conquests?.[hero] ?? 0;
+
+/** A race's first hero is open from the start; each of the others once enough stars are conquered with the one before. */
 export function heroUnlocked(meta: MetaState, hero: string): boolean {
-  return GENERALS.some((h) => h[0] === hero) || levelOf(meta, `hero:${hero}`) > 0;
+  const need = heroUnlockNeed(hero);
+  // (One bought with petals, in an older save, stays open.)
+  return !need || heroConquests(meta, need.after) >= need.stars || levelOf(meta, `hero:${hero}`) > 0;
 }
 
 /** What a run begins with, and the rules it is played under, from the upgrades bought. */

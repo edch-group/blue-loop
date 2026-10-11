@@ -44,6 +44,8 @@ import {
   levelOf,
   raceUnlocked,
   heroUnlocked,
+  heroUnlockNeed,
+  heroConquests,
   runBonuses,
   metaUpgrade,
   type MetaGroup,
@@ -784,9 +786,13 @@ export class CampaignView {
     const s = this.state;
     // (Experience too: kept the moment it is earned, so a lost run still moves the player on.)
     const xp = (s?.xp ?? 0) - (s?.xpBanked ?? 0);
-    if (!s || (s.petals <= s.petalsBanked && xp <= 0)) return;
+    // (Stars conquered too, to the hero leading the run: what unlocks the race's next hero.)
+    const stars = (s?.starsTaken ?? 0) - (s?.starsBanked ?? 0);
+    if (!s || (s.petals <= s.petalsBanked && xp <= 0 && stars <= 0)) return;
     const meta = loadMeta();
-    saveMeta({ ...meta, petals: meta.petals + (s.petals - s.petalsBanked), xp: (meta.xp ?? 0) + Math.max(0, xp), best: Math.max(meta.best, s.universe - 1) });
+    const hero = campaignPlayer(s).hero ?? flagship(s, s.playerId)?.general;
+    const conquests = hero && stars > 0 ? { ...meta.conquests, [hero]: (meta.conquests?.[hero] ?? 0) + stars } : meta.conquests;
+    saveMeta({ ...meta, petals: meta.petals + (s.petals - s.petalsBanked), xp: (meta.xp ?? 0) + Math.max(0, xp), best: Math.max(meta.best, s.universe - 1), ...(conquests ? { conquests } : {}) });
     this.state = applyCampaignAction(s, { type: 'petalsBanked' });
   }
 
@@ -1403,7 +1409,16 @@ export class CampaignView {
             <b>${lower(def.name)}</b>
             <p class="cs-hero-bio">${esc(HERO_BIOS[g] ?? '')}</p>
           </div>
-          ${open ? '' : `<div class="cs-hero-lock">${buy(`hero:${g}`, 'unlock')}</div>`}
+          ${
+            open
+              ? ''
+              : (() => {
+                  // (Not bought: earned, by the stars conquered with the hero before.)
+                  const need = heroUnlockNeed(g)!;
+                  const had = Math.min(need.stars, heroConquests(meta, need.after));
+                  return `<div class="cs-hero-lock cs-hero-earn"><div><b>${had}<small>/${need.stars}</small></b><span>stars conquered as ${cardDef(need.after).name}</span><i style="--k:${(had / need.stars).toFixed(3)}"></i></div></div>`;
+                })()
+          }
         </div>`;
       })
       .join('');

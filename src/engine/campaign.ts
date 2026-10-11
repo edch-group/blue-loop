@@ -639,6 +639,9 @@ export interface CampaignState {
   /** Petals grabbed this run, and how many of them have been banked to the account's lasting progress. */
   petals: number;
   petalsBanked: number;
+  /** Stars conquered this run (each system taken, finds too), and how many have been banked to the run's hero's tally. */
+  starsTaken?: number;
+  starsBanked?: number;
   /** Experience earned this run, and how much of it has been banked (it is kept even if the run is lost). */
   xp?: number;
   xpBanked?: number;
@@ -1237,6 +1240,28 @@ export function armyDeck(race: number, general: string, mode: GameMode = 'lost')
     if (deck.length >= CAMPAIGN.armySize) break;
     if (!legalIn(mode, id)) continue;
     if (deck.filter((x) => x === id).length < 2) deck.push(id);
+  }
+  // The later a hero comes in their race's order, the stronger the deck they bring [direction: the starting deck
+  // better the higher the hero; not only do you get Solenne, but the really powerful cards in her deck too]: the second
+  // brings a pair of the race's rare (Stellar) cards, the third a pair of Stellar cards and a pair of Anomalies, in
+  // place of neutral cards. The hero's own sub-race's first, then the heaviest.
+  const tier = Math.max(0, GENERALS[r]?.indexOf(general) ?? 0);
+  if (tier > 0) {
+    const sub = cardDef(general).sub;
+    const best = (rarity: string) =>
+      CARDS.filter((c) => c.race === r && c.kind !== 'command' && (c.rarity ?? 'dwarf') === rarity && !c.fusion && !c.spendAll && legalIn(mode, c.id) && !deck.includes(c.id))
+        .sort((a, b) => Number(b.sub === sub && !!sub) - Number(a.sub === sub && !!sub) || (b.cost ?? 1) - (a.cost ?? 1))
+        .map((c) => c.id);
+    // (A race with no Anomaly of its own to give: a second Stellar pair.)
+    const stellar = best('stellar'), anomaly = best('anomaly');
+    const gifts = [stellar[0], ...(tier >= 2 ? [anomaly[0] ?? stellar[1]] : [])].filter(Boolean).flatMap((id) => [id, id]);
+    const out = deck.slice(0, CAMPAIGN.armySize);
+    for (const id of gifts) {
+      const k = out.map((x, i) => [x, i] as const).reverse().find(([x]) => x !== general && cardDef(x).race !== r)?.[1];
+      if (k === undefined) break;
+      out[k] = id;
+    }
+    return out;
   }
   return deck.slice(0, CAMPAIGN.armySize);
 }
@@ -2780,6 +2805,7 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
   n.owner = f.id;
   f.stats.settled += 1;
   s.conquered += 1;
+  if (f.id === s.playerId) s.starsTaken = (s.starsTaken ?? 0) + 1;
   clog(s, `${f.name} conquers ${n.name}: +${materials} materials${extra}.`, n.id, f.id);
   revealChallenges(s, f, n);
   // The victors march in.
@@ -2941,6 +2967,7 @@ function takeCache(s: CampaignState, f: Faction, n: CampaignNode, army: Army) {
   n.owner = f.id;
   n.yield = { materials: 0 };
   s.conquered += 1;
+  if (f.id === s.playerId) s.starsTaken = (s.starsTaken ?? 0) + 1;
   revealChallenges(s, f, n);
   if (c.kind === 'relic') return findItem(s, f, army, n);
   if (c.kind === 'materials') f.materials += c.amount;
@@ -3159,6 +3186,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
   if (action.type === 'petalsBanked') {
     s.petalsBanked = s.petals;
     s.xpBanked = s.xp ?? 0;
+    s.starsBanked = s.starsTaken ?? 0;
     return s;
   }
   const f = campaignPlayer(s);

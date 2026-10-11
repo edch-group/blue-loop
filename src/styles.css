@@ -6987,3 +6987,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .db-new-tile .db-new-plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 1.6rem; line-height: 1; color: #fff; background: #5d6a8c; }
 .db-new-tile b { font-family: var(--display); font-weight: 400; font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; }
 .db-new-tile:hover .deck-box { border-color: #5d6a8c; background: #fff; }
+/* A hero still to earn: the stars conquered with the one before, of those needed, and a bar filling toward them. */
+.cs-hero-earn { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.cs-hero-earn > div { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 16px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.18), 0 6px 18px rgba(70, 76, 100, 0.16); }
+.cs-hero-earn b { font-family: var(--display); font-weight: 500; font-size: 1.3rem; color: var(--ink); line-height: 1; }
+.cs-hero-earn b small { font-size: 0.75rem; color: var(--ink-faint); }
+.cs-hero-earn span { max-width: 13em; font-size: 0.68rem; line-height: 1.35; color: var(--ink-soft); text-align: center; }
+.cs-hero-earn i { width: 9em; height: 4px; border-radius: 2px; background: linear-gradient(90deg, #c9a24a calc(var(--k) * 100%), #e6e8ee 0); }
