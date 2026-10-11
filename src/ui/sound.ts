@@ -810,7 +810,7 @@ class SoundBoard {
   strike(amount = 1) {
     this.sunHit(amount, 0.5);
   }
-  /** Shields take a hit: a glassy clang. */
+  /** Shields take a hit: a hammer on metal. */
   block() {
     // [direction: hitting shields makes a deeper "tink", like a hammer hitting metal] A struck plate: a low ring and
     // its inharmonic overtones (as a bar's are, a little apart), each dying sooner than the last; the hammer's hard
