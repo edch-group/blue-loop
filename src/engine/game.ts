@@ -673,6 +673,8 @@ export function needsSlot(p: PlayerState, defId: string): boolean {
 export function baseHealth(defId: string): number {
   const def = cardDef(defId);
   if (def.health !== undefined) return def.health;
+  // (A fused card: the sturdier half's, whichever way round it was fused.)
+  if (def.fusedFrom) return Math.max(...def.fusedFrom.map(baseHealth));
   if (def.kind === 'command') return Math.max(1, def.stability ?? BALANCE.heroStability);
   const base = Math.max(BALANCE.minHealth, Math.min(BALANCE.maxHealth, 1 + (def.cost ?? 1) + (def.kind === 'defence' ? 1 : 0)));
   // (A Fusion card stands a little less well alone: fusing is its strength.)
@@ -2959,7 +2961,10 @@ export function defHasRole(def: CardDef, kind: CardKind): boolean {
 
 /** A card's Sting: its own (its text, fused cards) and its race's (Vorthane cards Sting 1). */
 export function cardSting(card: CardInstance): number {
-  return cardPassives(card).reduce((n, x) => n + (x.type === 'retaliate' ? x.amount : 0), 0) + (raceTrait(cardDef(card.defId).race)?.sting ?? 0);
+  // (A fused card's race Sting: each of its two halves brings its own race's, as its text sums them.)
+  const def = cardDef(card.defId);
+  const race = def.fusedFrom ? def.fusedFrom.reduce((n, id) => n + (raceTrait(cardDef(id).race)?.sting ?? 0), 0) : raceTrait(def.race)?.sting ?? 0;
+  return cardPassives(card).reduce((n, x) => n + (x.type === 'retaliate' ? x.amount : 0), 0) + race;
 }
 
 /** What a card hits back with when it is attacked: its own attack, and its Sting. */

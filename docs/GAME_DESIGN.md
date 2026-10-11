@@ -1210,3 +1210,11 @@ The check now reports none.
 ## Dragging a card into a slot
 
 [direction: a card dragged into a slot flashed there and in the preview pane at once; place it only once the pane, choices and targeting are done]. While a card's choices are made, its chosen slot is only marked (an outline), the card itself shown in the preview pane alone; it lands in the slot when it is played.
+
+## Fusing: one row per ability, the halves' best numbers
+
+[direction: fusing two cards with matching abilities shows one ability row of the summed value (two Stings are one, even when Sting comes from the race); an armed card fused with an unarmed one keeps its attack]. A fused card's text sums like abilities into one line (heat, cool, shields, Sturdy, repair, renew, plant, grow, Sting, Soothe, draw), and its race Sting is each half's own race's, added up (game.ts cardSting), so "Sting 2" on the card is what it hits back with. Its attack, defence and stability are the stronger half's (an armed half keeps the fusion armed; its stability no longer depends on which half came first).
+
+## Station shelves scroll
+
+[direction: the recycle and fuse menus couldn't scroll; only half cut off cards showed at the top]. The station's card shelf fills the space between its tabs and its action, and a deck too big for it scrolls from its first card (centred only when it fits, its top and bottom edges fading).

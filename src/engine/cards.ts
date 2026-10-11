@@ -1049,7 +1049,7 @@ function fusedName(a: CardDef, b: CardDef): string {
 }
 
 /** A sentence that is one plain amount ("Draw 1.", "{heat:2}.", "{dawn}: {shield:1}."): its timing and keyword, and the amount. */
-const SUMMABLE = /^((?:\{(?:dawn|dusk)\}: )?)(?:\{(heat|cool|shield|sturdy|repair|renew|plant|grows):(\d+)\}|Draw (\d+))\.$/;
+const SUMMABLE = /^((?:\{(?:dawn|dusk)\}: )?)(?:\{(heat|cool|shield|sturdy|repair|renew|plant|grows|sting|soothe):(\d+)\}|Draw (\d+))\.$/;
 const sentences = (text: string) => text.trim().split(/(?<=\.)\s+/).filter(Boolean);
 
 /**
@@ -1098,6 +1098,8 @@ function fusedDef(id: string): CardDef | undefined {
     onLeave: both(da.onLeave, db.onLeave),
     onRecover: both(da.onRecover, db.onRecover),
     passive: both(da.passive, db.passive),
+    // (Its attack the stronger half's: an armed card fused with an unarmed one stays armed.)
+    attack: da.attack || db.attack ? Math.max(da.attack ?? 0, db.attack ?? 0) : undefined,
     defence: da.defence || db.defence ? Math.max(da.defence ?? 0, db.defence ?? 0) : undefined,
     stability: da.stability !== undefined || db.stability !== undefined ? Math.max(da.stability ?? 0, db.stability ?? 0) : undefined,
     fusedFrom: [a, b],
