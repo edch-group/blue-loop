@@ -82,6 +82,7 @@ import {
   type GameState,
   researchProblem,
   researchProject,
+  RETIRED_RESEARCH,
   setRulesMode,
   shownKind,
   overlordById,
@@ -206,7 +207,7 @@ const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: 
   favour: { icon: glyph('M12 3.5c3 2.4 3.8 6.4 0 11.5-3.8-5.1-3-9.1 0-11.5ZM4.5 9.5c3.6-.6 7 1.4 7.5 5.5-4.4.5-7.3-1.6-7.5-5.5ZM19.5 9.5c-3.6-.6-7 1.4-7.5 5.5 4.4.5 7.3-1.6 7.5-5.5ZM12 15v5.5'), unit: 'cooling for your sun after each battle won', value: (l) => `${3 * l}` },
   cryo: { icon: glyph('M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 6.5l2.5-2M9.5 19.5l2.5-2 2.5 2'), unit: 'cooler start for your sun in every battle', value: (l) => `${l}` },
   plating: { icon: glyph('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17ZM12 7.5v9M7.5 12h9'), unit: 'max health on your sun in battle', value: (l) => `+${2 * l}` },
-  mend: { icon: glyph('M14.5 4.5a4 4 0 0 0-4.8 5.3L4.5 15a2.1 2.1 0 0 0 3 3l5.2-5.2a4 4 0 0 0 5.3-4.8l-2.5 2.5-2.4-.6-.6-2.4Z'), unit: 'cooling for your sun each turn on the map', value: (l) => `${l}` },
+  mend: { icon: glyph('M14.5 4.5a4 4 0 0 0-4.8 5.3L4.5 15a2.1 2.1 0 0 0 3 3l5.2-5.2a4 4 0 0 0 5.3-4.8l-2.5 2.5-2.4-.6-.6-2.4Z'), unit: 'cooling for your sun with each jump', value: (l) => `${l}` },
   mantle: { icon: glyph('M12 4.5c4.2 0 7.5 2 7.5 4.5S16.2 13.5 12 13.5 4.5 11.5 4.5 9 7.8 4.5 12 4.5ZM12 13.5c-3.6 0-6.5 2.8-7 6.5h14c-.5-3.7-3.4-6.5-7-6.5Z'), unit: 'shield on your sun every day of battle', value: (l) => `+${l}` },
   abundance: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM5 10c3 1 5 0 7-2M9 19c0-3 2-5 6-5'), unit: 'more cards drawn on the abundant planet', value: (l) => `+${l}` },
   foundry: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM4.5 9.5h15M4.5 14.5h15M10 4.5v15'), unit: 'more energy on the industrial planet', value: (l) => `+${l}` },
@@ -2412,10 +2413,10 @@ export class CampaignView {
       n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.', 'bad') : '',
       (n.stableUntil ?? 0) > s.turn ? chip(`${icon('<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>')}<b>${n.stableUntil}</b>`, `Stabilised: it holds until turn ${n.stableUntil}.`, 'good') : '',
       known && n.station?.kind === 'armory'
-        ? chip(`${ARMORY_ICON}<b>${n.station.cards.length ? `space station · ${n.station.cards.length}` : 'space station · sold out'}</b>`, n.station.cards.length ? `A space station: ${n.station.cards.length} card${n.station.cards.length === 1 ? '' : 's'} for sale, each only once. Bring your flagship here to dock.` : 'A space station, sold out.', n.station.cards.length ? 'gold' : 'muted')
+        ? chip(`${ARMORY_ICON}<b>${n.station.cards.length ? `space station · ${n.station.cards.length}` : 'space station · sold out'}</b>`, n.station.cards.length ? `A space station: ${n.station.cards.length} card${n.station.cards.length === 1 ? '' : 's'} for sale, each only once. Fly here to dock.` : 'A space station, sold out.', n.station.cards.length ? 'gold' : 'muted')
         : '',
       known && n.station?.kind === 'research'
-        ? chip(`${RESEARCH_ICON}<b>${n.station.takenBy ? 'research · taken' : 'research'}</b>`, n.station.takenBy ? `A research station. Its upgrade has been taken${n.station.takenBy === me.id ? ' (by you)' : ''}.` : `A research station: bring your flagship here and pick one of its ${n.station.options.length} upgrades, free.`, n.station.takenBy ? 'muted' : 'good')
+        ? chip(`${RESEARCH_ICON}<b>${n.station.takenBy ? 'research · taken' : 'research'}</b>`, n.station.takenBy ? `A research station. Its upgrade has been taken${n.station.takenBy === me.id ? ' (by you)' : ''}.` : `A research station: fly here and pick one of its ${n.station.options.length} upgrades, free.`, n.station.takenBy ? 'muted' : 'good')
         : '',
     ].join('');
     // What you can do here.
@@ -2760,9 +2761,11 @@ export class CampaignView {
     if (n.station?.kind !== 'research') return '';
     const st = n.station;
     const taken = st.takenBy;
-    const done = (me.research?.done ?? []).map((id) => researchProject(id)).filter((x) => !!x);
+    const done = (me.research?.done ?? []).filter((id) => !RETIRED_RESEARCH.has(id)).map((id) => researchProject(id)).filter((x) => !!x);
     const pick = this.rsPick && st.options.includes(this.rsPick) && !taken ? this.rsPick : null;
+    // (Upgrades retired from the game, left in an older save's station, are not offered.)
     const offers = st.options
+      .filter((id) => !RETIRED_RESEARCH.has(id))
       .map((id, i) => {
         const p = researchProject(id);
         if (!p) return '';

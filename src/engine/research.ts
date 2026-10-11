@@ -47,9 +47,9 @@ const BRANCHES: P[][] = [
   ],
   [
     { id: 'hull1', name: 'Dense Core', text: '+2 max health on your sun in battle.', cost: 8, turns: 3, icon: 'hull', effect: { mods: { maxHealthDelta: 2 } } },
-    { id: 'mend1', name: 'Field Cooling', text: 'Your sun cools 2 each turn on the map.', cost: 8, turns: 3, icon: 'mend', effect: { mend: 2 } },
+    { id: 'mend1', name: 'Field Cooling', text: 'Your sun cools 2 with each jump.', cost: 8, turns: 3, icon: 'mend', effect: { mend: 2 } },
     { id: 'hull2', name: 'Stellar Plating', text: 'Another +3 max health on your sun (+5 in all).', cost: 16, turns: 5, icon: 'hull', effect: { mods: { maxHealthDelta: 3 } } },
-    { id: 'mend2', name: 'Nanite Swarms', text: 'Your sun cools 2 more each turn on the map (4 in all).', cost: 16, turns: 5, icon: 'mend', effect: { mend: 2 } },
+    { id: 'mend2', name: 'Nanite Swarms', text: 'Your sun cools 2 more with each jump (4 in all).', cost: 16, turns: 5, icon: 'mend', effect: { mend: 2 } },
   ],
   [
     { id: 'loot1', name: 'Salvage Crews', text: 'Far more chance of an emblem after a battle won.', cost: 6, turns: 2, icon: 'loot', effect: { loot: 0.25 } },
