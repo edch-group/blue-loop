@@ -199,7 +199,7 @@ const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: 
   walls: { icon: glyph('M3.5 20.5h17M5 20.5V9h14v11.5M5 9V5.5h3V9M10.5 9V5.5h3V9M16 9V5.5h3V9M9 20.5v-5h6v5'), unit: 'defence on every tableau slot', value: (l) => `+${l}` },
   bastion: { icon: glyph('M5 20.5V8l3-2 4 2 4-2 3 2v12.5ZM9.5 20.5v-5h5v5'), unit: 'defence on your Guards', value: (l) => `+${2 * l}` },
   grace: { icon: glyph('M12 3v4M12 17v4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M3 12h4M17 12h4M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8M12 9.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z'), unit: 'turns of stability in every galaxy', value: (l) => `+${l}` },
-  armory: { icon: glyph('M4 8.5 12 4l8 4.5v7L12 20l-8-4.5ZM4 8.5l8 4.5 8-4.5M12 13v7M8.5 6.2l8 4.5'), unit: 'material off every armoury card', value: (l) => `−${l}` },
+  armory: { icon: glyph('M4 8.5 12 4l8 4.5v7L12 20l-8-4.5ZM4 8.5l8 4.5 8-4.5M12 13v7M8.5 6.2l8 4.5'), unit: 'material off every space station card', value: (l) => `−${l}` },
   petals: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM12 5.5v10M5 20.5h14'), unit: 'more petals at every wormhole', value: (l) => `+${20 * l}%` },
   hoard: { icon: glyph('M3.5 13.5 9 10.5l5.5 3v6l-5.5 3-5.5-3ZM3.5 13.5 9 16.5l5.5-3M9 16.5v6M9.5 7.5 15 4.5l5.5 3v6l-5.5 3M9.5 7.5 15 10.5l5.5-3M15 10.5v6'), unit: 'materials in every new galaxy', value: (l) => `+${6 * l}` },
   favour: { icon: glyph('M12 3.5c3 2.4 3.8 6.4 0 11.5-3.8-5.1-3-9.1 0-11.5ZM4.5 9.5c3.6-.6 7 1.4 7.5 5.5-4.4.5-7.3-1.6-7.5-5.5ZM19.5 9.5c-3.6-.6-7 1.4-7.5 5.5 4.4.5 7.3-1.6 7.5-5.5ZM12 15v5.5'), unit: 'cooling for your sun after each battle won', value: (l) => `${3 * l}` },
@@ -216,7 +216,7 @@ const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: 
   choice: { icon: glyph('M4 6.5h6v9H4ZM14 6.5h6v9h-6ZM9 18.5h6'), unit: 'card to choose from in every reward', value: (l) => `+${l}` },
   tithe: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM5 20.5h14M8 17.5l-2 3M16 17.5l2 3'), unit: 'petals from every Overlord beaten', value: (l) => `+${2 * l}` },
   heirloom: { icon: glyph('M12 3.5 14.5 8.5l5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8Z'), unit: 'Stellar emblem to start each run', value: (l) => `${l}` },
-  stock: { icon: glyph('M4 9.5h16M5 9.5V20h14V9.5M3.5 9.5 6 4.5h12l2.5 5M9.5 13.5h5'), unit: 'cards in every armoury', value: (l) => `+${3 * l}` },
+  stock: { icon: glyph('M4 9.5h16M5 9.5V20h14V9.5M3.5 9.5 6 4.5h12l2.5 5M9.5 13.5h5'), unit: 'cards in every space station', value: (l) => `+${3 * l}` },
   legacy: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM7 21h10'), unit: 'petal for every battle won', value: (l) => `+${l}` },
   aligned: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM3 12h18M12 3v18'), unit: 'from the planets', value: (l) => `+${l} card, +${l} energy, +${2 * l} cooling` },
   vault: { icon: glyph('M4 6.5h16v13H4ZM4 10.5h16M12 13.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z'), unit: "cards in every Overlord's hoard", value: (l) => `+${2 * l}` },
@@ -2734,7 +2734,7 @@ export class CampaignView {
         <button class="ar-back" data-act="cmp-close" aria-label="Back to the map">‹ map</button>
         <div class="ar-purse">${repair}<span title="Materials">${MATERIALS}<b>${me.materials}</b></span></div>
         <header class="ar-head">
-          <small>armoury</small>
+          <small>space station</small>
           <h3>${esc(lower(n.name))}</h3>
           <nav class="ar-tabs">${tabs}</nav>
         </header>

@@ -106,9 +106,9 @@ export const META_UPGRADES: MetaUpgrade[] = [
   { id: 'mantle', group: 'flagship', tier: 3, requires: [['shields', 1], ['bastion', 1]], name: 'Halo mantle', text: '+1 shield on your sun every day of battle.', max: 1, cost: flat(180) },
   // The long road: time and trade on the map.
   { id: 'grace', group: 'perk', tier: 1, name: 'Anchored space', text: 'Regional stability holds one turn longer in every galaxy.', max: 3, cost: rising(20, 15) },
-  { id: 'armory', group: 'perk', tier: 2, requires: [['grace', 1]], name: 'Trade friends', text: 'Armoury cards cost 1 material less.', max: 2, cost: rising(40, 30) },
+  { id: 'armory', group: 'perk', tier: 2, requires: [['grace', 1]], name: 'Trade friends', text: 'Space station cards cost 1 material less.', max: 2, cost: rising(40, 30) },
   { id: 'hoard', group: 'perk', tier: 2, requires: [['grace', 2]], name: "Founders' Hoard", text: '+6 materials whenever you enter a new galaxy.', max: 1, cost: flat(60) },
-  { id: 'stock', group: 'perk', tier: 3, requires: [['armory', 1], ['hoard', 1]], name: 'Quartermaster', text: 'Every armoury stocks 3 more cards.', max: 1, cost: flat(170) },
+  { id: 'stock', group: 'perk', tier: 3, requires: [['armory', 1], ['hoard', 1]], name: 'Quartermaster', text: 'Every space station stocks 3 more cards.', max: 1, cost: flat(170) },
   // A cooler sun: its heat and health.
   { id: 'cryo', group: 'sun', tier: 1, name: 'Cryo core', text: 'Your sun starts every battle 1 cooler.', max: 3, cost: rising(20, 15) },
   { id: 'plating', group: 'sun', tier: 2, requires: [['cryo', 1]], name: 'Stellar plating', text: '+2 max health on your sun in battle.', max: 2, cost: rising(45, 35) },
