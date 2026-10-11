@@ -66,6 +66,12 @@ export const KEYWORDS: Record<string, Keyword> = {
   destroy: { name: 'destroy', group: 'removal', explain: () => 'Destroys a rival card with this much defence or less.' },
   eject: { name: 'eject', group: 'removal', explain: () => 'Returns a rival card with this much defence or less to hand.' },
   sting: { name: 'sting', group: 'defence', explain: () => 'Hits back at attackers.' },
+  // [direction: give the destroy immunity rule a name, an icon and an inspector description]
+  indestructible: {
+    name: 'indestructible',
+    group: 'defence',
+    explain: () => "Can't be destroyed or returned to hand. A destroy deals its number as damage instead; Obelisks can't be aimed at.",
+  },
   attack: { name: 'attack', group: 'heat', explain: () => 'Once a day, hit a rival card or sun.' },
   dimmed: { name: 'dimmed', group: 'timing', explain: () => 'Dimmed: it has attacked or been used today, and is undimmed at your next dawn.' },
   soothe: { name: 'soothe', group: 'shields', explain: () => 'Cools your sun when shields block.' },

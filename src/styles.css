@@ -6865,3 +6865,26 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   .rs-mark svg { width: 28px; height: 28px; }
   .rs-text { font-size: 0.76rem; }
 }
+
+/* ---------- A card's chips as a column [direction: restore the chips that show a card's abilities, as a column strip
+   starting from the top right of the card] ----------
+   What it gives each day and its mechanics, each its own pill again, in a column hanging from the card's top-right
+   corner (on both sides of the board), half over its edge; on a phone too, over the whole board. */
+.table-view .card-yield,
+.table-view .card-yield-mine,
+.table-view .card-yield-rival {
+  left: auto; right: 0; top: 0; bottom: auto; transform: translate(42%, -16%); transform-origin: 0 0;
+  flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: calc(var(--tcw, 80px) * 0.03);
+  width: auto; max-width: none; padding: 0; border-radius: 0; background: none; box-shadow: none; z-index: 4;
+}
+.table-view .card-yield .yield {
+  height: calc(var(--tcw, 80px) * 0.2); padding: 0 calc(var(--tcw, 80px) * 0.06) 0 calc(var(--tcw, 80px) * 0.045);
+  background: rgba(255, 255, 255, 0.96); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08), 0 1px 3px rgba(60, 70, 100, 0.2);
+}
+.table-view .card-yield .yield.mech-bare { padding: 0 calc(var(--tcw, 80px) * 0.045); }
+@media (pointer: coarse), (orientation: landscape) and (max-height: 560px) {
+  .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield { display: flex; }
+  /* (Over the whole board on a phone the cards are small: the pills a little larger against them, to read.) */
+  .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield .yield { height: calc(var(--tcw, 80px) * 0.26); font-size: calc(var(--tcw, 80px) * 0.14); }
+  .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield .yield .kw-ico { width: calc(var(--tcw, 80px) * 0.14); height: calc(var(--tcw, 80px) * 0.14); }
+}
