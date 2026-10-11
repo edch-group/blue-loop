@@ -7,21 +7,18 @@ import {
   vaultFinds,
   relicText,
   RELIC_POWERS,
-  sunHealth,
   defenderOf,
   salvageOptions,
   salvageKind,
   salvageToDeck,
   applyCampaignAction,
   armoryPrice,
-  attackOptions,
   CAMPAIGN,
   campaignPlayer,
   cardDef,
   migrateGame,
   migrateCampaign,
   visibleNodes,
-  armiesOf,
   armyAt,
   armyById,
   armyMoves,
@@ -86,7 +83,6 @@ import {
   setRulesMode,
   shownKind,
   overlordById,
-  CHALLENGES,
   type ChallengeKind,
   type Relic,
   markedId,
@@ -162,11 +158,6 @@ const ARMORY_ICON =
 const RESEARCH_ICON =
   // A test tube, leaning, glowing brew in its lower half, a lip at its mouth.
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><g transform="rotate(25 10 10)"><path d="M7 2.2v12.2a3 3 0 0 0 6 0V2.2Z" fill="#eef6fb"/><path d="M7 9.6h6v4.8a3 3 0 0 1-6 0Z" fill="#6aa6ff"/><path d="M6.2 2.2h7.6M7 2.2v12.2a3 3 0 0 0 6 0V2.2" fill="none" stroke="#2f5f86" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></g></svg>';
-/** A Finite Stellari bloom: a small six-petalled flower. */
-const BLOOM =
-  '<svg class="cur cur-bloom" viewBox="0 0 20 20" aria-hidden="true">' +
-  [0, 60, 120, 180, 240, 300].map((a) => `<ellipse cx="10" cy="5.2" rx="2.6" ry="4.4" fill="#f2b8e6" stroke="#c97bc0" stroke-width=".6" transform="rotate(${a} 10 10)"/>`).join('') +
-  '<circle cx="10" cy="10" r="2.6" fill="#fff4b0" stroke="#e0b450" stroke-width=".6"/></svg>';
 
 /** Experience: a small four-pointed star in ink. */
 const XP_MARK =
@@ -1093,17 +1084,18 @@ export class CampaignView {
             if (move.battle) this.sheet = { kind: 'attack', armyId: army.id, toId: arg };
             else if (this.apply({ type: 'move', armyId: army.id, toId: arg })) {
               sound.play();
-              // (Arrived: a station's popover to use it; anywhere else, nothing.)
-              this.selected = nodeById(s, arg).station ? arg : null;
+              // (Arrived: nothing to pick; a station opens by itself.)
+              this.selected = null;
               this.army = null;
             }
             break;
           }
         }
-        // (No popover for the starting world, nor where your ship stands, unless it is a station to use there.
-        // The camera stays where it is: a focused system just shows its planets.)
-        if (s && (nodeById(s, arg).home || (flagship(s, s.playerId)?.nodeId === arg && !nodeById(s, arg).station))) {
+        // (No popovers on the map at all [direction: gone entirely]. Where your ship stands at a station, a tap goes
+        // back into it; anywhere else a tap only focuses the system, showing its planets.)
+        if (s && (nodeById(s, arg).home || flagship(s, s.playerId)?.nodeId === arg)) {
           this.selected = null;
+          if (nodeById(s, arg).station) this.enterStation(arg);
           break;
         }
         this.selected = arg;
@@ -1767,28 +1759,6 @@ export class CampaignView {
       </div>`;
   }
 
-  /** The picked army: its general, its state, and what tapping the map will do with it. */
-  private renderArmy(a: Army): string {
-    const s = this.state!;
-    const here = nodeById(s, a.nodeId);
-    const moves = s.phase === 'player' && !s.battle ? armyMoves(s, a) : [];
-    const fights = moves.filter((m) => m.battle).length;
-    const marches = moves.length - fights;
-    const hint = a.moved
-      ? 'This army has marched this turn. It can refit or move again next turn.'
-      : a.refit
-        ? 'This army is refitting this turn (its deck or repairs). It can march next turn.'
-      : moves.length
-        ? `Tap a system next to ${esc(here.name)}: ${marches ? `a <b class="cmp-hint-march">green</b> ring to march there` : ''}${marches && fights ? ', or ' : ''}${fights ? `a <b class="cmp-hint-fight">red</b> ring to fight for it` : ''}.`
-        : 'No route is open to this army.';
-    return `
-      <div class="pop-head pop-head-army" style="--fc:${this.colourOf(a.owner)}">
-        ${armyFace(a)}
-        <div><h3>${lower(armyLeader(a))}</h3><small>${a.deck.length} cards · in ${lower(here.name)}${a.damage > 0 ? ` · ✸${a.damage}` : ''}</small></div>
-        <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
-      </div>
-      <p class="cmp-hint">${hint}</p>`;
-  }
 
   /** Repair one point, or all of it (as far as the materials go). */
   private repairButtons(act: string, id: string, damage: number, cost: number, blocked: string): string {
@@ -1812,8 +1782,6 @@ export class CampaignView {
   /** The words of the chip last tapped in the popover (shown under its chips). */
   /** Where the popover was last placed (in the map's box), so a redraw doesn't jump it. */
   private popPos: { x: number; y: number } | null = null;
-  /** What the popover was last about (a new subject is placed afresh, not where the last one was). */
-  private popKey: string | null = null;
   /** A dialog is up: ships stay where they were drawn. */
   private fleetHeld = false;
 
@@ -2402,26 +2370,11 @@ export class CampaignView {
 
   /** What is picked on the map (a system or an army), in a popover beside it. */
   private renderPop(): string {
-    const s = this.state!;
-    let key = '';
-    let body = '';
-    if (this.selected) {
-      key = `n-${this.selected}`;
-      body = this.renderNode(nodeById(s, this.selected));
-    } else if (this.army && s.armies.some((a) => a.id === this.army)) {
-      key = `a-${this.army}`;
-      body = this.renderArmy(armyById(s, this.army));
-    }
-    if (!body) {
-      this.popPos = null;
-      this.popKey = null;
-      return '';
-    }
-    if (this.popKey !== key) this.popPos = null;
-    this.popKey = key;
-    const at = this.popPos ? `left:${this.popPos.x}px;top:${this.popPos.y}px` : 'left:0;top:0;visibility:hidden';
-    return `<aside class="cmp-pop glass" data-key="pop-${key}" style="${at}">${body}</aside>`;
+    // [direction: map popovers gone entirely, for systems and ships alike]
+    this.popPos = null;
+    return '';
   }
+
 
   /**
    * Where a point of the map's plane (lifted this many pixels, upright, as a star stands on it) shows on the
@@ -2503,84 +2456,6 @@ export class CampaignView {
     pop.style.visibility = '';
   }
 
-  /**
-   * The selected system's popover, beside its star: a header, then what is true of it as a row of icon chips
-   * (tap one, or hover, for its words), then what you can do there.
-   */
-  private renderNode(n: CampaignNode): string {
-    const s = this.state!;
-    const me = campaignPlayer(s);
-    // A challenge: what it is, what it pays, and the way in (once only).
-    if (n.challenge) {
-      const c = CHALLENGES[n.challenge.kind];
-      const army = flagship(s, me.id);
-      const can = !!army && s.phase === 'player' && !s.battle && armyMoves(s, army).some((m) => m.toId === n.id);
-      const status = n.challenge.done === 'won' ? 'done: won' : n.challenge.done === 'lost' ? 'sealed: lost' : 'one try only';
-      const lord = n.challenge.kind === 'lord' && n.challenge.lord ? `<p class="pop-tip">${esc(cardDef(n.challenge.lord).name)} waits there.</p>` : '';
-      return `
-      <div class="pop-head" style="--fc:${CHALLENGE_COLOUR[n.challenge.kind]}">
-        <i></i>
-        <div><small>a hidden challenge · ${status}</small><b>${esc(c.name.toLowerCase())}</b></div>
-        <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
-      </div>
-      <p class="pop-tip">${esc(c.text)}</p>${lord}
-      ${n.challenge.kind === 'rift' ? '' : `<p class="pop-tip"><b>Reward:</b> ${esc(c.reward)}. Lose, and your flagship is thrown clear (the run goes on), but the way in is sealed.</p>`}
-      ${can && army ? `<div class="pop-row"><button class="btn-primary pop-attack" data-act="${n.challenge.kind === 'rift' ? 'cmp-select' : 'cmp-travel'}" data-arg="${n.id}" data-army="${army.id}">${armyFace(army)}enter</button></div>` : ''}`;
-    }
-    const mine = n.owner === me.id;
-    const owner = n.owner ? factionById(s, n.owner) : null;
-    // (Labels only: nothing on the map explains itself in a tooltip [direction: no map tooltips at all].)
-    const chip = (body: string, tone = '') => `<span class="pop-chip ${tone}">${body}</span>`;
-    const icon = (body: string) => `<svg class="pi" viewBox="0 0 16 16" aria-hidden="true">${body}</svg>`;
-    const hp = sunHealth(n);
-    // What a system holds is known only once you hold it or your flagship is there.
-    const known = mine || flagship(s, me.id)?.nodeId === n.id;
-    const chips = [
-      n.owner || n.heart || n.ruined ? '' : chip(`${icon('<circle cx="8" cy="8" r="6"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.4M8 11.4v.1"/>')}<b>unknown</b>`),
-      n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`) : '',
-      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, 'gold') : '',
-      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`),
-      (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, 'good') : '',
-      n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'muted') : '',
-      n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'bad') : '',
-      (n.stableUntil ?? 0) > s.turn ? chip(`${icon('<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>')}<b>${n.stableUntil}</b>`, 'good') : '',
-      known && n.station?.kind === 'armory' ? chip(`${ARMORY_ICON}<b>${n.station.cards.length ? `space station · ${n.station.cards.length}` : 'space station · sold out'}</b>`, n.station.cards.length ? 'gold' : 'muted') : '',
-      known && n.station?.kind === 'research' ? chip(`${RESEARCH_ICON}<b>${n.station.takenBy ? 'research · taken' : 'research'}</b>`, n.station.takenBy ? 'muted' : 'good') : '',
-    ].join('');
-    // What you can do here.
-    const attackers = s.phase === 'player' && !s.battle ? attackOptions(s, me.id).find((o) => o.toId === n.id)?.armyIds ?? [] : [];
-    // A known foe (the wormhole's guardian, a ship standing there) is attacked; anywhere else, the flagship just travels.
-    // (A station is a pit stop: always travelled to, never attacked.)
-    const travellers = s.phase === 'player' && !s.battle && (n.station || (!n.owner && !this.known(n.id))) ? armiesOf(s, me.id).filter((a) => armyMoves(s, a).some((m) => m.toId === n.id)).map((a) => a.id) : [];
-    const attack = this.known(n.id) && !n.station
-      ? attackers.map((id) => `<button class="btn-primary pop-attack" data-act="cmp-attack-pick" data-arg="${n.id}" data-army="${id}">${armyFace(armyById(s, id))}attack</button>`).join('')
-      : travellers.map((id) => `<button class="btn-primary pop-attack" data-act="cmp-travel" data-arg="${n.id}" data-army="${id}">${armyFace(armyById(s, id))}travel</button>`).join('');
-    const here = armyAt(s, n.id);
-    const army = here
-      ? `<div class="pop-army" style="--ac:${this.colourOf(here.owner)}">
-          ${armyFace(here)}<span><b>${lower(armyLeader(here))}</b><small>${here.owner === me.id ? (here.moved ? 'marched this turn' : here.refit ? 'refitting' : 'ready') : here.lost ? 'lost race' : lower(factionById(s, here.owner).name)}${here.damage > 0 ? ` · ✸${here.damage}` : ''}</small></span>
-          ${
-            here.owner === me.id
-              ? `<span class="pop-acts">${!here.moved && !here.refit && s.phase === 'player' ? `<button class="pill-btn ${this.army === here.id ? 'pill-on' : ''}" data-act="cmp-army" data-arg="${here.id}">march</button>` : ''}</span>`
-              : ''
-          }
-        </div>`
-      : '';
-    // A station your flagship stands in: visit it.
-    const atStation = n.station && flagship(s, me.id)?.nodeId === n.id && s.phase === 'player' && !s.battle;
-    const visit = atStation ? `<button class="btn-primary pop-attack" data-act="cmp-visit" data-arg="${n.id}">${n.station!.kind === 'armory' ? `${ARMORY_ICON}dock at the space station` : `${RESEARCH_ICON}visit the research station`}</button>` : '';
-    return `
-      <div class="pop-head" style="--fc:${n.owner ? this.colourOf(n.owner) : NEUTRAL}">
-        ${n.owner ? this.avatarOf(n.owner, 'cmp-head-av') : '<i></i>'}
-        <div><small>${owner ? (mine ? 'yours' : lower(owner.name)) : n.heart ? `the wormhole · ${lower(overlordById(s.overlord ?? 'colossus').name)}` : n.ruined ? 'a ruin · pass through' : `unexplored · depth ${n.tier + 1}`}${n.home ? ' · arrival' : ''}${n.collapsing ? ' · collapsing' : ''}</small></div>
-        <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
-      </div>
-      <div class="pop-chips">${chips}</div>
-      ${attack ? `<div class="pop-row">${attack}</div>` : ''}
-      ${visit ? `<div class="pop-row">${visit}</div>` : ''}
-      ${army}
-`;
-  }
 
   // ---- Overlays -------------------------------------------------------------------
 
