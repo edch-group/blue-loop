@@ -73,7 +73,7 @@ export const KEYWORDS: Record<string, Keyword> = {
     explain: () => "Can't be destroyed or returned to hand. A destroy deals its number as damage instead; Obelisks can't be aimed at.",
   },
   attack: { name: 'attack', group: 'heat', explain: () => 'Once a day, hit a rival card or sun.' },
-  dimmed: { name: 'dimmed', group: 'timing', explain: () => 'Dimmed: it has attacked or been used today, and is undimmed at your next dawn.' },
+  dimmed: { name: 'dimmed', group: 'timing', explain: () => 'It has attacked or acted today. Ready again at your next dawn.' },
   soothe: { name: 'soothe', group: 'shields', explain: () => 'Cools your sun when shields block.' },
   fusion: { name: 'fusion', group: 'tempo', explain: () => 'Play it as a card of its own, or fuse it onto one of your cards in play: that card gains its Fusion bonus, and nothing else of it.' },
   plant: { name: 'plant', group: 'tempo', explain: () => 'Fills empty slots with Saplings.' },

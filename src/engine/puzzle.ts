@@ -44,8 +44,8 @@ function rivalMove(g: GameState, a: Action): GameState | null {
   }
 }
 
-/** Every position reachable this day (to a cap), with the fewest moves to reach it, and the moves. */
-export function reach(start: GameState, cap = 6000): { s: GameState; depth: number; line: Action[] }[] {
+/** Every position reachable this day (to a cap), with the fewest moves to reach it, and the moves (only those `allow` lets through, if given). */
+export function reach(start: GameState, cap = 6000, allow?: (s: GameState, a: Action) => boolean): { s: GameState; depth: number; line: Action[] }[] {
   const seen = new Set<string>([key(start)]);
   const out: { s: GameState; depth: number; line: Action[] }[] = [];
   const queue = [{ s: start, depth: 0, line: [] as Action[] }];
@@ -54,6 +54,7 @@ export function reach(start: GameState, cap = 6000): { s: GameState; depth: numb
     out.push(cur);
     if (isGameOver(cur.s)) continue;
     for (const a of movesNow(cur.s)) {
+      if (allow && !allow(cur.s, a)) continue;
       const n = step(cur.s, a);
       if (!n) continue;
       const k = key(n);
@@ -63,6 +64,16 @@ export function reach(start: GameState, cap = 6000): { s: GameState; depth: numb
     }
   }
   return out;
+}
+
+/**
+ * A move that leaves the rival's board alone: no attack, aimed heat or removal at any card of theirs (going straight for
+ * their sun, and playing what can be played).
+ */
+export function leavesTheirBoard(s: GameState, a: Action): boolean {
+  const theirs = s.players[1].tableau.map((c) => c.uid);
+  const text = JSON.stringify(a);
+  return !theirs.some((uid) => text.includes(`"${uid}"`));
 }
 
 const won = (s: GameState) => s.winnerId === s.players[0].id;
@@ -96,8 +107,8 @@ export function solution(spec: DreamSpec): Action[] | null {
  * A win within `days` of the player's days from here (the rival's days played by its AI between): the moves, each
  * day's closed by its end, or null. Positions met at the start of a day are searched once.
  */
-export function winWithin(start: GameState, days: number, cap = 3000, seen = new Map<string, number>()): Action[] | null {
-  const all = reach(start, cap);
+export function winWithin(start: GameState, days: number, cap = 3000, seen = new Map<string, number>(), allow?: (s: GameState, a: Action) => boolean): Action[] | null {
+  const all = reach(start, cap, allow);
   // (A win this day, the shortest first; a dusk's heat counts.)
   let best: Action[] | null = null;
   for (const { s, line } of all) if ((best === null || line.length < best.length) && solves({ goal: 'win' }, s)) best = line;
@@ -110,7 +121,7 @@ export function winWithin(start: GameState, days: number, cap = 3000, seen = new
     // (A position already searched with as many days left, or more, adds nothing.)
     if ((seen.get(k) ?? 0) >= days - 1) continue;
     seen.set(k, days - 1);
-    const rest = winWithin(next, days - 1, cap, seen);
+    const rest = winWithin(next, days - 1, cap, seen, allow);
     if (rest) return [...line, { type: 'endTurn' }, ...rest];
   }
   return null;

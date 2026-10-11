@@ -586,6 +586,10 @@ export function chooseAIAction(state: GameState): Action {
   view.noReactions = true;
   for (const p of view.players) if (p.id !== me.id) p.lightspeed = null;
   const baseline = evaluate(view, me.id);
+  // A win in reach this day is always taken [direction: a board where the AI should kill you every time must be a
+  // 100% win for it]: the first move of any line of attacks (and Hero abilities) that ends it.
+  const kill = lethalLine(view, me.id, 0, { n: 0 });
+  if (kill) return kill;
   let best: { action: Action; score: number } | null = null;
   if (aiScores) aiScores = [{ action: { type: 'endTurn' }, score: baseline - 1.5 }];
   // The best gain any move makes, before charging its energy: energy left unspent at day's end is lost, so
@@ -652,6 +656,37 @@ export function chooseAIAction(state: GameState): Action {
   aiLastDecision.bestAction = best?.action ?? null;
   if (!best || (ENERGY_CONTENTION ? bestRaw : best.score) < baseline - 1.5) return { type: 'endTurn' };
   return best.action;
+}
+
+/**
+ * The first move of a line of attacks and Hero abilities that wins this day, if there is one (searched depth first,
+ * sun attacks tried first, to a cap of positions).
+ */
+function lethalLine(s: GameState, meId: string, depth: number, seen: { n: number }): Action | null {
+  if (depth > 6 || seen.n > 1500) return null;
+  const me = s.players.find((p) => p.id === meId)!;
+  if (activePlayer(s).id !== meId) return null;
+  const targets = aimChoices(s, me, true);
+  const moves: Action[] = [];
+  for (const c of me.tableau) {
+    if (c.dimmed || c.frozen || cardAttack(s, me, c) <= 0) continue;
+    if (targets.sun) moves.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
+    for (const t of targets.cards) moves.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
+  }
+  moves.push(...abilityMoves(s, me));
+  for (const a of moves) {
+    seen.n++;
+    let next: GameState;
+    try {
+      next = applyAction(s, a);
+    } catch {
+      continue;
+    }
+    if (next.winnerId === meId) return a;
+    if (next.winnerId) continue;
+    if (lethalLine(next, meId, depth + 1, seen)) return a;
+  }
+  return null;
 }
 
 /**

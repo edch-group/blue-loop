@@ -11,7 +11,7 @@ import { appendFileSync } from 'node:fs';
 import { CARDS } from '../src/engine/cards';
 import { cardCost, createDream, isGameOver, type DreamSide, type DreamSpec } from '../src/engine/game';
 import { movesNow } from '../src/engine/ai';
-import { mostHeatWithin, nextDay, reach, rivalDay, solution, solves, step, winWithin, puzzleGame } from '../src/engine/puzzle';
+import { leavesTheirBoard, mostHeatWithin, nextDay, reach, rivalDay, solution, solves, step, winWithin, puzzleGame } from '../src/engine/puzzle';
 import type { CardDef, GameState } from '../src/engine/types';
 
 const OK_EFFECTS = new Set(['heat', 'cool', 'shield', 'destroy', 'selfHeat', 'repair', 'plays', 'erode', 'strikeAll', 'strikeBest']);
@@ -86,6 +86,11 @@ function calibrate(raw: DreamSpec, T: (typeof TIERS)[number], keep: { me: number
   if (spec.goal === 'win') {
     const gain = Math.max(...all.map(({ s }) => s.players[1].heat)) - start.players[1].heat;
     if (gain < 3 || gain > 20) return null;
+    // [direction: not "attack the sun with every card on the board and play one technology card": a win puzzle needs
+    // thinking] Going straight for their sun, never touching their board, must fall at least 2 short: the answer is
+    // in their board (a Guard broken, a card killed or removed first, what hits back, the order).
+    const face = Math.max(...reach(start, 6000, leavesTheirBoard).map(({ s }) => s.players[1].heat)) - start.players[1].heat;
+    if (gain - face < 2) return null;
     spec.foe = { ...spec.foe, max: 20, heat: 20 - gain };
     spec.me = { ...spec.me, max: 20, heat: keep.me };
   } else {
@@ -99,6 +104,8 @@ function calibrate(raw: DreamSpec, T: (typeof TIERS)[number], keep: { me: number
   }
   const len = shortest(spec);
   if (len === null || len < T.len) return null;
+  // (Nor, its sun set, does going straight for it win, a dusk's heat and all.)
+  if (spec.goal === 'win' && reach(puzzleGame(spec), 6000, leavesTheirBoard).some(({ s }) => solves(spec, s))) return null;
   if (solves(spec, createDream(spec, { seed: 7, name: 'Dreamer', foeName: 'Dream' }))) return null;
   if (randomRate(spec) > T.rate) return null;
   return spec;
@@ -176,6 +183,8 @@ function attemptDays(tier: number, race: number): DreamSpec | null {
   const game = puzzleGame(spec);
   if (!winWithin(game, T.days)) return null;
   if (winWithin(game, T.days - 1)) return null;
+  // (Not by going straight for their sun every day, either.)
+  if (winWithin(game, T.days, 3000, new Map(), leavesTheirBoard)) return null;
   if (randomRateDays(spec) > T.rate) return null;
   return spec;
 }

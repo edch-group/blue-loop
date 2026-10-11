@@ -4010,6 +4010,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
   .cmp-rs-head, .cmp-rs-sum { display: none; }
 }
 /* A card being played, placed in its slot while its abilities are chosen: there, but not yet down. */
+.slot-empty.slot-chosen { border-style: solid; border-color: color-mix(in srgb, var(--accent, #5f8fc4) 55%, transparent); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 18px rgba(95, 143, 196, 0.22); }
 .card.card-placing { opacity: 0.9; pointer-events: none; box-shadow: 0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, var(--kc) 70%, transparent), 0 0 22px color-mix(in srgb, var(--kc) 55%, transparent); animation: card-placing 1.4s ease-in-out infinite; }
 @keyframes card-placing { 50% { box-shadow: 0 0 0 2px #fff, 0 0 0 4px color-mix(in srgb, var(--kc) 40%, transparent), 0 0 10px color-mix(in srgb, var(--kc) 30%, transparent); } }
 
@@ -7128,3 +7129,55 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .gl-tab.on { background: #fff; color: var(--ink); box-shadow: 0 2px 10px rgba(40, 46, 70, 0.12); }
 .gl-page { min-height: 0; height: 100%; overflow-y: auto; padding: clamp(14px, calc(3 * var(--vh)), 26px); border-radius: 22px; background: rgba(255, 255, 255, 0.6); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08), 0 14px 40px rgba(40, 46, 70, 0.08); align-content: start; }
 .gl-page .rule-facts { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+
+/* ---------- The glossary's sections: a short read, a labelled picture, a list ---------- */
+.gl-page h3 { margin: 0 0 6px; font-family: var(--display); font-weight: 400; font-size: 1.05rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--ink); }
+.gl-lead { margin: 0 0 4px; max-width: 64ch; font-size: 0.92rem; line-height: 1.55; color: var(--ink-soft); }
+.gl-lead b { color: var(--ink); }
+/* A picture, its labels beside it in two columns, an arrow from each to its part. */
+.gl-fig { position: relative; display: grid; grid-template-columns: minmax(140px, 1fr) minmax(0, 3fr) minmax(140px, 1fr); column-gap: clamp(28px, 4vw, 56px); margin: 22px 0 26px; }
+.gl-fig-card { grid-template-columns: minmax(150px, 1fr) minmax(0, 250px) minmax(150px, 1fr); }
+.gl-fig-sun { grid-template-columns: minmax(150px, 1fr) minmax(0, 240px) minmax(150px, 1fr); }
+.gl-fig-row { grid-template-columns: minmax(140px, 1fr) minmax(0, 3.2fr) minmax(140px, 1fr); }
+.gl-shot { position: relative; align-self: start; }
+.gl-shot img { display: block; width: 100%; height: auto; aspect-ratio: var(--ar); border-radius: 14px; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08), 0 10px 30px rgba(40, 46, 70, 0.12); background: #f4f4f6; }
+.gl-fig-col { position: relative; min-height: 100%; }
+.gl-label { position: absolute; left: 0; right: 0; display: grid; gap: 2px; font-size: 0.78rem; line-height: 1.35; }
+.gl-fig-l .gl-label { text-align: right; }
+.gl-label i { display: none; }
+.gl-label b { font-family: var(--display); font-weight: 400; font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); }
+.gl-label span { color: var(--ink-soft); }
+.gl-label span:empty { display: none; }
+.gl-pin { position: absolute; width: 8px; height: 8px; translate: -50% -50%; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px #5f8fc4, 0 0 8px rgba(95, 143, 196, 0.6); }
+.gl-pin b { display: none; }
+.gl-arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.gl-arrow { fill: none; stroke: #5f8fc4; stroke-width: 1.5; stroke-linecap: round; opacity: 0.85; }
+.gl-arrows marker path { fill: #5f8fc4; }
+.gl-fig figcaption { grid-column: 1 / -1; margin-top: 8px; text-align: center; font-size: 0.74rem; color: var(--ink-faint); }
+/* Narrow: the picture, numbers on its parts, and the labels as a numbered list below. */
+.gl-fig.gl-fig-narrow { grid-template-columns: minmax(0, 1fr); row-gap: 12px; }
+.gl-fig-narrow .gl-shot { order: -1; max-width: 100%; justify-self: center; }
+.gl-fig-narrow.gl-fig-card .gl-shot, .gl-fig-narrow.gl-fig-sun .gl-shot { width: min(260px, 100%); }
+.gl-fig-narrow .gl-fig-col { display: grid; gap: 8px; min-height: 0; }
+.gl-fig-narrow .gl-label { position: static; text-align: left; grid-template-columns: 22px minmax(0, 1fr); column-gap: 8px; }
+.gl-fig-narrow .gl-label i { display: grid; place-items: center; grid-row: span 2; width: 20px; height: 20px; border-radius: 50%; background: #5f8fc4; color: #fff; font-style: normal; font-size: 0.66rem; }
+.gl-fig-narrow .gl-label b, .gl-fig-narrow .gl-label span { grid-column: 2; }
+.gl-fig-narrow .gl-pin { width: 18px; height: 18px; display: grid; place-items: center; background: #5f8fc4; box-shadow: 0 0 0 2px #fff; }
+.gl-fig-narrow .gl-pin b { display: block; color: #fff; font-size: 0.6rem; font-weight: 600; }
+.gl-fig-narrow .gl-arrows { display: none; }
+/* Terms: one per line, the term on the left, what it means beside it. */
+.gl-terms { display: grid; margin: 8px 0 0; }
+.gl-terms > div { display: grid; grid-template-columns: minmax(120px, 190px) minmax(0, 1fr); gap: 4px 18px; padding: 11px 2px; border-top: 1px solid rgba(58, 66, 86, 0.08); }
+.gl-terms > div:first-child { border-top: 0; }
+.gl-terms dt { font-weight: 600; font-size: 0.86rem; color: var(--ink); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.gl-terms dd { margin: 0; font-size: 0.86rem; line-height: 1.5; color: var(--ink-soft); max-width: 70ch; }
+@media (max-width: 640px) { .gl-terms > div { grid-template-columns: minmax(0, 1fr); } }
+.gl-kw { margin-top: 18px; }
+.gl-kw h4 { margin: 0 0 2px; font-family: var(--display); font-weight: 400; font-size: 0.62rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
+/* The day's steps, in order. */
+.gl-steps { list-style: none; counter-reset: gl-step; display: grid; gap: 0; margin: 14px 0 6px; padding: 0; }
+.gl-steps li { counter-increment: gl-step; display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 14px; padding: 12px 0; border-top: 1px solid rgba(58, 66, 86, 0.08); }
+.gl-steps li:first-child { border-top: 0; }
+.gl-steps li::before { content: counter(gl-step); grid-row: span 2; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(95, 143, 196, 0.4); color: #5f8fc4; font-size: 0.76rem; font-weight: 600; }
+.gl-steps b { font-family: var(--display); font-weight: 400; font-size: 0.64rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink); }
+.gl-steps span { font-size: 0.86rem; line-height: 1.55; color: var(--ink-soft); max-width: 72ch; }

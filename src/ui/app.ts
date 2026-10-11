@@ -17,7 +17,6 @@ import {
   BOOSTERS,
   PROGRESSION,
   rankName,
-  RANK_TIERS,
   rankOf,
   xpToNext,
   canSetTrap,
@@ -37,7 +36,6 @@ import {
   KEYWORDS,
   keywordsIn,
   textParts,
-  keywordLabel,
   plainText,
   isGameOver,
   freeSlots,
@@ -56,6 +54,7 @@ import {
   cardChoices,
   cardCost,
   aimChoices,
+  survivalDream,
   aimable,
   abilityAimable,
   COMMAND_SLOT,
@@ -82,7 +81,6 @@ import {
   type BoosterKind,
   type CardInstance,
   type CardDef,
-  type CardKind,
   type GameState,
   type PlayerSetup,
   type PlayerState,
@@ -99,6 +97,7 @@ import {
 import { roman, sunOrb, vitals } from './art';
 import { choiceRow, setLink, setRow, settingsPanel } from './settings';
 import { backdrop, RAGE_IN_MS } from './backdrop';
+import { glossarySections, layoutGlossaryFigures } from './glossary';
 /** What counts as on a card, for tooltips (none on a touch screen: the inspector explains a card there). */
 const ON_CARD = '.card, .card-yield, .boon-mark, .hero-rail';
 /** How long a heat wave from the Stellari takes to cross the board. */
@@ -116,7 +115,7 @@ import { ORACLE_NAME } from '../engine/story';
 import { relicMark } from './relic-art';
 
 import { closeTour, startTour, tourShowing } from './tour';
-import { DREAMS, shownKind, isBurst, isBossCard, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS, type ShownKind } from '../engine';
+import { DREAMS, shownKind, isBurst, isBossCard, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -923,7 +922,7 @@ export class App {
   /** This game's anonymous summary, for balancing (a fresh game on this device; sent when it ends). */
   private statsRec: GameStats | null = null;
   /** The How to Play tab showing. */
-  private rulesTab = 'overview';
+  private rulesTab = 'basics';
   /** The rival whose tableau is shown across the table (defaults to the viewer's target). */
   private viewRivalId: string | null = null;
   /** Overlays hidden so the player can study the board; the game is suspended meanwhile. */
@@ -4505,6 +4504,7 @@ export class App {
     this.placeGalaxyTag();
     fitCardText(this.root);
     this.markKwMore(this.root);
+    if (this.root.querySelector('.gl-fig')) layoutGlossaryFigures(this.root);
     this.syncBossAim();
     sizePool(this.root);
     const pool = this.root.querySelector<HTMLElement>('.db-pool');
@@ -5191,99 +5191,8 @@ export class App {
   }
 
   private rulesHtml(glossary = false): string {
-    const B = BALANCE;
-    const kw = (id: string, v?: string) => keywordHtml(id, v);
-    const fact = (title: string, body: string) => `<div class="rule-fact"><b>${title}</b><span>${body}</span></div>`;
-    const facts = (...f: string[]) => `<div class="rule-facts">${f.join('')}</div>`;
-    const step = (title: string, body: string) => `<li><b>${title}</b><span>${body}</span></li>`;
-    const kind = (k: CardKind | ShownKind, name: string, body: string) => `<div class="rule-fact"><b><i class="rule-dot" style="--kc:${KIND_COLOUR[k]}"></i>${name}</b><span>${body}</span></div>`;
-    const tabs: Record<string, [string, () => string]> = {
-      overview: [
-        'Overview',
-        () =>
-          facts(
-            fact('The goal', `Heat your rival's sun to <b>${B.supernovaAt}</b>. It goes supernova and you win.`),
-            fact('Two suns', `Both start at ${B.startingHeat} heat. ${kw('heat')} heats, ${kw('cool')} cools, ${kw('shield')} blocks.`),
-            fact('Days', 'Players take turns, called days. Each of your days starts at Dawn.'),
-            fact('Cards stay', 'Played cards sit in your tableau and act every dawn, until they are beaten down or removed.'),
-            fact('Your deck', `${B.deckSize}–${B.maxDeckSize} cards: up to ${B.maxCopies} of each, and one Hero per ${B.cardsPerCommand} cards.`),
-            fact('Your hand', `Start with ${B.openingHand} cards. Draw ${B.drawPerTurn} every Dawn after the first.`),
-          ),
-      ],
-      day: [
-        'Your Day',
-        () => `<ol class="rule-steps">
-          ${step('Dawn', `Your shields fade. The planets move on a notch. Draw ${B.drawPerTurn}.`)}
-          ${step('The table', 'Regional instability strikes, then the global card in play.')}
-          ${step('Your cards', `Every card in your tableau fires its ${kw('dawn')} effect, left to right: heat strikes your rival's sun.`)}
-          ${step('Fade', 'Every card loses 1 ◷ stability. At 0 it goes to your discard pile.')}
-          ${step('Play', `Spend your energy on cards: 1 on your first day, 2 on your second, then <b>${B.maxPlays}</b> a day (more with bonuses). Each card goes into a slot you choose.`)}
-          ${step('Attack', "Each ready card with attack may strike the rival's sun or one of their cards, once a day.")}
-          ${step('Dusk', `End your day: every ${kw('dusk')} effect fires, cooling your sun. Your rival's day begins.`)}
-        </ol>`,
-      ],
-      tableau: [
-        'Tableau',
-        () =>
-          facts(
-            fact('Slots', `${B.tableauSlots} slots. Defence ⛨ ${B.slotDefence.join(' · ')}: the middle is safest.`),
-            fact('Defence', `An attack or aimed heat wears a card's defence first, and the wear lasts: only ${kw('repair', '1')} mends it, and it stays in the slot if the card leaves. A card with ⛨3 or more is a ${kw('guard')} while its defence holds, a Hero too. Removal only reaches cards with low enough defence: ${kw('destroy', '2')} hits ⛨2 or less.`),
-            fact('Stability ◷', `Days a card stays. ${kw('restore', '2')} adds to yours; ${kw('erode', '2')} drains theirs.`),
-            fact('Replacing', 'Cards never fade: into a full tableau, a new card replaces one of yours (you pick it), which leaves play. A recall card can go in, in the place of the card it recalls.'),
-            fact('Neighbours', `${kw('resonance', '1')} and ${kw('bulwark', '1')} boost the cards beside them. A gap breaks it.`),
-            fact('Discard pile', `Every card that leaves goes here. An empty deck reshuffles it back in, at no cost.`),
-          ),
-      ],
-      sun: [
-        'Sun & Orbit',
-        () =>
-          facts(
-            fact(`${keywordHtml('heat', undefined, { named: true })}`, "Heats your rival's sun, unless the card says “to your sun”. Passive heat comes at dawn and always strikes the sun; heat as a card is played can be aimed at a rival card instead."),
-            fact(`${keywordHtml('cool', undefined, { named: true })}`, 'Takes heat off your sun. Passive cooling comes at dusk.'),
-            fact(`${keywordHtml('shield', undefined, { named: true })}`, 'Each absorbs 1 enemy heat. They fade at your Dawn.'),
-            fact(`${keywordHtml('repair', undefined, { named: true })}`, 'Mends worn defence on your cards and slots, most worn first.'),
-            fact('Attacks', "Once a day, a card's attack strikes the rival's sun or one of their cards (which hits back)."),
-            fact('Energy', `Cards cost energy (the green gem). You get 1 on your first day, 2 on your second, then ${B.maxPlays} a day. The industrial planet and energy cards add more on top.`),
-            fact('Orbit', `Three planets take turns facing your sun, ${B.orbitTurns} days each.`),
-            fact('The planets', `Dead: nothing. Abundant: draw +${B.abundantDraw}. Industrial: play +${B.industrialPlays}.`),
-            fact('Regional stability', `Drains each round. From round ${B.instabilityStartsRound}, every sun heats at Dawn, more each round.`),
-          ),
-      ],
-      cards: [
-        'Card Types',
-        () =>
-          facts(
-            kind('unit', 'Entity', 'Stays in your tableau. One with attack can attack each day (a card with none can gain some); its abilities act at dawn or dusk.'),
-            kind('surge', 'Technology', 'Resolves as it is played, then goes to your discard pile.'),
-            kind('relic', 'Relic', 'No attack: a lasting bonus. Brittle: nothing restores it, and removal reaches it whatever its defence.'),
-            kind('command', 'Hero', `One per ${B.cardsPerCommand} cards in every deck. It leads from its own slot until it is beaten down or replaced, with an ability to use each day, and never returns to your hand.`),
-            kind('global', 'Global', 'Changes the table for both players. Only one at a time.'),
-            kind('trap', 'Trap', 'Set face down. Springs on the first trigger it meets.'),
-          ),
-      ],
-      keywords: [
-        'Keywords',
-        () => `<p class="rule-note">Hover a keyword on a card, or zoom the card, to read it there.</p>
-          <dl class="kw-rules">${Object.entries(KEYWORDS)
-            .map(([id, k]) => {
-              return `<div><dt>${keywordHtml(id, undefined, { named: true })}</dt><dd>${esc(k.explain())}${id === 'recover' ? ` Some name a type: ${keywordLabel('recover', 'attack')}.` : ''}</dd></div>`;
-            })
-            .join('')}</dl>`,
-      ],
-      progress: [
-        'Progress',
-        () =>
-          facts(
-            fact('Levels', `Every game earns experience. Each level: ✦${PROGRESSION.levelReward.stardust} and ⟁${PROGRESSION.levelReward.flux}.`),
-            fact('Stardust ✦', `Buys boosters: ✦${PROGRESSION.boosterPrice} for ${PROGRESSION.boosterSize} cards.`),
-            fact('Flux ⟁', 'Crafts the cards you want. Breaking one down returns half.'),
-            fact('Ranks', `${RANK_TIERS.join(' → ')}. Three stages each.`),
-            fact('Ranked', 'Matches players at most one tier apart. Beat higher ranks for more.'),
-            fact('Collection', 'You start with every starter card. Boosters and crafting add the rest.'),
-          ),
-      ],
-    };
-    const tab = tabs[this.rulesTab] ? this.rulesTab : 'overview';
+    const tabs = glossarySections();
+    const tab = tabs[this.rulesTab] ? this.rulesTab : 'basics';
     if (glossary)
       return `
       <div class="glossary">
@@ -5618,7 +5527,8 @@ export class App {
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.attack || p.ability !== undefined ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
     if (!card) return '';
-    const guarded = !aimChoices(s, activePlayer(s), true).sun;
+    // (No sun to strike: a Guard stands, or, in a survival dream, their sun is off limits and any card will do.)
+    const guarded = !aimChoices(s, activePlayer(s), true).sun && !survivalDream(s);
     if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
     if (p.step === 'aim') return hint('aim heat');
     if (p.step === 'sacrifice') return hint(p.ability !== undefined ? 'sacrifice a card' : this.state && cardDef(this.state.players.find((x) => x.hand.some((c) => c.uid === p.uid))?.hand.find((c) => c.uid === p.uid)?.defId ?? '').consume ? 'consume a card' : 'replace a card');
@@ -5851,12 +5761,10 @@ export class App {
         }
       }
     }
-    // The card being played, once placed: shown standing in its slot (over the card it recalls, if it takes its place).
+    // The slot the card being played will take: only marked, the card itself shown in the preview pane until its
+    // choices are made [direction: no card flashing in the slot as well as in the pane; placed once all is done].
     const placing = side === 'mine' && pend && !pend.attack && pend.slot !== undefined && !pend.faceDown ? activePlayer(st).hand.find((h) => h.uid === pend.uid) : undefined;
-    const ghostAt = (i: number) =>
-      placing && pend!.slot === i
-        ? this.renderCard({ ...placing, slot: i, health: baseHealth(placing.defId) }, { tableau: 'mine', owner: p, static: true }).replace('class="card ', 'class="card card-placing ')
-        : null;
+    const ghostAt = (i: number) => (placing && pend!.slot === i && !p.tableau.some((x) => x.slot === i) ? `<div class="slot-empty slot-chosen" data-slot="${i}"></div>` : null);
     // Aiming (an attack, a card's heat or a Hero's ability): the rival's sun is a target too, unless a Guard stands (against an attack).
     const sunAim = side === 'rival' && pend?.step === 'aim' && aimChoices(st, activePlayer(st), !!pend.attack).sun;
     // A relic's heat at any target: their sun is one.

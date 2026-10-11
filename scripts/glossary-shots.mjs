@@ -134,7 +134,7 @@ await shoot('card', '.inspector .card-big', [
   ['art', '.inspector .card-big .art-wrap', 'c'],
   ['type', '.inspector .card-big .card-type'],
   ['name', '.inspector .card-big .card-name'],
-  ['text', '.inspector .card-big .card-text'],
+  ['text', '.inspector .card-big .card-text', 'lt'],
   ['rarity', '.inspector .card-big .gem'],
   ['attack', '.inspector .card-big .jewel-atk'],
   ['stability', '.inspector .card-big .jewel-stab'],
