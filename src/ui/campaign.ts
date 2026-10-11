@@ -2854,7 +2854,7 @@ export class CampaignView {
       .join('');
     // [direction: no way back to the map but a confirm beneath the options, which takes the one picked and returns]
     const open = !taken && st.options.some((id) => !RETIRED_RESEARCH.has(id) && !researchProblem(s, me, n, id));
-    const action = `${taken ? `<p class="ar-hint">${taken === me.id ? 'taken' : `taken by ${esc(factionById(s, taken).name.toLowerCase())}`}</p>` : open ? `<p class="ar-hint">take one · the rest are lost</p>` : ''}
+    const action = `${taken ? `<p class="ar-hint">${taken === me.id ? 'taken' : `taken by ${esc(factionById(s, taken).name.toLowerCase())}`}</p>` : ''}
       <button class="btn-primary ar-go" data-act="cmp-research" data-arg="${n.id}" ${pick ? `data-project="${esc(pick)}"` : ''} ${open && !pick ? 'disabled' : ''}>confirm</button>`;
     return `
       <div class="ar rs">
