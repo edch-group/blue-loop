@@ -97,6 +97,7 @@ import {
   GAME_MODES,
   type GameMode } from '../engine';
 import { roman, sunOrb, vitals } from './art';
+import { setLink, setRow, settingsPanel } from './settings';
 import { backdrop, RAGE_IN_MS } from './backdrop';
 /** What counts as on a card, for tooltips (none on a touch screen: the inspector explains a card there). */
 const ON_CARD = '.card, .card-yield, .boon-mark, .hero-rail';
@@ -136,7 +137,7 @@ import { appSize, forceLandscape, pageRect, toPage, VIEWPORT_EVENT } from './vie
 import { artIdsIn, preloadArt } from './cardart';
 
 type Screen = 'menu' | 'game' | 'campaign';
-type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop' | 'pickdeck' | 'tutorial' | 'challenges';
+type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop' | 'pickdeck' | 'tutorial' | 'challenges' | 'glossary';
 /** Where a reload that takes up newer progress remembers the menu page it came from. */
 const RESUME_KEY = 'blue-loop:resume-page';
 /** The menu pages a reload may come back to (not the title, sign-in or a page that needs its own state). */
@@ -153,6 +154,8 @@ const HUB_ICONS = {
   quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4"><circle class="ic-e" cx="17" cy="24" r="8"/><circle class="ic-e" cx="36" cy="24" r="4.5"/><path class="ic-faint" d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
   /** The world and its meridians. */
   online: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4"><circle class="ic-e" cx="24" cy="24" r="14"/><path class="ic-faint" d="M10 24h28M24 10c-5 4-7 9-7 14s2 10 7 14M24 10c5 4 7 9 7 14s-2 10-7 14"/></svg>`,
+  /** An open book. */
+  glossary: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4"><path class="ic-e" d="M24 14c-4-3-10-4-16-3v24c6-1 12 0 16 3 4-3 10-4 16-3V11c-6-1-12 0-16 3z"/><path d="M24 14v24"/></svg>`,
   /** A lantern held up: Oriel's, who teaches. */
   tutorial: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4"><path class="ic-faint" d="M24 6v6"/><path class="ic-e" d="M17 15h14l-2 20H19z"/><path d="M15 15h18M17 35h14"/><circle class="ic-faint" cx="24" cy="25" r="3.5"/></svg>`,
   /** A dream: a crescent over a set board. */
@@ -4605,7 +4608,7 @@ export class App {
 
   private renderMenu(): string {
     const page = this.menuPage;
-    const setup = page === 'quickplay' || page === 'options' || page === 'decks' || page === 'online' || page === 'shop' || page === 'pickdeck';
+    const setup = page === 'quickplay' || page === 'options' || page === 'decks' || page === 'online' || page === 'shop' || page === 'pickdeck' || page === 'glossary';
     const body =
       page === 'title'
         ? this.renderTitlePage()
@@ -4627,6 +4630,8 @@ export class App {
                   ? tutorialPage(this.tutPick)
                   : page === 'challenges'
                   ? challengesPage(this.chPick)
+                  : page === 'glossary'
+                  ? this.renderGlossary()
                   : this.renderOptions();
     return `
     <main class="menu menu-${page} ${setup ? 'setup-page' : ''}">
@@ -4673,6 +4678,7 @@ export class App {
       <nav class="hub-links">
         ${link('menu-page', 'shop', HUB_ICONS.shop, 'shop')}
         ${link('open-decks', '', HUB_ICONS.collection, 'collection')}
+        ${link('menu-page', 'glossary', HUB_ICONS.glossary, 'glossary')}
       </nav>
       <div class="hub-corner">
         ${this.playerChip()}
@@ -5165,25 +5171,26 @@ export class App {
   }
 
   private renderOptions(): string {
-    const tile = (act: string, label: string, value: string, disabled = false) =>
-      `<button class="opt-tile" data-act="${act}" ${disabled ? 'disabled' : ''}><span class="opt-label">${label}</span><b class="opt-value">${value}</b></button>`;
     return this.setupPage(
       'options',
-      `<div class="opt-row">
-        ${tile('toggle-sound', 'sound', sound.muted ? 'off' : 'on')}
-        ${tile('toggle-music', 'music', sound.musicOn && !sound.muted ? 'on' : 'off', sound.muted)}
-        ${tile('speed', 'ai speed', this.speed)}
-        ${tile('toggle-autoconfirm', 'auto-confirm', this.autoConfirm ? 'on' : 'off')}
-        ${tile('toggle-stats', 'share game stats', sharingStats() ? 'on' : 'off')}
-        ${tile('rules', 'how to play', 'read')}
-      </div>
-      <p class="opt-note muted">Game stats are anonymous: the decks played, the moves made and who won, never who played. They help us balance the game and teach the AI.</p>`,
+      settingsPanel(
+        `${this.settingsButtons()}
+        ${setRow('toggle-stats', 'share game stats<small>We collect data anonymously</small>', sharingStats() ? 'on' : 'off')}`,
+      ),
       '',
     );
   }
 
   /** How to play: short facts, one tab per topic. */
-  private rulesHtml(): string {
+  /**
+   * The glossary [direction: how to play becomes the glossary, a full page from the hub (beside collection); sections
+   * in a left pane, the section's words taking the rest; the page never changes height between sections].
+   */
+  private renderGlossary(): string {
+    return this.setupPage('glossary', this.rulesHtml(true), '', 'hub', 'gl-body');
+  }
+
+  private rulesHtml(glossary = false): string {
     const B = BALANCE;
     const kw = (id: string, v?: string) => keywordHtml(id, v);
     const fact = (title: string, body: string) => `<div class="rule-fact"><b>${title}</b><span>${body}</span></div>`;
@@ -5277,6 +5284,14 @@ export class App {
       ],
     };
     const tab = tabs[this.rulesTab] ? this.rulesTab : 'overview';
+    if (glossary)
+      return `
+      <div class="glossary">
+        <nav class="gl-nav" aria-label="Sections">${Object.entries(tabs)
+          .map(([id, [name]]) => `<button class="gl-tab${id === tab ? ' on' : ''}" data-act="rules-tab" data-arg="${id}" aria-pressed="${id === tab}">${name}</button>`)
+          .join('')}</nav>
+        <div class="gl-page">${tabs[tab][1]()}</div>
+      </div>`;
     return `
       <div class="rules-wrap">
         <nav class="rules-tabs">${Object.entries(tabs)
@@ -6604,13 +6619,12 @@ export class App {
     }
   }
 
-  /** Sound, music and AI speed: in the battle's settings sheet and the campaign's. */
+  /** Sound, music and AI speed: in the battle's settings sheet, the campaign's and the options page. */
   private settingsButtons(): string {
     return `
-      <button class="btn" data-act="toggle-sound">${sound.muted ? 'sound: off' : 'sound: on'}</button>
-      <button class="btn" data-act="toggle-music" ${sound.muted ? 'disabled' : ''}>${sound.musicOn ? 'music: on' : 'music: off'}</button>
-      <button class="btn" data-act="speed">ai speed: ${this.speed}</button>
-      <button class="btn" data-act="toggle-autoconfirm" title="Your rival's cards land by themselves after ${AUTO_CONFIRM_MS / 1000}s">auto-confirm: ${this.autoConfirm ? 'on' : 'off'}</button>`;
+      ${setRow('toggle-sound', 'sound', sound.muted ? 'off' : 'on')}
+      ${setRow('toggle-music', 'music', sound.musicOn && !sound.muted ? 'on' : 'off', sound.muted ? 'disabled' : '')}
+      ${setRow('speed', 'ai speed', this.speed)}`;
   }
 
   private renderSheet(): string {
@@ -6648,13 +6662,12 @@ export class App {
       case 'menu':
         return this.sheetFrame(
           `settings · round ${s?.round ?? ''}`,
-          `<div class="menu-list">
+          settingsPanel(`
             ${this.settingsButtons()}
-            <button class="btn" data-act="view-player" data-arg="">players</button>
-            <button class="btn" data-act="open-log">game log</button>
-            <button class="btn" data-act="rules">how to play</button>
-            ${s && !isGameOver(s) ? '<button class="btn" data-act="open-quit">quit game</button>' : '<button class="btn" data-act="to-menu">main menu</button>'}
-          </div>`,
+            ${s && !isGameOver(s) ? setLink('open-quit', 'quit game') : setLink('to-menu', 'main menu')}`),
+          '',
+          // (No close button under the Stellari: Escape, or a tap outside, closes it.)
+          false,
         );
       case 'log': {
         // A popover under the log button; the board stays in view (tap anywhere else to close).
@@ -6814,3 +6827,4 @@ export class App {
 
 
 }
+

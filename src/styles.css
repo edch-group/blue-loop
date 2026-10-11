@@ -7079,3 +7079,45 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* A lesson learnt: Oriel's word beside his face. */
 .result-oriel-line { display: flex; align-items: center; gap: 10px; max-width: 34em; }
 .result-oriel { flex: none; width: 38px; height: 38px; display: block; border-radius: 50%; box-shadow: 0 0 0 2px #fff; }
+
+/* ---------- Settings, everywhere: one column, the Stellari rising out of the foot ---------- */
+/* [direction: settings menus in a single column, less bland; a Stellari at the bottom of the menu, half off the
+   bottom, hidden by overflow] Each setting a row (its name left, its value in a pill right), the ways elsewhere rows
+   with a chevron; below them all, the Stellari's flower turning slowly, its top half showing over the panel's edge. */
+.settings-panel { position: relative; display: grid; gap: 10px; width: min(380px, 100%); margin: 0 auto; padding-bottom: clamp(70px, calc(16 * var(--vh)), 120px); }
+.set-list { position: relative; z-index: 1; display: grid; gap: 2px; padding: 4px; border-radius: 16px; background: rgba(255, 255, 255, 0.72); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08), 0 6px 18px rgba(40, 46, 70, 0.06); backdrop-filter: blur(6px); }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: clamp(36px, calc(7 * var(--vh)), 46px); padding: 0 12px 0 16px; border: 0; border-radius: 12px; background: none; cursor: pointer; font: inherit; color: var(--ink); text-align: left; transition: background 0.15s; }
+.set-row:hover:not([disabled]) { background: rgba(95, 143, 196, 0.08); }
+.set-row[disabled] { opacity: 0.45; cursor: default; }
+.set-row + .set-row { box-shadow: 0 -1px 0 rgba(58, 66, 86, 0.06); }
+.set-label { display: grid; gap: 3px; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.22em; text-transform: uppercase; }
+.set-label small { font-family: var(--body, inherit); font-size: 0.66rem; letter-spacing: 0.02em; text-transform: none; color: var(--ink-faint); }
+.set-row .opt-value { min-width: 44px; padding: 4px 10px; border-radius: 999px; text-align: center; font-family: var(--display); font-weight: 500; font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); background: #f0f2f6; }
+.set-link i { font-style: normal; font-size: 1.1rem; color: var(--ink-faint); }
+.set-note { position: relative; z-index: 1; margin: 2px 6px 0; font-size: 0.7rem; line-height: 1.4; color: var(--ink-faint); text-align: center; }
+.settings-flower { position: absolute; left: 50%; bottom: 0; width: clamp(150px, calc(34 * var(--vh)), 240px); aspect-ratio: 1; transform: translate(-50%, 50%); pointer-events: none; opacity: 0.9; }
+.settings-flower .stellaria-flower { width: 100%; height: 100%; display: block; animation: settingsTurn 90s linear infinite; }
+.settings-flower .petal-outer ellipse { fill: rgba(150, 180, 230, 0.16); stroke: rgba(95, 143, 196, 0.55); stroke-width: 4; }
+.settings-flower .petal-inner path { fill: rgba(255, 255, 255, 0.75); stroke: rgba(95, 143, 196, 0.5); stroke-width: 3; }
+@keyframes settingsTurn { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .settings-flower .stellaria-flower { animation: none; } }
+/* In a sheet or modal, the panel's foot is the sheet's own: it clips the flower at its edge. */
+.modal:has(.settings-panel) { position: relative; overflow: hidden; padding-bottom: 0; }
+.modal:has(.settings-panel) .modal-body, .modal:has(.settings-panel) > .settings-panel { overflow: visible; }
+.modal .settings-panel { margin-bottom: calc(-1 * var(--modal-pad, 0px)); }
+/* On the options page, the panel is a card of its own, its foot clipping the flower. */
+.menu-options .settings-panel { overflow: hidden; border-radius: 22px; padding: 14px 14px clamp(80px, calc(18 * var(--vh)), 130px); background: rgba(255, 255, 255, 0.55); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08), 0 14px 40px rgba(40, 46, 70, 0.1); }
+.menu-options .settings-panel .settings-flower { bottom: 0; }
+
+/* ---------- The glossary: a full page from the hub ---------- */
+/* Its sections in a left pane, the section picked filling the rest. The page is the screen's height whatever the
+   section: a long one scrolls within its own pane, a short one leaves it empty below; nothing moves as you click. */
+.menu.setup-page:has(> .gl-body) { grid-template-rows: auto minmax(0, 1fr); }
+.gl-body { align-items: stretch; height: 100%; }
+.glossary { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: clamp(12px, calc(2 * var(--vw)), 24px); height: 100%; min-height: 0; }
+.gl-nav { display: grid; align-content: start; gap: 4px; padding: 6px; border-radius: 18px; background: rgba(255, 255, 255, 0.72); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08), 0 6px 18px rgba(40, 46, 70, 0.06); overflow-y: auto; }
+.gl-tab { padding: 12px 14px; border: 0; border-radius: 12px; background: none; cursor: pointer; text-align: left; font-family: var(--display); font-size: 0.64rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-soft); transition: background 0.15s, color 0.15s; }
+.gl-tab:hover { background: rgba(95, 143, 196, 0.08); color: var(--ink); }
+.gl-tab.on { background: #fff; color: var(--ink); box-shadow: 0 2px 10px rgba(40, 46, 70, 0.12); }
+.gl-page { min-height: 0; height: 100%; overflow-y: auto; padding: clamp(14px, calc(3 * var(--vh)), 26px); border-radius: 22px; background: rgba(255, 255, 255, 0.6); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08), 0 14px 40px rgba(40, 46, 70, 0.08); align-content: start; }
+.gl-page .rule-facts { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }

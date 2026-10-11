@@ -1058,6 +1058,12 @@ The hub has five tiles: a dying universe, quickplay, online, **tutorial** and **
 
 **Dream boards were doubled (fixed).** Every card set on a dream's board stood in its tableau twice, so its dawn and dusk effects and its passives counted double. Fixed, and every dream re-checked against the fixed rules (dreams-gen.ts RECHECK): 41 of 47 still fair, six survive puzzles dropped (docs/TODO.md lists the gaps).
 
+## Settings and the glossary
+
+**Settings, everywhere** [direction: a single column, less bland, a Stellari half off the bottom; auto-confirm, players, game log and how to play gone from the menus, the first three obsolete]. The battle's settings sheet, the campaign's and the options page are one design (src/ui/settings.ts): a single column of rows, each setting's name on the left and its value in a pill on the right, the ways elsewhere rows with a chevron (quit game; the campaign's how the loop works and main menu); below them the Stellari's flower, turning slowly, half off the panel's foot and clipped by its edge. Share game stats carries one small line under its name, "We collect data anonymously" (the paragraph that explained it is gone). Escape opens the settings wherever nothing else is open to close (a battle's sheet, the campaign map's, the hub's options); the battle's sheet has no close button (Escape or a tap outside closes it).
+
+**Glossary** [direction: how to play becomes "glossary", a dedicated full page from the home menu, next to collection top left; its height never changing between sections; sections in a left pane, content the rest]. Overview, your day, tableau, sun and orbit, card types, keywords, progress: the sections down the left, the section's facts filling the rest. The page is the screen's height whatever the section: a long one scrolls within its pane.
+
 ## Open design questions
 
 1. **Numbers:** max health 20, 5 slots, slot defence 1-2-3-2-1, stability 3 (1 for one-time cards), a cap of 2 plays and 1 draw a day are all first guesses. Human playtesting should drive them.

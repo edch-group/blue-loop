@@ -98,6 +98,7 @@ import { loadMeta, saveMeta } from './meta';
 import { DeckBuilder } from './builder';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
+import { setLink, settingsPanel } from './settings';
 import { MENU_ICON } from './menu-icon';
 import { renderedArt } from './cardart';
 import { playerAvatar, raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
@@ -2572,12 +2573,12 @@ export class CampaignView {
       case 'settings':
         return this.modal(
           `settings · turn ${s.turn}`,
-          `<div class="menu-list">
-            ${this.host.settingsButtons()}
-            <button class="btn" data-act="cmp-sheet" data-arg="help">how the loop works</button>
-            <button class="btn" data-act="cmp-exit">main menu</button>
-          </div>
-          <p class="muted center-text">Your run is saved; continue it from the main menu.</p>`,
+          settingsPanel(
+            `${this.host.settingsButtons()}
+            ${setLink('cmp-sheet', 'how the loop works', 'data-arg="help"')}
+            ${setLink('cmp-exit', 'main menu')}`,
+            '<p class="set-note">Your run is saved; continue it from the main menu.</p>',
+          ),
           true,
         );
       case 'help':
