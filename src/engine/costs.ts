@@ -70,7 +70,7 @@ export const CARD_COSTS: Record<string, number> = {
   hive_tyrant: 2,
   ice_age: 2,
   ignition_protocol: 2,
-  ion_cannon: 2,
+  ion_cannon: 1,
   logistics_command: 2,
   maelstrom: 2,
   martyr_crystal: 2,

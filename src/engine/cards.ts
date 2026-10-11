@@ -42,7 +42,8 @@ export const CARDS: CardDef[] = [
     text: '{dawn}: {heat:1}. {heat:+1} with 3+ attack cards.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }, { type: 'heat', amount: 1, to: 'target', if: { minKind: 'attack', n: 3 } }],
   },
-  { id: 'ion_cannon', name: 'Ion Cannon', kind: 'attack', text: "{destroy:2}.", onPlay: [{ type: 'destroy', maxDefence: 2 }] },
+  // (The one 1-energy removal: it costs a little heat on your own sun.)
+  { id: 'ion_cannon', name: 'Ion Cannon', kind: 'attack', text: '{destroy:2}. {heat:1} to your sun.', onPlay: [{ type: 'destroy', maxDefence: 2 }, { type: 'selfHeat', amount: 1 }] },
   { id: 'coolant_array', name: 'Coolant Array', kind: 'defence', text: '{dusk}: {cool:1}.', onDusk: [{ type: 'cool', amount: 1 }] },
   { id: 'cryo_vault', name: 'Cryo Vault', kind: 'defence', text: '{cool:3}.', onPlay: [{ type: 'cool', amount: 3 }] },
   { id: 'deflector_grid', name: 'Deflector Grid', kind: 'defence', text: '{sturdy:1}. {dawn}: {shield:2}.', defence: 1, onTurn: [{ type: 'shield', amount: 2 }] },

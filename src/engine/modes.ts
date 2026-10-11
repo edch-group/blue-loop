@@ -142,8 +142,11 @@ export function cardThings(def: CardDef): number {
 }
 
 /** Why a card can't be played in this mode (null if it can). */
+/** Cards allowed in Core as they are, whatever their mechanics [direction: what I say is allowed in Core is allowed]. */
+const CORE_ALLOWED = new Set(['ion_cannon']);
+
 export function modeProblem(def: CardDef, mode: GameMode): string | null {
-  if (mode === 'lost') return null;
+  if (mode === 'lost' || CORE_ALLOWED.has(def.id)) return null;
   if (def.race !== undefined && !CORE_RACES.includes(def.race)) return 'Lost Races only.';
   const own = def.race !== undefined ? CORE_SIGNATURE[def.race] : undefined;
   // (Lightspeed is core: the board has a slot for it in every game.)
