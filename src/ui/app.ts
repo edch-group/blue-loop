@@ -110,6 +110,7 @@ import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder
 import { CampaignView, loadCampaign, ORACLE_PORTRAIT } from './campaign';
 import { tutorialPage, challengesPage, CHALLENGES, challengeById, markLesson, markChallenge, nextLesson, nextChallenge } from './puzzles';
 import { lessonById } from '../engine/lessons';
+import { keepsWinnable } from '../engine/puzzle';
 import { ORACLE_NAME } from '../engine/story';
 import { relicMark } from './relic-art';
 
@@ -2224,6 +2225,9 @@ export class App {
       return;
     }
     const actor = activePlayer(prev);
+    // A lesson: a move that would leave it unwinnable is held back, and Oriel says what was wrong [direction: block the
+    // move and tell the player their mistake, rather than the lesson being lost and begun again].
+    if (this.lessonBlocks(prev, actor, action)) return;
     let next: GameState;
     try {
       next = applyAction(prev, action);
@@ -5684,6 +5688,20 @@ export class App {
     this.dreamGame = null;
     const state = createDream(spec, { seed: Math.floor(Math.random() * 2 ** 31), name: profile().name || 'You', foeName: lesson ? 'a shade' : 'the dream', mode: lesson?.mode ?? 'lost' });
     this.beginWithArt(state);
+  }
+
+  /** In a lesson, whether this move is held back (it would leave the lesson unwinnable): Oriel says why. */
+  private lessonBlocks(state: GameState, actor: PlayerState, action: Action): boolean {
+    const lesson = this.puzzle?.kind === 'lesson' ? lessonById(this.puzzle.id) : undefined;
+    if (!lesson || actor.isAI || actor !== state.players[0] || action.type === 'concede' || action.type === 'react') return false;
+    if (keepsWinnable(lesson.spec, state, action)) return false;
+    sound.error();
+    this.pending = null;
+    this.render();
+    const early = action.type === 'endTurn' && lesson.spec.goal === 'win' && (lesson.spec.days ?? 1) <= 1;
+    const text = `${early ? 'Not yet: their sun can still be brought down today. ' : 'Not that. '}${lesson.hint}`;
+    startTour(`lesson-hint-${lesson.id}`, [{ title: lesson.name, text }], { face: ORACLE_PORTRAIT, name: ORACLE_NAME }, undefined, true);
+    return true;
   }
 
   /** Oriel talks a lesson through once its board is dealt (every time: a lesson is for learning). */

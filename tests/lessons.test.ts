@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LESSONS, lessonOpen, CORE_LESSONS } from '../src/engine/lessons';
-import { puzzleGame, solution, solves } from '../src/engine/puzzle';
+import { keepsWinnable, nextDay, puzzleGame, solution, solves, step } from '../src/engine/puzzle';
 import { inMode } from '../src/engine/modes';
 import { cardDef } from '../src/engine/cards';
 
@@ -9,6 +9,18 @@ describe('the tutorial', () => {
     for (const l of LESSONS) {
       expect(solution(l.spec), l.id).not.toBeNull();
       expect(solves(l.spec, puzzleGame(l.spec)), l.id).toBe(!!l.waiting);
+    }
+  }, 120000);
+
+  it("Oriel never holds back a move of the answer, and holds back ending a win lesson's day at once", () => {
+    for (const l of LESSONS) {
+      let s = puzzleGame(l.spec);
+      for (const a of solution(l.spec)!) {
+        if (a.type !== 'endTurn') expect(keepsWinnable(l.spec, s, a), `${l.id}: ${a.type}`).toBe(true);
+        s = a.type === 'endTurn' ? nextDay(s)! : step(s, a)!;
+        if (!s) break;
+      }
+      if (l.spec.goal === 'win' && !l.waiting && (l.spec.days ?? 1) === 1) expect(keepsWinnable(l.spec, puzzleGame(l.spec), { type: 'endTurn' }), l.id).toBe(false);
     }
   }, 120000);
 

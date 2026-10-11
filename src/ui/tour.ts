@@ -195,13 +195,13 @@ export function startTour(id: string, steps: TourStep[], who: { face: string; na
     <aside class="tour-bubble" role="dialog" aria-live="polite" aria-label="${who.name}">
       <div class="tour-face">${who.face}</div>
       <p class="tour-text"></p>
-      <div class="tour-foot">
-        <button class="tour-back" aria-label="Back">‹</button>
-        <span class="tour-dots" aria-hidden="true"></span>
-        <button class="tour-next" aria-label="Next">›</button>
-      </div>
-      <button class="tour-skip" aria-label="Skip the tutorial" title="Skip the tutorial">×</button>
-    </aside>`;
+    </aside>
+    <nav class="tour-bar" aria-label="Tutorial">
+      <button class="tour-back" aria-label="Back">‹</button>
+      <span class="tour-dots" aria-hidden="true"></span>
+      <button class="tour-next">next</button>
+      <button class="tour-skip" aria-label="Skip" title="Skip">×</button>
+    </nav>`;
   document.body.appendChild(root);
   const svg = root.querySelector<SVGSVGElement>('.tour-veil')!;
   const bubble = root.querySelector<HTMLElement>('.tour-bubble')!;
@@ -233,9 +233,9 @@ export function startTour(id: string, steps: TourStep[], who: { face: string; na
     root.classList.toggle('tour-open', !d);
 
     root.querySelector('.tour-text')!.textContent = step.text;
-    root.querySelector('.tour-dots')!.innerHTML = list.map((_, k) => `<i class="${k === i ? 'on' : k < i ? 'past' : ''}"></i>`).join('');
+    root.querySelector('.tour-dots')!.innerHTML = list.length < 2 ? '' : list.map((_, k) => `<i class="${k === i ? 'on' : k < i ? 'past' : ''}"></i>`).join('');
     root.querySelector<HTMLButtonElement>('.tour-back')!.disabled = i === 0;
-    root.querySelector('.tour-next')!.textContent = i === list.length - 1 ? '✓' : '›';
+    root.querySelector('.tour-next')!.textContent = i === list.length - 1 ? (list.length === 1 ? 'ok' : 'done') : 'next';
     place(polys.flat(), w, h);
   };
 
@@ -245,7 +245,8 @@ export function startTour(id: string, steps: TourStep[], who: { face: string; na
     const bh = bubble.offsetHeight;
     const gap = 18;
     let x = (w - bw) / 2;
-    let y = h - bh - 24;
+    // (Nothing lit: in the middle, clear of the hand along the foot.)
+    let y = (h - bh) / 2;
     if (pts.length) {
       const xs = pts.map((p) => p[0]);
       const ys = pts.map((p) => p[1]);
@@ -258,7 +259,8 @@ export function startTour(id: string, steps: TourStep[], who: { face: string; na
       else [x, y] = [(w - bw) / 2, Math.max(8, h - bh - 24)];
     }
     bubble.style.left = `${Math.round(Math.max(8, Math.min(w - bw - 8, x)))}px`;
-    bubble.style.top = `${Math.round(Math.max(8, Math.min(h - bh - 8, y)))}px`;
+    // (Clear of the bar of buttons along the top: those stay put, so they're always in the same place to press.)
+    bubble.style.top = `${Math.round(Math.max(64, Math.min(h - bh - 8, y)))}px`;
   };
 
   const go = (by: number) => {

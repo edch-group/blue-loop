@@ -5172,22 +5172,25 @@ button.cmp-rs-offer:hover, button.cmp-rs-offer:focus-visible { transform: transl
 @media (prefers-reduced-motion: reduce) { .tour-glow { animation: none; } }
 .tour-bubble {
   position: absolute; width: min(300px, calc(100% - 32px)); display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 12px;
-  padding: 12px 14px 8px; border-radius: 18px; background: #fff; box-shadow: 0 10px 30px rgba(20, 20, 50, 0.22);
+  padding: 12px 14px; border-radius: 18px; background: #fff; box-shadow: 0 10px 30px rgba(20, 20, 50, 0.22);
   transition: left 0.3s cubic-bezier(.2,.8,.2,1), top 0.3s cubic-bezier(.2,.8,.2,1);
 }
 .tour-face { width: 34px; height: 34px; }
 .tour-face .cmp-portrait { width: 34px; height: 34px; }
 .tour-text { margin: 0; padding-right: 10px; font-size: 0.82rem; line-height: 1.4; color: var(--ink); }
-.tour-foot { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
-.tour-foot button { width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; color: var(--ink-soft); font-size: 1.1rem; line-height: 1; cursor: pointer; }
-.tour-foot button:hover { background: #f3f2f8; color: var(--ink); }
-.tour-next { color: #6f5fc0 !important; }
+/* The tour's buttons, in one place whatever is lit [direction: next/confirm in one place, not following Oriel's box
+   round the screen]: a pill along the top middle. */
+.tour-bar { position: absolute; top: max(12px, var(--sa-t)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 10px; border-radius: 999px; background: #fff; box-shadow: 0 8px 24px rgba(20, 20, 50, 0.22); }
+.tour-bar button { height: 32px; min-width: 32px; border: 0; border-radius: 999px; background: none; color: var(--ink-soft); font: inherit; font-size: 1.1rem; line-height: 1; cursor: pointer; }
+.tour-bar button:hover { background: #f3f2f8; color: var(--ink); }
+.tour-bar .tour-next { padding: 0 18px; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.24em; text-transform: uppercase; color: #fff !important; background: #6f5fc0; }
+.tour-bar .tour-next:hover { background: #5d4fb0; color: #fff; }
 .tour-back[disabled] { visibility: hidden; }
 .tour-dots { display: flex; gap: 5px; }
 .tour-dots i { width: 5px; height: 5px; border-radius: 50%; background: #e2e0ea; }
 .tour-dots i.past { background: #c9c2ea; }
 .tour-dots i.on { background: #6f5fc0; }
-.tour-skip { position: absolute; top: 6px; right: 8px; width: 20px; height: 20px; border: 0; background: none; color: var(--ink-faint); font-size: 0.9rem; line-height: 1; cursor: pointer; border-radius: 50%; }
+.tour-skip { color: var(--ink-faint) !important; font-size: 0.95rem !important; }
 .tour-skip:hover { color: var(--ink); }
 
 /* A battle's finds, on its result: each one round mark (what it does, ringed by quality); the rest on hover. */

@@ -26,11 +26,22 @@ export function rivalDay(s: GameState): GameState {
   let g = step(s, { type: 'endTurn' });
   if (!g) return s;
   for (let i = 0; i < 80 && !isGameOver(g) && activePlayer(g) !== g.players[0]; i++) {
-    const n = step(g, chooseAIAction(g));
+    const n = rivalMove(g, chooseAIAction(g));
     if (!n) break;
     g = n;
   }
   return g;
+}
+
+/** A rival's move, any answer of the player's to it resolved (a trap set face down springs by itself; nothing more is played). */
+function rivalMove(g: GameState, a: Action): GameState | null {
+  try {
+    let n = applyAction(g, a);
+    for (let k = 0; k < 4 && n.reaction; k++) n = applyAction(n, { type: 'react' });
+    return n.reaction ? null : n;
+  } catch {
+    return null;
+  }
 }
 
 /** Every position reachable this day (to a cap), with the fewest moves to reach it, and the moves. */
@@ -120,4 +131,26 @@ export function mostHeatWithin(start: GameState, days: number, cap = 3000, seen 
     most = Math.max(most, mostHeatWithin(next, days - 1, cap, seen));
   }
   return most;
+}
+
+/**
+ * Whether a move keeps a puzzle winnable from here [direction: in the tutorial, Oriel blocks a wrong move and says
+ * what was wrong, rather than the lesson being lost and begun again]. Moves the rules refuse anyway pass (the rules
+ * say why); a move that wins passes.
+ */
+export function keepsWinnable(spec: DreamSpec, state: GameState, action: Action): boolean {
+  const s: GameState = structuredClone(state);
+  const n = step(s, action);
+  if (!n) return true;
+  if (won(n)) return true;
+  if (isGameOver(n)) return false;
+  const daysLeft = (spec.days ?? 1) - Math.max(0, state.players[0].turnsTaken - 1);
+  if (action.type === 'endTurn') {
+    if (spec.goal === 'survive') return solves(spec, s);
+    if (daysLeft <= 1) return false;
+    const next = nextDay(s);
+    return !!next && winWithin(next, daysLeft - 1, 1500) !== null;
+  }
+  if (spec.goal === 'win') return winWithin(n, daysLeft, 1500) !== null;
+  return reach(n, 1500).some(({ s: x }) => solves(spec, x));
 }

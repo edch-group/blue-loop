@@ -35,6 +35,8 @@ export interface Lesson {
   intro: LessonStep[];
   /** Oriel's word once it is solved. */
   done: string;
+  /** Oriel's word when a move would leave the lesson unwinnable (the move is held back). */
+  hint: string;
   /** Solved by holding back: ending the day at once is the answer (the dusk lesson). */
   waiting?: boolean;
 }
@@ -78,6 +80,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Your lancer can attack once a day. Tap it, then tap their sun.', light: [mine('helio_lancer')] },
     ],
     done: 'One blow, and a star goes out. Every battle ends this way.',
+    hint: 'Attack their sun with your lancer: tap it, then tap their sun.',
   },
   {
     id: 'energy',
@@ -93,6 +96,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Coronal Lance heats a sun by 3 as it is played. Play it at their sun.', light: [inHand('coronal_lance')] },
     ],
     done: 'Cards spend energy; a day’s energy is a day’s choices.',
+    hint: 'Play Coronal Lance, aimed at their sun.',
   },
   {
     id: 'guard',
@@ -112,6 +116,7 @@ export const LESSONS: Lesson[] = [
       { text: 'But heat from a card you play goes where you aim it.', light: [inHand('coronal_lance')] },
     ],
     done: 'Guards stop attacks, not aimed heat. Remember which is which.',
+    hint: 'Your lancer can only hit the Guard. Aim the Lance’s heat at their sun instead.',
   },
   {
     id: 'breach',
@@ -130,6 +135,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Break the Guard with your strongest attacker, then strike the sun.', light: [mine('p_lattice_spear'), mine('helio_lancer')] },
     ],
     done: 'Order matters: clear the way, then strike.',
+    hint: 'The lancer can’t break that Guard. Break it with the spear, then strike the sun with the lancer.',
   },
   // ---- The core: holding on ------------------------------------------------------------------------------------
   {
@@ -151,6 +157,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Raise them, then end your day.', light: [END_DAY] },
     ],
     done: 'You lived. Shields buy you a day; use it.',
+    hint: 'Raise your shields before you end your day.',
   },
   {
     id: 'cooling',
@@ -170,6 +177,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Cooling takes heat off your sun for good. Play the vault, then end your day.', light: [inHand('cryo_vault')] },
     ],
     done: 'Shields last a day; cooling lasts.',
+    hint: 'Cool your sun with the vault before you end your day.',
   },
   {
     id: 'removal',
@@ -190,6 +198,7 @@ export const LESSONS: Lesson[] = [
       { text: 'A card at the edge has little defence. Aim at the spear.', light: [theirs('p_lattice_spear')] },
     ],
     done: 'The best defence is sometimes taking theirs away.',
+    hint: 'Destroy their spear before it strikes.',
   },
   {
     id: 'traps',
@@ -209,6 +218,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Ink Cloud cancels an attack on your sun. Set it, then end your day.', light: [inHand('ink_cloud')] },
     ],
     done: 'Your rival never saw it coming. Neither will the next.',
+    hint: 'Set Ink Cloud face down before you end your day.',
   },
   // ---- The core: the four races ----------------------------------------------------------------------------------
   {
@@ -229,6 +239,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Your two attackers make 6. You need 7. Where you place a card matters.', light: [mine('helio_lancer'), mine('comet_hail')] },
     ],
     done: 'Side by side, they burn brighter.',
+    hint: 'Place the sentinel beside an attacker first, then attack with both.',
   },
   {
     id: 'overheat',
@@ -243,6 +254,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Overcharge gives energy, and heats your own sun. Shard Storm hits harder while you’re overheated. Order matters.', light: [HAND] },
     ],
     done: 'Danger, spent well, is power.',
+    hint: 'Overcharge first: Shard Storm hits harder once your sun is overheated.',
   },
   {
     id: 'growth',
@@ -260,6 +272,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Growth adds to a card’s attack, for good. Grow your warrior, then attack.', light: [mine('hive_warrior')] },
     ],
     done: 'The hive only gets bigger.',
+    hint: 'Grow the warrior with your Hero’s ability first, then attack.',
   },
   {
     id: 'heroes',
@@ -274,6 +287,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Three to go. Its attack is 2. Choose well.', light: [RIVAL_SUN] },
     ],
     done: 'A Hero leads every deck. Guard yours.',
+    hint: 'Strafe deals 3; the Hero’s attack only 2.',
   },
   {
     id: 'dusk',
@@ -292,6 +306,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Sometimes the strongest move is to wait.', light: [END_DAY] },
     ],
     done: 'Patience is a weapon too. You have learnt the core.',
+    hint: 'Don’t attack. Hold back, and end your day: the vigil fires at dusk.',
     waiting: true,
   },
   // ---- Advanced: the Lost Races (open once the core is done) ------------------------------------------------------
@@ -308,6 +323,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Darkspeed: play it, and attack the same day.', light: [RIVAL_SUN] },
     ],
     done: 'From the dark, without warning.',
+    hint: 'Play the stalker, then attack with it at once.',
   },
   {
     id: 'consume',
@@ -327,6 +343,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Your thrall burns as it leaves. Two fires for the price of one.', light: [mine('bc_blood_thrall')] },
     ],
     done: 'What is given is never wasted.',
+    hint: 'Play the rite, and give up your thrall to it.',
   },
   {
     id: 'erode',
@@ -346,6 +363,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Erode takes stability whatever the defence. Then the way is open.', light: [inHand('nyx_void_rend')] },
     ],
     done: 'Every wall has a weakness.',
+    hint: 'Erode the wall first, then attack.',
   },
   {
     id: 'bulwark',
@@ -365,6 +383,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Molten Pour heats more for the defence on your cards. Strike, and pour.', light: [inHand('kor_molten_pour')] },
     ],
     done: 'Iron, made into fire.',
+    hint: 'Use every point of heat: attack, and pour.',
   },
   {
     id: 'spend',
@@ -379,6 +398,7 @@ export const LESSONS: Lesson[] = [
       { text: 'Four energy. Make it count.', light: [RIVAL_SUN] },
     ],
     done: 'Hold nothing back.',
+    hint: 'Spend all four energy on the charge at once.',
   },
   {
     id: 'ahead',
@@ -393,6 +413,7 @@ export const LESSONS: Lesson[] = [
       { text: 'What you play today fights tomorrow too. Every point of heat counts.', light: [inHand('sunforge'), mine('helio_lancer'), mine('comet_hail')] },
     ],
     done: 'You see further now. You have learnt all I can teach.',
+    hint: 'Play the Forge before you attack, so it lends its heat on both days.',
   },
 ];
 
