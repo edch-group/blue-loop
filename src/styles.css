@@ -7084,7 +7084,11 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* [direction: settings menus in a single column, less bland; a Stellari at the bottom of the menu, half off the
    bottom, hidden by overflow] Each setting a row (its name left, its value in a pill right), the ways elsewhere rows
    with a chevron; below them all, the Stellari's flower turning slowly, its top half showing over the panel's edge. */
-.settings-panel { position: relative; display: grid; gap: 10px; width: min(380px, 100%); margin: 0 auto; padding-bottom: clamp(70px, calc(16 * var(--vh)), 120px); }
+.settings-panel { position: relative; display: grid; gap: 10px; width: min(380px, 100%); margin: 0 auto; }
+.settings-panel.with-flower { padding-bottom: clamp(70px, calc(16 * var(--vh)), 120px); }
+/* A modal's choice the modal is for: a little bolder, and its chevron in the accent. */
+.set-go .set-label { font-weight: 600; color: var(--ink); }
+.set-go i { color: #5f8fc4; }
 .set-list { position: relative; z-index: 1; display: grid; gap: 2px; padding: 4px; border-radius: 16px; background: rgba(255, 255, 255, 0.72); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08), 0 6px 18px rgba(40, 46, 70, 0.06); backdrop-filter: blur(6px); }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: clamp(36px, calc(7 * var(--vh)), 46px); padding: 0 12px 0 16px; border: 0; border-radius: 12px; background: none; cursor: pointer; font: inherit; color: var(--ink); text-align: left; transition: background 0.15s; }
 .set-row:hover:not([disabled]) { background: rgba(95, 143, 196, 0.08); }
@@ -7104,7 +7108,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 @keyframes settingsTurn { to { rotate: 360deg; } }
 @media (prefers-reduced-motion: reduce) { .settings-flower .stellaria-flower { animation: none; } }
 /* In a sheet or modal, the panel's foot is the sheet's own: it clips the flower at its edge. */
-.modal:has(.settings-panel) { position: relative; overflow: hidden; padding-bottom: 0; }
+.modal:has(.settings-panel.with-flower) { position: relative; overflow: hidden; padding-bottom: 0; }
 .modal:has(.settings-panel) .modal-body, .modal:has(.settings-panel) > .settings-panel { overflow: visible; }
 .modal .settings-panel { margin-bottom: calc(-1 * var(--modal-pad, 0px)); }
 /* On the options page, the panel is a card of its own, its foot clipping the flower. */

@@ -98,7 +98,7 @@ import { loadMeta, saveMeta } from './meta';
 import { DeckBuilder } from './builder';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
-import { setLink, settingsPanel } from './settings';
+import { choiceRow, setLink, settingsPanel } from './settings';
 import { MENU_ICON } from './menu-icon';
 import { renderedArt } from './cardart';
 import { playerAvatar, raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
@@ -2450,8 +2450,7 @@ export class CampaignView {
     if (s.boon && !s.battle) {
       return this.modal(
         `${lower(s.boon.source)} held`,
-        `<div class="center"><p>The cold has left its mark on your sun. Take one:</p>
-          <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-boon" data-arg="health">+5 max health, for good</button><button class="btn-primary" data-act="cmp-boon" data-arg="cool">cool your sun by 6 now</button></div></div>`,
+        settingsPanel(choiceRow('cmp-boon', '+5 max health', 'data-arg="health"', true, 'for good') + choiceRow('cmp-boon', 'cool your sun by 6', 'data-arg="cool"', true, 'now')),
         false,
       );
     }
@@ -2471,7 +2470,7 @@ export class CampaignView {
     }
     if (s.conquest) {
       const n = nodeById(s, s.conquest.nodeId);
-      return this.modal(`${lower(n.name)} has fallen`, `<div class="center-row"><button class="btn-primary" data-act="cmp-conquer">take it · ${MATERIALS}+${n.yield.materials}</button></div>`, false, '', 'cmp-modal-narrow');
+      return this.modal(`${lower(n.name)} has fallen`, settingsPanel(choiceRow('cmp-conquer', `take it · ${MATERIALS}+${n.yield.materials}`, '', true)), false, '', 'cmp-modal-narrow');
     }
     // What the last battle brought: a sealed cache, once you are back on the map, before any card to choose. Tapped,
     // it bursts open and its rewards come out one at a time, each lit gold; then they are taken.
@@ -2542,7 +2541,7 @@ export class CampaignView {
       const cards = s.prophet.offers.map((o, i) => `<button class="cmp-pick" data-act="cmp-prophet" data-arg="${i}">${cardHtml(markedId(o.mark, o.card))}<small class="cmp-mark">${esc(NYX_MARKS[o.mark].name.toLowerCase())}</small></button>`).join('');
       return this.modal(
         'the dark prophet',
-        `${renderedArt('dark_prophet') ? `<div class="prophet-face" style="background-image:url(${renderedArt('dark_prophet')})" aria-hidden="true"></div>` : ''}<p class="center-text muted">Choose a card. Its mark is for good.</p><div class="cmp-cards">${cards}</div>
+        `${renderedArt('dark_prophet') ? `<div class="prophet-face" style="background-image:url(${renderedArt('dark_prophet')})" aria-hidden="true"></div>` : ''}<div class="cmp-cards">${cards}</div>
          <div class="center-row"><button class="btn" data-act="cmp-prophet" data-arg="">turn away</button></div>`,
       );
     }
@@ -2607,8 +2606,7 @@ export class CampaignView {
         const kind = to.challenge?.rift;
         return this.modal(
           'enter rift?',
-          `<p class="center-text">You may not come back.</p>${kind ? `<p class="center-text muted">${esc(RIFTS[kind].name)}</p>` : ''}
-           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-rift-go">enter</button><button class="btn" data-act="cmp-close">stay</button></div>`,
+          settingsPanel(choiceRow('cmp-rift-go', 'enter', '', true, `${kind ? `${esc(RIFTS[kind].name)} · ` : ''}You may not come back.`) + choiceRow('cmp-close', 'stay')),
           false,
           '',
           'cmp-modal-narrow',
@@ -2618,8 +2616,7 @@ export class CampaignView {
         const to = nodeById(s, sh.toId);
         return this.modal(
           `attack ${lower(to.name)}?`,
-          `${this.matchup(sh.armyId, to)}
-           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-fight">fight</button><button class="btn" data-act="cmp-close">back</button></div>`,
+          `${this.matchup(sh.armyId, to)}${settingsPanel(choiceRow('cmp-fight', 'fight', '', true) + choiceRow('cmp-close', 'back'))}`,
           false,
           '',
           'cmp-modal-narrow cmp-attack',

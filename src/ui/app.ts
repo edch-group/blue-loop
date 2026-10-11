@@ -97,7 +97,7 @@ import {
   GAME_MODES,
   type GameMode } from '../engine';
 import { roman, sunOrb, vitals } from './art';
-import { setLink, setRow, settingsPanel } from './settings';
+import { choiceRow, setLink, setRow, settingsPanel } from './settings';
 import { backdrop, RAGE_IN_MS } from './backdrop';
 /** What counts as on a card, for tooltips (none on a touch screen: the inspector explains a card there). */
 const ON_CARD = '.card, .card-yield, .boon-mark, .hero-rail';
@@ -5175,7 +5175,9 @@ export class App {
       'options',
       settingsPanel(
         `${this.settingsButtons()}
-        ${setRow('toggle-stats', 'share game stats<small>We collect data anonymously</small>', sharingStats() ? 'on' : 'off')}`,
+        ${setRow('toggle-stats', 'share game stats<small>All data is anonymous.</small>', sharingStats() ? 'on' : 'off')}`,
+        '',
+        true,
       ),
       '',
     );
@@ -6637,8 +6639,10 @@ export class App {
         const left = this.leftUndone();
         return this.sheetFrame(
           'end your day?',
-          `<p class="center-text">You still have ${esc(left.length > 1 ? `${left.slice(0, -1).join(', ')} and ${left[left.length - 1]}` : left[0] ?? 'things to do')}.</p>
-           <div class="end-day-actions"><button class="btn-primary" data-act="end-day-confirm">end day <small>⏎</small></button><button class="btn" data-act="cancel">keep playing <small>esc</small></button></div>`,
+          settingsPanel(
+            choiceRow('end-day-confirm', 'end day', '', true, `still to do: ${esc(left.length > 1 ? `${left.slice(0, -1).join(', ')} and ${left[left.length - 1]}` : left[0] ?? 'some moves')}`) +
+              choiceRow('cancel', 'keep playing'),
+          ),
           '',
           // (Keep playing is its close: no second one.)
           false,
@@ -6646,18 +6650,15 @@ export class App {
       }
       case 'quit': {
         // What quitting means depends on the game: online and campaign battles are lost; a local game can wait.
-        const [text, buttons] = this.online
-          ? ['Quit and concede? Your rival wins, and the room closes for you.', '<button class="btn-primary" data-act="quit-concede">concede and leave</button>']
-          : this.campaignBattle
-            ? ['Retreat from this battle? You lose it, as if your sun had gone supernova.', '<button class="btn-primary" data-act="quit-retreat">retreat</button>']
-            : [
-                'Leave this game? It is saved: continue it from Quickplay. Or concede it to your rival.',
-                '<button class="btn-primary" data-act="to-menu">save and leave</button><button class="btn" data-act="quit-concede">concede</button>',
-              ];
-        return this.sheetFrame(
-          'quit game',
-          `<p class="center-text">${text}</p><div class="menu-actions center-row">${buttons}<button class="btn" data-act="cancel">keep playing</button></div>`,
-        );
+        // [direction: no explanation line, no close button: keep playing is one of its choices]
+        const rows = this.online
+          ? choiceRow('quit-concede', 'concede and leave', '', true)
+          : this.campaignBattle || this.puzzle
+            ? this.puzzle
+              ? choiceRow('to-menu', 'leave', '', true)
+              : choiceRow('quit-retreat', 'retreat', '', true)
+            : choiceRow('to-menu', 'save and leave', '', true) + choiceRow('quit-concede', 'concede');
+        return this.sheetFrame('quit game', settingsPanel(rows + choiceRow('cancel', 'keep playing')), '', false);
       }
       case 'menu':
         return this.sheetFrame(
@@ -6758,7 +6759,7 @@ export class App {
       const rows = [...of.discard].reverse().map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`).join('');
       return this.sheetFrame(
         `${esc(of.name.toLowerCase())}'s discard · ${of.discard.length}`,
-        `<p class="muted center-text">Most recent first. ${esc(of.name)} has ${of.deck.length} card${of.deck.length === 1 ? '' : 's'} left in their deck and ${of.hand.length} in hand.</p><div class="pile-grid">${rows || '<p class="muted">Their discard pile is empty.</p>'}</div>`,
+        `<div class="pile-grid">${rows || '<p class="muted">Empty.</p>'}</div>`,
       );
     }
     // A Reclaim relic: on your day, any card here can be taken back to hand, for energy.
@@ -6770,7 +6771,7 @@ export class App {
       .join('');
     return this.sheetFrame(
       `your discard · ${me.discard.length}`,
-      `<p class="muted center-text">Cards that faded, were destroyed or were cancelled, most recent first. When your deck runs out they are shuffled into a new one.</p><div class="pile-grid">${rows || '<p class="muted">Your discard pile is empty.</p>'}</div>`,
+      `<div class="pile-grid">${rows || '<p class="muted">Empty.</p>'}</div>`,
     );
   }
 
@@ -6780,12 +6781,9 @@ export class App {
     if (this.needsHandoff()) {
       const p = activePlayer(s);
       return `
-        <div class="overlay"><div class="modal">
+        <div class="overlay"><div class="modal sheet">
           <div class="bar-title">pass to ${esc(p.name.toLowerCase())}</div>
-          <div class="modal-body center">
-            <p>Hand the device to ${esc(p.name)}, then reveal your hand.</p>
-            <button class="btn-primary" data-act="reveal">reveal hand</button>
-          </div>
+          <div class="modal-body">${settingsPanel(choiceRow('reveal', 'reveal hand', '', true))}</div>
         </div></div>`;
     }
     if (this.sheet) return this.renderSheet();
