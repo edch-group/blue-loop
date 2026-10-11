@@ -92,42 +92,42 @@ const rising = (base: number, step: number) => (level: number) => base + step * 
 export const STARTING_RACES = [0, 1, 2, 3];
 
 export const META_UPGRADES: MetaUpgrade[] = [
-  // A stronger start.
+  // A stronger start: what every run begins with.
   { id: 'materials', group: 'start', tier: 1, name: 'Stockpile', text: '+3 materials to start each run.', max: 3, cost: rising(20, 15) },
   { id: 'cards', group: 'start', tier: 2, requires: [['materials', 1]], name: 'Veterans', text: "One more of your race's cards in the starting deck.", max: 2, cost: rising(45, 35) },
   { id: 'pick', group: 'start', tier: 2, requires: [['materials', 2]], name: 'Requisition', text: 'Choose a card to add to the starting deck.', max: 2, cost: rising(50, 40) },
-  { id: 'hoard', group: 'start', tier: 3, requires: [['cards', 1], ['pick', 1]], name: "Founders' Hoard", text: '+6 materials whenever you enter a new galaxy.', max: 1, cost: flat(160) },
-  // A tougher flagship.
-  { id: 'hull', group: 'flagship', tier: 1, name: 'Reinforced core', text: '+1 max health on your sun in battle.', max: 3, cost: rising(20, 15) },
-  { id: 'shields', group: 'flagship', tier: 2, requires: [['hull', 1]], name: 'Shield emitters', text: 'Your sun starts every battle with +1 shield.', max: 2, cost: rising(45, 35) },
-  { id: 'walls', group: 'flagship', tier: 2, requires: [['hull', 2]], name: 'Armoured slots', text: '+1 defence on every slot of your tableau.', max: 2, cost: rising(50, 40) },
-  { id: 'bastion', group: 'flagship', tier: 3, requires: [['shields', 1], ['walls', 1]], name: 'Bastion', text: 'Your Guards have +2 defence in battle.', max: 1, cost: flat(180) },
-  // Run perks.
+  { id: 'heirloom', group: 'start', tier: 3, requires: [['cards', 1], ['pick', 1]], name: 'Heirloom', text: 'Start each run with a random Stellar emblem.', max: 1, cost: flat(160) },
+  // Stronger defences: your shields and walls in battle.
+  { id: 'walls', group: 'flagship', tier: 1, name: 'Armoured slots', text: '+1 defence on every slot of your tableau.', max: 2, cost: rising(20, 15) },
+  { id: 'shields', group: 'flagship', tier: 2, requires: [['walls', 1]], name: 'Shield emitters', text: 'Your sun starts every battle with +1 shield.', max: 2, cost: rising(45, 35) },
+  { id: 'bastion', group: 'flagship', tier: 2, requires: [['walls', 2]], name: 'Bastion', text: 'Your Guards have +2 defence in battle.', max: 1, cost: flat(90) },
+  { id: 'mantle', group: 'flagship', tier: 3, requires: [['shields', 1], ['bastion', 1]], name: 'Halo mantle', text: '+1 shield on your sun every day of battle.', max: 1, cost: flat(180) },
+  // The long road: time and trade on the map.
   { id: 'grace', group: 'perk', tier: 1, name: 'Anchored space', text: 'Regional stability holds one turn longer in every galaxy.', max: 3, cost: rising(20, 15) },
   { id: 'armory', group: 'perk', tier: 2, requires: [['grace', 1]], name: 'Trade friends', text: 'Armoury cards cost 1 material less.', max: 2, cost: rising(40, 30) },
-  { id: 'petals', group: 'perk', tier: 2, requires: [['grace', 1]], name: 'Petal pouch', text: '+20% petals at every wormhole.', max: 3, cost: rising(40, 20) },
-  { id: 'salvage', group: 'perk', tier: 2, requires: [['grace', 2]], name: 'Scavengers', text: 'One more card to choose from when salvaging.', max: 1, cost: flat(60) },
-  { id: 'favour', group: 'perk', tier: 3, requires: [['armory', 1], ['salvage', 1]], name: "Stellari's Favour", text: 'Your sun cools by 3 after every battle won.', max: 1, cost: flat(170) },
-  // A cooler sun.
+  { id: 'hoard', group: 'perk', tier: 2, requires: [['grace', 2]], name: "Founders' Hoard", text: '+6 materials whenever you enter a new galaxy.', max: 1, cost: flat(60) },
+  { id: 'stock', group: 'perk', tier: 3, requires: [['armory', 1], ['hoard', 1]], name: 'Quartermaster', text: 'Every armoury stocks 3 more cards.', max: 1, cost: flat(170) },
+  // A cooler sun: its heat and health.
   { id: 'cryo', group: 'sun', tier: 1, name: 'Cryo core', text: 'Your sun starts every battle 1 cooler.', max: 3, cost: rising(20, 15) },
   { id: 'plating', group: 'sun', tier: 2, requires: [['cryo', 1]], name: 'Stellar plating', text: '+2 max health on your sun in battle.', max: 2, cost: rising(45, 35) },
   { id: 'mend', group: 'sun', tier: 2, requires: [['cryo', 2]], name: 'Field cooling', text: 'Your sun cools by 1 each turn on the map.', max: 2, cost: rising(50, 40) },
-  { id: 'mantle', group: 'sun', tier: 3, requires: [['plating', 1], ['mend', 1]], name: 'Halo mantle', text: '+1 shield on your sun every day of battle.', max: 1, cost: flat(180) },
+  { id: 'favour', group: 'sun', tier: 3, requires: [['plating', 1], ['mend', 1]], name: "Stellari's Favour", text: 'Your sun cools by 3 after every battle won.', max: 1, cost: flat(180) },
   // Kinder planets [direction: skills that upgrade the planets, rather than straight draws or energy].
   { id: 'abundance', group: 'command', tier: 1, name: 'Fertile orbit', text: 'The abundant planet draws 1 more card each day it faces your sun.', max: 2, cost: rising(25, 25) },
   { id: 'foundry', group: 'command', tier: 2, requires: [['abundance', 1]], name: 'Deep foundries', text: 'The industrial planet gives 1 more energy each day it faces your sun.', max: 1, cost: flat(90) },
   { id: 'coldworld', group: 'command', tier: 2, requires: [['abundance', 2]], name: 'Cold world', text: 'The dead planet cools your sun by 2 each dawn it faces it.', max: 1, cost: flat(90) },
-  { id: 'gardens', group: 'command', tier: 3, requires: [['foundry', 1], ['coldworld', 1]], name: 'Paradise', text: 'The dead planet becomes a paradise planet: each dawn it faces your sun, your cards regain 1 stability.', max: 1, cost: flat(200) },
-  // Spoils of war.
-  { id: 'scouts', group: 'spoils', tier: 1, name: 'Salvage crews', text: 'More chance of finding emblems when you take a system or win a battle.', max: 3, cost: rising(20, 15) },
-  { id: 'dread', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Terror broadcasts', text: 'The weakest neutral systems surrender without a battle.', max: 1, cost: flat(70) },
+  { id: 'aligned', group: 'command', tier: 3, requires: [['foundry', 1], ['coldworld', 1]], name: 'Aligned worlds', text: 'Every planet gives more again: +1 card, +1 energy, 2 more cooling.', max: 1, cost: flat(200) },
+  // Spoils of war: what a battle won leaves you.
+  { id: 'scouts', group: 'spoils', tier: 1, name: 'Salvage crews', text: 'More chance of finding an emblem after a battle won.', max: 3, cost: rising(20, 15) },
+  { id: 'salvage', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Scavengers', text: 'One more card to choose from when salvaging.', max: 1, cost: flat(60) },
+  { id: 'choice', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Wide offers', text: 'One more card to choose from in every card reward.', max: 1, cost: flat(70) },
   { id: 'plunder', group: 'spoils', tier: 2, requires: [['scouts', 2]], name: 'Plunder', text: '+2 materials for every battle won.', max: 2, cost: rising(45, 35) },
-  { id: 'empire', group: 'spoils', tier: 3, requires: [['dread', 1], ['plunder', 1]], name: 'Shadow of empire', text: 'Stronger neutral systems surrender too.', max: 1, cost: flat(180) },
-  // Lasting wisdom.
+  { id: 'vault', group: 'spoils', tier: 3, requires: [['salvage', 1], ['plunder', 1]], name: "Overlord's vault", text: "Every Overlord's hoard offers 2 more cards to choose from.", max: 1, cost: flat(170) },
+  // Lasting wisdom: what carries over to every run after.
   { id: 'study', group: 'lore', tier: 1, name: 'Study', text: '+10% experience from everything.', max: 3, cost: rising(25, 20) },
-  { id: 'choice', group: 'lore', tier: 2, requires: [['study', 1]], name: 'Wide offers', text: 'One more card to choose from in every card reward.', max: 1, cost: flat(70) },
+  { id: 'petals', group: 'lore', tier: 2, requires: [['study', 1]], name: 'Petal pouch', text: '+20% petals at every wormhole.', max: 3, cost: rising(40, 20) },
   { id: 'tithe', group: 'lore', tier: 2, requires: [['study', 2]], name: "Overlord's tithe", text: '+2 petals from every Overlord beaten.', max: 2, cost: rising(50, 40) },
-  { id: 'vault', group: 'lore', tier: 3, requires: [['choice', 1], ['tithe', 1]], name: "Overlord's vault", text: "Every Overlord's hoard offers 2 more cards to choose from.", max: 1, cost: flat(170) },
+  { id: 'legacy', group: 'lore', tier: 3, requires: [['petals', 1], ['tithe', 1]], name: 'Legacy', text: '+1 petal for every battle won.', max: 1, cost: flat(170) },
   // Unlocks (petals): the other races, and each race's later heroes.
   ...[4, 5, 6, 7].map((race) => ({ id: `race:${race}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(10) })),
   ...GENERALS.flatMap((heroes) => heroes.slice(1).map((hero) => ({ id: `hero:${hero}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(6) }))),
@@ -237,9 +237,12 @@ export interface RunBonuses {
   mods?: BattleModifiers;
   /** Heat the flagship repairs each turn on the map (Field repair). */
   mend?: number;
-  /** More chance of gear (Salvage crews), and the tiers of neutral system that surrender to it (Terror broadcasts, Shadow of empire). */
+  /** More chance of an emblem after a battle won (Salvage crews). */
   loot?: number;
-  dread?: number;
+  /** A Stellar emblem to start the run with (Heirloom); cards more in every armoury (Quartermaster); petals for every battle won (Legacy). */
+  heirloom?: number;
+  stock?: number;
+  legacy?: number;
   /** More materials for every battle won (Plunder). */
   plunder?: number;
   /** A share more experience (Study), cards more in every card reward (Wide offers), petals more from every Overlord (Overlord's tithe), and cards more in its hoard (Overlord's vault). */
@@ -319,15 +322,17 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
       ...(l('cryo') ? { startingHeat: -l('cryo') } : {}),
       ...(l('plating') ? { maxHealthDelta: 2 * l('plating') } : {}),
       ...(l('mantle') ? { shieldPerTurn: l('mantle') } : {}),
-      ...(l('abundance') ? { abundantDraw: l('abundance') } : {}),
-      ...(l('foundry') ? { industrialPlays: l('foundry') } : {}),
-      ...(l('coldworld') ? { deadCool: 2 * l('coldworld') } : {}),
-      ...(l('gardens') ? { paradise: l('gardens') } : {}),
+      ...(l('abundance') + l('aligned') ? { abundantDraw: l('abundance') + l('aligned') } : {}),
+      ...(l('foundry') + l('aligned') ? { industrialPlays: l('foundry') + l('aligned') } : {}),
+      ...(l('coldworld') + l('aligned') ? { deadCool: 2 * (l('coldworld') + l('aligned')) } : {}),
+
       ...(l('bastion') ? { guardDefence: 2 * l('bastion') } : {}),
     },
     mend: l('mend'),
     loot: 0.1 * l('scouts'),
-    dread: l('dread') + l('empire'),
+    heirloom: l('heirloom'),
+    stock: 3 * l('stock'),
+    legacy: l('legacy'),
     plunder: 2 * l('plunder'),
     xpBonus: 0.1 * l('study'),
     choices: l('choice'),

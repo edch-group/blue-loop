@@ -564,7 +564,6 @@ export function armyBonus(s: CampaignState, a: Army) {
     if (run.mods) bonus.mods = mergeModifiers(bonus.mods, run.mods);
     bonus.mend += run.mend ?? 0;
     bonus.loot += run.loot ?? 0;
-    bonus.dread += run.dread ?? 0;
   }
   return { ...bonus, relics };
 }
@@ -1294,6 +1293,11 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     eliminated: false,
   };
   s.factions.push(me);
+  // An Heirloom, from the skill tree: a Stellar emblem of the race's own to start with.
+  if (run.heirloom) {
+    const slots = RACE_SLOTS[race];
+    me.relics = [makeRelic(`item${++s.uidCounter}`, slots[Math.floor(nextRandom(s) * slots.length)].kind, 'stellar', race, nextRandom(s), false)];
+  }
   // The raiders: the last of peoples the collapse has already taken, roaming the strip (and hunting).
   s.factions.push({ id: 'lost', name: 'Raiders', isAI: true, race: 0, materials: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
   buildUniverse(s, 1);
@@ -1612,7 +1616,8 @@ function armoryStock(s: CampaignState, n: CampaignNode): string[] {
     const chances = near ? [0.95, 0.45] : [0.6, 0.1];
     for (const c of chances) if (nextRandom(s) < c) rares.push((nextRandom(s) < (near ? 0.45 : 0.2) ? anomaly : stellar).shift()!);
   }
-  return shuffleInPlace(s, [...rares, ...dwarfs.slice(0, CAMPAIGN.armoryStock - rares.length)]);
+  // (A Quartermaster, from the skill tree: more on every shelf.)
+  return shuffleInPlace(s, [...rares, ...dwarfs.slice(0, CAMPAIGN.armoryStock + (s.run?.stock ?? 0) - rares.length)]);
 }
 
 /**
@@ -2203,6 +2208,8 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   if (attackerWon && army && army.owner === s.playerId && s.run?.favour) army.damage = Math.max(BALANCE.minHeat, army.damage - s.run.favour);
   if (winner) {
     winner.materials += CAMPAIGN.winMaterials + (winner.id === s.playerId ? s.run?.plunder ?? 0 : 0);
+    // (A Legacy, from the skill tree: a petal banked for every battle won.)
+    if (winner.id === s.playerId && s.run?.legacy) s.petals += s.run.legacy;
     winner.stats.battlesWon += 1;
     if (game.round <= 6) winner.stats.swiftWins += 1;
     if (winnerSeat.heat <= 0) winner.stats.coldWins += 1;

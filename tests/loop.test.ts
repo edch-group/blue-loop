@@ -30,6 +30,7 @@ import {
   levelOf,
   rarityOf,
   GENERALS,
+  META_UPGRADES,
   type CampaignState,
 } from '../src/engine';
 
@@ -94,7 +95,7 @@ describe('the strip', () => {
   it('starts the flagship with ten cards, and the bought upgrades on top', () => {
     let meta = { ...emptyMeta(), xp: 999, petals: 20 };
     // (Requisition needs Stockpile II: Stockpile is bought twice.)
-    for (const id of ['materials', 'materials', 'hull', 'cards', 'pick', 'grace']) meta = buyUpgrade(meta, id);
+    for (const id of ['materials', 'materials', 'cards', 'pick', 'grace', 'heirloom']) meta = buyUpgrade(meta, id);
     // A card bought into the race's starting deck with petals.
     meta = buyStarterCard(meta, 1, 'shard_tempest', 'dwarf');
     const s = createCampaign({ seed: 11, race: 1, run: runBonuses(meta, 1) });
@@ -103,16 +104,19 @@ describe('the strip', () => {
     expect(flag(s).deck).toHaveLength(CAMPAIGN.armySize + 2);
     expect(flag(s).deck.filter((id) => id === 'shard_tempest').length).toBeGreaterThan(flag(plain).deck.filter((id) => id === 'shard_tempest').length);
     expect(campaignPlayer(s).materials).toBe(campaignPlayer(plain).materials + 6);
-    expect(campaignPlayer(s).ship.hull).toBe(1);
+    // An Heirloom: a Stellar emblem from the start.
+    expect(campaignPlayer(s).relics).toHaveLength(1);
+    expect(campaignPlayer(s).relics![0].rarity).toBe('stellar');
+    expect(campaignPlayer(plain).relics ?? []).toHaveLength(0);
     expect(s.cardRewards[0].source).toBe('Requisition');
     expect(universeStability(s)).toBe(universeStability(plain) + 1);
   });
 });
 
 describe('the skill tree', () => {
-  it("brings the new branches' skills to the flagship: its battles, repair, finds, surrenders and rewards", () => {
+  it("brings the branches' skills to the flagship: its battles, finds and rewards", () => {
     let meta = { ...emptyMeta(), xp: 9999 };
-    for (const id of ['cryo', 'cryo', 'plating', 'abundance', 'scouts', 'scouts', 'dread', 'plunder', 'study', 'choice']) meta = buyUpgrade(meta, id);
+    for (const id of ['cryo', 'cryo', 'plating', 'abundance', 'scouts', 'scouts', 'plunder', 'choice', 'study', 'study', 'petals', 'tithe', 'legacy', 'grace', 'grace', 'armory', 'hoard', 'stock']) meta = buyUpgrade(meta, id);
     const run = runBonuses(meta, 1);
     expect(run.mods).toMatchObject({ startingHeat: -2, maxHealthDelta: 2, abundantDraw: 1 });
     const s = createCampaign({ seed: 11, race: 1, run });
@@ -122,9 +126,28 @@ describe('the skill tree', () => {
     expect(b.mods.startingHeat ?? 0).toBe((p.mods.startingHeat ?? 0) - 2);
     expect(b.mods.abundantDraw ?? 0).toBe((p.mods.abundantDraw ?? 0) + 1);
     expect(b.loot).toBeCloseTo(p.loot + 0.2);
-    expect(b.dread).toBe(p.dread + 1);
-    expect(run).toMatchObject({ plunder: 2, choices: 1 });
-    expect(run.xpBonus).toBeCloseTo(0.1);
+    expect(run).toMatchObject({ plunder: 2, choices: 1, legacy: 1, stock: 3 });
+    expect(run.xpBonus).toBeCloseTo(0.2);
+  });
+});
+
+describe('the reworked skill tree', () => {
+  it('has no skill that needs an emblem, nor one for systems surrendering', () => {
+    for (const u of META_UPGRADES) expect(`${u.name} ${u.text}`.toLowerCase()).not.toMatch(/paradise|surrender|flagship|hull/);
+  });
+
+  it('Aligned worlds: every planet gives more again', () => {
+    let meta = { ...emptyMeta(), xp: 9999 };
+    for (const id of ['abundance', 'abundance', 'foundry', 'coldworld', 'aligned']) meta = buyUpgrade(meta, id);
+    expect(runBonuses(meta).mods).toMatchObject({ abundantDraw: 3, industrialPlays: 2, deadCool: 4 });
+  });
+
+  it('Quartermaster: every armoury stocks 3 more cards', () => {
+    let meta = { ...emptyMeta(), xp: 9999 };
+    for (const id of ['grace', 'grace', 'armory', 'hoard', 'stock']) meta = buyUpgrade(meta, id);
+    const s = createCampaign({ seed: 11, race: 1, run: runBonuses(meta, 1) });
+    const shop = (x: typeof s) => x.nodes.flatMap((n) => (n.station?.kind === 'armory' ? [n.station.cards.length] : []))[0];
+    expect(shop(s)).toBe(shop(run(11)) + 3);
   });
 });
 
@@ -330,7 +353,7 @@ describe('progress between runs', () => {
     expect(buyUpgradeProblem(meta, 'materials')).toMatch(/point/);
     expect(buyUpgradeProblem({ ...meta, xp: 999 }, 'bastion')).toMatch(/first/);
     let rich = { ...meta, xp: 999 };
-    for (const id of ['hull', 'hull', 'shields', 'walls', 'bastion']) rich = buyUpgrade(rich, id);
+    for (const id of ['walls', 'walls', 'shields', 'bastion']) rich = buyUpgrade(rich, id);
     expect(levelOf(rich, 'bastion')).toBe(1);
     expect(rich.petals).toBe(2);
     expect(buyUpgradeProblem(rich, 'bastion')).toMatch(/most/);
