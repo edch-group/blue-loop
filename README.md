@@ -137,6 +137,7 @@ the page sideways instead.
 | `ios/`, `capacitor.config.ts` | The native iOS app (landscape from the game mode menu on). |
 | `docs/GAME_DESIGN.md` | Rules as implemented, and open design questions. |
 | `docs/STEAM.md` | Steam release roadmap. |
+| `docs/TODO.md` | Incomplete features to come back to (missing dream puzzles, rifts still to design). |
 
 ## Architecture notes
 
