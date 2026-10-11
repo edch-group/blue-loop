@@ -812,9 +812,14 @@ class SoundBoard {
   }
   /** Shields take a hit: a glassy clang. */
   block() {
-    this.voice(880, { dur: 0.7, attack: 0.003, gain: 0.05, type: 'triangle', cutoff: 5000 });
-    this.voice(1244.5, { dur: 0.9, attack: 0.003, gain: 0.03, cutoff: 5000, detune: 7 });
-    this.breath({ dur: 0.25, freq: 4200, to: 2500, type: 'bandpass', q: 2, gain: 0.06, attack: 0.003 });
+    // [direction: hitting shields makes a deeper "tink", like a hammer hitting metal] A struck plate: a low ring and
+    // its inharmonic overtones (as a bar's are, a little apart), each dying sooner than the last; the hammer's hard
+    // strike on top; a dull thud of the blow beneath.
+    this.voice(262, { dur: 0.75, attack: 0.002, gain: 0.07, type: 'triangle', cutoff: 2600 });
+    this.voice(723, { dur: 0.42, attack: 0.002, gain: 0.035, cutoff: 3000, detune: 4 });
+    this.voice(1415, { dur: 0.2, attack: 0.002, gain: 0.016, cutoff: 3200 });
+    this.breath({ dur: 0.035, freq: 1900, type: 'bandpass', q: 2.2, gain: 0.12, attack: 0.002 });
+    this.voice(120, { dur: 0.14, attack: 0.002, gain: 0.09, to: 78, type: 'triangle', cutoff: 500 });
   }
   /** A card lunging to attack: a quick rising swoosh as it leaves the table. */
   swing() {
