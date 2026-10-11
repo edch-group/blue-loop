@@ -1730,7 +1730,8 @@ function startTurn(state: GameState) {
   const dream = state.challenge?.kind === 'dream' ? state.challenge : null;
   if (dream && !state.winnerId) {
     const dreamer = state.players[0], rival = state.players[1];
-    if (dream.goal === 'win' && p === rival) {
+    // (A win in N days: lost only once the dreamer's last day is over.)
+    if (dream.goal === 'win' && p === rival && dreamer.turnsTaken >= (dream.days ?? 1)) {
       log(state, 'The dream slips away: the day is over.');
       dreamer.eliminated = true;
       state.winnerId = rival.id;
@@ -2125,6 +2126,8 @@ export interface DreamSpec {
   id: string;
   tier: number;
   goal: 'win' | 'survive';
+  /** A win to be had within this many of the dreamer's days (default 1) [direction: "win in 3", as chess puzzles are]. */
+  days?: number;
   race: number;
   energy: number;
   hand: string[];
@@ -2138,7 +2141,7 @@ export function createDream(spec: DreamSpec, opts: { seed: number; name: string;
     seed: opts.seed,
     campaign: true,
     mode: opts.mode,
-    challenge: { kind: 'dream', goal: spec.goal, broken: 0 },
+    challenge: { kind: 'dream', goal: spec.goal, broken: 0, ...(spec.days && spec.days > 1 ? { days: spec.days } : {}) },
     players: [
       { name: opts.name, isAI: false, deck: [], modifiers: { maxHealthDelta: spec.me.max - BALANCE.supernovaAt } },
       { name: opts.foeName, isAI: true, deck: [], modifiers: { maxHealthDelta: spec.foe.max - BALANCE.supernovaAt } },
@@ -2163,7 +2166,7 @@ export function createDream(spec: DreamSpec, opts: { seed: number; name: string;
   me.hand = spec.hand.map((id) => newCard(state, id));
   me.playsLeft = spec.energy;
   state.log = [];
-  log(state, spec.goal === 'win' ? 'A dream: win before this day ends.' : "A dream: live through your rival's next day.");
+  log(state, spec.goal === 'win' ? (spec.days && spec.days > 1 ? `A dream: win within ${spec.days} days.` : 'A dream: win before this day ends.') : "A dream: live through your rival's next day.");
   return state;
 }
 

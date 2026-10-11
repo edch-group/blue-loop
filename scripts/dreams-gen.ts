@@ -11,7 +11,7 @@ import { appendFileSync } from 'node:fs';
 import { CARDS } from '../src/engine/cards';
 import { cardCost, createDream, isGameOver, type DreamSide, type DreamSpec } from '../src/engine/game';
 import { movesNow } from '../src/engine/ai';
-import { reach, rivalDay, solution, solves, step } from '../src/engine/puzzle';
+import { mostHeatWithin, nextDay, reach, rivalDay, solution, solves, step, winWithin, puzzleGame } from '../src/engine/puzzle';
 import type { CardDef, GameState } from '../src/engine/types';
 
 const OK_EFFECTS = new Set(['heat', 'cool', 'shield', 'destroy', 'selfHeat', 'repair', 'plays', 'erode', 'strikeAll', 'strikeBest']);
@@ -120,6 +120,82 @@ function attempt(tier: number, race: number, goal: 'win' | 'survive'): DreamSpec
     foe: { heat: 0, max: 20, cards: side(goal === 'survive' ? foes.filter((d) => (d.attack ?? 0) > 0 || boardCard(d)) : foes.filter(boardCard), n(T.foe)) },
   };
   return calibrate(spec, T, { me: 4 + Math.floor(rand() * 6), foe: 8 + Math.floor(rand() * 6) });
+}
+
+// ---- Win in N days (tiers 5 and 6: win in 2, win in 3) [direction: some advanced puzzles "win in 3", as chess
+// challenges are] -----------------------------------------------------------------------------------------------
+const DAY_TIERS: Record<number, { days: number; hand: number; energy: number; mine: number[]; foe: number[]; rate: number }> = {
+  5: { days: 2, hand: 4, energy: 2, mine: [1, 2], foe: [2, 3], rate: 0.08 },
+  6: { days: 3, hand: 4, energy: 2, mine: [1, 2], foe: [2, 3], rate: 0.06 },
+};
+
+/** Random lines over the days (a random day, its end, the rival's day, and on): how often they win. */
+function randomRateDays(spec: DreamSpec, tries = 120): number {
+  let ok = 0;
+  for (let t = 0; t < tries; t++) {
+    let s: GameState | null = puzzleGame(spec);
+    let won = false;
+    for (let d = 0; d < (spec.days ?? 1) && s && !won; d++) {
+      for (let i = 0; i < 10 && !isGameOver(s); i++) {
+        const moves = movesNow(s);
+        if (!moves.length || rand() < 0.2) break;
+        const n = step(s, pick(moves));
+        if (n) s = n;
+      }
+      won = solves({ goal: 'win' }, s);
+      if (!won) s = isGameOver(s) ? null : nextDay(s);
+    }
+    if (won) ok++;
+  }
+  return ok / tries;
+}
+
+function attemptDays(tier: number, race: number): DreamSpec | null {
+  const T = DAY_TIERS[tier];
+  const foeRace = pick([0, 1, 2, 3, 4, 5, 6, 7].filter((r) => r !== race));
+  const n = (r: number[]) => r[0] + Math.floor(rand() * (r[1] - r[0] + 1));
+  const spec: DreamSpec = {
+    id: '',
+    tier,
+    goal: 'win',
+    days: T.days,
+    race,
+    energy: T.energy,
+    hand: Array.from({ length: T.hand }, () => pick(byRace(race, handCard)).id),
+    me: { heat: 0, max: 99, cards: side(byRace(race, boardCard), n(T.mine)) },
+    foe: { heat: 0, max: 99, cards: side(byRace(foeRace).filter((d) => (d.attack ?? 0) > 0 || boardCard(d)), n(T.foe)) },
+  };
+  const start = puzzleGame(spec);
+  const gain = mostHeatWithin(start, T.days) - start.players[1].heat;
+  const sooner = mostHeatWithin(start, T.days - 1) - start.players[1].heat;
+  // (The last day must matter: the most in one day less falls short.)
+  if (gain < 6 || gain > 20 || sooner >= gain) return null;
+  spec.foe = { ...spec.foe, max: 20, heat: 20 - gain };
+  // (Their attacks press: your sun near enough that their days are a danger.)
+  spec.me = { ...spec.me, max: 20, heat: 8 + Math.floor(rand() * 6) };
+  const game = puzzleGame(spec);
+  if (!winWithin(game, T.days)) return null;
+  if (winWithin(game, T.days - 1)) return null;
+  if (randomRateDays(spec) > T.rate) return null;
+  return spec;
+}
+
+if (process.env.DAYS_TIERS) {
+  const OUT = process.env.OUT ?? 'days.jsonl';
+  seed = Number(process.env.SEED ?? 1);
+  const [a, b] = (process.env.RACES ?? '0-7').split('-').map(Number);
+  for (const tier of process.env.DAYS_TIERS.split(',').map(Number)) {
+    for (let race = a; race <= b; race++) {
+      let got: DreamSpec | null = null;
+      for (let i = 0; i < 300 && !got; i++) got = attemptDays(tier, race);
+      if (got) {
+        got.id = `t${tier}-r${race}-win`;
+        appendFileSync(OUT, JSON.stringify(got) + '\n');
+      }
+      console.log(tier, race, got ? 'ok' : 'none');
+    }
+  }
+  process.exit(0);
 }
 
 // RECHECK=1: the dreams in the game, set again by the rules as they are now (a fix may have changed what a position

@@ -73,12 +73,13 @@ const AT: Record<string, [number, number]> = {
   overheat: [71, 19],
   growth: [81, 16],
   heroes: [91, 13],
-  dusk: [96, 4],
-  darkspeed: [50, 14],
-  consume: [39, 7],
-  erode: [61, 7],
-  spend: [27, 1],
-  bulwark: [73, 1],
+  dusk: [96, 7],
+  darkspeed: [50, 16],
+  consume: [39, 11],
+  erode: [61, 11],
+  spend: [28, 6],
+  bulwark: [72, 6],
+  ahead: [50, 4],
 };
 
 /** The tutorial page: back, the title, the branch, and the lesson picked waiting to begin. */
@@ -139,16 +140,17 @@ export function challengesPage(picked: string | null): string {
           const isSolved = solved.includes(c.id);
           return `<button class="ch-tile ${isSolved ? 'solved' : ''} ${picked === c.id ? 'on' : ''}" data-act="ch-pick" data-arg="${c.id}" aria-label="Challenge ${n}">
             <span class="ch-emblem">${factionAvatar(`f${c.race + 1}`, 'ch-emblem-mark')}</span>
-            <b>${n}</b><small>${c.goal === 'win' ? 'win' : 'survive'}</small>${isSolved ? '<i class="ch-check">✓</i>' : ''}
+            <b>${n}</b><small>${c.goal === 'win' ? ((c.days ?? 1) > 1 ? `win in ${c.days}` : 'win') : 'survive'}</small>${isSolved ? '<i class="ch-check">✓</i>' : ''}
           </button>`;
         })
         .join('');
-      return `<section class="ch-tier"><h4>tier ${ROMAN[t - CHALLENGE_FROM_TIER + 1] ?? t}</h4><div class="ch-row">${tiles}</div></section>`;
+      const days = CHALLENGES.find((c) => c.tier === t)?.days ?? 1;
+      return `<section class="ch-tier"><h4>tier ${ROMAN[t - CHALLENGE_FROM_TIER + 1] ?? t}${days > 1 ? ` · win in ${days}` : ''}</h4><div class="ch-row">${tiles}</div></section>`;
     })
     .join('');
   const pick = picked ? challengeById(picked) : undefined;
   const panel = pick
-    ? `<div class="tut-pick"><small>as the ${RACE_NAMES[pick.race].toLowerCase()} · ${timeLimit(pick)} s</small><b>challenge ${CHALLENGES.indexOf(pick) + 1}</b><span>${pick.goal === 'win' ? 'win this day' : 'survive their day'}</span><button class="btn-primary" data-act="challenge-start" data-arg="${pick.id}">${solved.includes(pick.id) ? 'again' : 'begin'}</button></div>`
+    ? `<div class="tut-pick"><small>as the ${RACE_NAMES[pick.race].toLowerCase()} · ${timeLimit(pick)} s</small><b>challenge ${CHALLENGES.indexOf(pick) + 1}</b><span>${pick.goal === 'win' ? ((pick.days ?? 1) > 1 ? `win within ${pick.days} days` : 'win this day') : 'survive their day'}</span><button class="btn-primary" data-act="challenge-start" data-arg="${pick.id}">${solved.includes(pick.id) ? 'again' : 'begin'}</button></div>`
     : `<p class="tut-hint">${solved.length} of ${CHALLENGES.length} solved</p>`;
   return `
     <div class="tut ch">
@@ -159,5 +161,5 @@ export function challengesPage(picked: string | null): string {
     </div>`;
 }
 
-/** A challenge's time limit, in seconds (as a dream's: a minute, and 20 seconds more a tier). */
+/** A challenge's time limit, in seconds, over all its days (as a dream's: a minute, and 20 seconds more a tier). */
 export const timeLimit = (spec: DreamSpec) => 60 + 20 * spec.tier;

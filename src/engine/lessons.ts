@@ -378,7 +378,21 @@ export const LESSONS: Lesson[] = [
       { text: 'Spend all: a card that takes every bit of energy you have left, and grows with it.', light: [ENERGY, inHand('pyr_supernova_charge')] },
       { text: 'Four energy. Make it count.', light: [RIVAL_SUN] },
     ],
-    done: 'Hold nothing back. You have learnt all I can teach.',
+    done: 'Hold nothing back.',
+  },
+  {
+    id: 'ahead',
+    name: 'the long game',
+    teaches: 'win within two days',
+    track: 'advanced',
+    after: ['spend', 'bulwark'],
+    mode: 'lost',
+    spec: { ...spec('ahead', 'win', 0, { energy: 2, hand: ['sunforge'], me: { heat: 6, cards: [{ id: 'helio_lancer', slot: 1 }, { id: 'comet_hail', slot: 3 }] }, foe: { heat: 1 } }), days: 2 },
+    intro: [
+      { text: 'Some battles take more than a day. You have two to bring their sun down from 1.', light: [RIVAL_SUN] },
+      { text: 'What you play today fights tomorrow too. Every point of heat counts.', light: [inHand('sunforge'), mine('helio_lancer'), mine('comet_hail')] },
+    ],
+    done: 'You see further now. You have learnt all I can teach.',
   },
 ];
 

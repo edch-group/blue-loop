@@ -1700,6 +1700,7 @@ export class App {
     const id = this.puzzle?.id ?? this.campaign.state?.battle?.dream?.id;
     const tier = DREAMS.find((d) => d.id === id)?.tier ?? 1;
     this.dreamGame = begun;
+    this.dreamTicked = 0;
     this.dreamEnd = Date.now() + (60 + 20 * tier) * 1000;
     window.clearInterval(this.dreamTimer);
     this.dreamTimer = window.setInterval(() => this.dreamTick(), 250);
@@ -1708,6 +1709,7 @@ export class App {
     const left = Math.max(0, Math.ceil((this.dreamEnd - Date.now()) / 1000));
     return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
   }
+  private dreamTicked = 0;
   private dreamTick() {
     const s = this.state;
     if (this.screen !== 'game' || !s || s.challenge?.kind !== 'dream' || isGameOver(s)) {
@@ -1716,8 +1718,14 @@ export class App {
       this.dreamGame = null;
       return;
     }
-    // (Only the dreamer's own day is timed: their rival's day plays out by itself.)
-    if (activePlayer(s) !== s.players[0]) return;
+    // (Only the dreamer's own day is timed: their rival's day plays out by itself, the clock held meanwhile.)
+    const now = Date.now();
+    const since = now - (this.dreamTicked || now);
+    this.dreamTicked = now;
+    if (activePlayer(s) !== s.players[0]) {
+      this.dreamEnd += since;
+      return;
+    }
     const clock = this.root.querySelector('.dream-clock');
     if (clock) clock.textContent = this.dreamLeft();
     clock?.classList.toggle('dream-clock-low', this.dreamEnd - Date.now() < 15000);
@@ -5561,7 +5569,9 @@ export class App {
     }
     // A dream: its goal, and the time left to reach it (the dreamer's day only).
     if (!p && s.challenge?.kind === 'dream' && !isGameOver(s)) {
-      const goal = s.challenge.goal === 'win' ? 'win this day' : 'survive their day';
+      // (Win in N days: which day of them this is.)
+      const days = s.challenge.days ?? 1;
+      const goal = s.challenge.goal === 'win' ? (days > 1 ? `win within ${days} days · day ${Math.min(days, s.players[0].turnsTaken)}` : 'win this day') : 'survive their day';
       // (A lesson is untimed; a challenge is timed as a dream is.)
       const lesson = this.puzzle?.kind === 'lesson' ? lessonById(this.puzzle.id) : undefined;
       if (lesson) return `<div class="mid-hint boss-hint dream-hint"><small>lesson · ${esc(lesson.name)}</small><b>${goal}</b></div>`;

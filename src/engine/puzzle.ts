@@ -56,6 +56,12 @@ export function reach(start: GameState, cap = 6000): { s: GameState; depth: numb
 
 const won = (s: GameState) => s.winnerId === s.players[0].id;
 
+/** The dreamer's next day: the rival's day played out, back to the dreamer (null: it never came, or the game ended). */
+export function nextDay(s: GameState): GameState | null {
+  const g = rivalDay(s);
+  return isGameOver(g) || activePlayer(g) !== g.players[0] ? null : g;
+}
+
 /** Whether a line solves it: a win reached this day, or (survive) the rival's day lived through after it. */
 export function solves(spec: Pick<DreamSpec, 'goal'>, s: GameState): boolean {
   // (A win may come as the day ends: a dusk's heat.)
@@ -67,9 +73,51 @@ export function solves(spec: Pick<DreamSpec, 'goal'>, s: GameState): boolean {
 /** A position as a game (the same seed always, so a search and a test see the same game). */
 export const puzzleGame = (spec: DreamSpec) => createDream(spec, { seed: 7, name: 'Dreamer', foeName: 'Dream' });
 
-/** The shortest solution (its moves), or null if none is in reach. */
+/** The shortest solution (its moves; a multi-day one with each day's end between), or null if none is in reach. */
 export function solution(spec: DreamSpec): Action[] | null {
+  if ((spec.days ?? 1) > 1) return winWithin(puzzleGame(spec), spec.days!);
   let best: Action[] | null = null;
   for (const { s, line } of reach(puzzleGame(spec))) if ((best === null || line.length < best.length) && solves(spec, s)) best = line;
   return best;
+}
+
+/**
+ * A win within `days` of the player's days from here (the rival's days played by its AI between): the moves, each
+ * day's closed by its end, or null. Positions met at the start of a day are searched once.
+ */
+export function winWithin(start: GameState, days: number, cap = 3000, seen = new Map<string, number>()): Action[] | null {
+  const all = reach(start, cap);
+  // (A win this day, the shortest first; a dusk's heat counts.)
+  let best: Action[] | null = null;
+  for (const { s, line } of all) if ((best === null || line.length < best.length) && solves({ goal: 'win' }, s)) best = line;
+  if (best || days <= 1) return best;
+  for (const { s, line } of all) {
+    if (isGameOver(s)) continue;
+    const next = nextDay(s);
+    if (!next) continue;
+    const k = key(next);
+    // (A position already searched with as many days left, or more, adds nothing.)
+    if ((seen.get(k) ?? 0) >= days - 1) continue;
+    seen.set(k, days - 1);
+    const rest = winWithin(next, days - 1, cap, seen);
+    if (rest) return [...line, { type: 'endTurn' }, ...rest];
+  }
+  return null;
+}
+
+/** The most heat the player can put on the rival's sun within `days` of their days (for setting a multi-day puzzle's sun). */
+export function mostHeatWithin(start: GameState, days: number, cap = 3000, seen = new Map<string, number>()): number {
+  const all = reach(start, cap);
+  let most = Math.max(...all.map(({ s }) => s.players[1].heat));
+  if (days <= 1) return most;
+  for (const { s } of all) {
+    if (isGameOver(s)) continue;
+    const next = nextDay(s);
+    if (!next) continue;
+    const k = key(next);
+    if ((seen.get(k) ?? 0) >= days - 1) continue;
+    seen.set(k, days - 1);
+    most = Math.max(most, mostHeatWithin(next, days - 1, cap, seen));
+  }
+  return most;
 }

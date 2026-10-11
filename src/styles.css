@@ -7032,7 +7032,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .tut-head { text-align: center; display: grid; gap: 2px; }
 .tut-head small { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-faint); }
 .tut-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.2rem, calc(5 * var(--vh)), 2rem); letter-spacing: 0.4em; text-transform: uppercase; color: var(--ink); }
-.tut-tree { position: relative; width: min(100%, calc(64vh * 100 / 64 * 1.2)); justify-self: center; height: 100%; min-height: 0; }
+.tut-tree { margin-top: clamp(10px, calc(4 * var(--vh)), 30px); position: relative; width: min(100%, calc(64vh * 100 / 64 * 1.2)); justify-self: center; height: 100%; min-height: 0; }
 .tut-links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .tut-link { fill: none; stroke: rgba(58, 66, 86, 0.16); stroke-width: 0.5; vector-effect: non-scaling-stroke; stroke-width: 2px; stroke-linecap: round; }
 .tut-link.open { stroke: rgba(95, 143, 196, 0.45); stroke-dasharray: 4 5; }
