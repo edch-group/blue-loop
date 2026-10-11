@@ -3488,6 +3488,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .cmp-portrait .art-wrap, .cmp-portrait .art-frame { display: block; width: 100%; height: 100%; }
 .cmp-portrait img.art { width: 100%; height: 100%; object-fit: cover; object-position: 42% 30%; transform: scale(1.35); transform-origin: 42% 34%; }
 .cmp-portrait svg { width: 100%; height: 100%; display: block; }
+.cmp-portrait img.cmp-face { width: 100%; height: 100%; display: block; object-fit: cover; }
 
 /* An army on the map: its general's portrait beside the star, ringed in its faction's colour. */
 .cmp-army {
