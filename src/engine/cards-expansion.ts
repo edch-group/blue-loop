@@ -34,7 +34,8 @@ export const EXPANSION: CardDef[] = [
     text: '{heat:2}. Draw 1. {heat:1} to your sun.',
     onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'draw', amount: 1 }, { type: 'selfHeat', amount: 1 }],
   },
-  { id: 'void_bolt', name: 'Void Bolt', kind: 'attack', text: '{destroy:1}. {heat:2}.', onPlay: [{ type: 'destroy', maxDefence: 1 }, { type: 'heat', amount: 2, to: 'target' }] },
+  // (The heat first, at the card it will destroy: it can wear a card of defence 3 down to 1, then destroy it.)
+  { id: 'void_bolt', name: 'Void Bolt', kind: 'attack', text: '{heat:2} at a rival card, then {destroy:1} it.', onPlay: [{ type: 'heat', amount: 2, to: 'target', at: 'chosen' }, { type: 'destroy', maxDefence: 1 }] },
 
   {
     id: 'comet_hail',

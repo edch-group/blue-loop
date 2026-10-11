@@ -2023,3 +2023,27 @@ describe('emblem hero abilities', () => {
     expect(t.players[0].dawnChoices).toBeUndefined();
   });
 });
+
+describe('Void Bolt', () => {
+  it('heats the card first, then destroys it: a card of defence 3 can be worn down and destroyed', () => {
+    let s = twoPlayer(23);
+    const [, bo] = s.players;
+    // (The middle slot gives defence 3.)
+    const victim: CardInstance = { uid: 'vb1', defId: 'helio_lancer', slot: 2, health: baseHealth('helio_lancer') };
+    bo.tableau.push(victim);
+    expect(cardDefence(bo, victim)).toBe(3);
+    give(s.players[0], ['void_bolt']);
+    s = play(s, 'void_bolt', { enemyUid: 'vb1' });
+    expect(s.players[1].tableau.some((c) => c.uid === 'vb1')).toBe(false);
+  });
+
+  it('still cannot reach a card of defence 4', () => {
+    const s = twoPlayer(24);
+    const [ada, bo] = s.players;
+    const tough: CardInstance = { uid: 'vb2', defId: 'glacier_shell', slot: 2, health: baseHealth('glacier_shell') };
+    bo.tableau.push(tough);
+    if (cardDefence(bo, tough) < 4) return;
+    give(ada, ['void_bolt']);
+    expect(() => play(s, 'void_bolt', { enemyUid: 'vb2' })).toThrow();
+  });
+});

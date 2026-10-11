@@ -320,7 +320,7 @@ export function destroyImmune(defId: string): boolean {
   return part === 'overlord' || part === 'body' || part === 'gear' || part === 'lost lord' || part === 'vault';
 }
 
-function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect): boolean {
+function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect, wear = 0): boolean {
   // (A Lost Overlord can't be removed or moved: it must be beaten down. A destroy only wears it.)
   if (owner.boss?.leader === c.uid && e.type !== 'offer' && e.type !== 'rootbreak' && !(e.type === 'destroy' && destroyImmune(c.defId))) return false;
   // (A Hero leads from its own slot: it can't be shifted.)
@@ -332,7 +332,8 @@ function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect): boolean 
   // (One a destroy can't destroy is in reach whatever its defence: it takes the destroy's value as damage.)
   if (e.type === 'destroy' && destroyImmune(c.defId)) return true;
   // (Brittle: removal reaches a Relic whatever its defence.)
-  if (e.type !== 'erode' && e.maxDefence !== undefined && cardDefence(owner, c) > e.maxDefence && cardDef(c.defId).kind !== 'relic') return false;
+  // (`wear`: heat this card strikes the chosen card with first, wearing its defence down before the removal.)
+  if (e.type !== 'erode' && e.maxDefence !== undefined && cardDefence(owner, c) - wear > e.maxDefence && cardDef(c.defId).kind !== 'relic') return false;
   return true;
 }
 
@@ -341,7 +342,10 @@ export function enemyChoices(state: GameState, p: PlayerState, defId: string): C
   const e = enemyEffect(defId);
   const t = targetOf(state, p);
   if (!e || !t) return [];
-  return t.tableau.filter((c) => canReach(t, c, e));
+  // (Heat it strikes the chosen card with first wears that card's defence down: in reach a little further.)
+  const effects = cardDef(defId).onPlay ?? [];
+  const wear = effects.slice(0, effects.indexOf(e)).reduce((n, x) => n + (x.type === 'heat' && x.at === 'chosen' ? x.amount : 0), 0);
+  return t.tableau.filter((c) => canReach(t, c, e, wear));
 }
 
 /**
@@ -373,7 +377,8 @@ export function aimChoices(state: GameState, p: PlayerState, attack = false): { 
 
 /** Whether a card heats your rival as it is played (it may be aimed then, at their sun or one of their cards). */
 export function aimable(defId: string): boolean {
-  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target');
+  // (Heat at the card chosen for its removal isn't aimed on its own.)
+  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target' && !e.at);
 }
 
 /** Whether a Hero's ability heats your rival (it may be aimed, as a card played is). */
@@ -1128,7 +1133,12 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         if (!main) break;
         // Heat as a card is played (or a Hero's ability) goes where it was aimed: a rival card, or their sun
         // (Guards draw it in). Dawn heat, and heat from anything else, strikes the sun.
-        const aimed = when === 'play' && !ctx.against && main === targetOf(state, p) ? aimedCard(state, p, ctx.aimUid) : null;
+        const aimed =
+          when === 'play' && !ctx.against && main === targetOf(state, p)
+            ? e.at === 'chosen'
+              ? main.tableau.find((c) => c.uid === ctx.enemyUid) ?? null
+              : aimedCard(state, p, ctx.aimUid)
+            : null;
         const victim = aimed;
         if (state.winnerId || p.eliminated) break;
         if (victim) {
@@ -2178,6 +2188,8 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (foes.length > 0 && !foes.some((c) => c.uid === action.enemyUid)) {
     throw new GameError(`Choose a card in ${target?.name ?? 'your rival'}'s tableau.`);
   }
+  // (A card out of its reach is no choice, even with nothing else to choose.)
+  if (action.enemyUid !== undefined && enemyEffect(def.id) && !foes.some((c) => c.uid === action.enemyUid)) throw new GameError('That card is out of its reach.');
   // A recall card can go into a full tableau: it takes the place of the card it recalls.
   // A recall card can take the place of the card it recalls: when the tableau is full, or whenever its
   // player puts it in that card's slot.

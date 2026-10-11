@@ -81,7 +81,8 @@ export type Planet = 'dead' | 'abundant' | 'industrial';
 export type Effect = (
   /** Heat your target's sun, or every enemy sun. */
   /** `pierce`: the heat ignores shields (so it can't be absorbed, stung or soothed). */
-  | { type: 'heat'; amount: number; to: 'target'; plus?: Count; max?: number; pierce?: boolean }
+  /** `at: 'chosen'`: at the rival card this card chose for its removal (Void Bolt: the heat first, wearing it down). */
+  | { type: 'heat'; amount: number; to: 'target'; plus?: Count; max?: number; pierce?: boolean; at?: 'chosen' }
   /** Heat your own sun (the price of a strong effect). Shields do not stop it. */
   | { type: 'selfHeat'; amount: number }
   | { type: 'cool'; amount: number; plus?: Count; max?: number }
