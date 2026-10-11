@@ -728,7 +728,7 @@ export class CampaignView {
         this.advance = null;
         this.encountering = false;
         // A station: straight in, its screen open on arrival (after a Power Struggle, if one waits).
-        if (this.state.struggle) this.afterStruggle = toId;
+        if (this.state.struggle || this.state.dream) this.afterStruggle = toId;
         else this.enterStation(toId);
         return this.host.render();
       }
@@ -749,7 +749,7 @@ export class CampaignView {
   /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */
   private moveSpent(): boolean {
     const s = this.state;
-    if (!s || s.phase !== 'player' || s.battle || s.struggle || s.conquest || s.loot || s.cardRewards.length || s.boon || s.winner) return false;
+    if (!s || s.phase !== 'player' || s.battle || s.struggle || s.dream || s.conquest || s.loot || s.cardRewards.length || s.boon || s.winner) return false;
     const a = flagship(s, s.playerId);
     // (Moved, or with nowhere to go at all: there is no waiting, so time moves on by itself.)
     return !!a && armyMoves(s, a).length === 0;
@@ -1231,7 +1231,7 @@ export class CampaignView {
     const scene = !overlay && s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? s.story.queue[0] : null;
     const me = campaignPlayer(s);
     return `
-      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}${s.rift ? ` cmp-rift-${s.rift.kind}` : ''}${this.cine === 'ride' || this.cine === 'start' || this.cine === 'reveal' ? ' cmp-cine' : this.cine === 'done' ? ' cmp-cine-done' : ''}">
+      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}${s.rift ? ` cmp-rift-${s.rift.kind}` : ''}${s.dream && !s.battle && !s.struggle ? ' cmp-dreaming' : ''}${this.cine === 'ride' || this.cine === 'start' || this.cine === 'reveal' ? ' cmp-cine' : this.cine === 'done' ? ' cmp-cine-done' : ''}">
         <canvas class="cmp-nebula" data-key="cmp-nebula" aria-hidden="true"></canvas>
         ${s.rift?.kind === 'dark' ? '<div class="cmp-darkness" data-key="cmp-darkness" aria-hidden="true"></div>' : ''}
         <header class="cmp-top">
@@ -2257,11 +2257,14 @@ export class CampaignView {
    */
   private spinTimer = 0;
   private spinning = false;
+  /** On the way into a dream (so the map, drawn meanwhile, begins it only once). */
+  private dreamStarting = false;
+
   /** A station the flagship arrived at with a Power Struggle waiting: its screen opens once the struggle is done. */
   private afterStruggle: string | null = null;
   private openAfterStruggle() {
     const s = this.state;
-    if (!this.afterStruggle || !s || s.struggle || s.battle || s.loot || s.cardRewards.length || this.sheet) return;
+    if (!this.afterStruggle || !s || s.struggle || s.dream || s.battle || s.loot || s.cardRewards.length || this.sheet) return;
     const id = this.afterStruggle;
     this.afterStruggle = null;
     if (flagship(s, s.playerId)?.nodeId !== id) return;
@@ -2649,6 +2652,21 @@ export class CampaignView {
         <h2>${lower(cardDef(hero).name)}</h2>
         <p class="struggle-line">“${esc(struggleLine(hero))}”</p>
         <button class="btn-primary" data-act="cmp-struggle">fight for your command</button>
+      </div>`;
+    }
+    // A Dream of the Lost: the screen drifts, wavering, into dark, with a line; then the dream begins by itself.
+    if (s.dream && !s.battle && !s.struggle) {
+      if (!this.dreamStarting) {
+        this.dreamStarting = true;
+        window.setTimeout(() => {
+          this.dreamStarting = false;
+          if (this.state?.dream && !this.state.struggle && this.apply({ type: 'dream' })) sound.encounter();
+          this.host.render();
+        }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 900 : 4200);
+      }
+      return `<div class="overlay dream-fade" aria-live="polite">
+        <svg width="0" height="0" aria-hidden="true" style="position:absolute"><filter id="dream-wave"><feTurbulence type="fractalNoise" baseFrequency="0.006 0.02" numOctaves="2" seed="3"><animate attributeName="baseFrequency" dur="6s" values="0.006 0.02;0.01 0.035;0.006 0.02" repeatCount="indefinite"/></feTurbulence><feDisplacementMap in="SourceGraphic" scale="0"><animate attributeName="scale" dur="4s" values="0;60" fill="freeze"/></feDisplacementMap></filter></svg>
+        <p class="dream-line">you drift into a sorrowful slumber</p>
       </div>`;
     }
     // A Dark Prophet's offer: three of your cards, each shown as its mark would make it; one taken, for good.

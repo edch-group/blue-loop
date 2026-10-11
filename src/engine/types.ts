@@ -574,7 +574,7 @@ export interface GameState {
    * over: survived, or mined out); what the other side calls into its free slots each day (`spawn`, `per` at a
    * time), and the crystals broken so far (the Antimatter Mine).
    */
-  challenge?: { kind: 'mine' | 'frost' | 'lord'; days?: number; spawn?: string[]; per?: number; broken: number };
+  challenge?: { kind: 'mine' | 'frost' | 'lord' | 'dream'; days?: number; spawn?: string[]; per?: number; broken: number; /** A dream's goal: win before this day ends, or live through the rival's next. */ goal?: 'win' | 'survive' };
   /** Campaign: a Reliquary Obelisk on the field was broken (its relics are the attacker's, whoever wins). */
   vaultOpened?: boolean;
   /** Traps that sprang (or Lightspeed cards played in reply) during this move, and the enemy card that sprang each (if a card did). */

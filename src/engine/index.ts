@@ -22,3 +22,4 @@ export * from './boons';
 export * from './races';
 export * from './cards-bosses';
 export * from './rifts';
+export * from './dreams-data';

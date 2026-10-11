@@ -109,7 +109,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { relicMark } from './relic-art';
 
 import { closeTour, tourShowing } from './tour';
-import { shownKind, isBurst, isBossCard, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS, type ShownKind } from '../engine';
+import { DREAMS, shownKind, isBurst, isBossCard, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -1669,6 +1669,50 @@ export class App {
   }
   private bossAimKey = '';
   private bossUnaim: (() => void)[] = [];
+
+  /**
+   * A dream's time limit [direction: dreams of the lost need a time limit]: a minute, and 20 seconds more for each
+   * step of its tier, on the dreamer's day; run out, and the dream is lost (conceded).
+   */
+  private dreamEnd = 0;
+  private dreamTimer = 0;
+  private dreamGame: GameState | null = null;
+  private armDreamClock() {
+    const s = this.state;
+    if (!s || s.challenge?.kind !== 'dream') return;
+    // (Once per dream: the campaign's battle, as it began, is its mark.)
+    const begun = this.campaign.state?.battle?.game ?? null;
+    if (this.dreamEnd && this.dreamGame === begun) return;
+    const id = this.campaign.state?.battle?.dream?.id;
+    const tier = DREAMS.find((d) => d.id === id)?.tier ?? 1;
+    this.dreamGame = begun;
+    this.dreamEnd = Date.now() + (60 + 20 * tier) * 1000;
+    window.clearInterval(this.dreamTimer);
+    this.dreamTimer = window.setInterval(() => this.dreamTick(), 250);
+  }
+  private dreamLeft(): string {
+    const left = Math.max(0, Math.ceil((this.dreamEnd - Date.now()) / 1000));
+    return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  }
+  private dreamTick() {
+    const s = this.state;
+    if (this.screen !== 'game' || !s || s.challenge?.kind !== 'dream' || isGameOver(s)) {
+      window.clearInterval(this.dreamTimer);
+      this.dreamEnd = 0;
+      this.dreamGame = null;
+      return;
+    }
+    // (Only the dreamer's own day is timed: their rival's day plays out by itself.)
+    if (activePlayer(s) !== s.players[0]) return;
+    const clock = this.root.querySelector('.dream-clock');
+    if (clock) clock.textContent = this.dreamLeft();
+    clock?.classList.toggle('dream-clock-low', this.dreamEnd - Date.now() < 15000);
+    if (Date.now() >= this.dreamEnd) {
+      window.clearInterval(this.dreamTimer);
+      this.dreamEnd = 0;
+      this.dispatch({ type: 'concede', playerId: s.players[0].id });
+    }
+  }
 
   /** Takes away a staged card's aim (see stageEntrance). */
   private unaim: (() => void) | null = null;
@@ -5473,6 +5517,12 @@ export class App {
     if (this.dawnShiftWaiting()) {
       const when = this.duskShifting ? 'dusk shift' : 'dawn shift';
       return `<div class="mid-hint"><b>${this.dawnPick ? `${when}: where it moves` : `${when}: move a card`}</b><span class="mid-btns">${this.dawnPick ? '<button class="mid-cancel" data-act="dawn-shift-back">back</button>' : ''}<button class="mid-cancel" data-act="dawn-shift-skip">skip</button></span></div>`;
+    }
+    // A dream: its goal, and the time left to reach it (the dreamer's day only).
+    if (!p && s.challenge?.kind === 'dream' && !isGameOver(s)) {
+      this.armDreamClock();
+      const goal = s.challenge.goal === 'win' ? 'win this day' : 'survive their day';
+      return `<div class="mid-hint boss-hint dream-hint"><small>a dream of the lost</small><b>${goal}</b><span class="dream-clock">${this.dreamLeft()}</span></div>`;
     }
     // A challenge's clock (the mine's count too), with nothing acting next. (Against a Lost Overlord or Lord, the
     // card that acts next burns on the board: that says enough.)

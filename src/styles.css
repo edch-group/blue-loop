@@ -6956,3 +6956,13 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .struggle-line { margin: 0; max-width: 34em; font-style: italic; font-size: clamp(0.9rem, 2.6vh, 1.1rem); line-height: 1.5; color: var(--ink-soft); animation: run-over-in 1s ease 0.4s both; }
 .struggle .btn-primary { margin-top: 6px; animation: run-over-in 0.8s ease 1s both; }
 @media (prefers-reduced-motion: reduce) { .struggle-face .cmp-portrait, .struggle-line, .struggle .btn-primary { animation: none; } }
+
+/* A Dream of the Lost: the map wavers and sinks into dark, and one line rises out of it. */
+.cmp-dreaming .cmp-map, .cmp-dreaming .cmp-nebula, .cmp-dreaming .cmp-nebula-front { filter: url(#dream-wave); }
+.dream-fade { display: grid; place-items: center; background: radial-gradient(ellipse at 50% 55%, rgba(30, 26, 52, 0.55), rgba(6, 5, 12, 0.96) 70%); animation: dream-in 3.6s ease-in both; }
+.dream-line { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(0.9rem, 3vh, 1.3rem); letter-spacing: 0.32em; text-transform: lowercase; color: #d9d4f0; text-align: center; padding: 0 16px; animation: dream-line 3.6s ease both; }
+@keyframes dream-in { from { opacity: 0; backdrop-filter: blur(0); } to { opacity: 1; backdrop-filter: blur(6px); } }
+@keyframes dream-line { 0%, 25% { opacity: 0; transform: translateY(10px); filter: blur(4px); } 70% { opacity: 1; transform: none; filter: blur(0); } }
+@media (prefers-reduced-motion: reduce) { .dream-fade, .dream-line { animation: none; } .cmp-dreaming .cmp-map, .cmp-dreaming .cmp-nebula, .cmp-dreaming .cmp-nebula-front { filter: none; } }
+.dream-hint .dream-clock { font-variant-numeric: tabular-nums; }
+.dream-hint .dream-clock-low { color: #c2401c; }

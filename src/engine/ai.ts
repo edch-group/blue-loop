@@ -526,6 +526,22 @@ function chooseReaction(state: GameState): Action {
 
 export const aiLastDecision: { baseline: number; best: number | null; bestAction: Action | null } = { baseline: 0, best: null, bestAction: null };
 
+/**
+ * Every move a side could make now, but its Hero's abilities and ending the day: each card it could play (every way),
+ * each attack (a Dream's solver, campaign dreams.ts, searches these).
+ */
+export function movesNow(state: GameState): Action[] {
+  const me = activePlayer(state);
+  const attacks: Action[] = [];
+  const targets = aimChoices(state, me, true);
+  for (const c of me.tableau) {
+    if (c.dimmed || c.frozen || c.spentAttack || cardAttack(state, me, c) <= 0) continue;
+    if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
+    for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
+  }
+  return [...attacks, ...candidatePlays(state, me)];
+}
+
 export function chooseAIAction(state: GameState): Action {
   // A reaction window open for it: answer with the Lightspeed card that leaves it best off, or let the move pass.
   if (state.reaction) return chooseReaction(state);

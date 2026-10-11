@@ -2,7 +2,7 @@ import { attunedEffects, attunePosition } from './attunement';
 import { BALANCE } from './balance';
 import { CARDS, cardDef, cardIn as cardInMode, hasDarkspeed, isBurst, PRESET_DECKS } from './cards';
 import { isBossCard } from './cards-bosses';
-import { inMode, setRulesMode } from './modes';
+import { inMode, setRulesMode, type GameMode } from './modes';
 import { relicN, relicOf, RELIC_POWERS, type RelicPower } from './relics';
 import { raceTrait } from './races';
 import { randomInt, shuffleInPlace } from './rng';
@@ -1644,6 +1644,24 @@ function repair(state: GameState, p: PlayerState, amount: number) {
 
 function startTurn(state: GameState) {
   const p = activePlayer(state);
+  // A dream's goal, judged as the day turns: not won by the end of the dreamer's day, it is lost; lived through the
+  // rival's day, it is won.
+  const dream = state.challenge?.kind === 'dream' ? state.challenge : null;
+  if (dream && !state.winnerId) {
+    const dreamer = state.players[0], rival = state.players[1];
+    if (dream.goal === 'win' && p === rival) {
+      log(state, 'The dream slips away: the day is over.');
+      dreamer.eliminated = true;
+      state.winnerId = rival.id;
+      return;
+    }
+    if (dream.goal === 'survive' && p === dreamer && dreamer.turnsTaken >= 1) {
+      log(state, 'The night is lived through: the dream holds.');
+      rival.eliminated = true;
+      state.winnerId = dreamer.id;
+      return;
+    }
+  }
   // (After a dusk, its pulses stay: the replay plays the dusk, then this dawn.)
   if (!state.keepPulses) state.turnPulses = [];
   delete state.keepPulses;
@@ -1976,6 +1994,69 @@ export function chooseBossIntent(state: GameState, p: PlayerState) {
 function rechooseBossIntents(state: GameState) {
   if (state.winnerId) return;
   for (const p of state.players) if (p.boss && !p.eliminated) chooseBossIntent(state, p);
+}
+
+// ---------------------------------------------------------------------------
+// Dreams of the Lost (campaign): a set position to solve in one day
+// ---------------------------------------------------------------------------
+
+/** One side of a dream: its sun (heat, of max health), its shields, and its cards where they stand. */
+export interface DreamSide {
+  heat: number;
+  max: number;
+  shields?: number;
+  cards: { id: string; slot: number; health?: number; dimmed?: boolean }[];
+}
+
+/**
+ * A dream: a position set out, to win before the day ends, or to live through the rival's next day, with a fixed hand
+ * and energy (and, in the dreamer's hand, the cards of another race than the one they lead).
+ */
+export interface DreamSpec {
+  id: string;
+  tier: number;
+  goal: 'win' | 'survive';
+  race: number;
+  energy: number;
+  hand: string[];
+  me: DreamSide;
+  foe: DreamSide;
+}
+
+/** A dream's battle: the position as set out, the dreamer to move. */
+export function createDream(spec: DreamSpec, opts: { seed: number; name: string; foeName: string; mode?: GameMode }): GameState {
+  const state = createGame({
+    seed: opts.seed,
+    campaign: true,
+    mode: opts.mode,
+    challenge: { kind: 'dream', goal: spec.goal, broken: 0 },
+    players: [
+      { name: opts.name, isAI: false, deck: [], modifiers: { maxHealthDelta: spec.me.max - BALANCE.supernovaAt } },
+      { name: opts.foeName, isAI: true, deck: [], modifiers: { maxHealthDelta: spec.foe.max - BALANCE.supernovaAt } },
+    ],
+  });
+  const sides: [PlayerState, DreamSide][] = [[state.players[0], spec.me], [state.players[1], spec.foe]];
+  for (const [p, side] of sides) {
+    p.heat = side.heat;
+    p.shields = side.shields ?? 0;
+    p.tableau = [];
+    p.deck = [];
+    p.discard = [];
+    p.hand = [];
+    for (const c of side.cards) {
+      const card = newCard(state, c.id);
+      place(p, card, c.slot);
+      if (c.health !== undefined) card.health = c.health;
+      if (c.dimmed) card.dimmed = true;
+      p.tableau.push(card);
+    }
+  }
+  const me = state.players[0];
+  me.hand = spec.hand.map((id) => newCard(state, id));
+  me.playsLeft = spec.energy;
+  state.log = [];
+  log(state, spec.goal === 'win' ? 'A dream: win before this day ends.' : "A dream: live through your rival's next day.");
+  return state;
 }
 
 /** The parts of a Lost Overlord's own body (and a Lost Lord): one of their actions is chosen each day. */

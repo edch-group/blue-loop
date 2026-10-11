@@ -18,7 +18,8 @@ import { chooseAIAction } from './ai';
 import { CARDS, cardDef, cardIn, copyLimit, fusedId, fusionProblem, presetDeck, RACE_NAMES, rarityOf } from './cards';
 import { CORE_RACES, inMode, type GameMode } from './modes';
 import { BALANCE } from './balance';
-import { applyAction, createGame, DRAW, GameError, isDraw, isGameOver } from './game';
+import { applyAction, createDream, createGame, DRAW, GameError, isDraw, isGameOver } from './game';
+import { DREAMS } from './dreams-data';
 import { nextRandom, randomInt, shuffleInPlace } from './rng';
 import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types';
 import { LOST_LORDS, OVERLORDS, overlordById, overlordHealth } from './cards-bosses';
@@ -298,6 +299,8 @@ export interface CampaignNode {
   vanished?: boolean;
   /** A Dark Prophet waits here (a Dark Galaxy): flown into, they mark one of your cards with a Nyxari keyword. */
   prophet?: boolean;
+  /** A Dream of the Lost waits here, unseen: the flagship drifts into it once it stands here. */
+  dream?: boolean;
   /** Time Dense Space: the ring it turns on (1 innermost; the arrival the outermost) and its place round it. */
   spinRing?: number;
   spinSlot?: number;
@@ -599,6 +602,8 @@ export interface BattleContext {
   challenge?: { kind: ChallengeKind; damage: number };
   /** A Power Struggle: the hero of the player's own race come for their command, and the flagship's sun before it. */
   struggle?: { hero: string; damage: number };
+  /** A Dream of the Lost (its puzzle's id), and the flagship's sun before it (a dream leaves it as it was). */
+  dream?: { id: string; damage: number };
 }
 
 export interface CampaignLogEntry {
@@ -670,6 +675,8 @@ export interface CampaignState {
   emblemChoice?: Relic[];
   /** A Power Struggle waiting to be fought: where, and which of the player's race's heroes has come for their command. */
   struggle?: { nodeId: string; hero: string };
+  /** A Dream of the Lost waiting to be dreamt: where, and which (its puzzle's id). */
+  dream?: { nodeId: string; id: string };
   /** A battle the player is fighting (or can auto-resolve). */
   battle: BattleContext | null;
   /** The player won an attack and must decide the system's fate (the army that won it marches in if it is settled). */
@@ -766,7 +773,9 @@ export type CampaignAction =
   /** Aster's gift: the Seren emblem taken (its index). */
   | { type: 'chooseEmblem'; index: number }
   /** Face the Power Struggle waiting (the battle begins). */
-  | { type: 'struggle' };
+  | { type: 'struggle' }
+  /** Drift into the Dream of the Lost waiting (its puzzle begins). */
+  | { type: 'dream' };
 
 // ---------------------------------------------------------------------------
 // Missions
@@ -977,7 +986,7 @@ export function stabiliseProblem(_f: Faction, _n: CampaignNode): string | null {
 export function deckAddProblem(f: Faction, army: Army, defId: string): string | null {
   if (!f.reserve.includes(defId)) return `${cardDef(defId).name} is not in your reserve.`;
   const copies = army.deck.filter((id) => id === defId).length;
-  if (copies >= copyLimit(defId)) return copyLimit(defId) === 1 ? `${cardDef(defId).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of a card.`;
+  if (copies >= campaignCopies(defId)) return `At most ${campaignCopies(defId)} copies of a card.`;
   if (cardDef(defId).kind === 'command' && defId !== army.general) return `An army is led by its own hero: ${cardDef(defId).name} can lead an army of their own.`;
   return null;
 }
@@ -1236,6 +1245,12 @@ export function armyDeck(race: number, general: string, mode: GameMode = 'lost')
  * Why a flagship's deck is not ready to fight (empty if it is): its hero (the one Hero in it), at most 2 of any
  * card (1 of an Anomaly).
  */
+/**
+ * How many copies of a card a flagship's deck may carry: as many of an Anomaly as of any other card [direction:
+ * campaign decks can have more than one of each Anomaly].
+ */
+export const campaignCopies = (_id: string) => BALANCE.maxCopies;
+
 export function armyDeckProblems(deck: string[], general: string): string[] {
   const out: string[] = [];
   if (!deck.includes(general)) out.push(`${cardDef(general).name} leads this flagship: their card must be in its deck.`);
@@ -1245,7 +1260,7 @@ export function armyDeckProblems(deck: string[], general: string): string[] {
   if (heroes.length) out.push(`A flagship has one hero: ${cardDef(heroes[0]).name} can't come aboard.`);
   const counts = new Map<string, number>();
   for (const id of deck) counts.set(id, (counts.get(id) ?? 0) + 1);
-  for (const [id, n] of counts) if (n > copyLimit(id)) out.push(copyLimit(id) === 1 ? `${cardDef(id).name} is an Anomaly: one copy per deck.` : `At most ${BALANCE.maxCopies} copies of ${cardDef(id).name}.`);
+  for (const [id, n] of counts) if (n > campaignCopies(id)) out.push(`At most ${campaignCopies(id)} copies of ${cardDef(id).name}.`);
   return out;
 }
 
@@ -1348,7 +1363,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   const own = CARDS.filter((c) => c.race === race && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll && legalIn(s.mode, c.id) && !army.deck.includes(c.id));
   army.deck.push(...own.slice(0, run.cards).map((c) => c.id));
   // Cards bought into this race's starting deck with petals (as many copies as a deck may hold).
-  for (const id of run.deck ?? []) if (CARDS.some((c) => c.id === id) && army.deck.filter((x) => x === id).length < copyLimit(id)) army.deck.push(id);
+  for (const id of run.deck ?? []) if (CARDS.some((c) => c.id === id) && army.deck.filter((x) => x === id).length < campaignCopies(id)) army.deck.push(id);
   // (Each Requisition: a pick of cards, the one chosen going straight into the deck.)
   for (let k = 0; k < run.picks; k++) s.cardRewards.push({ source: 'Requisition', options: randomCardChoices(s, me), toDeck: army.id });
   army.refit = false;
@@ -1553,6 +1568,8 @@ export function buildUniverse(s: CampaignState, universe: number, layout?: MapLa
     n.cache = { kind, amount: kind === 'cards' ? 3 : 4 + 2 * n.tier };
   }
   placeChallenges(s);
+  // Dreams of the Lost, unseen, in a few systems of any kind.
+  for (const n of shuffleInPlace(s, s.nodes.filter((x) => !x.home && !x.heart && !x.challenge)).slice(0, DREAM_NODES)) n.dream = true;
   // Relic caches: now and then a neutral system's battlefield holds a sealed Reliquary Obelisk (one relic, now and
   // then two).
   for (const n of s.nodes.filter((x) => open(x) && !x.station && !x.cache && !x.challenge && (x.col ?? 0) >= 1)) {
@@ -1864,6 +1881,90 @@ function resolveStruggle(s: CampaignState, game: GameState) {
     army.deck.push(hero);
   } else f.reserve.push(hero);
   clog(s, `${cardDef(hero).name} is beaten, and bends the knee: they join ${f.name}'s flagship.`, b.nodeId, f.id);
+}
+
+// ---------------------------------------------------------------------------
+// Dreams of the Lost: a few systems hold a dream, unseen; the flagship drifts into it once it stands there. A dream is
+// a puzzle (dreams-data.ts, made by scripts/dreams-gen.ts): a set position, as another race than the player's, to win
+// before the day ends or to live through the rival's next. Harder with every wormhole; solved, it pays petals and a
+// pick of rare cards (anomalies too, more often deeper into the run).
+// ---------------------------------------------------------------------------
+
+/** Dreams hidden in each galaxy. */
+export const DREAM_NODES = 2;
+
+/** A dream's difficulty: a step with each wormhole passed, up to the hardest. */
+export const dreamTier = (s: CampaignState) => Math.min(4, s.universe);
+
+/** The chance a dream's card reward is an Anomaly: none in the first two galaxies, then 10% more, compounding, each. */
+export const dreamAnomalyChance = (universe: number) => (universe <= 2 ? 0 : 1 - Math.pow(0.9, universe - 2));
+
+/** A dream for the player: of this galaxy's tier (or the nearest below it), never as the player's own race. */
+function pickDream(s: CampaignState): string | null {
+  const race = campaignPlayer(s).race;
+  for (let t = dreamTier(s); t >= 1; t--) {
+    const fits = DREAMS.filter((d) => d.tier === t && d.race !== race);
+    if (fits.length) return fits[randomInt(s, fits.length)].id;
+  }
+  return null;
+}
+
+/** The flagship stands somewhere: a dream there, unseen, takes it. */
+function dreamHere(s: CampaignState, army: Army) {
+  if (army.owner !== s.playerId || army.lost || s.dream) return;
+  const n = nodeById(s, army.nodeId);
+  if (!n.dream) return;
+  n.dream = false;
+  const id = pickDream(s);
+  if (id) s.dream = { nodeId: n.id, id };
+}
+
+function startDream(s: CampaignState) {
+  const p = s.dream!;
+  s.dream = undefined;
+  const f = campaignPlayer(s);
+  const army = flagship(s, f.id);
+  const spec = DREAMS.find((d) => d.id === p.id);
+  if (!army || !spec) return;
+  const game = createDream(spec, { seed: Math.floor(nextRandom(s) * 2 ** 31), name: `${f.name} (dreaming)`, foeName: 'The Dream', mode: s.mode });
+  clog(s, `${f.name} drifts into a sorrowful slumber.`, p.nodeId, f.id);
+  s.battle = { attacker: f.id, defender: null, fromId: p.nodeId, nodeId: p.nodeId, armyId: army.id, defenderArmyId: null, game, dream: { id: spec.id, damage: army.damage } };
+}
+
+/** The cards a solved dream offers: rare or better, an Anomaly by the galaxy's chance. */
+function dreamCards(s: CampaignState): string[] {
+  const f = campaignPlayer(s);
+  const of = (r: string) => shuffleInPlace(s, CARDS.filter((c) => (c.rarity ?? 'dwarf') === r && c.kind !== 'command' && c.kind !== 'global' && !c.fusion && (c.race === undefined || c.race === f.race) && legalIn(s.mode, c.id)).map((c) => c.id));
+  const stellar = of('stellar'), anomaly = of('anomaly');
+  const out: string[] = [];
+  while (out.length < CAMPAIGN.cardChoices + (s.run?.choices ?? 0)) {
+    const pool = nextRandom(s) < dreamAnomalyChance(s.universe) && anomaly.length ? anomaly : stellar;
+    const id = pool.shift();
+    if (!id) break;
+    out.push(id);
+  }
+  return out;
+}
+
+/** A dream over: solved, petals and cards; not, nothing lost (the sun as it was). */
+function resolveDream(s: CampaignState, game: GameState) {
+  const b = s.battle!;
+  s.battle = null;
+  const f = factionById(s, b.attacker);
+  const army = s.armies.find((a) => a.id === b.armyId);
+  if (army) army.damage = b.dream!.damage;
+  const won = !isDraw(game) && game.winnerId === game.players[0].id;
+  if (!won) {
+    clog(s, `${f.name} wakes, the dream unsolved.`, b.nodeId, f.id);
+    return;
+  }
+  const tier = DREAMS.find((d) => d.id === b.dream!.id)?.tier ?? 1;
+  const petals = 2 + 2 * tier;
+  s.petals += petals;
+  gainXp(s, CAMPAIGN.xpChallenge);
+  clog(s, `${f.name} wakes from the dream with ${petals} Stellari petals.`, b.nodeId, f.id);
+  const options = dreamCards(s);
+  if (options.length) s.cardRewards.push({ source: 'The Dreams of the Lost', options, ...(army ? { toDeck: army.id } : {}), take: 'dreams up' });
 }
 
 /** A new army, led by `general`, standing in `nodeId`. */
@@ -2288,6 +2389,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
       const hero = struggleRival(s, army);
       if (hero) s.struggle = { nodeId: toId, hero };
     }
+    dreamHere(s, army);
     return;
   }
   if (hazardBlocks(target, f.id)) throw new GameError(`${target.name} is still reeling from a supernova.`);
@@ -2391,7 +2493,7 @@ export function salvageOptions(s: CampaignState, game: GameState): string[] {
   };
   // (Only cards the flagship's deck could still take: none it already holds as many of as a deck may.)
   const flag = flagship(s, s.playerId);
-  const room = (id: string) => !flag || flag.deck.filter((x) => x === id).length < copyLimit(id);
+  const room = (id: string) => !flag || flag.deck.filter((x) => x === id).length < campaignCopies(id);
   const fits = (id: string) => room(id) && (kind === 'defectors' ? cardDef(id).race === myRace || cardDef(id).race === undefined : cardDef(id).race === undefined);
   const ids = [...new Set(cards.flatMap((c) => [c.defId, ...(c.fused ?? []).map((f) => f.defId)]))].filter((id) => usable(id) && fits(id)).sort();
   // (A fixed shuffle, from the battle's own seed and place.)
@@ -2551,6 +2653,7 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   if (!isGameOver(game)) throw new GameError('That battle is not over yet.');
   if (b.challenge) return resolveChallenge(s, game);
   if (b.struggle) return resolveStruggle(s, game);
+  if (b.dream) return resolveDream(s, game);
   const salvageable = salvageOptions(s, game);
   if (salvage && !salvageable.includes(salvage)) throw new GameError('That card is not there to salvage.');
   takeFinds(s, game);
@@ -2681,6 +2784,7 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
   revealChallenges(s, f, n);
   // The victors march in.
   if (army && s.armies.includes(army) && !armyAt(s, n.id)) army.nodeId = n.id;
+  if (army && s.armies.includes(army)) dreamHere(s, army);
 }
 
 /** Taking a system shows any challenge hanging off it (the player's only: the AI never looks). */
@@ -3167,6 +3271,11 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     case 'struggle':
       if (!s.struggle) throw new GameError('No one has come for your command.');
       startStruggle(s);
+      break;
+    case 'dream':
+      if (!s.dream) throw new GameError('There is no dream.');
+      if (s.struggle) throw new GameError('Your command is contested first.');
+      startDream(s);
       break;
     case 'chooseEmblem': {
       const pick = s.emblemChoice?.[action.index];

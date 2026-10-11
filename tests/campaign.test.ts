@@ -582,3 +582,34 @@ describe('Power Struggles', () => {
     expect(myArmy(s).deck).toContain(hero);
   });
 });
+
+describe('Dreams of the Lost', () => {
+  it('are puzzles: won by winning before the day ends (or living through the next), lost without ending the run', async () => {
+    const { DREAMS } = await import('../src/engine/dreams-data');
+    const { createDream, applyAction: act } = await import('../src/engine/game');
+    const win = DREAMS.find((d) => d.goal === 'win')!;
+    // Ending the day at once loses a dream that must be won today.
+    let g = createDream(win, { seed: 1, name: 'Me', foeName: 'The Dream' });
+    g = act(g, { type: 'endTurn' });
+    expect(g.winnerId).toBe(g.players[1].id);
+    // In the campaign: drifted into, fought, lost, and the run goes on with the sun as it was.
+    let s = fresh();
+    const pick = DREAMS.find((d) => d.tier === 1)!;
+    // (Dreamt as another race than the player's own.)
+    expect(pick.race).not.toBe((pick.race + 1) % 8);
+    s.dream = { nodeId: myArmy(s).nodeId, id: pick.id };
+    const heat = myArmy(s).damage;
+    s = applyCampaignAction(s, { type: 'dream' });
+    expect(s.battle?.game.challenge?.kind).toBe('dream');
+    const lost = structuredClone(s.battle!.game);
+    lost.winnerId = lost.players[1].id;
+    let after = applyCampaignAction(s, { type: 'finishBattle', game: lost });
+    expect(after.winner).toBeNull();
+    expect(myArmy(after).damage).toBe(heat);
+    // Won: petals, and a pick of rare cards.
+    const petals = s.petals;
+    after = winBattle(s);
+    expect(after.petals).toBeGreaterThan(petals);
+    expect(after.cardRewards.at(-1)?.options.every((id) => cardDef(id).rarity === 'stellar' || cardDef(id).rarity === 'anomaly')).toBe(true);
+  });
+});
