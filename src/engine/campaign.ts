@@ -342,7 +342,10 @@ export interface CampaignNode {
  * upgrades, one of which the first flagship to get there takes, free (`project`, once taken). Deep in the strip,
  * both are better.
  */
-export type Station = { kind: 'armory'; cards: string[] } | { kind: 'research'; options: string[]; project?: string; takenBy?: string };
+export type Station =
+  /** A space station: its stock, and what has been done there [direction: one buy, one recycle and one fusion per station]. */
+  | { kind: 'armory'; cards: string[]; used?: { buy?: boolean; recycle?: boolean; fuse?: boolean } }
+  | { kind: 'research'; options: string[]; project?: string; takenBy?: string };
 
 /** A flagship: its rooms (the five card slots and the command room), its shields and its hull. */
 export interface Ship {
@@ -740,8 +743,10 @@ export type CampaignAction =
   /** Move a reserve card into an army's deck, or a deck card back to the reserve (a deck must be legal to attack). */
   | { type: 'deckAdd'; armyId: string; defId: string }
   | { type: 'deckRemove'; armyId: string; defId: string }
-  /** Break a reserve card down for materials. */
-  | { type: 'recycle'; defId: string }
+  /** Break a card down for materials: one of the flagship's deck at a space station (`nodeId`), or (older saves) a reserve card. */
+  | { type: 'recycle'; defId: string; nodeId?: string }
+  /** Fuse two cards of the flagship's deck into one that does both, at a space station (for materials; for good). */
+  | { type: 'fuseDeck'; nodeId: string; a: string; b: string }
   /** Take one of a research station's upgrades (your flagship must stand there), free. */
   | { type: 'research'; nodeId: string; projectId: string }
   /** A hero spends a skill point. */
@@ -910,7 +915,40 @@ export function buyProblem(s: CampaignState, f: Faction, n: CampaignNode, index:
   if (n.station?.kind !== 'armory') return `${n.name} has no space station.`;
   const id = n.station.cards[index];
   if (!id) return 'That card has been sold.';
+  if (n.station.used?.buy) return 'One card bought at each station.';
   if (f.materials < buyPrice(s, f, id)) return `Not enough materials (need ${buyPrice(s, f, id)}, have ${f.materials}).`;
+  return null;
+}
+
+/**
+ * Why a card of the flagship's deck can't be recycled at this space station (null if it can) [direction: no reserve
+ * now; recycle and fuse straight from the deck, as long as it stays at its 10 card least; one of each per station].
+ */
+export function recycleProblem(s: CampaignState, f: Faction, n: CampaignNode, defId: string): string | null {
+  const why = stationProblem(s, f, n);
+  if (why) return why;
+  if (n.station?.kind !== 'armory') return `${n.name} has no space station.`;
+  if (n.station.used?.recycle) return 'One card recycled at each station.';
+  const army = flagship(s, f.id);
+  if (!army) return 'You have no flagship.';
+  return deckRemoveProblem(army, defId);
+}
+
+/** Why two cards of the flagship's deck can't be fused at this space station (null if they can). */
+export function fuseProblem(s: CampaignState, f: Faction, n: CampaignNode, a: string, b: string): string | null {
+  const why = stationProblem(s, f, n);
+  if (why) return why;
+  if (n.station?.kind !== 'armory') return `${n.name} has no space station.`;
+  if (n.station.used?.fuse) return 'One fusion at each station.';
+  const army = flagship(s, f.id);
+  if (!army) return 'You have no flagship.';
+  const have = (id: string) => army.deck.filter((x) => x === id).length;
+  if (a === b ? have(a) < 2 : !have(a) || !have(b)) return 'Choose two cards of your deck.';
+  if ([a, b].includes(army.general) && have(army.general) <= (a === b ? 2 : 1)) return `${cardDef(army.general).name} leads this flagship: their card stays.`;
+  if (army.deck.length - 1 < CAMPAIGN.armySize) return `Fusing would take your deck below ${CAMPAIGN.armySize} cards.`;
+  const problem = fusionProblem(a, b);
+  if (problem) return problem;
+  if (f.materials < fusionCost(a, b)) return `Not enough materials (need ${fusionCost(a, b)}, have ${f.materials}).`;
   return null;
 }
 
@@ -3077,6 +3115,7 @@ function buyCard(s: CampaignState, f: Faction, n: CampaignNode, index: number) {
   const id = st.cards[index];
   f.materials -= buyPrice(s, f, id);
   st.cards.splice(index, 1);
+  (st.used ??= {}).buy = true;
   clog(s, `${f.name} buys ${cardDef(id).name} at ${n.name}'s space station.`, n.id, f.id);
   gainCard(s, f, id);
 }
@@ -3261,6 +3300,19 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       break;
     }
     case 'recycle': {
+      // At a space station: a card of the flagship's deck.
+      if (action.nodeId) {
+        const n = nodeById(s, action.nodeId);
+        const why = recycleProblem(s, f, n, action.defId);
+        if (why) throw new GameError(why);
+        const army = flagship(s, f.id)!;
+        army.deck.splice(army.deck.lastIndexOf(action.defId), 1);
+        ((n.station as Extract<Station, { kind: 'armory' }>).used ??= {}).recycle = true;
+        const value = recycleValue(action.defId);
+        f.materials += value;
+        clog(s, `${f.name} recycles ${cardDef(action.defId).name} for ${value} materials.`, n.id, f.id);
+        break;
+      }
       const i = f.reserve.indexOf(action.defId);
       if (i < 0) throw new GameError(`${cardDef(action.defId).name} is not in your reserve.`);
       f.reserve.splice(i, 1);
@@ -3385,6 +3437,19 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       const id = fusedId(a, b);
       f.reserve.push(id);
       clog(s, `${f.name} fuses ${cardDef(a).name} and ${cardDef(b).name} into ${cardDef(id).name}.`);
+      break;
+    }
+    case 'fuseDeck': {
+      const n = nodeById(s, action.nodeId);
+      const why = fuseProblem(s, f, n, action.a, action.b);
+      if (why) throw new GameError(why);
+      const army = flagship(s, f.id)!;
+      spendMaterials(f, fusionCost(action.a, action.b));
+      for (const id of [action.a, action.b]) army.deck.splice(army.deck.lastIndexOf(id), 1);
+      const id = fusedId(action.a, action.b);
+      army.deck.push(id);
+      ((n.station as Extract<Station, { kind: 'armory' }>).used ??= {}).fuse = true;
+      clog(s, `${f.name} fuses ${cardDef(action.a).name} and ${cardDef(action.b).name} into ${cardDef(id).name}.`, n.id, f.id);
       break;
     }
     case 'deckSwap': {

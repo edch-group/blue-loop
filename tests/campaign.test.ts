@@ -171,6 +171,34 @@ describe('economy', () => {
     expect(left.kind === 'armory' && left.cards).toEqual(stock.slice(1));
   });
 
+  it('a space station: one buy, one recycle and one fusion, from the flagship deck, never below its 10 cards', () => {
+    let s = fresh();
+    const shop = s.nodes.find((n) => n.station?.kind === 'armory')!;
+    shop.owner = s.playerId;
+    myArmy(s).nodeId = shop.id;
+    s.factions[0].materials = 200;
+    const deck = myArmy(s).deck;
+    expect(deck.length).toBe(CAMPAIGN.armySize);
+    const plain = deck.find((id) => id !== myArmy(s).general)!;
+    // (At ten cards, nothing can come out.)
+    expect(recycleProblem(s, campaignPlayer(s), shop, plain)).toMatch(/at least 10/);
+    s = applyCampaignAction(s, { type: 'buyCard', nodeId: shop.id, index: 0 });
+    expect(buyProblem(s, campaignPlayer(s), nodeById(s, shop.id), 0)).toMatch(/One card bought/);
+    expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize + 1);
+    // Recycled from the deck, once.
+    const before = campaignPlayer(s).materials;
+    s = applyCampaignAction(s, { type: 'recycle', defId: plain, nodeId: shop.id });
+    expect(campaignPlayer(s).materials).toBeGreaterThan(before);
+    expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize);
+    myArmy(s).deck.push('cryo_vault', 'heat_sink');
+    expect(recycleProblem(s, campaignPlayer(s), nodeById(s, shop.id), 'cryo_vault')).toMatch(/One card recycled/);
+    // Fused from the deck, once: the two out, the fused one in.
+    s = applyCampaignAction(s, { type: 'fuseDeck', nodeId: shop.id, a: 'cryo_vault', b: 'heat_sink' });
+    expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize + 1);
+    expect(myArmy(s).deck.some((id) => id.startsWith('fuse:'))).toBe(true);
+    expect(() => applyCampaignAction(s, { type: 'fuseDeck', nodeId: shop.id, a: 'cryo_vault', b: 'heat_sink' })).toThrow(/One fusion/);
+  });
+
   it('offers a few upgrades at a research station, one taken free, once', () => {
     let s = fresh();
     const lab = s.nodes.find((n) => n.station?.kind === 'research')!;
@@ -553,7 +581,7 @@ describe('research upgrades state their totals', () => {
   });
 });
 
-import { flagshipMaxHealth, STRUGGLE_CHANCE } from '../src/engine/campaign';
+import { flagshipMaxHealth, STRUGGLE_CHANCE, recycleProblem } from '../src/engine/campaign';
 
 describe('Power Struggles', () => {
   it('come, now and then, while the sun runs overheated: a hero of your race, in play, who joins your deck once beaten', () => {

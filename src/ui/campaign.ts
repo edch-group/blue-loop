@@ -59,7 +59,8 @@ import {
   type Army,
   type StoryScene,
   fusionCost,
-  fusionProblem,
+  fuseProblem,
+  recycleProblem,
   fusedId,
   createCampaign,
   factionById,
@@ -1041,7 +1042,7 @@ export class CampaignView {
         if (this.sheet?.kind !== 'armory') break;
         const sh = this.sheet;
         if (sh.tab === 'fuse') {
-          const reserve = campaignPlayer(s!).reserve;
+          const reserve = flagship(s!, s!.playerId)?.deck ?? [];
           const picks = sh.fuse ?? [];
           const have = (id: string, list: string[]) => list.filter((x) => x === id).length;
           const at = picks.lastIndexOf(arg);
@@ -1069,9 +1070,9 @@ export class CampaignView {
       }
       case 'cmp-recycle':
         if (this.sheet?.kind !== 'armory') break;
-        if (this.apply({ type: 'recycle', defId: arg })) {
+        if (this.apply({ type: 'recycle', defId: arg, nodeId: this.sheet.nodeId })) {
           sound.shuffle();
-          if (this.sheet?.kind === 'armory') this.sheet = { kind: 'armory', nodeId: this.sheet.nodeId, tab: 'recycle', pick: campaignPlayer(this.state!).reserve.includes(arg) ? arg : undefined };
+          if (this.sheet?.kind === 'armory') this.sheet = { kind: 'armory', nodeId: this.sheet.nodeId, tab: 'recycle' };
         }
         break;
       case 'cmp-select':
@@ -1114,11 +1115,8 @@ export class CampaignView {
         break;
       case 'cmp-fuse': {
         if (this.sheet?.kind !== 'armory' || this.sheet.fuse?.length !== 2) break;
-        const reserve = campaignPlayer(s!).reserve;
         const [x, y] = this.sheet.fuse;
-        const a = reserve.indexOf(x);
-        const b = reserve.findIndex((id, k) => id === y && k !== a);
-        if (a >= 0 && b >= 0 && this.apply({ type: 'fuse', a, b })) {
+        if (this.apply({ type: 'fuseDeck', nodeId: this.sheet.nodeId, a: x, b: y })) {
           sound.upgrade();
           this.sheet = { kind: 'armory', nodeId: this.sheet.nodeId, tab: 'fuse' };
         }
@@ -2761,9 +2759,12 @@ export class CampaignView {
     const tab = sh.tab;
     const count = (list: string[], id: string) => list.filter((x) => x === id).length;
     const stock = this.stock(sh.nodeId);
-    const list = tab === 'buy' ? stock : [...new Set(me.reserve)];
-    const picks = sh.fuse ?? [];
     const ship = flagship(s, s.playerId);
+    // (Recycling and fusing take from the flagship's deck [direction: there is no reserve now]; its leader's card stays.)
+    const deck = ship?.deck ?? [];
+    const list = tab === 'buy' ? stock : [...new Set(deck)].filter((id) => id !== ship?.general || deck.filter((x) => x === id).length > 1);
+    const used = n.station?.kind === 'armory' ? n.station.used ?? {} : {};
+    const picks = sh.fuse ?? [];
     const repair = ship && ship.damage > 0 ? `<span class="ar-repair"><small>sun ✸${ship.damage}</small>${this.repairButtons('cmp-heal-army', ship.id, ship.damage, CAMPAIGN.armyHealCost, '')}</span>` : '';
     const tabs = (['buy', 'recycle', 'fuse'] as const).map((t) => `<button class="${t === tab ? 'on' : ''}" data-act="cmp-armory-tab" data-arg="${t}">${t}</button>`).join('');
     // The cards, each with what it costs, fetches or how many are kept.
@@ -2774,33 +2775,39 @@ export class CampaignView {
           tab === 'buy'
             ? `<span class="ar-tag ${me.materials >= armoryPrice(id) ? '' : 'short'}">${MATERIALS}<b>${armoryPrice(id)}</b></span>`
             : tab === 'recycle'
-              ? `<span class="ar-tag">×${count(me.reserve, id)} <i>·</i> +${MATERIALS}<b>${recycleValue(id)}</b></span>`
-              : `<span class="ar-tag">×${count(me.reserve, id)}</span>`;
+              ? `<span class="ar-tag">×${count(deck, id)} <i>·</i> +${MATERIALS}<b>${recycleValue(id)}</b></span>`
+              : `<span class="ar-tag">×${count(deck, id)}</span>`;
         // (Tapped once it lifts; tapped again, it is looked over.)
         const act = picked && tab !== 'fuse' ? `data-act="inspect" data-card="${esc(id)}"` : `data-act="cmp-ar-pick" data-arg="${esc(id)}"`;
         return `<button class="ar-card ${picked ? 'picked' : ''}" ${act} style="--i:${i};--r:${(((i * 37) % 7) - 3) * 0.5}deg">${cardHtml(id)}${tag}</button>`;
       })
       .join('');
-    const empty = tab === 'buy' ? 'sold out' : 'nothing in your reserve';
-    // The one action, beneath the row.
+    const empty = tab === 'buy' ? 'sold out' : 'nothing in your deck';
+    // The one action, beneath the row (once each here: a buy, a recycle, a fusion).
     let action = '';
-    if (tab === 'fuse') {
+    if (used[tab]) action = `<p class="ar-hint">${tab === 'buy' ? 'bought here' : tab === 'recycle' ? 'recycled here' : 'fused here'} · one per station</p>`;
+    else if (tab === 'fuse') {
       if (picks.length < 2) action = `<p class="ar-hint">choose two to fuse into one</p>`;
       else {
         const [a, b] = picks;
-        const problem = fusionProblem(a, b);
+        const problem = fuseProblem(s, me, n, a, b);
         const cost = fusionCost(a, b);
-        action = problem
+        action = problem && !problem.startsWith('Not enough')
           ? `<p class="ar-hint warn">${esc(problem.toLowerCase())}</p>`
-          : `<div class="ar-fused">${cardHtml(fusedId(a, b))}</div><button class="btn-primary ar-go" data-act="cmp-fuse" ${me.materials < cost ? 'disabled' : ''}>fuse · ${MATERIALS}${cost}</button><p class="ar-hint">for good</p>`;
+          : `<div class="ar-fused">${cardHtml(fusedId(a, b))}</div><button class="btn-primary ar-go" data-act="cmp-fuse" ${problem ? 'disabled' : ''}>fuse · ${MATERIALS}${cost}</button><p class="ar-hint">for good</p>`;
       }
     } else {
       const id = sh.pick && list.includes(sh.pick) ? sh.pick : null;
-      if (!id) action = `<p class="ar-hint">${tab === 'buy' ? 'each sold once' : 'break a card down for materials'}</p>`;
+      if (!id) action = `<p class="ar-hint">${tab === 'buy' ? 'one card per station' : 'break a card down for materials'}</p>`;
       else if (tab === 'buy') {
         const why = buyProblem(s, me, n, stock.indexOf(id));
         action = `<button class="btn-primary ar-go" data-act="cmp-buy" data-arg="${esc(id)}" ${why ? `disabled title="${esc(why)}"` : ''}>buy · ${MATERIALS}${armoryPrice(id)}</button>`;
-      } else action = `<button class="btn-primary ar-go" data-act="cmp-recycle" data-arg="${esc(id)}">recycle · +${MATERIALS}${recycleValue(id)}</button>`;
+      } else {
+        const why = recycleProblem(s, me, n, id);
+        action = why
+          ? `<p class="ar-hint warn">${esc(why.toLowerCase())}</p>`
+          : `<button class="btn-primary ar-go" data-act="cmp-recycle" data-arg="${esc(id)}">recycle · +${MATERIALS}${recycleValue(id)}</button>`;
+      }
     }
     const keeper = tab === 'buy' ? QUARTERMASTER : RECYCLER;
     const lines = tab === 'buy' ? QUARTERMASTER_LINES : RECYCLER_LINES;
