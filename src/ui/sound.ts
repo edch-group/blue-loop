@@ -3,6 +3,8 @@ import heatFire from '../assets/sfx/heat-fire.mp3?inline';
 import sunHit from '../assets/sfx/sun-hit.mp3?inline';
 import cardHit from '../assets/sfx/card-hit.mp3?inline';
 import battleSiren from '../assets/sfx/battle-siren.mp3?inline';
+import riftTick from '../assets/sfx/rift-tick.mp3?inline';
+import phaseTick from '../assets/sfx/phase-tick.mp3?inline';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -24,7 +26,7 @@ const PREFS_KEY = 'blue-loop:sound';
  * app too, where the game runs from file:// and can't fetch files), decoded as soon as audio starts so none plays
  * late.
  */
-const SFX = { heatFire, sunHit, cardHit, battleSiren };
+const SFX = { heatFire, sunHit, cardHit, battleSiren, riftTick, phaseTick };
 /** The encounter siren's level. */
 const ENCOUNTER_LEVEL = 0.4;
 
@@ -191,10 +193,10 @@ const BOSS_PHRASES: [number, string][][] = [
 
 /**
  * The effects that play backwards in reversed time: all of them but the boosters (which run for as long as a ship
- * flies, with no end to turn round).
+ * flies, with no end to turn round) and the galaxy's own turning tick (which keeps time with the turning).
  */
 const REVERSIBLE = [
-  'hover', 'boomTick', 'clockTick', 'encounter', 'heatWave', 'earthquake', 'cacheOpen', 'lootChime', 'xpFill', 'levelUp',
+  'hover', 'clockTick', 'encounter', 'heatWave', 'earthquake', 'cacheOpen', 'lootChime', 'xpFill', 'levelUp',
   'starHover', 'rustle', 'handLift', 'repair', 'click', 'draw', 'shuffle', 'play', 'buy', 'flare', 'launch', 'whoosh',
   'thermo', 'impact', 'hurt', 'strike', 'block', 'swing', 'clash', 'crack', 'shield', 'hero', 'charge', 'upgrade',
   'objective', 'turn', 'endTurn', 'supernova', 'blocked', 'error', 'clip',
@@ -585,18 +587,14 @@ class SoundBoard {
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
   /**
-   * A clock's hand moving on: day or dusk coming in (they have no banner). A low, dry, wooden tick, the escapement's
-   * catch, and its fainter tock just after, nothing bright.
-   */
-  /**
-   * Time Dense Space turning: a deep booming tick, once a second [direction: a booming tick every time the galaxy
-   * turns]. Low: a thud with a long dark tail, nothing bright.
+   * Time Dense Space turning, once a second [direction: a booming tick every time the galaxy turns, deep and boomy,
+   * from a recorded clock]: the clock's tick slowed right down over a falling sub thump, and a lower clunk of its
+   * mechanism just after, in the smaller room. (It keeps time with the turning, so it never plays backwards.)
    */
   boomTick() {
-    this.voice(64, { dur: 0.9, attack: 0.004, gain: 0.32, to: 38, type: 'sine' });
-    this.voice(96, { dur: 0.35, attack: 0.004, gain: 0.1, to: 60, type: 'triangle', cutoff: 400 });
-    this.breath({ dur: 0.12, freq: 260, type: 'lowpass', q: 0.8, gain: 0.22, attack: 0.002 });
+    this.clip(SFX.riftTick, 0.35, 1, true);
   }
+
 
   /**
    * Time running backwards (Time Dense Space) [direction: music plays in reverse, as do all sounds in combat; each
@@ -733,12 +731,14 @@ class SoundBoard {
     });
   }
 
+  /**
+   * A clock's hand moving on: day or dusk coming in (they have no banner) [direction: like a really big clock's
+   * mechanism, deep and boomy]: the rift's deep tick, then the escapement's lower, heavier clunk.
+   */
   clockTick() {
-    this.breath({ dur: 0.05, freq: 900, type: 'bandpass', q: 3.5, gain: 0.16, attack: 0.003 });
-    this.voice(170, { dur: 0.1, attack: 0.003, gain: 0.12, to: 120, type: 'triangle', cutoff: 900 });
-    this.breath({ dur: 0.04, freq: 700, type: 'bandpass', q: 3.5, gain: 0.07, attack: 0.003, delay: 0.085 });
-    this.voice(140, { dur: 0.08, attack: 0.003, gain: 0.06, to: 105, type: 'triangle', cutoff: 800, delay: 0.085 });
+    this.clip(SFX.phaseTick, 0.45, 1, true);
   }
+
 
   /** The boosters' running sound while a ship is under way (built when it starts, let go once it has faded out). */
   private thrustNodes: { gain: GainNode; stop: () => void } | null = null;
