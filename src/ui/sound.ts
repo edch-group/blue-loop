@@ -812,15 +812,32 @@ class SoundBoard {
     ['A4', 'C#5', 'E5'].forEach((n, i) => this.bell(hz(n), i * 0.06, 0.045));
   }
   /** A star under the pointer: a soft glassy chime, each star its own note of a pentatonic scale. */
+  /**
+   * The chord the score is sounding (its pitch classes), as it changes [direction: every note played hovering a skill
+   * is in tune with the music]: set when each chord actually sounds, not when it is scheduled.
+   */
+  private tones: number[] = [9, 0, 2, 4, 7];
+  private hearChord(midis: number[], delay: number) {
+    const set = () => (this.tones = [...new Set(midis.map((n) => ((n % 12) + 12) % 12))].sort((a, b) => a - b));
+    if (delay <= 0.02) set();
+    else window.setTimeout(() => this.playing && set(), delay * 1000);
+  }
+
   starHover(seed: number) {
     const now = performance.now();
     if (now - this.lastHover < 60) return;
     this.lastHover = now;
-    const scale = [0, 2, 4, 7, 9, 12, 14];
-    const f = 659.25 * 2 ** (scale[Math.floor(Math.abs(seed) * 997) % scale.length] / 12);
+    // A tone of the chord sounding now (A minor's pentatonic with no music on), from E5 up two octaves.
+    const tones = this.playing ? this.tones : [9, 0, 2, 4, 7];
+    const ladder: number[] = [];
+    for (let n = 76; n <= 100; n++) if (tones.includes(n % 12)) ladder.push(n);
+    const at = Math.floor(Math.abs(seed) * 997) % ladder.length;
+    const f = hzOf(ladder[at]);
+    // (Its shimmer: the chord's next tone up, never a note outside it.)
+    const up = hzOf(ladder[at + 2] ?? ladder[at] + 12);
     this.voice(f, { dur: 0.9, attack: 0.006, gain: 0.03, cutoff: 5000 });
     this.voice(f * 2, { dur: 0.5, attack: 0.004, gain: 0.012, cutoff: 7000, detune: 6 });
-    this.voice(f * 1.5, { dur: 1.2, attack: 0.06, gain: 0.008, cutoff: 3000, delay: 0.04 });
+    this.voice(up, { dur: 1.2, attack: 0.06, gain: 0.008, cutoff: 3000, delay: 0.04 });
   }
   /** A card or deck under the pointer: the dry rustle of paper (a few tiny bright crackles over a soft brush). */
   rustle() {
@@ -1122,6 +1139,7 @@ class SoundBoard {
     const pad = () => {
       if (this.playing !== 'ambient') return;
       const notes = CHORDS[chord % CHORDS.length];
+      this.hearChord(notes.map((f) => Math.round(69 + 12 * Math.log2(f / 440))), 0);
       chord += 1 + Math.floor(Math.random() * 2);
       notes.forEach((f, i) => {
         const opts = { dur: 14, attack: 4 + i * 0.6, gain: 0.022, type: 'triangle' as OscillatorType, cutoff: 900, out: bus };
@@ -1222,6 +1240,7 @@ class SoundBoard {
     const playChord = (at: number, index: number, round: number) => {
       const c = BATTLE_CHORDS[index];
       const delay = this.until(at);
+      this.hearChord(c.pad.map(midiOf), delay);
       // Pads, exactly as the menu score voices them: slow detuned triangle pairs, overlapping the next chord.
       c.pad.forEach((n, i) => {
         const opts = { dur: chordLen + 4, attack: 3 + i * 0.5, gain: 0.02, type: 'triangle' as OscillatorType, cutoff: 900, delay, out: lush };
@@ -1603,6 +1622,7 @@ class SoundBoard {
     const playChord = (at: number, index: number, round: number) => {
       const c = CAMPAIGN_CHORDS[index];
       const delay = this.until(at);
+      this.hearChord(c.pad.map(midiOf), delay);
       const part = round % 4;
       const rising = part === 1 || part === 3; // a crescendo through the Fmaj7 and the Em7 this time round
       const hazy = part >= 2;
@@ -1842,6 +1862,7 @@ class SoundBoard {
       const index = Math.floor(inForm / 4) % BOSS_CHORDS.length;
       const inChord = inForm % 4;
       const c = BOSS_CHORDS[index];
+      if (inChord === 0) this.hearChord(c.arp.flat().map(midiOf), this.until(at));
       if (inForm === 0) {
         // The arpeggio's filter opens across the form, and closes again as it comes back round.
         arpFilter.frequency.setValueAtTime(1100, at);

@@ -6716,6 +6716,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   --G: clamp(128px, calc((50cqw - 150px) * 0.95), 240px);
   --lw: calc(var(--G) - 34px);
 }
+/* (On a big screen the branch grows to fill the sky.) */
+@media (min-width: 900px) and (min-height: 700px) {
+  .up-mobile .up-sky > *, .up-mobile .up-wheel > * { --R: clamp(96px, calc((100cqh - 200px) / 1.45), 330px); }
+}
 .up-mobile .up-off { opacity: 0; pointer-events: none; }
 .up-mobile .up-node { z-index: 2; }
 .up-mobile .up-node b {

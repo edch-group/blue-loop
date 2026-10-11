@@ -447,8 +447,9 @@ export class CampaignView {
   private upBranch = 0;
   private upTurn = 90;
   /** A phone (or a narrow window): the tree one branch at a time. */
+  /** The skill tree, one branch at a time on the turning Stellari: on every screen now [direction: use the mobile skills menu on desktop too]. */
   private upMobile(): boolean {
-    return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse), (max-width: 760px)').matches;
+    return true;
   }
   /** The routes to draw as lines of light, between the stars where they stand on screen (drawRays). */
   private rays: { a: string; b: string; gone?: boolean; colour?: string }[] = [];
