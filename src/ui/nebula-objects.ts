@@ -9,7 +9,7 @@
  */
 
 import type { Camera } from './nebula3d';
-import { shipModel3d, SHIP_STRIDE } from './ship3d';
+import { propModel3d, shipModel3d, SHIP_STRIDE, type PropKind } from './ship3d';
 import sunCoronaUrl from './gems/sun-corona.png';
 import sunDiscUrl from './gems/sun-disc.png';
 
@@ -36,6 +36,8 @@ export interface MapObject {
   reach?: boolean;
   /** A stable number to vary each one by (spin, phase). */
   seed: number;
+  /** What stands at it: an armoury's anvil hovering over it, or a space station circling it. */
+  prop?: 'anvil' | 'station';
   /** Which system it is (for the pointer hovering it). */
   id?: string;
 }
@@ -625,6 +627,99 @@ export class MapObjects {
     return m;
   }
 
+  /** Each station's model, uploaded the first time it is drawn. */
+  private propBufs = new Map<PropKind, { buf: WebGLBuffer; count: number }>();
+
+  private propModel(kind: PropKind) {
+    let m = this.propBufs.get(kind);
+    if (!m) {
+      const gl = this.gl;
+      const mesh = propModel3d(kind);
+      const buf = gl.createBuffer()!;
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, mesh, gl.STATIC_DRAW);
+      m = { buf, count: mesh.length / SHIP_STRIDE };
+      this.propBufs.set(kind, m);
+    }
+    return m;
+  }
+
+  /**
+   * The stations, so they can be found: over an armoury's star an anvil hovers, turning slowly and bobbing, a warm
+   * light under it; round a research station's star a space station circles, its ring turning, its lamps lit.
+   */
+  private drawProps(cam: Camera, time: number, fade: number) {
+    const gl = this.gl;
+    const list = this.list.filter((o) => o.prop && !o.dead);
+    if (!list.length) return;
+    gl.enable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    gl.useProgram(this.shipProg);
+    const u = (n: string) => gl.getUniformLocation(this.shipProg, n);
+    gl.uniformMatrix4fv(u('uView'), false, cam.view);
+    gl.uniformMatrix4fv(u('uProj'), false, cam.proj);
+    gl.uniform3f(u('uEye'), cam.eye[0], cam.eye[1], cam.eye[2]);
+    gl.uniform1f(u('uTime'), time);
+    gl.uniform1f(u('uBurn'), 0);
+    gl.uniform3f(u('uColor'), 1, 1, 1);
+    const attrs: [string, number][] = [['aPos', 3], ['aNorm', 3], ['aCol', 3], ['aMat', 1]];
+    const locs = attrs.map(([name]) => gl.getAttribLocation(this.shipProg, name));
+    const glows: { x: number; y: number; z: number; r: number; c: [number, number, number]; a: number }[] = [];
+    for (const o of list) {
+      const kind = o.prop!;
+      const model = this.propModel(kind);
+      gl.bindBuffer(gl.ARRAY_BUFFER, model.buf);
+      let off = 0;
+      attrs.forEach(([, n], k) => {
+        if (locs[k] >= 0) {
+          gl.enableVertexAttribArray(locs[k]);
+          gl.vertexAttribPointer(locs[k], n, gl.FLOAT, false, SHIP_STRIDE * 4, off);
+        }
+        off += n * 4;
+      });
+      const y0 = o.y ?? 0;
+      let x: number, y: number, z: number, yaw: number, S: number, tilt = 0;
+      if (kind === 'anvil') {
+        // Hovering over its star, turning slowly, bobbing.
+        S = 0.13;
+        x = o.x;
+        z = o.z;
+        y = y0 + 0.11 + 0.012 * Math.sin(time * 1.3 + o.seed);
+        yaw = time * 0.45 + o.seed;
+        glows.push({ x, y: y - 0.04, z, r: 0.13, c: GOLD, a: 0.5 });
+      } else {
+        // Circling its star, a little above it, its ring tipped toward its course and turning on its own.
+        S = 0.12;
+        const a = time * 0.5 + o.seed * 2.3;
+        x = o.x + Math.cos(a) * 0.11;
+        z = o.z + Math.sin(a) * 0.11;
+        y = y0 + 0.03;
+        yaw = time * 0.8 + o.seed;
+        tilt = 0.35;
+        glows.push({ x, y, z, r: 0.11, c: [0.6, 0.85, 1], a: 0.35 });
+      }
+      const cy = Math.cos(yaw), sy = Math.sin(yaw), ct = Math.cos(tilt), st = Math.sin(tilt);
+      // Its own axes: forward (x) turned by yaw, up (y) tipped by tilt about forward.
+      const F = [cy, 0, sy];
+      const R0 = [-sy, 0, cy];
+      const U = [R0[0] * -st, ct, R0[2] * -st];
+      const Rr = [R0[0] * ct, st, R0[2] * ct];
+      gl.uniform1f(u('uAlpha'), fade * (o.dim ? 0.55 : 1));
+      gl.uniformMatrix4fv(u('uModel'), false, new Float32Array([F[0] * S, F[1] * S, F[2] * S, 0, U[0] * S, U[1] * S, U[2] * S, 0, Rr[0] * S, Rr[1] * S, Rr[2] * S, 0, x, y, z, 1]));
+      gl.drawArrays(gl.TRIANGLES, 0, model.count);
+    }
+    for (const l of locs) if (l >= 0) gl.disableVertexAttribArray(l);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    const sprite = this.sprites(cam, time, fade);
+    for (const g of glows) sprite.draw(g.x, g.y, g.z, g.r, 0, g.c, g.a);
+    sprite.done();
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
   /** Where a ship is at a moment (world x, z). */
   private shipAt(sh: { from: [number, number]; to: [number, number]; t0: number; dur: number; cruise?: number }, now: number): [number, number] {
     if (sh.cruise) {
@@ -871,6 +966,7 @@ export class MapObjects {
     gl.depthMask(false);
     this.drawRoutes(cam, time, fade);
     this.drawShips(cam, time, fade);
+    this.drawProps(cam, time, fade);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);

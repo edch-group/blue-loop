@@ -2093,6 +2093,8 @@ export class CampaignView {
         reach: this.reach.has(n.id),
         seed: parseFloat(seedOf(n.id)) * 10 || 0,
         id: n.id,
+        // (Its station, so it can be found: an armoury's anvil over it, a research station circling it.)
+        ...(n.station ? { prop: n.station.kind === 'armory' ? ('anvil' as const) : ('station' as const) } : {}),
       };
     });
     this.nebula.setObjects(objects);

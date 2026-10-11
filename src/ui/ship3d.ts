@@ -905,3 +905,53 @@ export function shipModel3d(race: number): ShipModel {
   }
   return model;
 }
+
+/**
+ * The map's stations, modelled as the ships are (1 long, the same materials): an anvil (an armoury, hovering over
+ * its star) and a space station (a research station, circling its star). [direction: stations orbiting the stars
+ * they belong to, armouries an anvil hovering above the star; both were near impossible to find]
+ */
+export type PropKind = 'anvil' | 'station';
+
+const ANVIL_IRON: RGB = [0.5, 0.52, 0.58];
+const ANVIL_FACE: RGB = [0.8, 0.82, 0.86];
+const HULL_WHITE: RGB = [0.86, 0.87, 0.9];
+const PANEL_BLUE: RGB = [0.16, 0.3, 0.62];
+const LAMP: RGB = [1, 0.86, 0.55];
+
+const props = new Map<PropKind, Float32Array>();
+
+export function propModel3d(kind: PropKind): Float32Array {
+  let mesh = props.get(kind);
+  if (mesh) return mesh;
+  const m = new Mesh();
+  if (kind === 'anvil') {
+    // Its foot, its waist, its broad face (a polished strike plate on top), its heel and its horn.
+    m.box(11, 29, 5, 19, 0, 3.5, ANVIL_IRON, 0, 1.2);
+    m.box(14.5, 25.5, 8.5, 15.5, 3.5, 9.5, ANVIL_IRON, 0, 0.6);
+    m.box(9, 31, 6.5, 17.5, 9.5, 15, ANVIL_IRON, 0, 0.4);
+    m.box(10, 30, 7.5, 16.5, 15, 15.5, ANVIL_FACE, 0);
+    m.box(4, 9, 8.5, 15.5, 11.5, 15, ANVIL_IRON, 0, 0.3);
+    m.loft([{ x: 31, w: 5.4, t: 2.7, b: 2.7, z: 12.2, p: 2.4 }, { x: 36, w: 3, t: 1.6, b: 1.6, z: 13, p: 2.2 }, { x: 40, w: 0, t: 0, b: 0, z: 14 }], ANVIL_IRON, 0, { segs: 16 });
+  } else {
+    // A hub standing up through a great ring, four spokes out to it, lamps round the ring, a mast and two wings of
+    // solar panels over the top, a dish under.
+    m.cyl([20, 12, 8], [20, 12, 30], 4, 4, HULL_WHITE, 0, 16);
+    m.ball(20, 12, 19, 5.5, HULL_WHITE, 0, 16, 10);
+    m.ring(20, 12, 19, 16, 1.6, 0, HULL_WHITE, 0);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) m.cyl([20 + dx * 4, 12 + dy * 4, 19], [20 + dx * 15, 12 + dy * 15, 19], 0.8, 0.8, HULL_WHITE, 0, 8);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      m.ball(20 + Math.cos(a) * 16, 12 + Math.sin(a) * 16, 20.4, 0.75, LAMP, 2, 6, 4);
+    }
+    m.cyl([20, 12, 30], [20, 12, 36], 0.9, 0.9, HULL_WHITE, 0, 8);
+    m.box(3, 17, 10, 14, 34, 34.8, PANEL_BLUE, 1);
+    m.box(23, 37, 10, 14, 34, 34.8, PANEL_BLUE, 1);
+    m.cyl([17, 12, 34.4], [23, 12, 34.4], 0.6, 0.6, HULL_WHITE, 0, 6);
+    m.cyl([20, 12, 8], [20, 12, 4], 1, 4.5, HULL_WHITE, 0, 14);
+    m.ball(20, 12, 37, 0.9, [0.55, 0.9, 1], 2, 6, 4);
+  }
+  mesh = new Float32Array(m.out);
+  props.set(kind, mesh);
+  return mesh;
+}
