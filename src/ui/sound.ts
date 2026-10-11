@@ -1102,9 +1102,53 @@ class SoundBoard {
     for (let i = 0; i < 4; i++)
       this.breath({ dur: 0.03 + Math.random() * 0.03, freq: 2600 + Math.random() * 3000, q: 2, gain: 0.05 + Math.random() * 0.03, attack: 0.002, delay: 0.05 + i * 0.04 + Math.random() * 0.02, type: 'bandpass', out: this.sfxDry ?? undefined });
   }
+  /**
+   * Shields raised on a sun: something charging up [direction: like something charging, not a bongo drum]. A whine
+   * of detuned triangles and a quiet saw gliding up two octaves (A3 to A5) through a lowpass that opens, pulsing
+   * faster and faster as it swells, then settling into a soft ring at the top (A5 and E6) with a rising shimmer of air.
+   */
   shield() {
-    this.voice(523.25, { dur: 1.6, attack: 0.2, gain: 0.03, type: 'triangle', vibrato: 6, cutoff: 2000 });
-    this.voice(784, { dur: 1.6, attack: 0.3, gain: 0.02, vibrato: 6 });
+    const ctx = this.ready();
+    if (!ctx || !this.sfx) return;
+    const t = ctx.currentTime;
+    const rise = 0.75;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 3;
+    filter.frequency.setValueAtTime(500, t);
+    filter.frequency.exponentialRampToValueAtTime(4200, t + rise);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.05, t + rise);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + rise + 0.35);
+    // The pulsing, quickening as it charges.
+    const pulse = ctx.createGain();
+    pulse.gain.value = 0.6;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.setValueAtTime(7, t);
+    lfo.frequency.exponentialRampToValueAtTime(28, t + rise);
+    const depth = ctx.createGain();
+    depth.gain.value = 0.4;
+    lfo.connect(depth).connect(pulse.gain);
+    filter.connect(pulse).connect(g).connect(this.sfx);
+    for (const [type, detune, level] of [['triangle', -7, 0.5], ['triangle', 7, 0.5], ['sawtooth', 0, 0.12]] as const) {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.detune.value = detune;
+      o.frequency.setValueAtTime(hz('A3'), t);
+      o.frequency.exponentialRampToValueAtTime(hz('A5'), t + rise);
+      const lv = ctx.createGain();
+      lv.gain.value = level;
+      o.connect(lv).connect(filter);
+      o.start(t);
+      o.stop(t + rise + 0.4);
+    }
+    lfo.start(t);
+    lfo.stop(t + rise + 0.4);
+    this.breath({ dur: rise + 0.2, freq: 600, to: 5000, type: 'bandpass', q: 1.4, gain: 0.025, attack: rise });
+    // Charged: a soft ring at the top.
+    this.voice(hz('A5'), { dur: 1.4, attack: 0.03, gain: 0.03, cutoff: 5000, delay: rise - 0.03 });
+    this.voice(hz('E6'), { dur: 1.1, attack: 0.03, gain: 0.014, cutoff: 6000, vibrato: 5, delay: rise });
   }
   /**
    * A hero takes the field: a rising rush, then a deep boom under a swelling brass-like chord, crowned with
