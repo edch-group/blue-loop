@@ -4,6 +4,7 @@
     FAL_KEY=... python3 scripts/cardart/generate.py aureline helio_lancer halo_ward   # some cards
     FAL_KEY=... python3 scripts/cardart/generate.py aureline                          # every card in the file
     FAL_KEY=... python3 scripts/cardart/generate.py aureline --edit glory_charge      # repaint its existing picture
+    FAL_KEY=... python3 scripts/cardart/generate.py upscale tide_regent kelp_wall       # sharpen small pictures
 
 Each card's prompt is put together from prompts/<race>.json (the style, the race's look, the framing and the
 card's own scene); the race's reference images (refs/<race>-*.jpg) go with it, so every card shows the same
@@ -59,7 +60,45 @@ EDIT = ('Repaint the first image as a finished, full-resolution card illustratio
         'lighting and the moment it shows, but repaint every figure (the other images show what the Aureline look like). ')
 
 
+UPSCALER = os.environ.get('FAL_UPSCALER', 'fal-ai/esrgan')
+
+
+def upscale(ids):
+    """Each card's full picture (generated/<id>.png, e.g. a panel cut from a contact sheet), enlarged 4x by an
+    upscaling model, kept in its place and cut again into the card's picture (the middle of a wide one, the upper
+    part of a tall one)."""
+    key = os.environ.get('FAL_KEY') or os.environ.get('FAL_API_KEY')
+    if not key: sys.exit('Set FAL_KEY (your fal.ai API key) in the environment.')
+    failed = []
+    for cid in ids:
+        path = os.path.join(KEEP, f'{cid}.png')
+        body = json.dumps({'image_url': data_uri(path), 'scale': 4, 'model': 'RealESRGAN_x4plus', 'output_format': 'png'}).encode()
+        req = urllib.request.Request(f'https://fal.run/{UPSCALER}', data=body, headers={'Authorization': f'Key {key}', 'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(req, timeout=300) as r:
+                out = json.load(r)
+            url = (out.get('image') or out['images'][0])['url']
+            with urllib.request.urlopen(url, timeout=120) as r:
+                img = Image.open(BytesIO(r.read())).convert('RGB')
+        except Exception as e:
+            msg = f'{e.code} {e.read().decode(errors="replace")[:500]}' if isinstance(e, urllib.error.HTTPError) else str(e)
+            print(f'{cid}: failed: {msg}', flush=True); failed.append(cid)
+            if msg[:3] in ('401', '403', '404', '422'): break
+            continue
+        img.save(path)
+        w, h = img.size
+        if w / h < 1.6:
+            ch = int(w / 1.6); y = int((h - ch) * 0.4); card = img.crop((0, y, w, y + ch)).resize((640, 400), Image.LANCZOS)
+        else:
+            card = card_crop(img)
+        card.save(os.path.join(CARDS, f'{cid}.webp'), quality=88)
+        print(f'{cid}: upscaled to {w}x{h}', flush=True)
+    if failed: sys.exit(f'failed: {" ".join(failed)}')
+
+
 def main():
+    if sys.argv[1:2] == ['upscale']:
+        return upscale(sys.argv[2:])
     # `--edit` repaints the card's existing picture (generated/<id>.png, e.g. one painted elsewhere) instead of
     # starting afresh, with the instruction in prompts/<race>.json "edits" (the race, style and framing follow it).
     edit = '--edit' in sys.argv
