@@ -2572,7 +2572,7 @@ export class CampaignView {
         return this.modal('campaign log', `<div class="log-list">${s.log.map((l) => `<div>${esc(l.text)}</div>`).join('')}</div>`, true);
       case 'settings':
         return this.modal(
-          `settings · turn ${s.turn}`,
+          'settings',
           settingsPanel(
             `${this.host.settingsButtons()}
             ${setLink('cmp-sheet', 'how the loop works', 'data-arg="help"')}

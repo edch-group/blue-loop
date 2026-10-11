@@ -6661,7 +6661,7 @@ export class App {
       }
       case 'menu':
         return this.sheetFrame(
-          `settings · round ${s?.round ?? ''}`,
+          'settings',
           settingsPanel(`
             ${this.settingsButtons()}
             ${s && !isGameOver(s) ? setLink('open-quit', 'quit game') : setLink('to-menu', 'main menu')}`),
