@@ -136,6 +136,10 @@ const relicNote = (r: Relic) => (r.cursed ? 'Cursed emblem.' : !r.power ? 'Hero 
 
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { relicMark } from './relic-art';
+import orielFace from '../assets/portraits/oriel.webp';
+import heskFace from '../assets/portraits/hesk.webp';
+import tallowFace from '../assets/portraits/tallow.webp';
+import lostFace from '../assets/portraits/lost.webp';
 export { FACTION_COLOUR };
 const NEUTRAL = '#c9cbd0';
 /** A mark drawn in ink (the skill tree's icons, and more). */
@@ -279,14 +283,7 @@ const ENCOUNTER_PAUSE = 1000;
 /** Each challenge's colour on the map: its ring and its route. */
 const CHALLENGE_COLOUR: Record<ChallengeKind, string> = { mine: '#d0479a', lord: '#d4a02a', frost: '#5aa8e0', rift: '#6b4fc8' };
 
-const LOST_PORTRAIT = `<span class="cmp-portrait cmp-portrait-lost"><svg viewBox="0 0 80 80" aria-hidden="true">
-  <defs><radialGradient id="lost-bg" cx=".5" cy=".35"><stop offset="0" stop-color="#4a4658"/><stop offset="1" stop-color="#15131c"/></radialGradient>
-  <linearGradient id="lost-fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c9c4dc" stop-opacity=".85"/><stop offset="1" stop-color="#c9c4dc" stop-opacity="0"/></linearGradient></defs>
-  <rect width="80" height="80" fill="url(#lost-bg)"/>
-  <path d="M40 20c-10 0-15 8-15 18 0 8-6 18-12 42h54c-6-24-12-34-12-42 0-10-5-18-15-18z" fill="url(#lost-fade)"/>
-  <circle cx="35.5" cy="37" r="1.4" fill="#fff" opacity=".8"/><circle cx="44.5" cy="37" r="1.4" fill="#fff" opacity=".8"/>
-  ${[[14, 16], [64, 22], [22, 58], [60, 54]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="0.9" fill="#fff" opacity=".35"/>`).join('')}
-</svg></span>`;
+const LOST_PORTRAIT = `<span class="cmp-portrait cmp-portrait-lost"><img class="cmp-face" src="${lostFace}" alt="" draggable="false"></span>`;
 
 /** An army's face: its general, or (one of the Lost Races) a faded figure. */
 function armyFace(a: Army): string {
@@ -296,61 +293,14 @@ function armyFace(a: Army): string {
 /** The Lost Races' colour on the map: a pale, washed-out violet. */
 const LOST_COLOUR = '#9a94b0';
 
-/** Oriel the Wanderer: a hooded figure carrying a lantern, under a scatter of failing stars. */
-export const ORACLE_PORTRAIT = `<span class="cmp-portrait cmp-portrait-oracle"><svg viewBox="0 0 80 80" aria-hidden="true">
-  <defs>
-    <radialGradient id="or-sky" cx=".5" cy=".3"><stop offset="0" stop-color="#2c2550"/><stop offset="1" stop-color="#0d0b1c"/></radialGradient>
-    <radialGradient id="or-lamp"><stop offset="0" stop-color="#fffbe6"/><stop offset=".4" stop-color="#ffd98a"/><stop offset="1" stop-color="#ffb04a" stop-opacity="0"/></radialGradient>
-    <linearGradient id="or-cloak" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6d6a9c"/><stop offset="1" stop-color="#2a2748"/></linearGradient>
-  </defs>
-  <rect width="80" height="80" fill="url(#or-sky)"/>
-  ${[[12, 14, 0.9], [66, 10, 0.6], [58, 26, 0.4], [20, 34, 0.5], [70, 44, 0.7], [8, 54, 0.4]].map(([x, y, o]) => `<circle cx="${x}" cy="${y}" r="0.9" fill="#fff" opacity="${o}"/>`).join('')}
-  <path d="M40 18c-11 0-17 10-17 22 0 6-3 14-9 40h52c-6-26-9-34-9-40 0-12-6-22-17-22z" fill="url(#or-cloak)"/>
-  <path d="M40 22c-7 0-11 7-11 15 0 4 4 7 11 7s11-3 11-7c0-8-4-15-11-15z" fill="#14122a"/>
-  <circle cx="36.5" cy="36" r="1.2" fill="#bfe6ff"/><circle cx="43.5" cy="36" r="1.2" fill="#bfe6ff"/>
-  <path d="M58 44v10" stroke="#c9b27a" stroke-width="1.2"/>
-  <circle cx="58" cy="60" r="11" fill="url(#or-lamp)"/>
-  <rect x="55" y="55" width="6" height="9" rx="1.5" fill="#fff3c4" stroke="#c9b27a" stroke-width="1"/>
-</svg></span>`;
+/** Oriel the Wanderer: a hooded figure carrying a lantern, under a scatter of failing stars (painted). */
+export const ORACLE_PORTRAIT = `<span class="cmp-portrait cmp-portrait-oracle"><img class="cmp-face" src="${orielFace}" alt="" draggable="false"></span>`;
 
-/** The armoury's quartermaster: a broad figure in work goggles, behind a crate, under a hanging lamp. */
-const QUARTERMASTER_PORTRAIT = `<span class="cmp-portrait cmp-portrait-keeper"><svg viewBox="0 0 80 80" aria-hidden="true">
-  <defs>
-    <linearGradient id="qm-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a3a2c"/><stop offset="1" stop-color="#1c1510"/></linearGradient>
-    <radialGradient id="qm-lamp" cx=".5" cy="0"><stop offset="0" stop-color="#ffd28a" stop-opacity=".55"/><stop offset="1" stop-color="#ffd28a" stop-opacity="0"/></radialGradient>
-  </defs>
-  <rect width="80" height="80" fill="url(#qm-bg)"/>
-  <rect width="80" height="60" fill="url(#qm-lamp)"/>
-  <path d="M14 80c2-16 12-24 26-24s24 8 26 24z" fill="#7a5a3c"/>
-  <path d="M30 58l10 8 10-8" fill="none" stroke="#5a4029" stroke-width="2"/>
-  <circle cx="40" cy="38" r="14" fill="#c99a74"/>
-  <path d="M26 34c2-10 26-10 28 0" fill="#3a2a1e"/>
-  <rect x="27" y="33" width="26" height="7" rx="3.5" fill="#2a2420"/>
-  <circle cx="34" cy="36.5" r="3.2" fill="#9fd4e8" stroke="#c9a46a" stroke-width="1.2"/>
-  <circle cx="46" cy="36.5" r="3.2" fill="#9fd4e8" stroke="#c9a46a" stroke-width="1.2"/>
-  <path d="M33 46c4 3 10 3 14 0" fill="none" stroke="#6b4632" stroke-width="1.6" stroke-linecap="round"/>
-  <path d="M30 48c3 6 17 6 20 0" fill="#8a6a50" opacity=".7"/>
-  <rect x="48" y="62" width="26" height="18" rx="2" fill="#9a7b4f" stroke="#5a4029" stroke-width="1.5"/>
-  <path d="M48 70h26M61 62v18" stroke="#5a4029" stroke-width="1.2"/>
-</svg></span>`;
+/** The armoury's quartermaster, Hesk: broad and tusked, goggles up, leaning on a crate under a hanging lamp (painted). */
+const QUARTERMASTER_PORTRAIT = `<span class="cmp-portrait cmp-portrait-keeper"><img class="cmp-face" src="${heskFace}" alt="" draggable="false"></span>`;
 
-/** The recycler: an old woman in a patched hood and scarf, a ring of salvage glowing behind her. */
-const RECYCLER_PORTRAIT = `<span class="cmp-portrait cmp-portrait-keeper"><svg viewBox="0 0 80 80" aria-hidden="true">
-  <defs>
-    <radialGradient id="rc-bg" cx=".5" cy=".4"><stop offset="0" stop-color="#2f4a3a"/><stop offset="1" stop-color="#101a14"/></radialGradient>
-  </defs>
-  <rect width="80" height="80" fill="url(#rc-bg)"/>
-  <circle cx="40" cy="36" r="27" fill="none" stroke="#8fd1a4" stroke-width="2" stroke-dasharray="10 5" opacity=".55"/>
-  ${[0, 120, 240].map((r) => `<path d="M40 7l4 5h-8z" fill="#8fd1a4" opacity=".7" transform="rotate(${r} 40 36)"/>`).join('')}
-  <path d="M16 80c2-18 11-26 24-26s22 8 24 26z" fill="#6d6458"/>
-  <path d="M22 62c6 6 30 6 36 0l-3 8c-8 4-22 4-30 0z" fill="#b5623e"/>
-  <path d="M40 18c-12 0-18 10-18 22 0 4 2 8 4 10h28c2-2 4-6 4-10 0-12-6-22-18-22z" fill="#857a6a"/>
-  <circle cx="40" cy="40" r="11" fill="#d8b49a"/>
-  <path d="M33 39q2-2 4 0M43 39q2-2 4 0" fill="none" stroke="#4a3426" stroke-width="1.4" stroke-linecap="round"/>
-  <path d="M35 46q5 3 10 0" fill="none" stroke="#7a4c3a" stroke-width="1.3" stroke-linecap="round"/>
-  <path d="M30 34q3-3 6-2M44 32q3-1 6 2" fill="none" stroke="#efe6da" stroke-width="1.2" stroke-linecap="round"/>
-  <rect x="29" y="24" width="7" height="5" rx="1" fill="#a39684" transform="rotate(-12 32 26)"/>
-</svg></span>`;
+/** The recycler, Mother Tallow: an old, long-eared woman in a patched hood and scarf, a ring of salvage glowing behind her (painted). */
+const RECYCLER_PORTRAIT = `<span class="cmp-portrait cmp-portrait-keeper"><img class="cmp-face" src="${tallowFace}" alt="" draggable="false"></span>`;
 
 /** A stable 0–1 value per id, to spread animation phases so stars never pulse in step. */
 function seedOf(id: string): string {
