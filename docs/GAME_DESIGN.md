@@ -19,7 +19,7 @@ was replaced by this design in design review.
 - A deck is **30 to 40 cards**, with **at most 2 copies** of any card and **one Hero per 10 cards** (3 in a 30-card deck, 4 in 40), so a deck runs at least two different Heroes. The starter decks are 30. [design review: 30–40 cards so a deck has room for a balanced curve and its big cards; proposed: 2 copies]
 - Players build decks in the **deck builder** (Quickplay → deck builder) from the whole card pool, or pick one of the **ten starter decks**: four race decks (Solar Lancers, Shard Overload, Abyssal Tide, Hive Bloom: also the campaign's) and six mixed-race decks, each built round one mechanic:
   - **Orbit Riders:** attunement. Attuned cards take their bonus from where the Orbit stands; steer yours onto the industrial planet, knock your rival's off.
-  - **Ambush:** Lightspeed. A trap face down against attack cards, Guards that spring from the Lightspeed slot, forged Aureline attack cards behind them.
+  - **Ambush:** Traps. A trap face down against attack cards, Guards that spring from the trap slot, forged Aureline attack cards behind them.
   - **Demolition:** removal. Destroy, eject, erode and decay the rival's tableau.
   - **Absolute Zero:** Thermosiphon. Run your sun far below zero; the colder it is, the harder its cards hit and shield.
   - **Graftworks:** Fusion. Sturdy hosts loaded with grafts, so the hand never jams for want of a slot.

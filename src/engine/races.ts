@@ -44,7 +44,7 @@ export function raceTrait(race: number | undefined): RaceTrait | undefined {
 
 /** The sub-races of the newer races: an id (on cards, as `sub`), its race, its name and what it does. */
 export const SUBRACES: Record<string, { race: number; name: string; theme: string }> = {
-  veilwalker: { race: 4, name: 'Veilwalker', theme: 'Lightspeed traps that spring from the dark' },
+  veilwalker: { race: 4, name: 'Veilwalker', theme: 'Traps that spring from the dark' },
   unmaker: { race: 4, name: 'Unmaker', theme: 'Removal: unmaking what the rival builds' },
   bloodcult: { race: 4, name: 'Blood Cult', theme: 'Consuming their own: cards given up to fuel others, and cards that pay off as they leave play' },
   forgeborn: { race: 5, name: 'Forgeborn', theme: 'Fusion grafts, hammered onto each other' },
