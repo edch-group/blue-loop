@@ -3486,7 +3486,17 @@ export class App {
     if (this.pending || this.sheet) {
       this.pending = null;
       this.sheet = null;
-      this.render();
+      return this.render();
+    }
+    // Nothing to close: the settings [direction: escape brings up the settings menu, unless that clashes] (in a
+    // battle, its menu; at the hub, the options).
+    if (this.screen === 'game' && this.state && !this.stage && !this.landing) {
+      this.sheet = { kind: 'menu' };
+      return this.render();
+    }
+    if (this.screen === 'menu' && this.menuPage === 'hub' && !this.profileOpen) {
+      this.menuPage = 'options';
+      return this.render();
     }
   }
 

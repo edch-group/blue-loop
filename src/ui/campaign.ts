@@ -772,8 +772,18 @@ export class CampaignView {
 
 
   /** A key on the map: nothing to do (there is no waiting: every turn is a move). */
-  onKey(_key: string): boolean {
-    return false;
+  onKey(key: string): boolean {
+    // Escape: the settings, or (open) shut them [direction: escape brings up the settings, unless that clashes]. Not
+    // over anything that waits on a choice (spoils, a dream, a station's confirm, the setup screens).
+    const s = this.state;
+    if (key !== 'Escape' || !s) return false;
+    if (this.sheet?.kind === 'settings') {
+      this.sheet = null;
+      return true;
+    }
+    if (this.sheet || s.battle || s.loot || s.cardRewards.length || s.dream || s.struggle || s.conquest || s.prophet || s.boon || s.emblemChoice?.length || s.winner || s.story.queue.length) return false;
+    this.sheet = { kind: 'settings' };
+    return true;
   }
 
 
