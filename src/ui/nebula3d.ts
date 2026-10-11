@@ -597,6 +597,9 @@ export class Nebula {
   private look: GalaxyLook | null = null;
   /** Told whenever the camera moves, with the camera as drawn (the map lays itself on the plane from it). */
   onCamera: ((cam: Camera) => void) | null = null;
+  /** Called as ships set out (true) and all come to rest (false), for their boosters' sound. */
+  onThrust: ((on: boolean) => void) | null = null;
+  private thrusting = false;
   camera: Camera | null = null;
 
   constructor(readonly back: HTMLCanvasElement, readonly front: HTMLCanvasElement | null) {
@@ -861,6 +864,10 @@ export class Nebula {
 
   destroy() {
     cancelAnimationFrame(this.raf);
+    if (this.thrusting) {
+      this.thrusting = false;
+      this.onThrust?.(false);
+    }
     for (const l of this.layers) l.lose();
   }
 
@@ -925,6 +932,12 @@ export class Nebula {
         this.moved = false;
         this.onCamera?.(cam);
       }
+    }
+    // The boosters: heard while a ship is under way on a map that is on screen.
+    const thrust = !!cam && this.back.isConnected && !document.hidden && !!this.layers[this.layers.length - 1].objects?.shipsMoving;
+    if (thrust !== this.thrusting) {
+      this.thrusting = thrust;
+      this.onThrust?.(thrust);
     }
     // Keep running while the gas lives (it always does, unless motion is reduced) or the camera glides.
     if (live || this.glide || this.cine || this.fade < 1 || !cam || this.layers[this.layers.length - 1].objects?.hoverMoving) this.raf = requestAnimationFrame((t2) => this.frame(t2));

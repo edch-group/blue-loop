@@ -727,6 +727,13 @@ export class MapObjects {
     gl.disable(gl.BLEND);
   }
 
+  /** Whether any ship is under way (cruising in, or flying a route): its boosters are heard while it is. */
+  get shipsMoving(): boolean {
+    const now = performance.now() / 1000;
+    for (const sh of this.ships.values()) if (sh.cruise || (sh.dur > 0 && now - sh.t0 < sh.dur)) return true;
+    return false;
+  }
+
   /** Where a ship is at a moment (world x, z). */
   private shipAt(sh: { from: [number, number]; to: [number, number]; t0: number; dur: number; cruise?: number }, now: number): [number, number] {
     if (sh.cruise) {

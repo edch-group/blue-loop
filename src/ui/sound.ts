@@ -493,6 +493,99 @@ class SoundBoard {
     this.lastHover = now;
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
+  /** The boosters' running sound while a ship is under way (built when it starts, let go once it has faded out). */
+  private thrustNodes: { gain: GainNode; stop: () => void } | null = null;
+  private thrustOff = 0;
+
+  /**
+   * A ship's boosters, for as long as it is under way [direction: the ship's boosters make sound when it moves, constant
+   * while it flies in under the close-up camera as a campaign starts]: a low engine roar (noise through a lowpass that
+   * wanders a little), a deep detuned hum beneath it, and a slow flutter, nothing high. On: it swells in; off: it dies away.
+   */
+  thrust(on: boolean) {
+    const ctx = this.ctx;
+    if (!on) {
+      const n = this.thrustNodes;
+      if (!n || !ctx) return;
+      const t = ctx.currentTime;
+      n.gain.gain.cancelScheduledValues(t);
+      n.gain.gain.setValueAtTime(Math.max(n.gain.gain.value, 0.0001), t);
+      n.gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+      window.clearTimeout(this.thrustOff);
+      this.thrustOff = window.setTimeout(() => {
+        if (this.thrustNodes !== n) return;
+        n.stop();
+        this.thrustNodes = null;
+      }, 1300);
+      return;
+    }
+    const c = this.ready();
+    if (!c || !this.sfx || !this.noiseBuf) return;
+    window.clearTimeout(this.thrustOff);
+    let n = this.thrustNodes;
+    if (!n) {
+      const master = c.createGain();
+      master.gain.value = 0.0001;
+      master.connect(this.sfx);
+      // The roar: noise, low, its lowpass wandering slowly.
+      const noise = c.createBufferSource();
+      noise.buffer = this.noiseBuf;
+      noise.loop = true;
+      const roar = c.createBiquadFilter();
+      roar.type = 'lowpass';
+      roar.frequency.value = 300;
+      roar.Q.value = 0.8;
+      const wander = c.createOscillator();
+      const wanderDepth = c.createGain();
+      wander.frequency.value = 0.35;
+      wanderDepth.gain.value = 70;
+      wander.connect(wanderDepth).connect(roar.frequency);
+      const roarGain = c.createGain();
+      roarGain.gain.value = 1.4;
+      // A slow flutter through it, as the boosters burn.
+      const flutter = c.createOscillator();
+      const flutterDepth = c.createGain();
+      flutter.frequency.value = 6.5;
+      flutterDepth.gain.value = 0.25;
+      flutter.connect(flutterDepth).connect(roarGain.gain);
+      noise.connect(roar).connect(roarGain).connect(master);
+      // The hum: two low saws, a little apart, darkened.
+      const humFilter = c.createBiquadFilter();
+      humFilter.type = 'lowpass';
+      humFilter.frequency.value = 170;
+      const humGain = c.createGain();
+      humGain.gain.value = 0.22;
+      humFilter.connect(humGain).connect(master);
+      const hums = [43.65, 44.2].map((f) => {
+        const o = c.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = f;
+        o.connect(humFilter);
+        return o;
+      });
+      const sources = [noise, wander, flutter, ...hums];
+      for (const src of sources) src.start();
+      n = {
+        gain: master,
+        stop: () => {
+          for (const src of sources) {
+            try {
+              src.stop();
+            } catch {
+              // (Already stopped.)
+            }
+          }
+          master.disconnect();
+        },
+      };
+      this.thrustNodes = n;
+    }
+    const t = c.currentTime;
+    n.gain.gain.cancelScheduledValues(t);
+    n.gain.gain.setValueAtTime(Math.max(n.gain.gain.value, 0.0001), t);
+    n.gain.gain.exponentialRampToValueAtTime(0.13, t + 0.7);
+  }
+
   /**
    * An encounter: the flagship lands at a guarded star. A dive-bombing synth in the battle theme's own voice: its
    * soft triangle-and-saw pluck, through the arpeggio's resonant filter and dotted-eighth echo, diving down

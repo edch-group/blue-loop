@@ -2094,6 +2094,7 @@ export class CampaignView {
     this.nebula = back ? nebulaOn(back, root.querySelector<HTMLCanvasElement>('canvas.cmp-nebula-front')) : null;
     if (!this.nebula) return;
     this.nebula.onCamera = (cam) => this.layPlane(cam);
+    this.nebula.onThrust = (on) => sound.thrust(on);
     const world = (x: number, y: number): [number, number] => [(x - MAP_WIDTH / 2) * MAP_K, (y - MAP_HEIGHT / 2) * MAP_K];
     const at = new Map(s.nodes.map((n) => [n.id, world(n.x, n.y)]));
     // (How high each system stands: the land rises and falls with the route.)
