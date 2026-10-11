@@ -1230,7 +1230,7 @@ export class CampaignView {
     const scene = !overlay && s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? s.story.queue[0] : null;
     const me = campaignPlayer(s);
     return `
-      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}${s.rift ? ` cmp-rift-${s.rift.kind}` : ''}${s.dream && !s.battle && !s.struggle ? ' cmp-dreaming' : ''}${this.cine === 'ride' || this.cine === 'start' || this.cine === 'reveal' ? ' cmp-cine' : this.cine === 'done' ? ' cmp-cine-done' : ''}">
+      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}${s.rift ? ` cmp-rift-${s.rift.kind}` : ''}${s.dream && !s.battle && !s.struggle && !s.loot && !s.cardRewards.length && !s.conquest ? ' cmp-dreaming' : ''}${this.cine === 'ride' || this.cine === 'start' || this.cine === 'reveal' ? ' cmp-cine' : this.cine === 'done' ? ' cmp-cine-done' : ''}">
         <canvas class="cmp-nebula" data-key="cmp-nebula" aria-hidden="true"></canvas>
         ${s.rift?.kind === 'dark' ? '<div class="cmp-darkness" data-key="cmp-darkness" aria-hidden="true"></div>' : ''}
         <header class="cmp-top">
@@ -2546,12 +2546,14 @@ export class CampaignView {
       </div>`;
     }
     // A Dream of the Lost: the screen drifts, wavering, into dark, with a line; then the dream begins by itself.
-    if (s.dream && !s.battle && !s.struggle) {
+    // (Only once the battle's spoils are seen to: its loot opened and its card chosen, a conquest decided.)
+    const spoilsWaiting = (x: CampaignState) => !!x.loot || x.cardRewards.length > 0 || !!x.conquest;
+    if (s.dream && !s.battle && !s.struggle && !spoilsWaiting(s)) {
       if (!this.dreamStarting) {
         this.dreamStarting = true;
         window.setTimeout(() => {
           this.dreamStarting = false;
-          if (this.state?.dream && !this.state.struggle && this.apply({ type: 'dream' })) sound.encounter();
+          if (this.state?.dream && !this.state.struggle && !spoilsWaiting(this.state) && this.apply({ type: 'dream' })) sound.encounter();
           this.host.render();
         }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 900 : 4200);
       }
