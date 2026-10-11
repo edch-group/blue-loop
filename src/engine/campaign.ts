@@ -1844,7 +1844,7 @@ function startStruggle(s: CampaignState) {
   s.battle = { attacker: f.id, defender: null, fromId: n.id, nodeId: n.id, armyId: army.id, defenderArmyId: null, game, struggle: { hero: p.hero, damage: army.damage } };
 }
 
-/** A Power Struggle over. Won: the rival hero joins the deck. Lost: the command holds, but the sun is no cooler for it. */
+/** A Power Struggle over. Won: the rival hero joins the deck. Lost: the run is over. */
 function resolveStruggle(s: CampaignState, game: GameState) {
   const b = s.battle!;
   s.battle = null;
@@ -1853,9 +1853,10 @@ function resolveStruggle(s: CampaignState, game: GameState) {
   const hero = b.struggle!.hero;
   const won = !isDraw(game) && game.winnerId === game.players[0].id;
   gainXp(s, won ? CAMPAIGN.xpChallenge : CAMPAIGN.xpBattleLost);
+  // Lost: the command is lost, and the run with it [direction: losing a Power Struggle ends your run].
   if (!won) {
-    if (army) army.damage = b.struggle!.damage;
-    clog(s, `${cardDef(hero).name} is driven off, but not beaten. ${f.name} keeps the command, barely.`, b.nodeId, f.id);
+    clog(s, `${cardDef(hero).name} takes the command. ${f.name}'s run is over.`, b.nodeId, f.id);
+    playerFalls(s);
     return;
   }
   if (army) {
