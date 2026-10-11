@@ -606,7 +606,7 @@ describe('card costs', () => {
 });
 
 describe('Attunement', () => {
-  it("gives an attuned card its orbit position's bonus at dawn, stronger as each planet comes round", () => {
+  it("gives an attuned card its orbit position's bonus at dawn, one bonus per planet", () => {
     const s = twoPlayer();
     const me = activePlayer(s);
     const rival = s.players.find((p) => p.id !== me.id)!;
@@ -617,16 +617,16 @@ describe('Attunement', () => {
       return dawnEffects(card, me, s).map((e) => `${e.type}${'amount' in e ? e.amount : ''}`).join(',');
     };
     expect(at(0)).toBe('shield1');
-    expect(at(2)).toBe('shield2,cool1');
+    expect(at(2)).toBe('shield1');
     expect(at(4)).toBe('draw1');
-    expect(at(8)).toBe('heat2,shield1');
+    expect(at(8)).toBe('heat1');
     // Attunement 2: every number doubled.
-    expect(at(8, engine)).toBe('heat4,shield2');
+    expect(at(8, engine)).toBe('heat2');
     // Without its owner known (the card's own text), nothing is added.
     expect(dawnEffects(orrery)).toEqual([]);
-    // With the planets eaten, the dead planet's bonus (at the same step of it).
+    // With the planets eaten, the dead planet's bonus.
     give(rival, ['orion_galaxy_eater'], 'tableau');
-    expect(at(8)).toBe('shield2,cool1');
+    expect(at(8)).toBe('shield1');
   });
 });
 

@@ -12,9 +12,9 @@ export const BOSS_CARDS: CardDef[] = [
   // ---- The Hollow Colossus: a vast construct of a dead race, its furnace still burning ----
   {
     id: 'boss_colossus', overlordPart: 'overlord', name: 'Hollow Colossus', kind: 'command', stability: 30, attack: 0,
-    text: '{dawn}: {heat:1}. Action: {heat:5}.',
+    text: '{dawn}: {heat:1}. Action: {heat:8}.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
-    bossAction: { name: 'Furnace Breath', effects: [{ type: 'heat', amount: 5, to: 'target' }] },
+    bossAction: { name: 'Furnace Breath', effects: [{ type: 'heat', amount: 8, to: 'target' }] },
   },
   {
     id: 'colossus_left_fist', overlordPart: 'body', name: 'Colossal Fist', kind: 'attack', health: 6, attack: 3,

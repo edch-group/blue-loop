@@ -6,7 +6,7 @@
  * explanation appears in the zoomed card, on hover, and on the rules page.
  */
 
-import { ATTUNEMENT } from './attunement';
+import { planetBonusText } from './attunement';
 
 export interface Keyword {
   /** As it reads on a card. */
@@ -98,7 +98,7 @@ export const KEYWORDS: Record<string, Keyword> = {
     name: 'attunement',
     group: 'orbit',
     explain: (v) =>
-      `Each dawn, gains your orbit's bonus${v && v !== '1' ? ` (×${v})` : ''}. Dead planet: ${ATTUNEMENT.slice(0, 3).map((a) => plainText(a.text)).join(' → ')}. Abundant: ${ATTUNEMENT.slice(3, 6).map((a) => plainText(a.text)).join(' → ')}. Industrial: ${ATTUNEMENT.slice(6).map((a) => plainText(a.text)).join(' → ')}.`,
+      `Each dawn, gains your orbit's bonus${v && v !== '1' ? ` (×${v})` : ''}. Dead planet: ${plainText(planetBonusText('dead'))}. Abundant: ${plainText(planetBonusText('abundant'))}. Industrial: ${plainText(planetBonusText('industrial'))}.`,
   },
   lightspeed: { name: 'lightspeed', group: 'lightspeed', explain: () => "Play it in any phase of your day, or on your rival's day in reply to a card they play or an attack, paid with banked energy (energy left unspent at your day's end). One in reply per rival day." },
   trap: { name: 'trap', group: 'trap', explain: () => 'Set face down on your day. It springs on the first trigger it meets.' },

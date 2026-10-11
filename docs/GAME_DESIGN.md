@@ -28,19 +28,7 @@ was replaced by this design in design review.
 
 ## Attunement
 
-An attuned card gains, at each of its owner's dawns, the bonus of where their Orbit stands: nine positions, three facing each planet, one a day (orbit cards move it on or back). Each planet has its own kind of bonus, growing as the planet comes fully round (`src/engine/attunement.ts`):
-
-| Orbit | Planet | Bonus |
-|---|---|---|
-| 0 | dead | Shields 1 |
-| 1 | dead | Shields 1, Cool 1 |
-| 2 | dead | Shields 2, Cool 1 |
-| 3 | abundant | Cool 1 |
-| 4 | abundant | Draw 1 |
-| 5 | abundant | Draw 1, Cool 1 |
-| 6 | industrial | Heat 1 |
-| 7 | industrial | Heat 1 |
-| 8 | industrial | Heat 2, Shields 1 |
+An attuned card gains, at each of its owner's dawns, the bonus of the planet facing its sun [direction: a single bonus per planet, for simplicity] (`src/engine/attunement.ts`): the dead planet 1 shield, the abundant planet 1 card, the industrial planet 1 heat to the rival. Attunement 2 doubles it. (The orbit still runs nine positions, three facing each planet, one a day.)
 
 **Attunement ×2** doubles every number. With its planets eaten (Orion), a sun counts as at the same step of the dead planet. The attuned cards: Orrery (just attunement), Ecliptic Lance (Heat 2), Solstice Choir (Aureline: your Orbit +1), Precession Engine (Xel'Naru: attunement ×2), Moon Warden (Vorthane: Guard, Sturdy 1), Seasonal Bloom (Ixquor: Plant 1), and the Grand Orrery (Anomaly: your Orbit +3, attunement ×2). Steering is the skill: Orbital Slingshots, Gravity Assists and the Solstice Choir bring the industrial planet round; Gravity Wells and Tidal Brakes knock a rival's off theirs.
 

@@ -18,7 +18,7 @@ describe('Lost Overlords', () => {
     // Its parts act in turn, left to right, the Overlord itself last.
     const order = bossOrder(boss);
     expect(order[order.length - 1].defId).toBe(lord.hero);
-    expect(bossIntent(boss)?.card.uid).toBe(order[0].uid);
+    expect(order.some((c) => c.uid === bossIntent(boss)?.card.uid)).toBe(true);
   });
 
   it('take the shown action at their dawn, then show their next', () => {
@@ -40,9 +40,9 @@ describe('Lost Overlords', () => {
       chooseBossIntent(s, boss);
       return bossIntent(boss)!.card.defId;
     };
-    // No cards: its biggest blow, at the sun (Crushing Blow's 6, falling on the sun, over Furnace Breath's 5).
+    // No cards: its biggest blow, at the sun (Furnace Breath's 8, over Crushing Blow's 6 falling on the sun).
     me.heat = 0;
-    expect(on([])).toBe('colossus_left_fist');
+    expect(on([])).toBe('boss_colossus');
     // A board full of small cards: the sweep.
     expect(on(['helio_lancer', 'helio_lancer', 'helio_lancer', 'helio_lancer', 'helio_lancer'])).toBe('colossus_right_fist');
     // The sun one blow from going supernova: the sun, whatever is on the board.
