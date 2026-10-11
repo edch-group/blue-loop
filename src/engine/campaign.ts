@@ -3063,6 +3063,8 @@ function takeResearch(s: CampaignState, f: Faction, n: CampaignNode, projectId: 
   const st = n.station as Extract<Station, { kind: 'research' }>;
   st.takenBy = f.id;
   st.project = projectId;
+  // (Its upgrade taken, the system is the taker's [direction: shown as conquered after the visit].)
+  n.owner = f.id;
   (f.research ??= { done: [] }).done.push(projectId);
   clog(s, `${f.name} takes ${researchProject(projectId)!.name} from ${n.name}'s research station.`, n.id, f.id);
 }
