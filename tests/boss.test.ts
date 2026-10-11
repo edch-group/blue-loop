@@ -21,14 +21,34 @@ describe('Lost Overlords', () => {
     expect(bossIntent(boss)?.card.uid).toBe(order[0].uid);
   });
 
-  it('take the shown action at their dawn, then show the next', () => {
+  it('take the shown action at their dawn, then show their next', () => {
     let s = battle();
     const first = bossIntent(s.players[1])!;
     s = applyAction(s, { type: 'endTurn' });
     expect(s.log.some((l) => l.text.includes(first.name))).toBe(true);
-    const order = bossOrder(s.players[1]);
-    expect(bossIntent(s.players[1])?.card.uid).toBe(order[1].uid);
+    expect(bossIntent(s.players[1])).not.toBeNull();
     expect(s.players[1].hand).toHaveLength(0);
+  });
+
+  it('choose their best action for the board as it stands', async () => {
+    const { baseHealth, chooseBossIntent, supernovaThreshold } = await import('../src/engine/game');
+    const s = battle();
+    const boss = s.players[1], me = s.players[0];
+    const on = (ids: string[]) => {
+      me.tableau = me.tableau.filter((c) => c.slot === COMMAND_SLOT);
+      ids.forEach((defId, i) => me.tableau.push({ uid: `x${i}`, defId, slot: i, health: baseHealth(defId) }));
+      chooseBossIntent(s, boss);
+      return bossIntent(boss)!.card.defId;
+    };
+    // No cards: its biggest blow, at the sun (Crushing Blow's 6, falling on the sun, over Furnace Breath's 5).
+    me.heat = 0;
+    expect(on([])).toBe('colossus_left_fist');
+    // A board full of small cards: the sweep.
+    expect(on(['helio_lancer', 'helio_lancer', 'helio_lancer', 'helio_lancer', 'helio_lancer'])).toBe('colossus_right_fist');
+    // The sun one blow from going supernova: the sun, whatever is on the board.
+    me.heat = supernovaThreshold(me) - 5;
+    me.shields = 0;
+    expect(on(['helio_lancer', 'helio_lancer', 'helio_lancer', 'helio_lancer', 'helio_lancer'])).toBe('boss_colossus');
   });
 
   it('stagger when the part whose turn it is has been destroyed', () => {

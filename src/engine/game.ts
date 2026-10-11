@@ -110,6 +110,7 @@ export function createGame(setup: GameSetup): GameState {
 
   log(state, `A new Blue Loop begins with ${state.players.map((p) => p.name).join(', ')}.`);
   startTurn(state);
+  rechooseBossIntents(state);
   return state;
 }
 
@@ -1882,16 +1883,22 @@ export const DEVOUR_SUN_HEAT = 5;
  * a summons).
  */
 export function bossAim(state: GameState, p: PlayerState): { sun: number; cards: { uid: string; heat: number }[] } {
-  const out = { sun: 0, cards: [] as { uid: string; heat: number }[] };
   const intent = bossIntent(p);
+  return intent ? partAim(state, p, intent.card) : { sun: 0, cards: [] };
+}
+
+/** Where one of a Lost Overlord's parts would strike, were it to act now (see bossAim). */
+function partAim(state: GameState, p: PlayerState, part: CardInstance): { sun: number; cards: { uid: string; heat: number }[] } {
+  const out = { sun: 0, cards: [] as { uid: string; heat: number }[] };
   const t = targetOf(state, p);
-  if (!intent || !t) return out;
+  const action = cardDef(part.defId).bossAction;
+  if (!action || !t) return out;
   const add = (uid: string, heat: number) => {
     const had = out.cards.find((x) => x.uid === uid);
     if (had) had.heat += heat;
     else out.cards.push({ uid, heat });
   };
-  for (const e of cardDef(intent.card.defId).bossAction!.effects) {
+  for (const e of action.effects) {
     if (e.type === 'heat' && e.to === 'target') out.sun += e.amount;
     else if (e.type === 'strikeBest' || e.type === 'strikeAll') {
       const hit = strikeHits(state, t, e);
@@ -1904,6 +1911,65 @@ export function bossAim(state: GameState, p: PlayerState): { sun: number; cards:
     }
   }
   return out;
+}
+
+/**
+ * How much a part's action is worth to a Lost Overlord against the board as it stands [direction: the best move for
+ * the board: many cards struck when there are many, the sun when there are none, big blows on single strong cards,
+ * and the sun whenever the heat would send it supernova]. Heat that would finish the sun outweighs everything.
+ */
+function bossActionScore(state: GameState, p: PlayerState, part: CardInstance): number {
+  const t = targetOf(state, p);
+  const action = cardDef(part.defId).bossAction;
+  if (!t || !action) return 0;
+  const aim = partAim(state, p, part);
+  let score = 0;
+  // The sun: past its shields, more the hotter it already runs; a supernova above all.
+  const through = Math.max(0, aim.sun - t.shields);
+  if (through > 0 && t.heat + through >= supernovaThreshold(t)) score += 1000;
+  score += through * (1 + Math.max(0, t.heat) / Math.max(1, supernovaThreshold(t)));
+  // Cards: heat that lands (its shields, defence and stability between it and the card's end), and a card ended is
+  // worth what it cost and the attack it brought.
+  for (const { uid, heat } of aim.cards) {
+    const c = t.tableau.find((x) => x.uid === uid);
+    if (!c) continue;
+    const worth = cardCost(c.defId) + cardAttack(state, t, c) + 1;
+    if (heat === 0) {
+      score += worth * 1.5 + 3; // (devoured whole)
+      continue;
+    }
+    const lasts = (c.shields ?? 0) + cardDefence(t, c) + (c.health ?? 0);
+    score += Math.min(heat, lasts) * 0.9 + (heat >= lasts ? worth * 1.5 : 0);
+  }
+  // What it does for itself: shields, mending its parts, more of them.
+  for (const e of action.effects) {
+    if (e.type === 'shield') score += e.amount * 0.5;
+    else if (e.type === 'restore') score += p.tableau.reduce((n, c) => n + Math.min(e.amount, Math.max(0, (c.maxHealth ?? c.health ?? 0) - (c.health ?? 0))), 0) * 0.7;
+    else if (e.type === 'summon') score += Math.min(e.amount, freeSlots(p).filter((i) => i !== COMMAND_SLOT).length) * 2;
+  }
+  return score;
+}
+
+/**
+ * A Lost Overlord's next action, chosen for the board as it stands (and chosen again as the board changes, so what
+ * is shown is always what it will do): its best, the first in its turn order on a tie.
+ */
+export function chooseBossIntent(state: GameState, p: PlayerState) {
+  if (!p.boss) return;
+  const order = bossOrder(p);
+  let best: CardInstance | undefined;
+  let top = -Infinity;
+  for (const c of order) {
+    const v = bossActionScore(state, p, c);
+    if (v > top) [best, top] = [c, v];
+  }
+  p.boss.intent = best?.uid;
+}
+
+/** Every Lost Overlord's next action, chosen again for the board as it now stands. */
+function rechooseBossIntents(state: GameState) {
+  if (state.winnerId) return;
+  for (const p of state.players) if (p.boss && !p.eliminated) chooseBossIntent(state, p);
 }
 
 /** A Lost Overlord's parts that act, in the order they take their turns: left to right, the Overlord itself last. */
@@ -1919,27 +1985,19 @@ export function bossIntent(p: PlayerState): { card: CardInstance; name: string }
 }
 
 /**
- * A Lost Overlord's day: the part whose turn it is takes its action (if it is still there: if not, the Overlord
- * staggers, and the day is lost to it); then the next part's turn is shown.
+ * A Lost Overlord's day: the part it chose takes its action (with none left to act, it staggers, and the day is
+ * lost to it); then its next is chosen and shown.
  */
 function bossAct(state: GameState, p: PlayerState) {
   const intent = bossIntent(p);
-  const order = bossOrder(p);
   if (intent) {
     const a = cardDef(intent.card.defId).bossAction!;
     log(state, `⚔ ${p.name}: ${a.name}!`);
     resolveEffects(state, p, intent.card, a.effects, 'turn');
   } else log(state, `${p.name} reaches for a part it no longer has, and staggers.`);
   if (state.winnerId || p.eliminated || !p.boss) return;
-  // The next to act: the part after this one, in turn (its place in the order as it was, if it has gone).
-  const now = bossOrder(p);
-  if (!now.length) {
-    p.boss.intent = undefined;
-    return;
-  }
-  const was = order.findIndex((c) => c.uid === p.boss!.intent);
-  const after = was >= 0 ? order.slice(was + 1).concat(order.slice(0, was + 1)) : order;
-  p.boss.intent = (after.find((c) => now.includes(c)) ?? now[0]).uid;
+  // The next: its best against the board as it now stands.
+  chooseBossIntent(state, p);
 }
 
 /** A player by id. */
@@ -2603,6 +2661,8 @@ export function applyAction(prev: GameState, action: Action): GameState {
       break;
     }
   }
+  // (A Lost Overlord weighs the board again after every move: what it shows is what it will do.)
+  rechooseBossIntents(state);
   return state;
 }
 

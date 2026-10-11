@@ -1817,7 +1817,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   const defenceConditions = [
     ...starCond,
     ...(fx?.conditions ?? []),
-    ...(target.heart && !owner ? [{ name: 'Lost Overlord', text: `The wormhole's guardian has no sun: beat down the Overlord itself (${overlordHealth(s.universe)} stability) to win. It takes one great action a day, its parts in turn: destroy a part to stop its action.` }] : []),
+    ...(target.heart && !owner ? [{ name: 'Lost Overlord', text: `The wormhole's guardian: destroy the Overlord itself (${overlordHealth(s.universe)} stability) to win. Each day one of its parts takes its best action for the board, shown ahead: destroy that part, and it must choose another.` }] : []),
     ...(target.fortification ? [{ name: 'Fortified', text: `+${target.fortification * CAMPAIGN.fortifyHealth} max health (fortification level ${target.fortification}).` }] : []),
     ...(g.tableau.length || g.lightspeed ? [{ name: 'Garrison', text: `${g.tableau.length} stationed card${g.tableau.length === 1 ? '' : 's'} start in play.` }] : []),
   ];

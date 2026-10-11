@@ -505,7 +505,7 @@ export interface PlayerState {
   /**
    * A Lost Overlord (a campaign's wormhole guardian): it draws and plays no cards; each day it takes one great
    * action, its parts taking turns (left to right, the Overlord itself last). `intent`: the part whose action
-   * comes next (shown to its rival, who can destroy that part to stop it).
+   * comes next: its best for the board, chosen again after every move (shown to its rival).
    */
   boss?: { intent?: string; /** The card whose fall beats it (its Overlord): it has no sun. */ leader?: string };
   /**
