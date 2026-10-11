@@ -31,6 +31,7 @@ import {
   upgradeOpen,
   buyStarterCard,
   removeStarterCard,
+  starterOwned,
   starterAddProblem,
   starterCardPrice,
   STARTER_OFFERS,
@@ -875,8 +876,11 @@ export class CampaignView {
           sound.error();
           break;
         }
+        // (A card bought before goes back in for nothing: no purchase sound.)
+        const owned = starterOwned(meta, this.setup.race, arg);
         saveMeta(buyStarterCard(meta, this.setup.race, arg, cardDef(arg).rarity));
-        sound.buy();
+        if (owned) sound.hover();
+        else sound.buy();
         break;
       }
       case 'cmp-deck-remove': {
@@ -1529,7 +1533,7 @@ export class CampaignView {
 
   /**
    * A race's starting deck offers: the six cards (two of each rarity) that can be bought into it with petals, kept
-   * for every run as that race. A bought card can be taken out again.
+   * for every run as that race. A bought card is owned for good: taken out, it goes back in for nothing.
    */
   private renderStarterDeck(meta: MetaState): string {
     const r = this.setup.race;
@@ -1542,7 +1546,9 @@ export class CampaignView {
         const foot =
           at >= 0
             ? `<button class="sd-remove" data-act="cmp-deck-remove" data-arg="${at}" aria-label="Take it out">in deck ×</button>`
-            : `<button class="sd-buy" data-act="cmp-deck-add" data-arg="${esc(id)}" ${starterAddProblem(meta, r, id, def.rarity) ? 'disabled' : ''}>${PETAL}${starterCardPrice(def.rarity)}</button>`;
+            : starterOwned(meta, r, id)
+              ? `<button class="sd-buy sd-owned" data-act="cmp-deck-add" data-arg="${esc(id)}" aria-label="Put it back in, free (bought already)">owned · add</button>`
+              : `<button class="sd-buy" data-act="cmp-deck-add" data-arg="${esc(id)}" ${starterAddProblem(meta, r, id, def.rarity) ? 'disabled' : ''}>${PETAL}${starterCardPrice(def.rarity)}</button>`;
         return `<div class="sd-card rarity-${def.rarity ?? 'dwarf'} ${at >= 0 ? 'owned' : ''}" data-act="inspect" data-card="${esc(id)}">
           <span class="sd-art">${cardArtLite(def)}</span>
           <span class="sd-name"><i></i>${esc(def.name.toLowerCase())}</span>

@@ -676,7 +676,8 @@ const MECHANIC_SVG: Record<string, string> = {
   orbit: '<circle cx="6" cy="6" r="1.8"/><ellipse cx="6" cy="6" rx="4.8" ry="2.2" transform="rotate(-25 6 6)"/>',
   attune: '<circle cx="6" cy="6" r="4.2"/><circle cx="9" cy="3" r="1.2" class="kw-ico-fill"/><circle cx="6" cy="6" r="1" class="kw-ico-fill"/>',
   lightspeed: '<path d="M6.8 1.2 2.8 6.6h3l-.6 4.2 4-5.4h-3Z"/>',
-  trap: '<path d="M1.4 8.6h9.2M2.2 8.6 3.2 4.6l1.3 4L6 4.2l1.5 4.4 1.3-4 1 4"/>',
+  // An open bear trap: its two jaws spread wide, teeth turned in, on its base.
+  trap: '<path d="M1 3.4C1 7 3.2 8.6 6 8.6S11 7 11 3.4"/><path d="M1 3.4 2.6 4.6 1.6 6M11 3.4 9.4 4.6 10.4 6M3.4 7.4l.6-1.6M8.6 7.4 8 5.8"/><path d="M3.4 10.6h5.2"/>',
   global: '<circle cx="6" cy="6" r="4.4"/><path d="M1.6 6h8.8M6 1.6c1.6 1.6 1.6 7.2 0 8.8M6 1.6c-1.6 1.6-1.6 7.2 0 8.8"/>',
 };
 

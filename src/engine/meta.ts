@@ -78,6 +78,8 @@ export interface MetaState {
   upgrades: Record<string, number>;
   /** Cards bought (with petals) into each race's starting deck, by race. */
   deck: Record<string, string[]>;
+  /** Starter cards bought for good, by race: one taken out of the deck goes back in for nothing. */
+  owned?: Record<string, string[]>;
   /** The most universes crossed in one run, and runs begun. */
   best: number;
   runs: number;
@@ -279,25 +281,42 @@ export const STARTER_OFFERS: string[][] = [
 /** What a starter card costs in petals, by its rarity. */
 export const starterCardPrice = (rarity: string | undefined) => (rarity === 'anomaly' ? 14 : rarity === 'stellar' ? 8 : 4);
 
-/** Why this card can't be bought into this race's starting deck now (null if it can). */
+/** Whether a starter card has been bought for a race (once bought, it is theirs for good: in the deck or out). */
+export function starterOwned(meta: MetaState, race: number, defId: string): boolean {
+  return (meta.owned?.[race] ?? []).includes(defId) || (meta.deck?.[race] ?? []).includes(defId);
+}
+
+/** What putting a starter card into the deck costs now: its price once, nothing after. */
+export const starterAddPrice = (meta: MetaState, race: number, defId: string, rarity: string | undefined) => (starterOwned(meta, race, defId) ? 0 : starterCardPrice(rarity));
+
+/** Why this card can't be put into this race's starting deck now (null if it can). */
 export function starterAddProblem(meta: MetaState, race: number, defId: string, rarity: string | undefined): string | null {
   if (!STARTER_OFFERS[race]?.includes(defId)) return "That card isn't offered to this race's starting deck.";
   if ((meta.deck?.[race] ?? []).includes(defId)) return 'Already in the starting deck.';
-  if (meta.petals < starterCardPrice(rarity)) return `Needs ${starterCardPrice(rarity)} petals.`;
+  const price = starterAddPrice(meta, race, defId, rarity);
+  if (meta.petals < price) return `Needs ${price} petals.`;
   return null;
 }
 
-/** Buy a card into a race's starting deck for good (a new state; throws if it can't be bought). */
+/** Put a card into a race's starting deck: bought for good the first time, free after (a new state; throws if it can't). */
 export function buyStarterCard(meta: MetaState, race: number, defId: string, rarity: string | undefined): MetaState {
   const why = starterAddProblem(meta, race, defId, rarity);
   if (why) throw new Error(why);
-  return { ...meta, petals: meta.petals - starterCardPrice(rarity), deck: { ...meta.deck, [race]: [...(meta.deck?.[race] ?? []), defId] } };
+  const owned = meta.owned?.[race] ?? [];
+  return {
+    ...meta,
+    petals: meta.petals - starterAddPrice(meta, race, defId, rarity),
+    deck: { ...meta.deck, [race]: [...(meta.deck?.[race] ?? []), defId] },
+    owned: { ...meta.owned, [race]: owned.includes(defId) ? owned : [...owned, defId] },
+  };
 }
 
-/** Take a bought card back out of a race's starting deck (its petals are not returned). */
+/** Take a bought card back out of a race's starting deck (still owned: it goes back in for nothing). */
 export function removeStarterCard(meta: MetaState, race: number, index: number): MetaState {
   const have = [...(meta.deck?.[race] ?? [])];
-  have.splice(index, 1);
+  const owned = meta.owned?.[race] ?? [];
+  const [out] = have.splice(index, 1);
+  if (out && !owned.includes(out)) meta = { ...meta, owned: { ...meta.owned, [race]: [...owned, out] } };
   return { ...meta, deck: { ...meta.deck, [race]: have } };
 }
 

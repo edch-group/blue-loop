@@ -27,6 +27,7 @@ import {
   legalIn,
   cardDef,
   buyStarterCard,
+  removeStarterCard,
   levelOf,
   rarityOf,
   GENERALS,
@@ -204,6 +205,13 @@ describe('starter offers', () => {
     expect(starterAddProblem(meta, 0, 'shard_tempest', 'dwarf')).toMatch(/offered/);
     meta = buyStarterCard(meta, 0, 'dawnblade', 'dwarf');
     expect(starterAddProblem(meta, 0, 'dawnblade', 'dwarf')).toMatch(/Already/);
+    // Bought once, for good: taken out and put back in, it costs nothing the second time.
+    const after = meta.petals;
+    meta = removeStarterCard(meta, 0, 0);
+    expect(meta.deck[0]).toEqual([]);
+    meta = buyStarterCard(meta, 0, 'dawnblade', 'dwarf');
+    expect(meta.petals).toBe(after);
+    expect(meta.deck[0]).toEqual(['dawnblade']);
   });
 });
 

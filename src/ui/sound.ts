@@ -496,22 +496,23 @@ class SoundBoard {
   /**
    * An encounter: the flagship lands at a guarded star. A dive-bombing synth in the battle theme's own voice: its
    * soft triangle-and-saw pluck, through the arpeggio's resonant filter and dotted-eighth echo, diving down
-   * from A4 to A1 as the filter closes, with low air rushing past. (The battle screen itself opens in silence.)
+   * from A3 to A0 over 1.8s [direction: twice as long and an octave lower] as the filter closes, with low air rushing
+   * past. (The battle screen itself opens in silence.)
    */
   encounter() {
     const ctx = this.ready();
     if (!ctx || !this.sfx) return;
     const t = ctx.currentTime;
     const eighth = 60 / BATTLE_BPM / 2;
-    const fall = 0.9;
+    const fall = 1.8;
     // The battle arpeggio's filter (resonant, lowpass), closing as the synth falls, and its echo into the hall.
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.Q.value = 5;
-    filter.frequency.setValueAtTime(2200, t);
-    filter.frequency.exponentialRampToValueAtTime(260, t + fall);
-    // (Opening again to the arpeggio's own as it lands.)
-    filter.frequency.exponentialRampToValueAtTime(1400, t + fall + 0.15);
+    filter.frequency.setValueAtTime(1100, t);
+    filter.frequency.exponentialRampToValueAtTime(130, t + fall);
+    // (Opening again as it lands.)
+    filter.frequency.exponentialRampToValueAtTime(700, t + fall + 0.3);
     const echo = ctx.createDelay(2);
     echo.delayTime.value = eighth * 1.5;
     const feedback = ctx.createGain();
@@ -523,14 +524,14 @@ class SoundBoard {
     filter.connect(echo).connect(echoTone).connect(feedback).connect(echo);
     echoTone.connect(this.reverb ?? this.sfx);
     // (Let go once the echo has died away.)
-    window.setTimeout(() => { feedback.gain.value = 0; filter.disconnect(); echoTone.disconnect(); }, 6000);
-    // The dive: the pluck's triangle and saw, a detuned pair of each, from A4 down to A1, with a slight warble.
+    window.setTimeout(() => { feedback.gain.value = 0; filter.disconnect(); echoTone.disconnect(); }, 8000);
+    // The dive: the pluck's triangle and saw, a detuned pair of each, from A3 down to A0, with a slight warble.
     for (const d of [-8, 8]) {
-      this.voice(hz('A4'), { dur: fall + 0.1, attack: 0.02, gain: 0.07, to: hz('A1'), type: 'triangle', cutoff: 3000, detune: d, vibrato: 4, out: filter });
-      this.voice(hz('A4'), { dur: fall + 0.1, attack: 0.02, gain: 0.022, to: hz('A1'), type: 'sawtooth', cutoff: 3000, detune: d * 1.5, vibrato: 4, out: filter });
+      this.voice(hz('A3'), { dur: fall + 0.2, attack: 0.04, gain: 0.09, to: hz('A0'), type: 'triangle', cutoff: 1500, detune: d, vibrato: 2, out: filter });
+      this.voice(hz('A3'), { dur: fall + 0.2, attack: 0.04, gain: 0.03, to: hz('A0'), type: 'sawtooth', cutoff: 1500, detune: d * 1.5, vibrato: 2, out: filter });
     }
     // Air rushing past, low.
-    this.breath({ dur: fall, freq: 900, to: 160, type: 'bandpass', q: 1.1, gain: 0.05, attack: 0.3 });
+    this.breath({ dur: fall, freq: 450, to: 80, type: 'bandpass', q: 1.1, gain: 0.06, attack: 0.6 });
   }
   /**
    * A heat wave from the Stellari: a rising roar as it flushes red, then a deep whump as the ring goes out and
