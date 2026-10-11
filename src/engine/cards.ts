@@ -885,11 +885,13 @@ export function statPoints(c: CardDef): number | null {
   if (c.kind === 'command' || c.kind === 'trap' || c.kind === 'relic' || c.kind === 'global' || c.token || isBurst(c)) return null;
   return Math.max(0, c.attack ?? 0) + (c.defence ?? 0) + health0(c);
 }
+/** Bombs allowed past the stat budget, by this many points (an anomaly that must feel like one). */
+export const BUDGET_EXTRA: Record<string, number> = { black_sun: 5 };
 for (const c of CARDS) {
   if (PLAIN_PROFILE[c.id] || c.fusion) continue;
   const pts = statPoints(c);
   if (pts === null) continue;
-  let over = pts - abilityBudget(c.cost ?? 1);
+  let over = pts - abilityBudget(c.cost ?? 1) - (BUDGET_EXTRA[c.id] ?? 0);
   if (over <= 0) continue;
   const h = health0(c);
   const cut = Math.min(over, h - 1);

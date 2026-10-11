@@ -41,7 +41,7 @@ export const DAWN_ATTACK_TEXT: Record<string, string> = {
   pyr_cinder_brute: '{dawn}: {heat:1} to your sun.',
   pyr_ash_walker: '{dawn}: while {overheated}, {heat:2}.',
   pyr_solar_tyrant: '{dawn}: while {overheated}, {heat:2}. {heat:1} to your sun.',
-  black_sun: '{sturdy:3}.',
+  black_sun: '{sturdy:3}. {dawn}: {cool:2}.',
 };
 
 /**
@@ -50,5 +50,5 @@ export const DAWN_ATTACK_TEXT: Record<string, string> = {
  */
 export const DAWN_ATTACK_EXTRA: Record<string, number> = {
   sunforge: 1, overload_core: 1, kor_siege_ram: -1, aureline_skirmisher: 1, ser_stargazer: 1, pyr_ash_walker: 1, pyr_cinder_brute: 2, pyr_solar_tyrant: 2,
-  abyssal_choir: -1, aureline_archon: -1, aurelia_first_light: -1, aureline_war_herald: -1,
+  black_sun: 2, abyssal_choir: -1, aureline_archon: -1, aurelia_first_light: -1, aureline_war_herald: -1,
 };

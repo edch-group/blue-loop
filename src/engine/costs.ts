@@ -119,7 +119,8 @@ export const CARD_COSTS: Record<string, number> = {
   aegis_monolith: 3,
   aurelia_first_light: 3,
   aureline_archon: 3,
-  event_horizon: 3,
+  // (Destroy anything, and its neighbours back to hand: at 3 it outclassed every removal card. [direction: massively overpowered for its cost])
+  event_horizon: 5,
   hive_relay: 2,
   // (Forge 2 on a slot: a Lancers deck's engine. It won 62% of games it was in at 2.)
   focusing_array: 3,

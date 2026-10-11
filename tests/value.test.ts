@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { abilityBudget, CARDS, statPoints } from '../src/engine/cards';
+import { abilityBudget, BUDGET_EXTRA, CARDS, statPoints } from '../src/engine/cards';
 import { PLAIN_PROFILE, plainBudget } from '../src/engine/cards-plain';
 
 describe('stat budget', () => {
@@ -7,7 +7,8 @@ describe('stat budget', () => {
     const over = CARDS.flatMap((c) => {
       const pts = statPoints(c);
       if (pts === null) return [];
-      const cap = PLAIN_PROFILE[c.id] || c.fusion ? plainBudget(c.cost ?? 1) : abilityBudget(c.cost ?? 1);
+      // (A bomb or two are let past it on purpose: BUDGET_EXTRA.)
+      const cap = (PLAIN_PROFILE[c.id] || c.fusion ? plainBudget(c.cost ?? 1) : abilityBudget(c.cost ?? 1)) + (BUDGET_EXTRA[c.id] ?? 0);
       return pts > cap ? [`${c.name} (${c.cost}): ${pts} > ${cap}`] : [];
     });
     expect(over).toEqual([]);

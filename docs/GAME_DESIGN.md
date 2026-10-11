@@ -1138,3 +1138,5 @@ The check now reports none.
 - Hive Surge (Ixquor): Draw 1 and Cool 1 per energy.
 
 **Energy pips.** The pips show the day's whole energy, with spent ones left empty, so bonus energy no longer disappears once you play a card. Energy beyond the day's usual amount (from the industrial planet or energy cards) is amber: it is only for today, and it is spent first.
+
+**Event Horizon and Black Sun** [direction: Event Horizon massively overpowered for its cost; Black Sun not much better than white dwarf cards at its cost]. Event Horizon (destroy any card, its neighbours back to hand, heat 2) cost 3, under Star Breaker (destroy 4, heat 3) at 4: it costs 5 now. Black Sun (6) came out of the stat budget (2c+1 points of attack, Sturdy and stability, whatever a card's rarity) at attack 6, Sturdy 3, stability 4, about what a plain cost-5 card has: it is let 5 points past the budget (cards.ts BUDGET_EXTRA), to attack 8, Sturdy 3, stability 7, and each dawn it cools your sun by 2 (core-legal, as the Core races are offered it).

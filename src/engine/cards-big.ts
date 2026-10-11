@@ -46,7 +46,9 @@ export const BIG_CARDS: CardDef[] = [
   },
   {
     id: 'black_sun', name: 'Black Sun', kind: 'attack', cost: 6, rarity: 'anomaly',
-    text: '{sturdy:3}. {dawn}: {heat:5}.',
-    defence: 3, onTurn: [{ type: 'heat', amount: 5, to: 'target' }],
+    // [direction: barely better than white dwarf cards at its cost] An anomaly's numbers (past the usual budget:
+    // cards.ts BUDGET_EXTRA), and it swallows your own sun's heat each dawn.
+    text: '{sturdy:3}. {dawn}: {heat:5}. {dawn}: {cool:2}.',
+    defence: 3, health: 7, onTurn: [{ type: 'heat', amount: 5, to: 'target' }, { type: 'cool', amount: 2 }],
   },
 ];
