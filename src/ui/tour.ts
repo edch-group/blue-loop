@@ -182,8 +182,9 @@ export function tourShowing(): boolean {
  * Show a tour (once: it is remembered as seen when it ends, finished or skipped). `who` is the speaker's
  * portrait (markup) and name. Returns false if it isn't due.
  */
-export function startTour(id: string, steps: TourStep[], who: { face: string; name: string }, onEnd?: () => void): boolean {
-  if (!tourDue(id)) return false;
+export function startTour(id: string, steps: TourStep[], who: { face: string; name: string }, onEnd?: () => void, force = false): boolean {
+  // (`force`: shown whatever the setting, and however often: a lesson's words, every time it is taken.)
+  if (force ? !!active : !tourDue(id)) return false;
   let i = 0;
   const root = document.createElement('div');
   root.className = 'tour';
@@ -296,7 +297,8 @@ export function startTour(id: string, steps: TourStep[], who: { face: string; na
   root.querySelector('.tour-back')!.addEventListener('click', () => go(-1));
   // Skipping turns the tutorial off for good (it can be turned back on in the campaign's settings).
   root.querySelector('.tour-skip')!.addEventListener('click', () => {
-    setTutorial(false);
+    // (A lesson's words skipped are just that one lesson's.)
+    if (!force) setTutorial(false);
     close(false);
   });
   active = { close };

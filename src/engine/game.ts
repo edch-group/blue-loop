@@ -2157,7 +2157,6 @@ export function createDream(spec: DreamSpec, opts: { seed: number; name: string;
       place(p, card, c.slot);
       if (c.health !== undefined) card.health = c.health;
       if (c.dimmed) card.dimmed = true;
-      p.tableau.push(card);
     }
   }
   const me = state.players[0];

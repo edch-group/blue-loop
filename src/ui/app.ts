@@ -27,6 +27,7 @@ import {
   mergeCardText,
   chooseAIAction,
   createGame,
+  createDream,
   enemyChoices,
   heatFirst,
   enemyEffectKind,
@@ -106,10 +107,13 @@ const WAVE_EXTRA_MS = 450;
 /** Whether a day's effect is the table's heat, loosed as a heat wave from the Stellari (not a card's). */
 const isWave = (p: TurnPulse) => p.kind === 'unstable' && !p.uid;
 import { DeckBuilder, deckBox, deckColour, deckCover, sizePool } from './builder';
-import { CampaignView, loadCampaign } from './campaign';
+import { CampaignView, loadCampaign, ORACLE_PORTRAIT } from './campaign';
+import { tutorialPage, challengesPage, CHALLENGES, challengeById, markLesson, markChallenge, nextLesson, nextChallenge } from './puzzles';
+import { lessonById } from '../engine/lessons';
+import { ORACLE_NAME } from '../engine/story';
 import { relicMark } from './relic-art';
 
-import { closeTour, tourShowing } from './tour';
+import { closeTour, startTour, tourShowing } from './tour';
 import { DREAMS, shownKind, isBurst, isBossCard, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
@@ -131,7 +135,7 @@ import { appSize, forceLandscape, pageRect, toPage, VIEWPORT_EVENT } from './vie
 import { artIdsIn, preloadArt } from './cardart';
 
 type Screen = 'menu' | 'game' | 'campaign';
-type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop' | 'pickdeck';
+type MenuPage = 'title' | 'signin' | 'hub' | 'quickplay' | 'options' | 'decks' | 'online' | 'shop' | 'pickdeck' | 'tutorial' | 'challenges';
 /** Where a reload that takes up newer progress remembers the menu page it came from. */
 const RESUME_KEY = 'blue-loop:resume-page';
 /** The menu pages a reload may come back to (not the title, sign-in or a page that needs its own state). */
@@ -148,6 +152,10 @@ const HUB_ICONS = {
   quickplay: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4"><circle class="ic-e" cx="17" cy="24" r="8"/><circle class="ic-e" cx="36" cy="24" r="4.5"/><path class="ic-faint" d="M26 24h4M27.5 20.5 31 24l-3.5 3.5"/></svg>`,
   /** The world and its meridians. */
   online: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4"><circle class="ic-e" cx="24" cy="24" r="14"/><path class="ic-faint" d="M10 24h28M24 10c-5 4-7 9-7 14s2 10 7 14M24 10c5 4 7 9 7 14s-2 10-7 14"/></svg>`,
+  /** A lantern held up: Oriel's, who teaches. */
+  tutorial: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4"><path class="ic-faint" d="M24 6v6"/><path class="ic-e" d="M17 15h14l-2 20H19z"/><path d="M15 15h18M17 35h14"/><circle class="ic-faint" cx="24" cy="25" r="3.5"/></svg>`,
+  /** A dream: a crescent over a set board. */
+  challenges: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4"><path class="ic-e" d="M30 8a10 10 0 1 0 8 15 8 8 0 1 1-8-15z"/><rect class="ic-faint" x="8" y="30" width="9" height="11" rx="1.5"/><rect class="ic-faint" x="20" y="30" width="9" height="11" rx="1.5"/><rect class="ic-e" x="32" y="30" width="9" height="11" rx="1.5"/></svg>`,
   options: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 15h28M10 24h28M10 33h28"/><circle cx="18" cy="15" r="3.2"/><circle cx="31" cy="24" r="3.2"/><circle cx="22" cy="33" r="3.2"/></svg>`,
 };
 type Speed = 'slow' | 'normal' | 'fast';
@@ -948,6 +956,11 @@ export class App {
     },
   });
   private campaignBattle = false;
+  /** A lesson or a challenge on the battle screen (none: any other game). */
+  private puzzle: { kind: 'lesson' | 'challenge'; id: string } | null = null;
+  /** The lesson, or the challenge, picked on its page (waiting to begin). */
+  private tutPick: string | null = null;
+  private chPick: string | null = null;
 
   /** Online 1v1: the room connection, and what the lobby shows. */
   private online: OnlineClient | null = null;
@@ -1681,10 +1694,10 @@ export class App {
   private armDreamClock() {
     const s = this.state;
     if (!s || s.challenge?.kind !== 'dream') return;
-    // (Once per dream: the campaign's battle, as it began, is its mark.)
-    const begun = this.campaign.state?.battle?.game ?? null;
-    if (this.dreamEnd && this.dreamGame === begun) return;
-    const id = this.campaign.state?.battle?.dream?.id;
+    // (Once per dream: the campaign's battle, as it began, is its mark; a challenge's, the challenge.)
+    const begun = this.puzzle ? s : this.campaign.state?.battle?.game ?? null;
+    if (this.dreamEnd && (this.puzzle ? this.dreamGame !== null : this.dreamGame === begun)) return;
+    const id = this.puzzle?.id ?? this.campaign.state?.battle?.dream?.id;
     const tier = DREAMS.find((d) => d.id === id)?.tier ?? 1;
     this.dreamGame = begun;
     this.dreamEnd = Date.now() + (60 + 20 * tier) * 1000;
@@ -1947,7 +1960,7 @@ export class App {
     // A game against the AI: a new one is noted by the server (for its reward); a continued one keeps its id. (Not a
     // campaign battle: the campaign pays its own way, in materials and petals, with no stardust, flux or experience.)
     const humans = state.players.filter((p) => !p.isAI).length;
-    if (humans === 1 && !state.winnerId && !this.campaignBattle) {
+    if (humans === 1 && !state.winnerId && !this.campaignBattle && !this.puzzle) {
       if (state.turnNumber <= 1) {
         this.aiGameId = null;
         this.rememberAiGame(null);
@@ -1967,7 +1980,7 @@ export class App {
     } else this.aiGameId = null;
     // A fresh game on this device is summed up as it is played (online, the room does it); a resumed one picks
     // its summary up where it was left (kept beside the save).
-    this.statsRec = state.turnNumber <= 1 && !state.winnerId && humans > 0 ? beginStats(state, this.campaignBattle ? 'campaign' : humans === 1 ? 'ai' : 'hotseat') : !state.winnerId && humans > 0 ? savedStatsRec(gameMark(state)) : null;
+    this.statsRec = this.puzzle ? null : state.turnNumber <= 1 && !state.winnerId && humans > 0 ? beginStats(state, this.campaignBattle ? 'campaign' : humans === 1 ? 'ai' : 'hotseat') : !state.winnerId && humans > 0 ? savedStatsRec(gameMark(state)) : null;
     this.state = state;
     this.revealedFor = null;
     this.viewerId = null;
@@ -1984,6 +1997,7 @@ export class App {
     this.dealOpening();
     this.announceTurn(400);
     this.scheduleAI(900);
+    this.lessonTour(state);
   }
 
   /**
@@ -2354,7 +2368,9 @@ export class App {
     this.leaveOnline();
     this.campaignBattle = false;
     this.screen = 'menu';
-    this.menuPage = 'hub';
+    // (Out of a lesson or a challenge: back to its page.)
+    this.menuPage = this.puzzle ? (this.puzzle.kind === 'lesson' ? 'tutorial' : 'challenges') : 'hub';
+    this.puzzle = null;
     this.pending = null;
     this.sheet = null;
     if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
@@ -2365,6 +2381,8 @@ export class App {
   /** Autosave: a campaign battle is saved inside its campaign; a normal game on its own. */
   private persist(state: GameState) {
     if (this.online) return; // the room keeps online games
+    // (A lesson or a challenge isn't saved: it is quick to begin again.)
+    if (this.puzzle) return;
     // Over: its anonymous summary goes off (once).
     if (this.statsRec && isGameOver(state)) {
       sendGameStats(finishStats(this.statsRec, state));
@@ -4076,6 +4094,22 @@ export class App {
         return this.render();
       case 'to-menu':
         return this.quitToMenu();
+      case 'tut-pick':
+        this.tutPick = this.tutPick === arg ? null : arg;
+        sound.hover();
+        return this.render();
+      case 'ch-pick':
+        this.chPick = this.chPick === arg ? null : arg;
+        sound.hover();
+        return this.render();
+      case 'lesson-start':
+        return this.startPuzzle('lesson', arg);
+      case 'challenge-start':
+        return this.startPuzzle('challenge', arg);
+      case 'puzzle-retry':
+        return this.puzzle ? this.startPuzzle(this.puzzle.kind, this.puzzle.id) : undefined;
+      case 'puzzle-next':
+        return this.puzzle ? this.startPuzzle(this.puzzle.kind, arg) : undefined;
       case 'reveal':
         this.revealedFor = s ? activePlayer(s).id : null;
         this.render();
@@ -4567,6 +4601,10 @@ export class App {
                   ? this.renderShop()
                   : page === 'pickdeck'
                   ? this.renderPickDeck()
+                  : page === 'tutorial'
+                  ? tutorialPage(this.tutPick)
+                  : page === 'challenges'
+                  ? challengesPage(this.chPick)
                   : this.renderOptions();
     return `
     <main class="menu menu-${page} ${setup ? 'setup-page' : ''}">
@@ -4624,6 +4662,8 @@ export class App {
         ${tile('campaign-new', '', HUB_ICONS.campaign, 'a dying universe', hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue</button>' : '')}
         ${tile('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', hasGame ? '<button class="btn btn-small hub-continue" data-act="continue">continue</button>' : '')}
         ${tile('menu-page', 'online', HUB_ICONS.online, 'online')}
+        ${tile('menu-page', 'tutorial', HUB_ICONS.tutorial, 'tutorial')}
+        ${tile('menu-page', 'challenges', HUB_ICONS.challenges, 'challenges')}
       </div>`;
   }
 
@@ -5521,9 +5561,13 @@ export class App {
     }
     // A dream: its goal, and the time left to reach it (the dreamer's day only).
     if (!p && s.challenge?.kind === 'dream' && !isGameOver(s)) {
-      this.armDreamClock();
       const goal = s.challenge.goal === 'win' ? 'win this day' : 'survive their day';
-      return `<div class="mid-hint boss-hint dream-hint"><small>a dream of the lost</small><b>${goal}</b><span class="dream-clock">${this.dreamLeft()}</span></div>`;
+      // (A lesson is untimed; a challenge is timed as a dream is.)
+      const lesson = this.puzzle?.kind === 'lesson' ? lessonById(this.puzzle.id) : undefined;
+      if (lesson) return `<div class="mid-hint boss-hint dream-hint"><small>lesson · ${esc(lesson.name)}</small><b>${goal}</b></div>`;
+      this.armDreamClock();
+      const label = this.puzzle?.kind === 'challenge' ? `challenge ${CHALLENGES.findIndex((c) => c.id === this.puzzle!.id) + 1}` : 'a dream of the lost';
+      return `<div class="mid-hint boss-hint dream-hint"><small>${label}</small><b>${goal}</b><span class="dream-clock">${this.dreamLeft()}</span></div>`;
     }
     // A challenge's clock (the mine's count too), with nothing acting next. (Against a Lost Overlord or Lord, the
     // card that acts next burns on the board: that says enough.)
@@ -5566,6 +5610,8 @@ export class App {
     const why = draw
       ? `Every sun went supernova together in round ${s.round}.${this.campaignBattle ? ' Your flagship pulls back, unbroken.' : ''}`
       : quitter ? `${quitter.id === viewer.id ? 'You' : solo ? 'Your rival' : esc(quitter.name)} conceded in round ${s.round}.` : `The last sun standing after ${s.round} round${s.round === 1 ? "" : "s"}.`;
+    // A lesson or a challenge: solved (kept), Oriel's word, and on to the next; or try again.
+    if (this.puzzle) return this.renderPuzzleResult(won);
     // (A campaign battle's spoils, salvage and finds are shown on the map, as its loot, once you are back there.)
     const actions = this.campaignBattle
       ? '<button class="btn-primary" data-act="campaign-return">continue</button>'
@@ -5583,6 +5629,52 @@ export class App {
         ${this.resultExtra}
         ${actions}
       </div>`;
+  }
+
+  /** A lesson's or a challenge's end: solved (and kept as done), with what's next; or not, with another try. */
+  private renderPuzzleResult(won: boolean): string {
+    const pz = this.puzzle!;
+    const lesson = pz.kind === 'lesson' ? lessonById(pz.id) : undefined;
+    if (won) pz.kind === 'lesson' ? markLesson(pz.id) : markChallenge(pz.id);
+    const next = won ? (pz.kind === 'lesson' ? nextLesson(pz.id)?.id : nextChallenge(pz.id)?.id) : undefined;
+    const back = `<button class="btn" data-act="to-menu">${pz.kind === 'lesson' ? 'tutorial' : 'challenges'}</button>`;
+    const title = won ? (pz.kind === 'lesson' ? 'learnt' : 'solved') : 'not yet';
+    const why = won ? (lesson ? `<span class="result-oriel">${ORACLE_PORTRAIT}</span>${esc(lesson.done)}` : 'The dream gives way.') : lesson ? 'Try again: the answer is there.' : 'The dream holds. Try again.';
+    const actions = won
+      ? `<div class="result-actions">${next ? `<button class="btn-primary" data-act="puzzle-next" data-arg="${next}">next</button>` : ''}${back}</div>`
+      : `<div class="result-actions"><button class="btn-primary" data-act="puzzle-retry">try again</button>${back}</div>`;
+    return `
+      <div class="game-result ${won ? 'result-win' : 'result-loss'}">
+        <h2>${title}</h2>
+        <p class="${lesson && won ? 'result-oriel-line' : ''}">${why}</p>
+        ${actions}
+      </div>`;
+  }
+
+  /** Begin a lesson (Oriel speaks first) or a challenge (timed), as a set position. */
+  private startPuzzle(kind: 'lesson' | 'challenge', id: string) {
+    const lesson = kind === 'lesson' ? lessonById(id) : undefined;
+    const spec = lesson?.spec ?? (kind === 'challenge' ? challengeById(id) : undefined);
+    if (!spec) return;
+    closeTour();
+    if (this.aiTimer !== null) window.clearTimeout(this.aiTimer);
+    this.aiTimer = null;
+    this.campaignBattle = false;
+    this.puzzle = { kind, id };
+    this.dreamEnd = 0;
+    this.dreamGame = null;
+    const state = createDream(spec, { seed: Math.floor(Math.random() * 2 ** 31), name: profile().name || 'You', foeName: lesson ? 'a shade' : 'the dream', mode: lesson?.mode ?? 'lost' });
+    this.beginWithArt(state);
+  }
+
+  /** Oriel talks a lesson through once its board is dealt (every time: a lesson is for learning). */
+  private lessonTour(state: GameState) {
+    const lesson = this.puzzle?.kind === 'lesson' ? lessonById(this.puzzle.id) : undefined;
+    if (!lesson) return;
+    window.setTimeout(() => {
+      if (this.state !== state || this.screen !== 'game') return;
+      startTour(`lesson-${lesson.id}`, lesson.intro.map((st) => ({ title: lesson.name, text: st.text, shapes: (st.light ?? []).map((l) => (l.circle ? { sel: l.sel, circle: { r: l.circle } } : { sel: l.sel })) })), { face: ORACLE_PORTRAIT, name: ORACLE_NAME }, undefined, true);
+    }, 1500);
   }
 
   /** The board: your target's tableau across the far side, yours on the near side, the star between. */

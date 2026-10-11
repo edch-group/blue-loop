@@ -532,6 +532,16 @@ export const aiLastDecision: { baseline: number; best: number | null; bestAction
  * Every move a side could make now, but its Hero's abilities and ending the day: each card it could play (every way),
  * each attack (a Dream's solver, campaign dreams.ts, searches these).
  */
+/** The abilities of the Hero leading a tableau that may be used now (one that heats: at the sun, or at each card it may be aimed at). */
+function abilityMoves(state: GameState, me: PlayerState): Action[] {
+  const hero = commandCard(me);
+  if (!hero) return [];
+  const aimAt = aimChoices(state, me).cards.map((c) => c.uid);
+  return heroAbilities(me, hero).flatMap((_, index) =>
+    heroAbilityProblem(state, me, index) !== null ? [] : [{ type: 'heroAbility' as const, index }, ...(abilityAimable(hero.defId, index) ? aimAt.map((aimUid) => ({ type: 'heroAbility' as const, index, aimUid })) : [])],
+  );
+}
+
 export function movesNow(state: GameState): Action[] {
   const me = activePlayer(state);
   const attacks: Action[] = [];
@@ -541,7 +551,7 @@ export function movesNow(state: GameState): Action[] {
     if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
     for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
   }
-  return [...attacks, ...candidatePlays(state, me)];
+  return [...attacks, ...abilityMoves(state, me), ...candidatePlays(state, me)];
 }
 
 export function chooseAIAction(state: GameState): Action {
@@ -559,13 +569,7 @@ export function chooseAIAction(state: GameState): Action {
   if (skill !== null) return { type: 'heroSkill', index: skill };
   // Its Hero's abilities (one a day): weighed like any card it could play.
   const hero = commandCard(me);
-  // (One that heats: at the sun, or at each card it may be aimed at.)
-  const aimAt = aimChoices(state, me).cards.map((c) => c.uid);
-  const abilities: Action[] = hero
-    ? heroAbilities(me, hero).flatMap((_, index) =>
-        heroAbilityProblem(state, me, index) !== null ? [] : [{ type: 'heroAbility' as const, index }, ...(abilityAimable(hero.defId, index) ? aimAt.map((aimUid) => ({ type: 'heroAbility' as const, index, aimUid })) : [])],
-      )
-    : [];
+  const abilities = abilityMoves(state, me);
   // Its cards' attacks (each ready card, at the sun or each card it may hit).
   const attacks: Action[] = [];
   const targets = aimChoices(state, me, true);

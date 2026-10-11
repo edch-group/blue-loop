@@ -1684,7 +1684,7 @@ body.screen-campaign .backdrop { display: none; }
 .title-small .title-sun { width: min(54px, calc(11 * var(--vh))); }
 .title-small .title { font-size: clamp(1.1rem, calc(5 * var(--vh)), 1.8rem); margin: clamp(6px, calc(2 * var(--vh)), 14px) 0 0; }
 .menu-heading { margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(0.9rem, calc(4 * var(--vh)), 1.3rem); letter-spacing: 0.3em; text-transform: uppercase; color: #555a63; padding-left: 0.3em; }
-.hub { --ht: clamp(96px, calc(30 * var(--vh)), 150px); display: grid; grid-template-columns: repeat(3, var(--ht)); justify-content: center; gap: clamp(10px, calc(2 * var(--vw)), 20px); }
+.hub { --ht: clamp(84px, min(calc(30 * var(--vh)), calc(15 * var(--vw))), 150px); display: grid; grid-template-columns: repeat(5, var(--ht)); justify-content: center; gap: clamp(10px, calc(2 * var(--vw)), 20px); }
 /* Near-square tiles. */
 .hub .hub-card { aspect-ratio: 1 / 1.05; min-height: 0; }
 /* Shop and collection: plain links in the header, top left. */
@@ -5156,9 +5156,12 @@ button.cmp-rs-offer:hover, button.cmp-rs-offer:focus-visible { transform: transl
 .slot-empty.slot-wounded { color: #e88a80; border-color: rgba(232, 138, 128, 0.6); background: rgba(176, 84, 74, 0.12); }
 
 /* The tutorial: the oracle's tour, the screen dimmed but for what he talks about, outlined (tour.ts). */
-.tour { position: fixed; inset: 0; z-index: 9500; animation: tour-in 0.3s ease-out; }
+.tour { position: fixed; inset: 0; z-index: 9500; }
+/* (Only the bubble eases in, by movement: a tour that leant on an opacity animation stayed invisible wherever that
+   animation was held back from starting.) */
+.tour-bubble { animation: tour-bubble-in 0.3s ease-out; }
+@keyframes tour-bubble-in { from { translate: 0 8px; } }
 .tour.tour-out { opacity: 0; transition: opacity 0.25s; pointer-events: none; }
-@keyframes tour-in { from { opacity: 0; } }
 .tour-veil { position: absolute; left: 0; top: 0; overflow: visible; }
 .tour-dim { fill: rgba(22, 24, 44, 0.58); transition: fill 0.3s; }
 .tour-open .tour-dim { fill: rgba(22, 24, 44, 0.4); }
@@ -7018,3 +7021,57 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-hero-earn b small { font-size: 0.75rem; color: var(--ink-faint); }
 .cs-hero-earn span { max-width: 13em; font-size: 0.68rem; line-height: 1.35; color: var(--ink-soft); text-align: center; }
 .cs-hero-earn i { width: 9em; height: 4px; border-radius: 2px; background: linear-gradient(90deg, #c9a24a calc(var(--k) * 100%), #e6e8ee 0); }
+
+/* ---------- The tutorial and challenges ---------- */
+/* [direction: the tutorial's progress as a skill-tree-like branch; challenges from a much higher tier] Both pages lie
+   over the menu's own paper: back top left, the title in spaced capitals, the branch (or the tiers) across the middle,
+   and the one picked waiting at the foot with its begin. */
+.menu-tutorial, .menu-challenges { padding: max(14px, var(--sa-t)) max(16px, var(--sa-r)) max(12px, var(--sa-b)) max(16px, var(--sa-l)); }
+.tut { position: relative; width: 100%; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; }
+.tut-back { position: absolute; top: 0; left: 0; z-index: 2; }
+.tut-head { text-align: center; display: grid; gap: 2px; }
+.tut-head small { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-faint); }
+.tut-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.2rem, calc(5 * var(--vh)), 2rem); letter-spacing: 0.4em; text-transform: uppercase; color: var(--ink); }
+.tut-tree { position: relative; width: min(100%, calc(64vh * 100 / 64 * 1.2)); justify-self: center; height: 100%; min-height: 0; }
+.tut-links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.tut-link { fill: none; stroke: rgba(58, 66, 86, 0.16); stroke-width: 0.5; vector-effect: non-scaling-stroke; stroke-width: 2px; stroke-linecap: round; }
+.tut-link.open { stroke: rgba(95, 143, 196, 0.45); stroke-dasharray: 4 5; }
+.tut-link.lit { stroke: #d6b25e; stroke-width: 3px; }
+.tut-link-crown:not(.lit):not(.open) { stroke-dasharray: 2 6; }
+.tut-node { position: absolute; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 4px; border: 0; padding: 0; background: none; cursor: pointer; font: inherit; color: var(--ink-soft); z-index: 1; }
+.tut-node[disabled] { cursor: default; opacity: 0.5; }
+.tut-dot { width: clamp(26px, calc(6.4 * var(--vh)), 42px); height: clamp(26px, calc(6.4 * var(--vh)), 42px); border-radius: 50%; display: grid; place-items: center; font-family: var(--display); font-size: 0.72rem; background: #fff; color: var(--ink-soft); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.2), 0 4px 12px rgba(40, 46, 70, 0.1); transition: transform 0.2s, box-shadow 0.2s; }
+.tut-node b { font-family: var(--display); font-weight: 400; font-size: clamp(0.5rem, calc(1.7 * var(--vh)), 0.66rem); letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; }
+.tut-open .tut-dot { box-shadow: 0 0 0 2px #5f8fc4, 0 0 16px rgba(95, 143, 196, 0.5); color: var(--ink); animation: tutPulse 2.4s ease-in-out infinite; }
+.tut-done .tut-dot { background: radial-gradient(circle at 40% 35%, #fff6d8, #e7c26a 70%, #b98a2c); color: #6a4a12; box-shadow: 0 0 0 1px rgba(150, 110, 30, 0.5), 0 0 14px rgba(230, 190, 90, 0.5); }
+.tut-advanced.tut-locked .tut-dot { background: #eceef3; }
+.tut-node.on .tut-dot { transform: scale(1.18); box-shadow: 0 0 0 3px #3a4256, 0 6px 18px rgba(40, 46, 70, 0.25); }
+@media (hover: hover) { .tut-node:not([disabled]):hover .tut-dot { transform: scale(1.1); } }
+@keyframes tutPulse { 50% { box-shadow: 0 0 0 2px #5f8fc4, 0 0 26px rgba(95, 143, 196, 0.75); } }
+@media (prefers-reduced-motion: reduce) { .tut-open .tut-dot { animation: none; } }
+.tut-root { position: absolute; left: 50%; top: calc(59 / 64 * 100%); transform: translate(-50%, -50%); width: clamp(40px, calc(9 * var(--vh)), 60px); height: clamp(40px, calc(9 * var(--vh)), 60px); box-shadow: 0 0 0 2px #fff, 0 6px 18px rgba(40, 46, 70, 0.25); border-radius: 50%; }
+.tut-crown-label { position: absolute; left: 50%; top: 31%; transform: translateX(10px); font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-faint); opacity: 0.6; white-space: nowrap; }
+.tut-crown-label.open { opacity: 1; color: #8a7ad0; }
+.tut-foot { min-height: 64px; display: grid; place-items: center; }
+.tut-hint { margin: 0; font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
+.tut-pick { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 18px; row-gap: 2px; }
+.tut-pick small { grid-column: 1; font-family: var(--display); font-size: 0.52rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); }
+.tut-pick b { grid-column: 1; font-family: var(--display); font-weight: 400; font-size: 1rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink); }
+.tut-pick span { grid-column: 1; font-size: 0.78rem; color: var(--ink-soft); }
+.tut-pick .btn-primary { grid-column: 2; grid-row: 1 / 4; }
+/* Challenges: a row of tiles for each tier, each its race's emblem, its number and its goal; solved ones ticked. */
+.ch-tiers { display: grid; align-content: center; gap: clamp(10px, calc(3 * var(--vh)), 24px); min-height: 0; overflow-y: auto; }
+.ch-tier h4 { margin: 0 0 8px; text-align: center; font-family: var(--display); font-weight: 400; font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-faint); }
+.ch-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.ch-tile { position: relative; width: clamp(64px, calc(14 * var(--vh)), 92px); display: grid; justify-items: center; gap: 2px; padding: 10px 6px 8px; border: 0; border-radius: 14px; background: #fff; cursor: pointer; font: inherit; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.12), 0 4px 12px rgba(40, 46, 70, 0.08); transition: transform 0.15s, box-shadow 0.15s; }
+.ch-tile b { font-family: var(--display); font-weight: 400; font-size: 0.9rem; color: var(--ink); }
+.ch-tile small { font-family: var(--display); font-size: 0.5rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); }
+.ch-emblem { width: 30px; height: 30px; display: block; }
+.ch-emblem > * { width: 100%; height: 100%; }
+.ch-tile.solved { background: linear-gradient(#fffaf0, #fff4dc); box-shadow: 0 0 0 1px rgba(200, 160, 70, 0.5), 0 4px 12px rgba(40, 46, 70, 0.08); }
+.ch-check { position: absolute; top: 5px; right: 7px; font-style: normal; font-size: 0.7rem; color: #b98a2c; }
+.ch-tile.on { transform: translateY(-3px); box-shadow: 0 0 0 2.5px #3a4256, 0 8px 18px rgba(40, 46, 70, 0.2); }
+@media (hover: hover) { .ch-tile:hover { transform: translateY(-3px); } }
+/* A lesson learnt: Oriel's word beside his face. */
+.result-oriel-line { display: flex; align-items: center; gap: 10px; max-width: 34em; }
+.result-oriel { flex: none; width: 38px; height: 38px; display: block; border-radius: 50%; box-shadow: 0 0 0 2px #fff; }

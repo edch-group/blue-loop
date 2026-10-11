@@ -1046,6 +1046,16 @@ The powers (white dwarf / stellar / anomaly):
 **Balance notes (simulator).**
 - A run bot (auto-battles, always pushing forward, no upgrades) crossed universe 1 in 4 of 12 seeds (6 petals each) and died in universe 2 every time. Upgrades are meant to carry later runs further.
 
+## Tutorial and challenges
+
+The hub has five tiles: a dying universe, quickplay, online, **tutorial** and **challenges**.
+
+**Tutorial** [direction: challenges akin to the tier 1 dreams, showing the game's mechanics in bite-sized chunks, with Oriel guiding the player through the UI and the rules; core mechanics first, advanced tutorials for the Lost Races after; progress tracked on a skill-tree-like branch]. Eighteen lessons (src/engine/lessons.ts), each a set position played as a dream is (win before the day ends, or live through the rival's next day), untimed. As a lesson's board is dealt, Oriel talks it through step by step, lighting what he speaks of (the tour of src/ui/tour.ts, shown every time a lesson is taken; skipping it skips only that lesson's words); solved, his parting line shows with "next" and "tutorial"; not, "try again". The tutorial page is a branch growing up from Oriel's portrait: the trunk (the sun: attack; energy: play a card; guard: what a Guard stops; breaking through: defence and stability), forking into holding on (shields, cooling, removal, traps; all survive puzzles) and the four races (forge, overheat, growth, heroes, dusk and vigil), each lesson opening once the one before is done; done ones lit gold, the next pulsing blue, the rest dim. Above, the Lost Races' crown (darkspeed, consume, erode, walls as weapons, spend all), played in Lost Races mode, opens once every core lesson is done. A lesson tapped waits at the foot with its begin. Progress is kept on the device. Every lesson is proven solvable, and not by simply ending the day (but the dusk lesson, whose answer is to hold back), in tests/lessons.test.ts, by the puzzle solver (src/engine/puzzle.ts, shared with the dream generator).
+
+**Challenges** [direction: the same as the dreams, starting from a much higher tier since players have the tutorial]. The Dreams of the Lost from the third tier up (tiers 1 and 2 are what the tutorial teaches), numbered in order and shown as challenge tiers I and II: a tile each, with its race's emblem and its goal, ticked once solved. Timed as a dream is (a minute, and 20 seconds a dream tier). Solved: "next" and "challenges"; not: "try again".
+
+**Dream boards were doubled (fixed).** Every card set on a dream's board stood in its tableau twice, so its dawn and dusk effects and its passives counted double. Fixed, and every dream re-checked against the fixed rules (dreams-gen.ts RECHECK): 41 of 47 still fair, six survive puzzles dropped (docs/TODO.md lists the gaps).
+
 ## Open design questions
 
 1. **Numbers:** max health 20, 5 slots, slot defence 1-2-3-2-1, stability 3 (1 for one-time cards), a cap of 2 plays and 1 draw a day are all first guesses. Human playtesting should drive them.
