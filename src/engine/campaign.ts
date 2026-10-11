@@ -24,7 +24,7 @@ import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types
 import { LOST_LORDS, OVERLORDS, overlordById, overlordHealth } from './cards-bosses';
 import type { RelicInPlay } from './relics';
 import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
-import { RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
+import { RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
 import { runBonuses, type RunBonuses } from './meta';
 import {
@@ -1626,7 +1626,7 @@ function armoryStock(s: CampaignState, n: CampaignNode): string[] {
  */
 function pickResearch(s: CampaignState, n: CampaignNode, taken: Set<string>): string[] {
   const near = deepIn(s, n);
-  const free = RESEARCH.filter((r) => !taken.has(r.id));
+  const free = RESEARCH.filter((r) => !taken.has(r.id) && !RETIRED_RESEARCH.has(r.id));
   const fits = shuffleInPlace(s, free.filter((r) => (near ? r.tier >= 2 : r.tier <= 2)));
   const rest = shuffleInPlace(s, free.filter((r) => !fits.includes(r)));
   return [...fits, ...rest].slice(0, CAMPAIGN.researchOptions).map((r) => r.id);

@@ -82,7 +82,6 @@ import {
   type GameState,
   researchProblem,
   researchProject,
-  researchBonus,
   setRulesMode,
   shownKind,
   overlordById,
@@ -93,7 +92,7 @@ import {
 import { account, markDirty } from './account';
 import { profile } from './profile';
 import { loadMeta, saveMeta } from './meta';
-import { DeckBuilder, type BuilderMode } from './builder';
+import { DeckBuilder } from './builder';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
@@ -180,6 +179,16 @@ const UP_BRANCHES: { g: MetaGroup; title: string; dir: number; colour: string }[
   { g: 'spoils', title: 'spoils of war', dir: 330, colour: '#c4564a' },
   { g: 'lore', title: 'lasting wisdom', dir: 360, colour: '#3fa9a4' },
 ];
+
+/** A research project's mark, as the skill tree's like upgrades have it (by its icon). */
+const RESEARCH_MARK = (): Record<string, string> => ({
+  cool: UPGRADE_LOOK.cryo.icon,
+  energy: UPGRADE_LOOK.foundry.icon,
+  hull: UPGRADE_LOOK.plating.icon,
+  mend: UPGRADE_LOOK.mend.icon,
+  draw: UPGRADE_LOOK.cards.icon,
+  loot: UPGRADE_LOOK.scouts.icon,
+});
 
 /** Each lasting upgrade's mark, and what it gives at a level, in a few words (the number large on its tile). */
 const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: number) => string }> = {
@@ -429,6 +438,8 @@ export class CampaignView {
    * left/right arrows turn the Stellari on to the next branch]: the branch shown, and the flower's turn (degrees,
    * running on round the circle so it always turns the way the arrow points).
    */
+  /** The research station's upgrade tapped, waiting on "take". */
+  private rsPick: string | null = null;
   private upBranch = 0;
   private upTurn = 90;
   /** A phone (or a narrow window): the tree one branch at a time. */
@@ -994,7 +1005,29 @@ export class CampaignView {
         if (node.station?.kind === 'armory') {
           this.keeperVisit++;
           this.sheet = { kind: 'armory', nodeId: arg, tab: 'buy' };
-        } else if (node.station?.kind === 'research') this.sheet = { kind: 'research', nodeId: arg };
+        } else if (node.station?.kind === 'research') {
+          this.rsPick = null;
+          this.sheet = { kind: 'research', nodeId: arg };
+        }
+        sound.hover();
+        break;
+      }
+      case 'cmp-rs-pick':
+        this.rsPick = this.rsPick === arg ? null : arg;
+        sound.hover();
+        break;
+      case 'cmp-ar-pick': {
+        // A card on the armoury's shelf tapped: lifted (or, fusing, one of the two).
+        if (this.sheet?.kind !== 'armory') break;
+        const sh = this.sheet;
+        if (sh.tab === 'fuse') {
+          const reserve = campaignPlayer(s!).reserve;
+          const picks = sh.fuse ?? [];
+          const have = (id: string, list: string[]) => list.filter((x) => x === id).length;
+          const at = picks.lastIndexOf(arg);
+          const next = at >= 0 ? picks.filter((_, k) => k !== at) : picks.length < 2 && have(arg, picks) < have(arg, reserve) ? [...picks, arg] : [...picks.slice(0, 1), arg];
+          this.sheet = { ...sh, fuse: next };
+        } else this.sheet = { ...sh, pick: sh.pick === arg ? undefined : arg };
         sound.hover();
         break;
       }
@@ -2632,150 +2665,131 @@ export class CampaignView {
 
 
 
-  /** What the player has to spend, for the base's and the stations' headers. */
-  private purse(): string {
-    const me = campaignPlayer(this.state!);
-    return `<div class="cmp-purse"><span title="Materials">${MATERIALS}<b>${me.materials}</b></span><span title="Cards in your reserve, waiting for your deck">▤<b>${me.reserve.length}</b></span></div>`;
-  }
-
   /** An armoury's stock (empty if the node has none). */
   private stock(nodeId: string): string[] {
     const st = nodeById(this.state!, nodeId).station;
     return st?.kind === 'armory' ? st.cards : [];
   }
 
-  /** An armoury on the map, full screen like the base: its stock to buy (each card once), and its keepers to recycle and fuse. */
+  /**
+   * An armoury on the map [direction: a drastic redesign; it looked like any generic website, not the slick UI round
+   * it]: the page's own paper, nothing boxed. Its name small at the top, and under it buy · recycle · fuse as words.
+   * Its cards laid out across the middle, each its price beneath it, unboxed; a card tapped lifts and glows, and its
+   * one action waits beneath the row (tapped again, it is looked over). The keeper and their line at the foot;
+   * materials, and the dock's repair for your sun, top right.
+   */
   private renderArmory(sh: Extract<Sheet, { kind: 'armory' }>): string {
-    const n = nodeById(this.state!, sh.nodeId);
-    this.builder.setMode(this.armoryMode(sh));
-    // The station's dock repairs the flagship's damage (its sun starts battles that much hotter).
-    const ship = flagship(this.state!, this.state!.playerId);
-    const repair = ship && ship.damage > 0 ? `<span class="cmp-repair"><small>damage ✸${ship.damage}</small>${this.repairButtons('cmp-heal-army', ship.id, ship.damage, CAMPAIGN.armyHealCost, '')}</span>` : '';
+    const s = this.state!;
+    const me = campaignPlayer(s);
+    const n = nodeById(s, sh.nodeId);
+    const tab = sh.tab;
+    const count = (list: string[], id: string) => list.filter((x) => x === id).length;
+    const stock = this.stock(sh.nodeId);
+    const list = tab === 'buy' ? stock : [...new Set(me.reserve)];
+    const picks = sh.fuse ?? [];
+    const ship = flagship(s, s.playerId);
+    const repair = ship && ship.damage > 0 ? `<span class="ar-repair"><small>sun ✸${ship.damage}</small>${this.repairButtons('cmp-heal-army', ship.id, ship.damage, CAMPAIGN.armyHealCost, '')}</span>` : '';
+    const tabs = (['buy', 'recycle', 'fuse'] as const).map((t) => `<button class="${t === tab ? 'on' : ''}" data-act="cmp-armory-tab" data-arg="${t}">${t}</button>`).join('');
+    // The cards, each with what it costs, fetches or how many are kept.
+    const cards = list
+      .map((id, i) => {
+        const picked = tab === 'fuse' ? picks.includes(id) : sh.pick === id;
+        const tag =
+          tab === 'buy'
+            ? `<span class="ar-tag ${me.materials >= armoryPrice(id) ? '' : 'short'}">${MATERIALS}<b>${armoryPrice(id)}</b></span>`
+            : tab === 'recycle'
+              ? `<span class="ar-tag">×${count(me.reserve, id)} <i>·</i> +${MATERIALS}<b>${recycleValue(id)}</b></span>`
+              : `<span class="ar-tag">×${count(me.reserve, id)}</span>`;
+        // (Tapped once it lifts; tapped again, it is looked over.)
+        const act = picked && tab !== 'fuse' ? `data-act="inspect" data-card="${esc(id)}"` : `data-act="cmp-ar-pick" data-arg="${esc(id)}"`;
+        return `<button class="ar-card ${picked ? 'picked' : ''}" ${act} style="--i:${i};--r:${(((i * 37) % 7) - 3) * 0.5}deg">${cardHtml(id)}${tag}</button>`;
+      })
+      .join('');
+    const empty = tab === 'buy' ? 'sold out' : 'nothing in your reserve';
+    // The one action, beneath the row.
+    let action = '';
+    if (tab === 'fuse') {
+      if (picks.length < 2) action = `<p class="ar-hint">choose two to fuse into one</p>`;
+      else {
+        const [a, b] = picks;
+        const problem = fusionProblem(a, b);
+        const cost = fusionCost(a, b);
+        action = problem
+          ? `<p class="ar-hint warn">${esc(problem.toLowerCase())}</p>`
+          : `<div class="ar-fused">${cardHtml(fusedId(a, b))}</div><button class="btn-primary ar-go" data-act="cmp-fuse" ${me.materials < cost ? 'disabled' : ''}>fuse · ${MATERIALS}${cost}</button><p class="ar-hint">for good</p>`;
+      }
+    } else {
+      const id = sh.pick && list.includes(sh.pick) ? sh.pick : null;
+      if (!id) action = `<p class="ar-hint">${tab === 'buy' ? 'each sold once' : 'break a card down for materials'}</p>`;
+      else if (tab === 'buy') {
+        const why = buyProblem(s, me, n, stock.indexOf(id));
+        action = `<button class="btn-primary ar-go" data-act="cmp-buy" data-arg="${esc(id)}" ${why ? `disabled title="${esc(why)}"` : ''}>buy · ${MATERIALS}${armoryPrice(id)}</button>`;
+      } else action = `<button class="btn-primary ar-go" data-act="cmp-recycle" data-arg="${esc(id)}">recycle · +${MATERIALS}${recycleValue(id)}</button>`;
+    }
+    const keeper = tab === 'buy' ? QUARTERMASTER : RECYCLER;
+    const lines = tab === 'buy' ? QUARTERMASTER_LINES : RECYCLER_LINES;
+    const line = lines[(s.turn * 3 + this.keeperVisit) % lines.length];
     return `
-      <div class="cmp-base">
-        <header class="cmp-base-top">
-          <nav class="cmp-tabs"><span class="cmp-tab cmp-tab-on">${ARMORY_ICON} ${lower(n.name)} space station</span></nav>
-          ${repair}
-          ${this.purse()}
-          <button class="icon-btn" data-act="cmp-close" aria-label="Back to the map" title="Back to the map">×</button>
+      <div class="ar">
+        <button class="ar-back" data-act="cmp-close" aria-label="Back to the map">‹ map</button>
+        <div class="ar-purse">${repair}<span title="Materials">${MATERIALS}<b>${me.materials}</b></span></div>
+        <header class="ar-head">
+          <small>armoury</small>
+          <h3>${esc(lower(n.name))}</h3>
+          <nav class="ar-tabs">${tabs}</nav>
         </header>
-        ${this.builder.render()}
+        <div class="ar-shelf" style="--n:${list.length}">${cards || `<p class="ar-empty">${empty}</p>`}</div>
+        <div class="ar-act">${action}</div>
+        <footer class="ar-keeper">${tab === 'buy' ? QUARTERMASTER_PORTRAIT : RECYCLER_PORTRAIT}<div><b>${esc(keeper.name.toLowerCase())}</b><q>${esc(line)}</q></div></footer>
       </div>`;
   }
 
-  /** A research station on the map: its upgrades to pick one from (free), and the upgrades your flagship carries already. */
+  /**
+   * A research station on the map [direction: a drastic redesign, to match the slick UI round it]: on the page's own
+   * paper, nothing boxed. Its name small at the top; its upgrades across the middle, each a glowing mark, its name
+   * and what it does beneath; one tapped lifts and glows, and "take" waits beneath them. What you carry already, a
+   * line at the foot.
+   */
   private renderResearch(nodeId: string): string {
     const s = this.state!;
     const me = campaignPlayer(s);
     const n = nodeById(s, nodeId);
     if (n.station?.kind !== 'research') return '';
     const st = n.station;
-    const done = (me.research?.done ?? []).map((id) => researchProject(id)).filter((x) => !!x);
-    const b = researchBonus(me.research);
-    const sums = [
-      b.mods.extraPlays ? `+${b.mods.extraPlays} energy a day` : '',
-      b.march ? `+${b.march} march` : '',
-      b.mods.maxHealthDelta ? `+${b.mods.maxHealthDelta} max health` : '',
-      b.mods.openingHand ? `+${b.mods.openingHand} opening hand` : '',
-      b.mods.startingHeat ? `sun starts ${-b.mods.startingHeat} cooler` : '',
-      b.mend ? `repair ${b.mend} a turn` : '',
-      b.sight ? 'farther sight' : '',
-      b.loot ? 'more gear found' : '',
-      b.dread ? 'the weak surrender' : '',
-    ].filter(Boolean);
     const taken = st.takenBy;
-    // Each upgrade on offer, a choice to tap: the one taken marked, the others greyed once it is.
+    const done = (me.research?.done ?? []).map((id) => researchProject(id)).filter((x) => !!x);
+    const pick = this.rsPick && st.options.includes(this.rsPick) && !taken ? this.rsPick : null;
     const offers = st.options
-      .map((id) => {
+      .map((id, i) => {
         const p = researchProject(id);
         if (!p) return '';
         const why = taken ? null : researchProblem(s, me, n, id);
-        const picked = st.project === id;
-        const inner = `${RESEARCH_ICON}<div><b>${esc(p.name)}</b><small>tier ${p.tier}${picked ? ' · taken' : ''}</small><p>${esc(p.text)}</p></div>`;
-        return taken || why
-          ? `<div class="cmp-rs-offer ${picked ? '' : 'taken'}" ${why ? `title="${esc(why)}"` : ''}>${inner}</div>`
-          : `<button class="cmp-rs-offer cmp-rs-pick" data-act="cmp-research" data-arg="${n.id}" data-project="${esc(id)}">${inner}</button>`;
+        const state = taken ? (st.project === id ? 'chosen' : 'gone') : why ? 'gone' : pick === id ? 'picked' : '';
+        const attrs = taken || why ? `aria-disabled="true" ${why ? `title="${esc(why)}"` : ''}` : `data-act="cmp-rs-pick" data-arg="${esc(id)}"`;
+        return `<button class="rs-offer ${state}" ${attrs} style="--i:${i}">
+          <span class="rs-mark">${RESEARCH_MARK()[p.icon] ?? RESEARCH_ICON}</span>
+          <b>${esc(p.name.toLowerCase())}</b>
+          <span class="rs-text">${esc(p.text)}</span>
+          <i class="rs-tier">${'<em></em>'.repeat(p.tier)}</i>
+        </button>`;
       })
       .join('');
-    return this.modal(
-      `${lower(n.name)} research station`,
-      `<div class="cmp-rs-station">
-          ${taken ? `<p class="muted center-text">${taken === me.id ? 'You have taken its upgrade.' : `Taken already, by ${esc(factionById(s, taken).name)}.`}</p>` : '<p class="muted center-text">Pick one upgrade, free. The others are lost.</p>'}
-          <div class="cmp-rs-offers">${offers}</div>
-          ${done.length ? `<p class="cmp-rs-sum">Your flagship carries: ${done.map((x) => esc(x!.name)).join(', ')}.${sums.length ? ` (${sums.join(' · ')})` : ''}</p>` : ''}
-        </div>`,
-      true,
-      '',
-      'cmp-modal-narrow',
-    );
-  }
-
-
-
-
-
-  /** The armoury in the deck builder (no deck): its stock to buy, or your reserve to recycle or fuse, run by its keepers. */
-  private armoryMode(sh: Extract<Sheet, { kind: 'armory' }>): BuilderMode {
-    const s = () => this.state!;
-    const me = () => campaignPlayer(s());
-    const count = (list: string[], id: string) => list.filter((x) => x === id).length;
-    const tab = sh.tab;
-    const list = () => (tab === 'buy' ? this.stock(sh.nodeId) : me().reserve);
-    const picks = sh.fuse ?? [];
-    return {
-      owned: (id) => count(list(), id),
-      cards: () => [...new Set(list())].map((id) => cardDef(id)),
-      deck: () => null,
-      tap: (id) => {
-        if (tab === 'fuse') {
-          const at = picks.lastIndexOf(id);
-          const next = at >= 0 ? picks.filter((_, k) => k !== at) : picks.length < 2 && count(picks, id) < count(me().reserve, id) ? [...picks, id] : [...picks.slice(0, 1), id];
-          this.sheet = { kind: 'armory', nodeId: sh.nodeId, tab, fuse: next };
-        } else this.sheet = { kind: 'armory', nodeId: sh.nodeId, tab, pick: sh.pick === id ? undefined : id };
-        sound.hover();
-        this.host.render();
-      },
-      picked: (id) => (tab === 'fuse' ? picks.includes(id) : sh.pick === id),
-      badge: (id) =>
-        tab === 'buy'
-          ? { text: `${MATERIALS}${armoryPrice(id)}`, title: `${armoryPrice(id)} materials`, on: me().materials >= armoryPrice(id) }
-          : tab === 'recycle'
-            ? { text: `×${count(me().reserve, id)}`, title: `${count(me().reserve, id)} in your reserve: recycles for ${recycleValue(id)} materials each`, on: true }
-            : { text: `×${count(me().reserve, id)}`, title: `${count(me().reserve, id)} in your reserve`, on: picks.includes(id) },
-      head: () => {
-        const keeper = tab === 'buy' ? QUARTERMASTER : RECYCLER;
-        const lines = tab === 'buy' ? QUARTERMASTER_LINES : RECYCLER_LINES;
-        const line = lines[(s().turn * 3 + this.keeperVisit) % lines.length];
-        const sub = (['buy', 'recycle', 'fuse'] as const).map((t) => `<button class="cmp-tab ${t === tab ? 'cmp-tab-on' : ''}" data-act="cmp-armory-tab" data-arg="${t}">${t}</button>`).join('');
-        return `
-          <nav class="cmp-tabs cmp-armory-tabs">${sub}</nav>
-          <div class="cmp-keeper">
-            ${tab === 'buy' ? QUARTERMASTER_PORTRAIT : RECYCLER_PORTRAIT}
-            <div><b>${esc(keeper.name.toLowerCase())}</b><small>${esc(keeper.role)}</small></div>
-          </div>
-          <p class="cmp-keeper-line">“${esc(line)}”</p>`;
-      },
-      foot: () => {
-        if (tab === 'fuse') {
-          if (picks.length < 2) return `<p class="muted">Pick two reserve cards to fuse into one that does both, for materials. Heroes, global and Lightspeed cards can't be fused, nor can a fused card again.</p>`;
-          const [a, b] = picks;
-          const problem = fusionProblem(a, b);
-          if (problem) return `<p class="cmp-warn">${esc(problem)}</p>`;
-          const cost = fusionCost(a, b);
-          return `<div class="cmp-keeper-pick">${cardHtml(fusedId(a, b))}</div>
-            <p class="muted">${esc(cardDef(a).name)} and ${esc(cardDef(b).name)} become one card. <b>This cannot be undone.</b></p>
-            <button class="btn-primary" data-act="cmp-fuse" ${me().materials < cost ? 'disabled' : ''}>fuse · ${MATERIALS} ${cost}</button>`;
-        }
-        const id = sh.pick && list().includes(sh.pick) ? sh.pick : null;
-        if (!id) return `<p class="muted">${tab === 'buy' ? 'Tap a card to look it over. Each is sold once: what you buy waits in your reserve, and is gone from here for good.' : 'Tap a reserve card to break it down for half its space station price, in materials.'}</p>`;
-        const why = tab === 'buy' ? buyProblem(s(), me(), nodeById(s(), sh.nodeId), this.stock(sh.nodeId).indexOf(id)) : null;
-        return `<div class="cmp-keeper-pick">${cardHtml(id)}</div>${
-          tab === 'buy'
-            ? `<button class="btn-primary" data-act="cmp-buy" data-arg="${id}" ${why ? `disabled title="${esc(why)}"` : ''}>buy · ${MATERIALS} ${armoryPrice(id)}</button>`
-            : `<button class="btn-primary" data-act="cmp-recycle" data-arg="${id}">recycle · +${MATERIALS} ${recycleValue(id)}</button>`
-        }`;
-      },
-    };
+    const action = taken
+      ? `<p class="ar-hint">${taken === me.id ? 'taken' : `taken by ${esc(factionById(s, taken).name.toLowerCase())}`}</p>`
+      : pick
+        ? `<button class="btn-primary ar-go" data-act="cmp-research" data-arg="${n.id}" data-project="${esc(pick)}">take</button>`
+        : `<p class="ar-hint">take one · the rest are lost</p>`;
+    return `
+      <div class="ar rs">
+        <button class="ar-back" data-act="cmp-close" aria-label="Back to the map">‹ map</button>
+        <header class="ar-head">
+          <small>research station</small>
+          <h3>${esc(lower(n.name))}</h3>
+        </header>
+        <div class="rs-offers">${offers}</div>
+        <div class="ar-act">${action}</div>
+        ${done.length ? `<footer class="rs-carried"><small>carried</small>${done.map((x) => `<span>${esc(x!.name.toLowerCase())}</span>`).join('')}</footer>` : ''}
+      </div>`;
   }
 
   private modal(title: string, body: string, closable = false, tabs = '', cls = 'modal-wide'): string {

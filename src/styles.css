@@ -6753,3 +6753,115 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   padding: 1px 6px; border-radius: 999px; font-family: var(--display); font-weight: 700; font-size: max(9px, calc(var(--cw, 100px) * 0.11)); color: #fff;
   background: linear-gradient(180deg, #5fc58a, #2f9a5e); box-shadow: 0 0 0 1.5px #fff, 0 0 8px rgba(70, 180, 110, 0.55);
 }
+
+/* ---------- The armoury and the research station (campaign.ts renderArmory, renderResearch) ----------
+   [direction: a drastic redesign; they looked like any generic website] On the page's own paper, nothing boxed:
+   the name small at the top in spaced capitals, the cards (or upgrades) across the middle, each lifting and glowing
+   when tapped, the one action beneath them, the keeper at the foot. */
+.ar {
+  position: fixed; inset: 0; z-index: 60; display: grid; grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 0.6fr) auto; justify-items: center;
+  padding: max(16px, var(--sa-t)) max(20px, var(--sa-r)) max(14px, var(--sa-b)) max(20px, var(--sa-l)); overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0.6) 40%, transparent 75%),
+    radial-gradient(ellipse 120% 90% at 50% 110%, #dedcd8 0%, transparent 60%),
+    linear-gradient(180deg, #faf9f6, var(--paper) 55%, #e0dfdb);
+  animation: up-in 0.25s ease-out both;
+}
+.ar-back { position: absolute; left: max(18px, var(--sa-l)); top: max(14px, var(--sa-t)); z-index: 2; padding: 8px 14px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.66rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft); background: rgba(255, 255, 255, 0.7); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.14); }
+.ar-back:hover { color: var(--ink); background: #fff; }
+.ar-purse { position: absolute; right: max(20px, var(--sa-r)); top: max(16px, var(--sa-t)); z-index: 2; display: flex; align-items: center; gap: 14px; font-family: var(--display); color: var(--ink); }
+.ar-purse > span { display: inline-flex; align-items: center; gap: 6px; }
+.ar-purse b { font-size: 1.05rem; font-weight: 600; }
+.ar-purse .cur { width: 1.2em; height: 1.2em; }
+.ar-repair { gap: 8px !important; }
+.ar-repair small { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: #c0563f; }
+.ar-repair .pill-btn { padding: 5px 11px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); background: rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.12); display: inline-flex; align-items: center; gap: 4px; }
+.ar-repair .pill-btn:hover:not(:disabled) { color: var(--ink); background: #fff; }
+.ar-repair .pill-btn:disabled { opacity: 0.45; cursor: default; }
+.ar-repair .pill-btn .cur { width: 1em; height: 1em; }
+
+.ar-head { display: grid; justify-items: center; gap: 4px; margin-top: 4px; text-align: center; }
+.ar-head small { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.36em; text-transform: uppercase; color: var(--ink-faint); }
+.ar-head h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.3rem, calc(4.4 * var(--vh)), 2.1rem); letter-spacing: 0.42em; text-indent: 0.42em; text-transform: uppercase; color: var(--ink); }
+.ar-tabs { display: flex; gap: 22px; margin-top: 6px; }
+.ar-tabs button { position: relative; padding: 4px 2px; border: 0; background: none; cursor: pointer; font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-faint); }
+.ar-tabs button:hover { color: var(--ink-soft); }
+.ar-tabs button.on { color: var(--ink); }
+.ar-tabs button.on::after { content: ''; position: absolute; left: 50%; bottom: -4px; width: 4px; height: 4px; border-radius: 50%; transform: translateX(-50%); background: var(--ink); }
+
+/* The shelf: the cards across the middle, a little tilted each, wrapping to a second row if need be. */
+.ar-shelf { align-self: end; max-height: 100%; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: 26px 22px; max-width: min(1100px, 100%); overflow-y: auto; overflow-x: hidden; padding: 30px 20px 24px; }
+.ar-card { position: relative; display: grid; justify-items: center; gap: 10px; padding: 0; border: 0; background: none; cursor: pointer; transform: rotate(var(--r)); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); animation: ar-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i) * 45ms); isolation: isolate; }
+.ar-card .cmp-card { --hh: 168px; --hw: 120px; --cw: 120px; box-shadow: 0 6px 18px rgba(40, 46, 70, 0.12); }
+.ar-card:hover { transform: rotate(0deg) translateY(-4px); }
+.ar-card.picked { transform: rotate(0deg) translateY(-12px) scale(1.06); z-index: 2; }
+/* (Picked: a soft golden light behind it, not a box round it.) */
+.ar-card.picked::before { content: ''; position: absolute; left: 50%; top: 40%; width: 180%; height: 140%; transform: translate(-50%, -50%); z-index: -1; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 214, 130, 0.65), rgba(255, 214, 130, 0.2) 55%, transparent); animation: ar-glow 2.4s ease-in-out infinite; }
+.ar-tag { display: inline-flex; align-items: center; gap: 4px; font-family: var(--display); font-size: 0.7rem; letter-spacing: 0.08em; color: var(--ink-soft); }
+.ar-tag b { font-size: 0.82rem; font-weight: 600; color: var(--ink); }
+.ar-tag i { font-style: normal; color: var(--ink-faint); }
+.ar-tag .cur { width: 1.1em; height: 1.1em; }
+.ar-tag.short, .ar-tag.short b { color: #b9bdc8; }
+.ar-empty { font-family: var(--display); font-size: 0.7rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-faint); }
+@keyframes ar-in { from { opacity: 0; transform: rotate(var(--r)) translateY(14px); } }
+@keyframes ar-glow { 50% { opacity: 0.65; } }
+@media (prefers-reduced-motion: reduce) { .ar-card, .ar-card.picked::before, .rs-offer, .rs-offer.picked .rs-mark::before { animation: none; } }
+
+/* The one action, beneath the shelf. */
+.ar-act { min-height: 54px; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.ar-go { padding: 11px 26px; border-radius: 999px; font-family: var(--display); font-size: 0.7rem; letter-spacing: 0.26em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 6px; }
+.ar-go .cur { width: 1.15em; height: 1.15em; }
+.ar-hint { margin: 0; font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-faint); }
+.ar-hint.warn { color: #c0563f; letter-spacing: 0.14em; }
+.ar-fused .cmp-card { --hh: 124px; --hw: 88px; --cw: 88px; }
+
+/* The keeper, at the foot: their face and their line, nothing round them. */
+.ar-keeper { grid-row: 5; justify-self: start; display: flex; align-items: center; gap: 12px; max-width: min(560px, 90vw); }
+.ar-keeper .cmp-portrait { width: 44px; height: 44px; flex: none; }
+.ar-keeper div { display: grid; gap: 2px; }
+.ar-keeper b { font-family: var(--display); font-weight: 400; font-size: 0.58rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-soft); }
+.ar-keeper q { font-size: 0.8rem; font-style: italic; color: var(--ink-faint); }
+
+/* The research station: its upgrades as glowing marks across the middle, their names and words beneath. */
+.rs-offers { align-self: end; display: flex; flex-wrap: wrap; justify-content: center; gap: 28px 56px; padding: 20px; }
+.rs-offer { display: grid; justify-items: center; align-content: start; gap: 10px; width: 200px; padding: 0; border: 0; background: none; cursor: pointer; text-align: center; transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); animation: ar-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i) * 70ms); --r: 0deg; }
+.rs-mark { position: relative; width: 84px; height: 84px; display: grid; place-items: center; border-radius: 50%; isolation: isolate; color: #3a4256; background: radial-gradient(circle at 50% 40%, #ffffff, #eef0f5 70%); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.1), 0 10px 26px rgba(60, 70, 110, 0.14); transition: transform 0.22s; }
+.rs-mark svg { width: 38px; height: 38px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.rs-mark::before { content: ''; position: absolute; inset: -40%; z-index: -1; border-radius: 50%; background: radial-gradient(closest-side, rgba(150, 200, 255, 0.45), transparent); opacity: 0; transition: opacity 0.25s; }
+.rs-offer b { font-family: var(--display); font-weight: 400; font-size: 0.78rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink); }
+.rs-text { font-size: 0.86rem; line-height: 1.35; color: var(--ink-soft); }
+.rs-tier { display: flex; gap: 4px; }
+.rs-tier em { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); opacity: 0.6; }
+.rs-offer:hover .rs-mark { transform: translateY(-3px); }
+.rs-offer:hover .rs-mark::before { opacity: 0.6; }
+.rs-offer.picked { transform: translateY(-8px); }
+.rs-offer.picked .rs-mark { color: #2f6db5; transform: scale(1.1); box-shadow: 0 0 0 1.5px rgba(80, 140, 220, 0.6), 0 14px 32px rgba(60, 110, 200, 0.25); }
+.rs-offer.picked .rs-mark::before { opacity: 1; animation: ar-glow 2.4s ease-in-out infinite; }
+.rs-offer.gone { cursor: default; opacity: 0.4; filter: grayscale(1); }
+.rs-offer.chosen { cursor: default; }
+.rs-offer.chosen .rs-mark { color: #2f6db5; box-shadow: 0 0 0 1.5px rgba(80, 140, 220, 0.6); }
+.rs-carried { grid-row: 5; display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 6px 14px; max-width: 90vw; }
+.rs-carried small { font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.32em; text-transform: uppercase; color: var(--ink-faint); }
+.rs-carried span { font-family: var(--display); font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-soft); }
+
+/* A short screen (a phone on its side): everything a size down. */
+@media (max-height: 560px) {
+  .ar { padding-top: max(10px, var(--sa-t)); grid-template-rows: auto minmax(0, 1fr) auto 44px 0; }
+  .ar-shelf { align-self: center; }
+  .ar-head h3 { font-size: 1.05rem; }
+  .ar-head small { display: none; }
+  .ar-tabs { margin-top: 2px; }
+  .ar-shelf { gap: 14px 14px; padding: 16px 10px 10px; }
+  .ar-card .cmp-card { --hh: 124px; --hw: 88px; --cw: 88px; }
+  .ar-act { min-height: 40px; }
+  .ar-fused .cmp-card { --hh: 92px; --hw: 66px; --cw: 66px; }
+  .ar-fused .cmp-card .card-text { display: none !important; }
+  .ar-keeper { display: none; }
+  /* (The purse and the dock's repair at the foot, where the keeper stands on a taller screen: clear of the name.) */
+  .ar-purse { top: auto; bottom: max(10px, var(--sa-b)); }
+  .rs-offers { gap: 16px 30px; }
+  .rs-offer { width: 170px; gap: 6px; }
+  .rs-mark { width: 60px; height: 60px; }
+  .rs-mark svg { width: 28px; height: 28px; }
+  .rs-text { font-size: 0.76rem; }
+}
