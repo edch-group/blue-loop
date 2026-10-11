@@ -2,6 +2,9 @@ import { markDirty } from './account';
 import heatFire from '../assets/sfx/heat-fire.mp3?inline';
 import sunHit from '../assets/sfx/sun-hit.mp3?inline';
 import cardHit from '../assets/sfx/card-hit.mp3?inline';
+import battleSiren from '../assets/sfx/battle-siren.mp3?inline';
+import riftTick from '../assets/sfx/rift-tick.mp3?inline';
+import phaseTick from '../assets/sfx/phase-tick.mp3?inline';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -23,7 +26,9 @@ const PREFS_KEY = 'blue-loop:sound';
  * app too, where the game runs from file:// and can't fetch files), decoded as soon as audio starts so none plays
  * late.
  */
-const SFX = { heatFire, sunHit, cardHit };
+const SFX = { heatFire, sunHit, cardHit, battleSiren, riftTick, phaseTick };
+/** The encounter siren's level. */
+const ENCOUNTER_LEVEL = 0.4;
 
 /** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
 function silentWav(): string {
@@ -188,10 +193,10 @@ const BOSS_PHRASES: [number, string][][] = [
 
 /**
  * The effects that play backwards in reversed time: all of them but the boosters (which run for as long as a ship
- * flies, with no end to turn round).
+ * flies, with no end to turn round) and the galaxy's own turning tick (which keeps time with the turning).
  */
 const REVERSIBLE = [
-  'hover', 'boomTick', 'clockTick', 'encounter', 'heatWave', 'earthquake', 'cacheOpen', 'lootChime', 'xpFill', 'levelUp',
+  'hover', 'clockTick', 'encounter', 'heatWave', 'earthquake', 'cacheOpen', 'lootChime', 'xpFill', 'levelUp',
   'starHover', 'rustle', 'handLift', 'repair', 'click', 'draw', 'shuffle', 'play', 'buy', 'flare', 'launch', 'whoosh',
   'thermo', 'impact', 'hurt', 'strike', 'block', 'swing', 'clash', 'crack', 'shield', 'hero', 'charge', 'upgrade',
   'objective', 'turn', 'endTurn', 'supernova', 'blocked', 'error', 'clip',
@@ -582,18 +587,14 @@ class SoundBoard {
     this.voice(1318.5, { dur: 0.7, attack: 0.05, gain: 0.012, cutoff: 3000 });
   }
   /**
-   * A clock's hand moving on: day or dusk coming in (they have no banner). A low, dry, wooden tick, the escapement's
-   * catch, and its fainter tock just after, nothing bright.
-   */
-  /**
-   * Time Dense Space turning: a deep booming tick, once a second [direction: a booming tick every time the galaxy
-   * turns]. Low: a thud with a long dark tail, nothing bright.
+   * Time Dense Space turning, once a second [direction: a booming tick every time the galaxy turns, deep and boomy,
+   * from a recorded clock]: the clock's tick slowed right down over a falling sub thump, and a lower clunk of its
+   * mechanism just after, in the smaller room. (It keeps time with the turning, so it never plays backwards.)
    */
   boomTick() {
-    this.voice(64, { dur: 0.9, attack: 0.004, gain: 0.32, to: 38, type: 'sine' });
-    this.voice(96, { dur: 0.35, attack: 0.004, gain: 0.1, to: 60, type: 'triangle', cutoff: 400 });
-    this.breath({ dur: 0.12, freq: 260, type: 'lowpass', q: 0.8, gain: 0.22, attack: 0.002 });
+    this.clip(SFX.riftTick, 0.35, 1, true);
   }
+
 
   /**
    * Time running backwards (Time Dense Space) [direction: music plays in reverse, as do all sounds in combat; each
@@ -730,12 +731,14 @@ class SoundBoard {
     });
   }
 
+  /**
+   * A clock's hand moving on: day or dusk coming in (they have no banner) [direction: like a really big clock's
+   * mechanism, deep and boomy]: the rift's deep tick, then the escapement's lower, heavier clunk.
+   */
   clockTick() {
-    this.breath({ dur: 0.05, freq: 900, type: 'bandpass', q: 3.5, gain: 0.16, attack: 0.003 });
-    this.voice(170, { dur: 0.1, attack: 0.003, gain: 0.12, to: 120, type: 'triangle', cutoff: 900 });
-    this.breath({ dur: 0.04, freq: 700, type: 'bandpass', q: 3.5, gain: 0.07, attack: 0.003, delay: 0.085 });
-    this.voice(140, { dur: 0.08, attack: 0.003, gain: 0.06, to: 105, type: 'triangle', cutoff: 800, delay: 0.085 });
+    this.clip(SFX.phaseTick, 0.45, 1, true);
   }
+
 
   /** The boosters' running sound while a ship is under way (built when it starts, let go once it has faded out). */
   private thrustNodes: { gain: GainNode; stop: () => void } | null = null;
@@ -831,44 +834,12 @@ class SoundBoard {
   }
 
   /**
-   * An encounter: the flagship lands at a guarded star. A dive-bombing synth in the battle theme's own voice: its
-   * soft triangle-and-saw pluck, through the arpeggio's resonant filter and dotted-eighth echo, diving down
-   * from A3 to A0 over 1.8s [direction: twice as long and an octave lower] as the filter closes, with low air rushing
-   * past. (The battle screen itself opens in silence.)
+   * An encounter: the flagship lands at a guarded star. A recorded air-raid siren [direction: cut before it
+   * descends, three times, cut naturally]: three rises, each fading out at its height as the next begins, into the
+   * hall. (The battle screen itself opens in silence.)
    */
   encounter() {
-    const ctx = this.ready();
-    if (!ctx || !this.sfx) return;
-    const t = ctx.currentTime;
-    const eighth = 60 / BATTLE_BPM / 2;
-    const fall = 1.8;
-    // The battle arpeggio's filter (resonant, lowpass), closing as the synth falls, and its echo into the hall.
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.Q.value = 5;
-    filter.frequency.setValueAtTime(1100, t);
-    filter.frequency.exponentialRampToValueAtTime(130, t + fall);
-    // (Opening again as it lands.)
-    filter.frequency.exponentialRampToValueAtTime(700, t + fall + 0.3);
-    const echo = ctx.createDelay(2);
-    echo.delayTime.value = eighth * 1.5;
-    const feedback = ctx.createGain();
-    feedback.gain.value = 0.38;
-    const echoTone = ctx.createBiquadFilter();
-    echoTone.type = 'lowpass';
-    echoTone.frequency.value = 1800;
-    filter.connect(this.sfx);
-    filter.connect(echo).connect(echoTone).connect(feedback).connect(echo);
-    echoTone.connect(this.reverb ?? this.sfx);
-    // (Let go once the echo has died away.)
-    window.setTimeout(() => { feedback.gain.value = 0; filter.disconnect(); echoTone.disconnect(); }, 8000);
-    // The dive: the pluck's triangle and saw, a detuned pair of each, from A3 down to A0, with a slight warble.
-    for (const d of [-8, 8]) {
-      this.voice(hz('A3'), { dur: fall + 0.2, attack: 0.04, gain: 0.09, to: hz('A0'), type: 'triangle', cutoff: 1500, detune: d, vibrato: 2, out: filter });
-      this.voice(hz('A3'), { dur: fall + 0.2, attack: 0.04, gain: 0.03, to: hz('A0'), type: 'sawtooth', cutoff: 1500, detune: d * 1.5, vibrato: 2, out: filter });
-    }
-    // Air rushing past, low.
-    this.breath({ dur: fall, freq: 450, to: 80, type: 'bandpass', q: 1.1, gain: 0.06, attack: 0.6 });
+    this.clip(SFX.battleSiren, ENCOUNTER_LEVEL);
   }
   /**
    * A heat wave from the Stellari: a rising roar as it flushes red, then a deep whump as the ring goes out and
@@ -1102,9 +1073,53 @@ class SoundBoard {
     for (let i = 0; i < 4; i++)
       this.breath({ dur: 0.03 + Math.random() * 0.03, freq: 2600 + Math.random() * 3000, q: 2, gain: 0.05 + Math.random() * 0.03, attack: 0.002, delay: 0.05 + i * 0.04 + Math.random() * 0.02, type: 'bandpass', out: this.sfxDry ?? undefined });
   }
+  /**
+   * Shields raised on a sun: something charging up [direction: like something charging, not a bongo drum]. A whine
+   * of detuned triangles and a quiet saw gliding up two octaves (A3 to A5) through a lowpass that opens, pulsing
+   * faster and faster as it swells, then settling into a soft ring at the top (A5 and E6) with a rising shimmer of air.
+   */
   shield() {
-    this.voice(523.25, { dur: 1.6, attack: 0.2, gain: 0.03, type: 'triangle', vibrato: 6, cutoff: 2000 });
-    this.voice(784, { dur: 1.6, attack: 0.3, gain: 0.02, vibrato: 6 });
+    const ctx = this.ready();
+    if (!ctx || !this.sfx) return;
+    const t = ctx.currentTime;
+    const rise = 0.75;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 3;
+    filter.frequency.setValueAtTime(500, t);
+    filter.frequency.exponentialRampToValueAtTime(4200, t + rise);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.05, t + rise);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + rise + 0.35);
+    // The pulsing, quickening as it charges.
+    const pulse = ctx.createGain();
+    pulse.gain.value = 0.6;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.setValueAtTime(7, t);
+    lfo.frequency.exponentialRampToValueAtTime(28, t + rise);
+    const depth = ctx.createGain();
+    depth.gain.value = 0.4;
+    lfo.connect(depth).connect(pulse.gain);
+    filter.connect(pulse).connect(g).connect(this.sfx);
+    for (const [type, detune, level] of [['triangle', -7, 0.5], ['triangle', 7, 0.5], ['sawtooth', 0, 0.12]] as const) {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.detune.value = detune;
+      o.frequency.setValueAtTime(hz('A3'), t);
+      o.frequency.exponentialRampToValueAtTime(hz('A5'), t + rise);
+      const lv = ctx.createGain();
+      lv.gain.value = level;
+      o.connect(lv).connect(filter);
+      o.start(t);
+      o.stop(t + rise + 0.4);
+    }
+    lfo.start(t);
+    lfo.stop(t + rise + 0.4);
+    this.breath({ dur: rise + 0.2, freq: 600, to: 5000, type: 'bandpass', q: 1.4, gain: 0.025, attack: rise });
+    // Charged: a soft ring at the top.
+    this.voice(hz('A5'), { dur: 1.4, attack: 0.03, gain: 0.03, cutoff: 5000, delay: rise - 0.03 });
+    this.voice(hz('E6'), { dur: 1.1, attack: 0.03, gain: 0.014, cutoff: 6000, vibrato: 5, delay: rise });
   }
   /**
    * A hero takes the field: a rising rush, then a deep boom under a swelling brass-like chord, crowned with
