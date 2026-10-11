@@ -1,7 +1,7 @@
 import { BALANCE, coverCard, decodeDeck, encodeDeck, isProfane, PRESET_DECKS, mainRace, plainText, breakable, breakdownValue, SHOWN_KINDS, SHOWN_KIND_NAME, shownKind, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, allCardDefs, inMode, modeOf, setRulesMode, CORE_RACES, GAME_MODES, type GameMode, type CardDef, type Rarity } from '../engine';
 import { customDecks, deckWithCards, deleteDeck, deckById, missingCopies, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
-import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
+import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords, modeArt } from './glyphs';
 import { fitCardText } from './fittext';
 import { owned, profile } from './profile';
 import { breakCard, communityDecks, countDeckSave, craftCard, shareDeck, unshareDeck, type CommunityDeck } from './account';
@@ -657,7 +657,7 @@ export class DeckBuilder {
     // the title, then your decks (a new one first, where you'd look for it), then the starters to copy from. Every
     // action named in words; nothing hidden behind a toggle.
     const modes = (['core', 'lost'] as const)
-      .map((m) => `<button class="db-mode ${gm === m ? 'on' : ''}" data-act="db-gm" data-arg="${m}" aria-pressed="${gm === m}"><b>${esc(GAME_MODES[m].name.toLowerCase())}</b><small>${esc(GAME_MODES[m].blurb)}</small></button>`)
+      .map((m) => `<button class="db-mode ${gm === m ? 'on' : ''}" data-act="db-gm" data-arg="${m}" aria-pressed="${gm === m}"><span class="db-mode-art">${modeArt(m)}</span><b>${esc(GAME_MODES[m].name.toLowerCase())}</b><small>${esc(GAME_MODES[m].blurb)}</small></button>`)
       .join('');
     const newTile = `<div class="db-deck db-new-tile" data-act="db-new" role="button" tabindex="0" title="Build a new deck"><div class="deck-box"><span class="db-new-plus" aria-hidden="true">+</span><b>new deck</b></div></div>`;
     return `
