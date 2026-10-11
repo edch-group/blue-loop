@@ -6898,3 +6898,20 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield .yield.mech-bare { width: calc(var(--tcw, 80px) * 0.26); }
 .table-view .card-yield .yield .kw-ico,
 .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield .yield .kw-ico { height: 0.72em; width: auto; }
+
+/* Each chip a circle, the column inside the card's own border, down from its top-right corner [direction: chips
+   circular, inside the card's borders]. (Its mark and number side by side, sized to sit within the circle.) */
+.table-view .card-yield,
+.table-view .card-yield-mine,
+.table-view .card-yield-rival { right: calc(var(--tcw, 80px) * 0.05); top: calc(var(--tcw, 80px) * 0.05); transform: none; align-items: flex-end; }
+.table-view .card-yield .yield,
+.table-view .card-yield .yield.mech-bare {
+  width: calc(var(--tcw, 80px) * 0.2); height: calc(var(--tcw, 80px) * 0.2); padding: 0; justify-content: center;
+  gap: 0.08em; font-size: calc(var(--tcw, 80px) * 0.075); border-radius: 50%; letter-spacing: -0.04em;
+}
+.table-view:not(.zoom-rival):not(.zoom-mine) .card-yield .yield,
+.table-view:not(.zoom-rival):not(.zoom-mine) .card-yield .yield.mech-bare {
+  width: calc(var(--tcw, 80px) * 0.24); height: calc(var(--tcw, 80px) * 0.24); font-size: calc(var(--tcw, 80px) * 0.09);
+}
+/* (A mark alone fills more of its circle.) */
+.table-view .card-yield .yield.mech-bare .kw-ico { height: 0.95em; }
