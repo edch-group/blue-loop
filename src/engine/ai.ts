@@ -419,7 +419,6 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     if (cardDef(card.defId).kind === 'trap' && !canSetTrap(me)) continue;
     if (handCost(card) > me.playsLeft) continue;
     const choices = opt(cardChoices(card.defId));
-    const foes = opt(enemyChoices(state, me, card.defId).map((c) => c.uid));
     if (!hasRoomFor(me, card.defId)) continue;
     const slots = needsSlot(me, card.defId) ? freeSlots(me) : [undefined];
     // A Fusion card: onto each card it could join.
@@ -431,6 +430,8 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     const aim = aimable(card.defId) ? aimChoices(state, me) : { sun: true, cards: [] };
     const aims: (string | undefined)[] = [...(aim.sun ? [undefined] : []), ...aim.cards.map((c) => c.uid)];
     if (!aims.length) aims.push(undefined);
+    // (A rival card to remove: as it stands, or (Void Bolt) worn down by heat aimed at it first.)
+    const foes = opt([...new Set(aims.flatMap((a) => enemyChoices(state, me, card.defId, a).map((c) => c.uid)))]);
     // A recall card may also take the slot of the card it recalls.
     const recalls = allyEffectKind(card.defId) === 'recall' && inSlots(card.defId);
     for (const choice of choices)

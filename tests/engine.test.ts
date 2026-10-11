@@ -2037,6 +2037,15 @@ describe('Void Bolt', () => {
     expect(s.players[1].tableau.some((c) => c.uid === 'vb1')).toBe(false);
   });
 
+  it('cannot be pointed at a card of defence 3 its heat was not aimed at', () => {
+    const s = twoPlayer(25);
+    const [ada, bo] = s.players;
+    bo.tableau.push({ uid: 'vb3', defId: 'helio_lancer', slot: 2, health: baseHealth('helio_lancer') });
+    give(ada, ['void_bolt']);
+    // Its heat at their sun: the card stands at defence 3, out of the destroy's reach.
+    expect(() => play(s, 'void_bolt', { enemyUid: 'vb3' })).toThrow(/reach/);
+  });
+
   it('still cannot reach a card of defence 4', () => {
     const s = twoPlayer(24);
     const [ada, bo] = s.players;

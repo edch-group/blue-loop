@@ -338,15 +338,23 @@ function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect, wear = 0)
 }
 
 /** Cards in your target's tableau this card could destroy, return or erode (empty if it needs no choice). */
-export function enemyChoices(state: GameState, p: PlayerState, defId: string): CardInstance[] {
+export function enemyChoices(state: GameState, p: PlayerState, defId: string, aimUid?: string): CardInstance[] {
   const e = enemyEffect(defId);
   const t = targetOf(state, p);
   if (!e || !t) return [];
-  // (Void Bolt's heat comes first, and aimed at the card, can wear its defence down: in reach a little further. Aimed
-  // elsewhere, the destroy finds it as it stands, and may fail.)
+  // (Void Bolt's heat comes first: the card it is aimed at (`aimUid`) has its defence worn down by it, so is in reach a
+  // little further. Every other card is reached as it stands.)
   const effects = cardDef(defId).onPlay ?? [];
-  const wear = defId === 'void_bolt' ? effects.slice(0, effects.indexOf(e)).reduce((n, x) => n + (x.type === 'heat' && x.to === 'target' ? x.amount : 0), 0) : 0;
-  return t.tableau.filter((c) => canReach(t, c, e, wear));
+  const wear = heatFirst(defId) ? effects.slice(0, effects.indexOf(e)).reduce((n, x) => n + (x.type === 'heat' && x.to === 'target' ? x.amount : 0), 0) : 0;
+  return t.tableau.filter((c) => canReach(t, c, e, c.uid === aimUid ? wear : 0));
+}
+
+/** Whether a card's aimed heat comes before its removal (Void Bolt): its heat is aimed first, then the removal chosen. */
+export function heatFirst(defId: string): boolean {
+  if (defId !== 'void_bolt') return false;
+  const effects = cardDef(defId).onPlay ?? [];
+  const e = enemyEffect(defId);
+  return !!e && effects.slice(0, effects.indexOf(e)).some((x) => x.type === 'heat' && x.to === 'target');
 }
 
 /**
@@ -2179,7 +2187,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const choices = cardChoices(def.id);
   if (choices.length && !choices.includes(action.choice ?? '')) throw new GameError('Choose one of its options.');
   const target = targetOf(state, p);
-  const foes = enemyChoices(state, p, def.id);
+  const foes = enemyChoices(state, p, def.id, action.aimUid);
   if (foes.length > 0 && !foes.some((c) => c.uid === action.enemyUid)) {
     throw new GameError(`Choose a card in ${target?.name ?? 'your rival'}'s tableau.`);
   }

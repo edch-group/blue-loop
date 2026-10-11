@@ -28,6 +28,7 @@ import {
   chooseAIAction,
   createGame,
   enemyChoices,
+  heatFirst,
   enemyEffectKind,
   GameError,
   instabilityHeat,
@@ -3256,7 +3257,10 @@ export class App {
     // (Offering and Rootbreak: first the card of yours they draw on, then the rival card.)
     const drawsOn = allyEffectKind(card.defId) === 'offer' || allyEffectKind(card.defId) === 'rootbreak';
     if (drawsOn && allyChoices(me, card.defId).length > 0 && !p.allyUid) return ask('ally');
-    if (enemyChoices(s, me, card.defId).length > 0 && !p.enemyUid) {
+    // (A card whose heat comes first (Void Bolt): where its heat goes, then the rival card it removes.)
+    const aimFirst = heatFirst(card.defId) && aimable(card.defId) && aimChoices(s, me).cards.length > 0;
+    if (aimFirst && p.aimUid === undefined) return ask('aim');
+    if (enemyChoices(s, me, card.defId, p.aimUid !== 'sun' ? p.aimUid : undefined).length > 0 && !p.enemyUid) {
       if (target) this.viewRivalId = target.id;
       return ask('enemy');
     }
@@ -5769,7 +5773,7 @@ export class App {
     const s = this.state;
     const me = s ? activePlayer(s) : null;
     const pendingDef = p && me ? me.hand.find((h) => h.uid === p.uid)?.defId : undefined;
-    if (p && pendingDef && me && opts.tableau === 'rival' && p.step === 'enemy' && enemyChoices(s!, me, pendingDef).some((x) => x.uid === c.uid)) {
+    if (p && pendingDef && me && opts.tableau === 'rival' && p.step === 'enemy' && enemyChoices(s!, me, pendingDef, p.aimUid !== 'sun' ? p.aimUid : undefined).some((x) => x.uid === c.uid)) {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
       state = 'card-choosable';
     }
