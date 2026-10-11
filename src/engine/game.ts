@@ -329,6 +329,9 @@ function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect, wear = 0)
   if (e.type === 'rootbreak') return cardDefence(owner, c) > 0;
   if (e.type === 'offer') return true;
   if (e.type === 'destroy' && e.kind && cardDef(c.defId).kind !== e.kind) return false;
+  // (A Reliquary Obelisk can't be destroyed or sent back: no removal may be aimed at it, to no effect. It is broken
+  // open by heat and attacks.)
+  if ((e.type === 'destroy' || e.type === 'bounce') && cardDef(c.defId).overlordPart === 'vault') return false;
   // (One a destroy can't destroy is in reach whatever its defence: it takes the destroy's value as damage.)
   if (e.type === 'destroy' && destroyImmune(c.defId)) return true;
   // (Brittle: removal reaches a Relic whatever its defence.)
@@ -1214,7 +1217,8 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
           if (victim.health <= 0) sweep(state, t, victim);
           break;
         }
-        const around = e.neighbours ? neighbours(t, victim) : [];
+        // (Its neighbours back to hand: not a Reliquary Obelisk, nor an Overlord's part, which nothing removes.)
+        const around = e.neighbours ? neighbours(t, victim).filter((n) => !destroyImmune(n.defId) && t.boss?.leader !== n.uid) : [];
         log(state, `${p.name} destroys ${t.name}'s ${cardDef(victim.defId).name}.`);
         leaveTableau(state, t, victim);
         for (const n of around) {

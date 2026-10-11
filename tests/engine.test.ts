@@ -4,7 +4,7 @@ import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
 import { activePlayer, replaces, isGuard, guards, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, answerShown,
   baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver,
-  isDraw, maxHand, playsAllowed, supernovaThreshold, tableauFull, handCost } from '../src/engine/game';
+  isDraw, maxHand, playsAllowed, supernovaThreshold, tableauFull, handCost, enemyChoices } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
 import { TEST_DECKS } from './fixture-decks';
 
@@ -1143,18 +1143,14 @@ describe('lightspeed', () => {
 });
 
 describe('destroy-immune cards', () => {
-  it('an Overlord\'s parts, a Lost Lord and a Reliquary Obelisk take a destroy as damage; a retinue is destroyed', () => {
+  it('a Reliquary Obelisk is no target for removal (it is broken open by heat and attacks); a retinue is destroyed', () => {
     let s = twoPlayer();
     const foe = s.players[1];
     const [obelisk, retinue] = give(foe, ['reliquary_obelisk', 'lost_retinue'], 'tableau');
-    const hp = obelisk.health!;
     give(activePlayer(s), ['ion_cannon', 'ion_cannon']);
     activePlayer(s).playsLeft = 5;
-    s = play(s, 'ion_cannon', { enemyUid: obelisk.uid });
-    const ob = s.players[1].tableau.find((c) => c.uid === obelisk.uid);
-    expect(ob).toBeDefined();
-    expect(ob!.health).toBe(hp - 2);
-    expect(s.log.some((l) => /can't be destroyed: it takes 2 damage/.test(l.text))).toBe(true);
+    expect(enemyChoices(s, activePlayer(s), 'ion_cannon').some((c) => c.uid === obelisk.uid)).toBe(false);
+    expect(() => play(s, 'ion_cannon', { enemyUid: obelisk.uid })).toThrow();
     activePlayer(s).playsLeft = 5;
     s = play(s, 'ion_cannon', { enemyUid: retinue.uid });
     expect(s.players[1].tableau.some((c) => c.uid === retinue.uid)).toBe(false);
