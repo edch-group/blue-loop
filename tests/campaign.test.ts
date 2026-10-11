@@ -137,8 +137,8 @@ describe('decks', () => {
   it('keeps the deck legal when swapping', () => {
     let s = fresh();
     const f = campaignPlayer(s);
-    f.reserve.push('ice_age', 'helio_lancer', GENERALS[f.race].find((g) => g !== myArmy(s).general)!);
-    // The general stays, and no other Hero joins: an army is led by its own hero.
+    f.reserve.push('ice_age', 'helio_lancer', GENERALS[(f.race + 1) % GENERALS.length][0]);
+    // The general stays, and no Hero of another race joins (its own race's may serve under it: a Power Struggle's).
     const army = myArmy(s);
     const lead = army.deck.indexOf(army.general);
     expect(() => applyCampaignAction(s, { type: 'deckSwap', armyId: army.id, slot: lead, reserveIndex: 1 })).toThrow(/leads/);
@@ -549,5 +549,36 @@ describe('research upgrades state their totals', () => {
     expect(researchTotal({ done: ['mend1', 'mend2'] }).mend).toBe(4);
     expect(researchTotal({ done: ['hull1', 'hull2'] }).mods.maxHealthDelta).toBe(5);
     expect(researchTotal({ done: ['energy1', 'energy2', 'cool1'] }).mods).toEqual({ extraPlays: 2, startingHeat: -1 });
+  });
+});
+
+import { flagshipMaxHealth, STRUGGLE_CHANCE } from '../src/engine/campaign';
+
+describe('Power Struggles', () => {
+  it('come, now and then, while the sun runs overheated: a hero of your race, in play, who joins your deck once beaten', () => {
+    expect(STRUGGLE_CHANCE).toBeGreaterThan(0);
+    let found: CampaignState | null = null;
+    for (let seed = 1; seed < 60 && !found; seed++) {
+      let s = createCampaign({ seed, rivals: 1 });
+      s.story.queue = [];
+      const a = myArmy(s);
+      a.damage = Math.ceil(flagshipMaxHealth(s, a) / 2);
+      // A step into a system already held (no fight of its own).
+      const next = nodeById(s, home(s).links[0]);
+      next.owner = s.playerId;
+      s = applyCampaignAction(s, { type: 'move', armyId: a.id, toId: next.id });
+      if (s.struggle) found = s;
+    }
+    expect(found).not.toBeNull();
+    let s = found!;
+    const hero = s.struggle!.hero;
+    const race = campaignPlayer(s).race;
+    expect(GENERALS[race]).toContain(hero);
+    expect(hero).not.toBe(myArmy(s).general);
+    s = applyCampaignAction(s, { type: 'struggle' });
+    const rival = s.battle!.game.players[1];
+    expect(rival.tableau.some((c) => c.defId === hero)).toBe(true);
+    s = winBattle(s);
+    expect(myArmy(s).deck).toContain(hero);
   });
 });

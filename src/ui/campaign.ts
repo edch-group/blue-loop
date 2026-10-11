@@ -91,6 +91,7 @@ import {
   NYX_MARKS,
   RIFTS,
   spinGalaxy,
+  struggleLine,
 } from '../engine';
 import { account, markDirty } from './account';
 import { profile } from './profile';
@@ -726,8 +727,9 @@ export class CampaignView {
       if (!battle) {
         this.advance = null;
         this.encountering = false;
-        // A station: straight in, its screen open on arrival.
-        this.enterStation(toId);
+        // A station: straight in, its screen open on arrival (after a Power Struggle, if one waits).
+        if (this.state.struggle) this.afterStruggle = toId;
+        else this.enterStation(toId);
         return this.host.render();
       }
       // A dive-bombing synth as it lands; the battle board opens a second later.
@@ -747,7 +749,7 @@ export class CampaignView {
   /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */
   private moveSpent(): boolean {
     const s = this.state;
-    if (!s || s.phase !== 'player' || s.battle || s.conquest || s.loot || s.cardRewards.length || s.boon || s.winner) return false;
+    if (!s || s.phase !== 'player' || s.battle || s.struggle || s.conquest || s.loot || s.cardRewards.length || s.boon || s.winner) return false;
     const a = flagship(s, s.playerId);
     // (Moved, or with nowhere to go at all: there is no waiting, so time moves on by itself.)
     return !!a && armyMoves(s, a).length === 0;
@@ -1128,6 +1130,9 @@ export class CampaignView {
         const { armyId, toId } = this.sheet;
         return this.setOut(armyId, toId);
       }
+      case 'cmp-struggle':
+        if (this.apply({ type: 'struggle' })) sound.encounter();
+        break;
       case 'cmp-prophet':
         if (this.apply({ type: 'prophetPick', index: arg === '' ? null : Number(arg) })) arg === '' ? sound.hover() : sound.upgrade();
         break;
@@ -1966,6 +1971,7 @@ export class CampaignView {
     // (In development, reachable from the console.)
     if (import.meta.env.DEV) (window as unknown as { campaignView?: CampaignView }).campaignView = this;
     this.keepSpinning();
+    if (this.afterStruggle) window.setTimeout(() => this.openAfterStruggle(), 0);
     const stage = root.querySelector<HTMLElement>('.cmp-stage');
     this.stageEl = stage;
     if (stage) this.sailShips(stage);
@@ -2251,6 +2257,18 @@ export class CampaignView {
    */
   private spinTimer = 0;
   private spinning = false;
+  /** A station the flagship arrived at with a Power Struggle waiting: its screen opens once the struggle is done. */
+  private afterStruggle: string | null = null;
+  private openAfterStruggle() {
+    const s = this.state;
+    if (!this.afterStruggle || !s || s.struggle || s.battle || s.loot || s.cardRewards.length || this.sheet) return;
+    const id = this.afterStruggle;
+    this.afterStruggle = null;
+    if (flagship(s, s.playerId)?.nodeId !== id) return;
+    this.enterStation(id);
+    this.host.render();
+  }
+
   private keepSpinning() {
     const on = this.state?.rift?.kind === 'time';
     if (!on) {
@@ -2620,6 +2638,17 @@ export class CampaignView {
             .join('')}</div>`)
           .join('')}</div>
         <button class="btn-primary loot-take" style="--i:${items.length + first}" data-act="cmp-loot-ok">take it</button>
+      </div>`;
+    }
+    // A Power Struggle: a hero of your own race, come for your command while your sun runs overheated.
+    if (s.struggle && !s.battle) {
+      const hero = s.struggle.hero;
+      return `<div class="overlay overlay-soft struggle">
+        <div class="struggle-face">${portrait(hero)}</div>
+        <small class="struggle-kicker">power struggle</small>
+        <h2>${lower(cardDef(hero).name)}</h2>
+        <p class="struggle-line">“${esc(struggleLine(hero))}”</p>
+        <button class="btn-primary" data-act="cmp-struggle">fight for your command</button>
       </div>`;
     }
     // A Dark Prophet's offer: three of your cards, each shown as its mark would make it; one taken, for good.

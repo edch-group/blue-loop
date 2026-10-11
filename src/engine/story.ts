@@ -127,6 +127,37 @@ const GENERAL_LINES: Record<string, { join: string; taunt: string }> = {
 };
 
 /**
+ * What a hero of your own race says, coming for your command while your sun runs overheated (a Power Struggle)
+ * [direction: they shout at the player that they are not fit to lead].
+ */
+export const STRUGGLE_LINES: Record<string, string> = {
+  command_directive: 'Look at your sun, burning itself hollow. Vitalia deserves better than you. I will lead us home.',
+  ignition_protocol: 'You let the fire run away from you. A Sol-Marshal knows how to hold a blaze. Stand aside.',
+  empress_solenne: 'My mothers kept Vitalia for a thousand years, and you cannot keep one star cool. Kneel.',
+  war_council: 'The shards remember every leader who burned out. You are about to join them. Let me lead.',
+  coolant_protocol: 'You run hot, and you run reckless. Ice does not follow fire. I will take the fleet.',
+  the_shardmind: 'Your light is failing. We have voted, all of us at once. You are no longer fit to lead.',
+  tide_regent: 'The tide does not follow a captain who is drowning. Give me the helm.',
+  the_admiralty: 'The Admiralty has reviewed your command. Finding: unfit. We are relieving you.',
+  leviathan_thoross: 'A leader whose star boils is no leader. The deep will choose again.',
+  logistics_command: 'The swarm feels your fever. A sick queen is replaced. Zyth will rule.',
+  chamber_protocol: 'Your star withers, and the brood will not follow the withered. Make way, little root.',
+  the_worldroot: 'A root that burns feeds nothing. I will grow where you have failed.',
+  nyx_hero_vesh: 'Your light flares and flickers. They can see you coming for miles. Let the shadows lead.',
+  nyx_hero_kael: 'You are coming apart already. I will finish the job, and lead what is left.',
+  nyx_hero_nyxara: 'You burn too bright, and too fast. The dark has waited long enough to lead.',
+  kor_hero_durga: 'A blade left too long in the fire cracks. You are cracking. I will take the hammer.',
+  kor_hero_brannoc: 'A wall does not follow a leader who cannot hold their own heat. Step down.',
+  kor_hero_anvil_king: 'The forge does not suffer a smith who lets the metal melt. The Anvil-King leads now.',
+  ser_hero_ilyath: 'I have read your star. It ends in fire, with you at the helm. Not with me there.',
+  ser_hero_maren: 'Your orbit is breaking. The worlds will not turn for you any more. Let them turn for me.',
+  ser_hero_aster: 'Every star I carry has watched you falter. You are not in any of them as a leader.',
+  pyr_hero_ignis: 'Even a Pyrr knows when a fire is out of hand. Yours is. Give me the flame.',
+  pyr_hero_ashka: 'We run our suns hot, but we never lose them. You are losing yours. The throne is mine.',
+  pyr_hero_pyrrhus: 'I have died and burned again a hundred times. You cannot even burn once well. Kneel.',
+};
+
+/**
  * What each general says as their flagship first flies in, at the start of a campaign: why they have come, and
  * what they see. (Recorded as src/assets/voice/<hero id>-arrive.mp3.)
  */

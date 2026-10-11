@@ -44,6 +44,7 @@ import {
   wormholeSightedScene,
   wormholeCrossedScene,
   runOverScene,
+  STRUGGLE_LINES,
 } from './story';
 
 // ---------------------------------------------------------------------------
@@ -596,6 +597,8 @@ export interface BattleContext {
   game: GameState;
   /** A challenge being fought, and the flagship's sun before it (a loss leaves it as it was: it is only ejected). */
   challenge?: { kind: ChallengeKind; damage: number };
+  /** A Power Struggle: the hero of the player's own race come for their command, and the flagship's sun before it. */
+  struggle?: { hero: string; damage: number };
 }
 
 export interface CampaignLogEntry {
@@ -665,6 +668,8 @@ export interface CampaignState {
   prophet?: { nodeId: string; offers: { card: string; mark: NyxMark }[] };
   /** Aster's gift waiting on the player: three Seren emblems, one to take. */
   emblemChoice?: Relic[];
+  /** A Power Struggle waiting to be fought: where, and which of the player's race's heroes has come for their command. */
+  struggle?: { nodeId: string; hero: string };
   /** A battle the player is fighting (or can auto-resolve). */
   battle: BattleContext | null;
   /** The player won an attack and must decide the system's fate (the army that won it marches in if it is settled). */
@@ -759,7 +764,9 @@ export type CampaignAction =
   /** A Dark Prophet's offer: the card to mark (its index among the offers), or null to refuse. */
   | { type: 'prophetPick'; index: number | null }
   /** Aster's gift: the Seren emblem taken (its index). */
-  | { type: 'chooseEmblem'; index: number };
+  | { type: 'chooseEmblem'; index: number }
+  /** Face the Power Struggle waiting (the battle begins). */
+  | { type: 'struggle' };
 
 // ---------------------------------------------------------------------------
 // Missions
@@ -1232,7 +1239,9 @@ export function armyDeck(race: number, general: string, mode: GameMode = 'lost')
 export function armyDeckProblems(deck: string[], general: string): string[] {
   const out: string[] = [];
   if (!deck.includes(general)) out.push(`${cardDef(general).name} leads this flagship: their card must be in its deck.`);
-  const heroes = deck.filter((id) => cardDef(id).kind === 'command' && id !== general);
+  // (Heroes of the leader's own race may come aboard too: won in a Power Struggle, they serve under the leader.)
+  const race = cardDef(general).race;
+  const heroes = deck.filter((id) => cardDef(id).kind === 'command' && id !== general && !(race !== undefined && GENERALS[race]?.includes(id)));
   if (heroes.length) out.push(`A flagship has one hero: ${cardDef(heroes[0]).name} can't come aboard.`);
   const counts = new Map<string, number>();
   for (const id of deck) counts.set(id, (counts.get(id) ?? 0) + 1);
@@ -1781,6 +1790,81 @@ function riftDeck(s: CampaignState, n: CampaignNode): string[] {
   return deck;
 }
 
+// ---------------------------------------------------------------------------
+// Power Struggles: while the flagship's sun runs overheated, a hero of its own race may come for its command
+// [direction: each jump while overheated has a chance; one of the other two heroes of the player's race attacks,
+// already in play, telling them they are not fit to lead; won, that hero joins the deck]
+// ---------------------------------------------------------------------------
+
+/** The chance, each jump the flagship makes with its sun overheated, of a Power Struggle. */
+export const STRUGGLE_CHANCE = 0.3;
+
+/** The flagship's sun's max health in battle (the card game's, with its upgrades). */
+export function flagshipMaxHealth(s: CampaignState, army: Army): number {
+  return BALANCE.supernovaAt + (armyBonus(s, army).mods.maxHealthDelta ?? 0) + (flagshipSetup(s, army).hull.maxHealthDelta ?? 0);
+}
+
+/** Whether the flagship's sun runs overheated (at half its max health or hotter), as it carries its heat between battles. */
+export function flagshipOverheated(s: CampaignState, army: Army): boolean {
+  return army.damage * 2 >= flagshipMaxHealth(s, army);
+}
+
+/** A hero of the player's race who could come for the command: not the one leading, nor one already aboard. */
+export function struggleRival(s: CampaignState, army: Army): string | null {
+  const f = factionById(s, army.owner);
+  const free = (GENERALS[f.race] ?? []).filter((h) => h !== army.general && !army.deck.includes(h) && !f.reserve.includes(h));
+  return free.length ? free[randomInt(s, free.length)] : null;
+}
+
+/** The hero's words, coming for the command. */
+export const struggleLine = (hero: string) => STRUGGLE_LINES[hero] ?? 'Your star is failing, and so are you. You are not fit to lead.';
+
+/** A Power Struggle faced: the rival hero's side, its hero in play from the start, fought where the flagship stands. */
+function startStruggle(s: CampaignState) {
+  const p = s.struggle!;
+  s.struggle = undefined;
+  const f = campaignPlayer(s);
+  const army = flagship(s, f.id);
+  if (!army) return;
+  const n = nodeById(s, p.nodeId);
+  const [me] = battleSetup(s, army, { ...n, owner: null, station: undefined, vault: undefined, garrison: [], fortification: 0, damage: 0, star: undefined });
+  const rival: PlayerSetup = {
+    name: cardDef(p.hero).name,
+    isAI: true,
+    deck: stationDeck(s, { ...n, heart: false, tier: Math.max(n.tier, 1) }, f.race).filter((id) => !(GENERALS[f.race] ?? []).includes(id)),
+    hero: p.hero,
+    heroStats: { attack: CAMPAIGN.heroAttack, defence: CAMPAIGN.heroDefence },
+    tableau: [p.hero],
+    rooms: stationRooms({ ...n, tier: Math.max(n.tier, 2) }),
+    // (A rival worth the name: a sun at least as big as the strip's middle's.)
+    modifiers: sunBase({ ...n, tier: Math.max(n.tier, 2) }),
+  };
+  const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players: [me, rival], campaign: true, mode: s.mode });
+  clog(s, `${cardDef(p.hero).name} comes for ${f.name}'s command.`, n.id, f.id);
+  s.battle = { attacker: f.id, defender: null, fromId: n.id, nodeId: n.id, armyId: army.id, defenderArmyId: null, game, struggle: { hero: p.hero, damage: army.damage } };
+}
+
+/** A Power Struggle over. Won: the rival hero joins the deck. Lost: the command holds, but the sun is no cooler for it. */
+function resolveStruggle(s: CampaignState, game: GameState) {
+  const b = s.battle!;
+  s.battle = null;
+  const f = factionById(s, b.attacker);
+  const army = s.armies.find((a) => a.id === b.armyId);
+  const hero = b.struggle!.hero;
+  const won = !isDraw(game) && game.winnerId === game.players[0].id;
+  gainXp(s, won ? CAMPAIGN.xpChallenge : CAMPAIGN.xpBattleLost);
+  if (!won) {
+    if (army) army.damage = b.struggle!.damage;
+    clog(s, `${cardDef(hero).name} is driven off, but not beaten. ${f.name} keeps the command, barely.`, b.nodeId, f.id);
+    return;
+  }
+  if (army) {
+    army.damage = Math.max(BALANCE.minHeat, game.players[0].heat);
+    army.deck.push(hero);
+  } else f.reserve.push(hero);
+  clog(s, `${cardDef(hero).name} is beaten, and bends the knee: they join ${f.name}'s flagship.`, b.nodeId, f.id);
+}
+
 /** A new army, led by `general`, standing in `nodeId`. */
 function raiseArmy(s: CampaignState, f: Faction, general: string, nodeId: string): Army {
   // A new army can be refitted on the turn it is raised, but marches from the next.
@@ -2198,6 +2282,11 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     // (A hero who marches fast may go on, but not after a battle.)
     if (army.steps >= 1 + armyBonus(s, army).march) army.moved = true;
     clog(s, `${armyLeader(army)}'s army marches to ${target.name}.`, [here.id, toId], f.id);
+    // Overheated: a hero of the player's own race may come for the command (a station's use waits on it).
+    if (f.id === s.playerId && !army.lost && !s.prophet && flagshipOverheated(s, army) && nextRandom(s) < STRUGGLE_CHANCE) {
+      const hero = struggleRival(s, army);
+      if (hero) s.struggle = { nodeId: toId, hero };
+    }
     return;
   }
   if (hazardBlocks(target, f.id)) throw new GameError(`${target.name} is still reeling from a supernova.`);
@@ -2460,6 +2549,7 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   if (!b) throw new GameError('There is no battle to finish.');
   if (!isGameOver(game)) throw new GameError('That battle is not over yet.');
   if (b.challenge) return resolveChallenge(s, game);
+  if (b.struggle) return resolveStruggle(s, game);
   const salvageable = salvageOptions(s, game);
   if (salvage && !salvageable.includes(salvage)) throw new GameError('That card is not there to salvage.');
   takeFinds(s, game);
@@ -3073,6 +3163,10 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       s.prophet = undefined;
       break;
     }
+    case 'struggle':
+      if (!s.struggle) throw new GameError('No one has come for your command.');
+      startStruggle(s);
+      break;
     case 'chooseEmblem': {
       const pick = s.emblemChoice?.[action.index];
       if (!pick) throw new GameError('There is no emblem to choose.');
