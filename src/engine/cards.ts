@@ -885,13 +885,19 @@ export function statPoints(c: CardDef): number | null {
   if (c.kind === 'command' || c.kind === 'trap' || c.kind === 'relic' || c.kind === 'global' || c.token || isBurst(c)) return null;
   return Math.max(0, c.attack ?? 0) + (c.defence ?? 0) + health0(c);
 }
-/** Bombs allowed past the stat budget, by this many points (an anomaly that must feel like one). */
-export const BUDGET_EXTRA: Record<string, number> = { black_sun: 5 };
+/**
+ * Rarity is worth points too [direction: stellar and anomaly cards were no stronger than white dwarf ones at the
+ * same cost]: a Stellar unit's budget is 2 points more, an Anomaly's 4, and each is given them (below).
+ */
+export const RARITY_POINTS: Record<string, number> = { dwarf: 0, stellar: 2, anomaly: 4 };
+const rarityPoints = (c: CardDef) => (PLAIN_PROFILE[c.id] || c.fusion || c.token ? 0 : RARITY_POINTS[c.rarity ?? 'dwarf'] ?? 0);
+/** Bombs allowed past the stat budget (rarity's points too), by this many points (an anomaly that must feel like one). */
+export const BUDGET_EXTRA: Record<string, number> = { black_sun: 1, overload_core: 1 };
 for (const c of CARDS) {
   if (PLAIN_PROFILE[c.id] || c.fusion) continue;
   const pts = statPoints(c);
   if (pts === null) continue;
-  let over = pts - abilityBudget(c.cost ?? 1) - (BUDGET_EXTRA[c.id] ?? 0);
+  let over = pts - abilityBudget(c.cost ?? 1) - rarityPoints(c) - (BUDGET_EXTRA[c.id] ?? 0);
   if (over <= 0) continue;
   const h = health0(c);
   const cut = Math.min(over, h - 1);
@@ -908,6 +914,19 @@ for (const c of CARDS) {
     const d = Math.min(over, own);
     c.defence = (c.defence ?? 0) - d;
     c.text = c.text.replace(/\{sturdy:(\d+)\}/, (_, n: string) => `{sturdy:${Number(n) - d}}`);
+  }
+}
+// A Stellar or Anomaly unit is given its rarity's points (as far as its budget has room for them): stability and
+// attack by turns, stability first (all of them stability, for a card with no attack).
+for (const c of CARDS) {
+  const extra = rarityPoints(c);
+  const pts = statPoints(c);
+  if (!extra || pts === null) continue;
+  const room = abilityBudget(c.cost ?? 1) + extra + (BUDGET_EXTRA[c.id] ?? 0) - pts;
+  const give = Math.min(extra + (BUDGET_EXTRA[c.id] ?? 0), room);
+  for (let i = 0; i < give; i++) {
+    if (i % 2 === 1 && (c.attack ?? 0) > 0) c.attack = (c.attack ?? 0) + 1;
+    else c.health = health0(c) + 1;
   }
 }
 

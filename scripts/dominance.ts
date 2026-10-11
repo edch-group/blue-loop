@@ -71,10 +71,14 @@ const fits = (a: CardDef, b: CardDef) => anyRace || b.race === undefined || b.ra
 // (In a mode: its own pool, as the cards play there.)
 const cards = (mode ? allCardDefs().filter((c) => inMode(c, mode)) : CARDS).filter((c) => !c.fusedFrom && c.kind !== 'global' && !c.spendAll);
 const vecs = new Map(cards.map((c) => [c.id, vec(c)]));
+// (A rarer card may outclass a commoner one at its cost: rarity is a price of its own [direction: stellar and anomaly
+// cards should be stronger than white dwarf ones].)
+const RANK: Record<string, number> = { dwarf: 0, stellar: 1, anomaly: 2 };
+const rank = (c: CardDef) => RANK[c.rarity ?? 'dwarf'] ?? 0;
 const found: string[] = [];
 for (const a of cards) {
   for (const b of cards) {
-    if (a === b || !fits(a, b) || cardCost(b.id) > cardCost(a.id) || (a.kind === 'trap') !== (b.kind === 'trap') || (a.kind === 'command') !== (b.kind === 'command') || (a.kind === 'relic') !== (b.kind === 'relic')) continue; // (A Relic lasts but is brittle: no match for anything else)
+    if (a === b || !fits(a, b) || cardCost(b.id) > cardCost(a.id) || rank(b) > rank(a) || (a.kind === 'trap') !== (b.kind === 'trap') || (a.kind === 'command') !== (b.kind === 'command') || (a.kind === 'relic') !== (b.kind === 'relic')) continue; // (A Relic lasts but is brittle: no match for anything else)
     const va = vecs.get(a.id)!, vb = vecs.get(b.id)!;
     let better = cardCost(b.id) < cardCost(a.id);
     let ok = true;
