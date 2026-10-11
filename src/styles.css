@@ -6966,3 +6966,24 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 @media (prefers-reduced-motion: reduce) { .dream-fade, .dream-line { animation: none; } .cmp-dreaming .cmp-map, .cmp-dreaming .cmp-nebula, .cmp-dreaming .cmp-nebula-front { filter: none; } }
 .dream-hint .dream-clock { font-variant-numeric: tabular-nums; }
 .dream-hint .dream-clock-low { color: #c2401c; }
+/* The Dark Prophet's face, over their offer. */
+.prophet-face { width: 112px; height: 112px; margin: 2px auto 8px; border-radius: 50%; background-size: 260%; background-position: 50% 62%; box-shadow: 0 0 0 3px #fff, 0 0 0 5px #6b4fc8, 0 8px 30px rgba(80, 50, 180, 0.35); }
+
+/* ---------- The deck list [direction: it felt all over the place, not intuitive] ----------
+   One column: the game mode as a two-way switch under the title; your decks, a new one first; then the starters. */
+.db-list { width: min(980px, 100%); }
+.db-list .section-label.db-group small { margin-left: 8px; font-family: var(--body, inherit); letter-spacing: 0; text-transform: none; font-size: 0.7rem; color: var(--ink-faint); }
+.db-modes { justify-self: center; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 16px; background: rgba(255, 255, 255, 0.7); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08), 0 6px 18px rgba(40, 46, 70, 0.06); width: min(520px, 100%); }
+.db-mode { display: grid; gap: 2px; padding: 10px 14px; border: 0; border-radius: 12px; background: none; cursor: pointer; text-align: center; color: var(--ink-soft); font: inherit; }
+.db-mode b { font-family: var(--display); font-weight: 400; font-size: 0.78rem; letter-spacing: 0.24em; text-transform: uppercase; }
+.db-mode small { font-size: 0.68rem; color: var(--ink-faint); }
+.db-mode.on { background: #fff; color: var(--ink); box-shadow: 0 2px 10px rgba(40, 46, 70, 0.12); }
+.db-list-body .db-boxes { grid-template-columns: repeat(auto-fit, var(--bw)); justify-content: center; }
+.db-head-actions { justify-self: end; display: inline-flex; gap: 8px; }
+.db-head-actions .btn svg { width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
+/* A new deck: an empty box, dashed, with a plus. */
+.db-new-tile { cursor: pointer; }
+.db-new-tile .deck-box { display: grid; place-content: center; justify-items: center; gap: 6px; border-radius: 10px; border: 1.5px dashed rgba(93, 106, 140, 0.45); background: rgba(255, 255, 255, 0.45); color: var(--ink-soft); }
+.db-new-tile .db-new-plus { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 1.6rem; line-height: 1; color: #fff; background: #5d6a8c; }
+.db-new-tile b { font-family: var(--display); font-weight: 400; font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; }
+.db-new-tile:hover .deck-box { border-color: #5d6a8c; background: #fff; }

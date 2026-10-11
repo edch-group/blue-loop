@@ -100,6 +100,7 @@ import { DeckBuilder } from './builder';
 import { shipModel } from './ships';
 import { stellariaFlower } from './art';
 import { MENU_ICON } from './menu-icon';
+import { renderedArt } from './cardart';
 import { playerAvatar, raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { reducedMotion } from './fx';
@@ -2674,7 +2675,7 @@ export class CampaignView {
       const cards = s.prophet.offers.map((o, i) => `<button class="cmp-pick" data-act="cmp-prophet" data-arg="${i}">${cardHtml(markedId(o.mark, o.card))}<small class="cmp-mark">${esc(NYX_MARKS[o.mark].name.toLowerCase())}</small></button>`).join('');
       return this.modal(
         'the dark prophet',
-        `<p class="center-text muted">Choose a card. Its mark is for good.</p><div class="cmp-cards">${cards}</div>
+        `${renderedArt('dark_prophet') ? `<div class="prophet-face" style="background-image:url(${renderedArt('dark_prophet')})" aria-hidden="true"></div>` : ''}<p class="center-text muted">Choose a card. Its mark is for good.</p><div class="cmp-cards">${cards}</div>
          <div class="center-row"><button class="btn" data-act="cmp-prophet" data-arg="">turn away</button></div>`,
       );
     }

@@ -1,7 +1,7 @@
 import { BALANCE, coverCard, decodeDeck, encodeDeck, isProfane, PRESET_DECKS, mainRace, plainText, breakable, breakdownValue, SHOWN_KINDS, SHOWN_KIND_NAME, shownKind, cardCost, cardDef, commandCardsFor, copyLimit, craftCost, deckProblems, RACE_NAMES, RARITIES, RARITY_NAME, RACE_TRAITS, SUBRACES, allCardDefs, inMode, modeOf, setRulesMode, CORE_RACES, GAME_MODES, type GameMode, type CardDef, type Rarity } from '../engine';
 import { customDecks, deckWithCards, deleteDeck, deckById, missingCopies, PRESETS, saveDeck, setStartersHidden, startersHidden, type SavedDeck } from './decks';
 import { FACTION_COLOUR, factionAvatar } from './factions';
-import { modeCards, raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
+import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords } from './glyphs';
 import { fitCardText } from './fittext';
 import { owned, profile } from './profile';
 import { breakCard, communityDecks, countDeckSave, craftCard, shareDeck, unshareDeck, type CommunityDeck } from './account';
@@ -653,18 +653,22 @@ export class DeckBuilder {
     const gm = this.gm;
     const mine = customDecks().filter((d) => modeOf(d) === gm);
     const presets = PRESETS.filter((d) => modeOf(d) === gm);
-    const hide = startersHidden();
+    // [direction: the deck list felt all over the place] One column, top to bottom: the game mode as a switch under
+    // the title, then your decks (a new one first, where you'd look for it), then the starters to copy from. Every
+    // action named in words; nothing hidden behind a toggle.
+    const modes = (['core', 'lost'] as const)
+      .map((m) => `<button class="db-mode ${gm === m ? 'on' : ''}" data-act="db-gm" data-arg="${m}" aria-pressed="${gm === m}"><b>${esc(GAME_MODES[m].name.toLowerCase())}</b><small>${esc(GAME_MODES[m].blurb)}</small></button>`)
+      .join('');
+    const newTile = `<div class="db-deck db-new-tile" data-act="db-new" role="button" tabindex="0" title="Build a new deck"><div class="deck-box"><span class="db-new-plus" aria-hidden="true">+</span><b>new deck</b></div></div>`;
     return `
-      ${modeCards(gm, 'db-gm', GAME_MODES, `<button class="btn btn-small pane-btn" data-act="db-back">‹ back</button><button class="btn btn-small pane-btn pane-icon" data-act="db-community" title="Community decks" aria-label="Community decks">${ICON_PEOPLE}</button><button class="btn btn-small pane-btn pane-icon" data-act="db-import-open" title="Import a deck" aria-label="Import a deck">${ICON_UPLOAD}</button>`)}
-      ${this.header('decks', `<span class="db-head-actions"><button class="btn btn-small db-switch ${hide ? '' : 'on'}" data-act="db-hide-starters" role="switch" aria-checked="${!hide}">starters<span class="switch-track" aria-hidden="true"><i></i></span></button><button class="btn btn-small btn-new-deck" data-act="db-new"><span class="plus-badge" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M6 2.5v7M2.5 6h7"/></svg></span>new deck</button></span>`)}
+      ${this.header('decks', `<span class="db-head-actions"><button class="btn btn-small" data-act="db-community">${ICON_PEOPLE}community</button><button class="btn btn-small" data-act="db-import-open">${ICON_UPLOAD}import</button></span>`)}
       <div class="setup-body db-list-body">
         <div class="db-list">
+          <div class="db-modes" role="group" aria-label="Game mode">${modes}</div>
           <div class="section-label db-group">your decks</div>
-          ${mine.length ? `<div class="db-boxes">${mine.map(box).join('')}</div>` : '<p class="muted center-text">No decks of your own yet. Start a new one, or copy a starter to change it.</p>'}
-          ${hide ? '' : `<div class="section-label db-group">races</div>
-          <div class="db-boxes">${presets.filter((d) => !d.mixed).map(box).join('')}</div>
-          ${presets.some((d) => d.mixed) ? `<div class="section-label db-group">mechanics</div>
-          <div class="db-boxes">${presets.filter((d) => d.mixed).map(box).join('')}</div>` : ''}`}
+          <div class="db-boxes">${newTile}${mine.map(box).join('')}</div>
+          <div class="section-label db-group">starters <small>copy one to make it your own</small></div>
+          <div class="db-boxes">${presets.filter((d) => !d.mixed).map(box).join('')}${presets.filter((d) => d.mixed).map(box).join('')}</div>
         </div>
       </div>`;
   }
