@@ -5,9 +5,9 @@
  * search so that only the best line is enough (win: the rival's sun one best line from supernova; survive: yours one
  * heat short of it after the rival's day, if you play best).
  *
- *   npx vite-node scripts/dreams-gen.ts
+ *   TIERS=1,2 RACES=0-7 OUT=dreams.jsonl npx vite-node scripts/dreams-gen.ts, then scripts/dreams-merge.ts
  */
-import { writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 import { CARDS } from '../src/engine/cards';
 import { activePlayer, applyAction, cardCost, createDream, isGameOver, type DreamSide, type DreamSpec } from '../src/engine/game';
 import { chooseAIAction, movesNow } from '../src/engine/ai';
@@ -170,24 +170,22 @@ function attempt(tier: number, race: number, goal: 'win' | 'survive'): DreamSpec
   return spec;
 }
 
-const out: DreamSpec[] = [];
-const ONLY = process.env.ONLY ? Number(process.env.ONLY) : 0;
-for (let tier = ONLY || 1; tier <= (ONLY || TIERS.length); tier++) {
-  for (let race = 0; race < (process.env.RACES ? Number(process.env.RACES) : 8); race++) {
+// Which tiers and races to make (TIERS="1,2" RACES="0-3"), and the file each puzzle is added to as it is found (OUT, one
+// per line; scripts/dreams-merge.ts writes them into the game).
+const tiers = (process.env.TIERS ?? '1,2,3,4').split(',').map(Number);
+const [r0, r1] = (process.env.RACES ?? '0-7').split('-').map(Number);
+const OUT = process.env.OUT ?? 'dreams.jsonl';
+seed = Number(process.env.SEED ?? 1);
+for (const tier of tiers) {
+  for (let race = r0; race <= r1; race++) {
     for (const goal of ['win', 'survive'] as const) {
       let got: DreamSpec | null = null;
       for (let i = 0; i < 400 && !got; i++) got = attempt(tier, race, goal);
       if (got) {
         got.id = `t${tier}-r${race}-${goal}`;
-        out.push(got);
+        appendFileSync(OUT, JSON.stringify(got) + '\n');
       }
       console.log(tier, race, goal, got ? 'ok' : 'none');
     }
   }
 }
-const body = JSON.stringify(out, null, 0).replace(/\},\{"id"/g, '},\n  {"id"');
-writeFileSync(
-  new URL('../src/engine/dreams-data.ts', import.meta.url),
-  `/** Dreams of the Lost: positions generated and proven by scripts/dreams-gen.ts (don't edit by hand). */\nimport type { DreamSpec } from './game';\n\nexport const DREAMS: DreamSpec[] = ${body};\n`,
-);
-console.log('dreams', out.length);
