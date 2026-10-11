@@ -45,7 +45,7 @@ import {
   raceUnlocked,
   heroUnlocked,
   heroUnlockNeed,
-  heroConquests,
+  raceConquests,
   runBonuses,
   metaUpgrade,
   type MetaGroup,
@@ -786,12 +786,12 @@ export class CampaignView {
     const s = this.state;
     // (Experience too: kept the moment it is earned, so a lost run still moves the player on.)
     const xp = (s?.xp ?? 0) - (s?.xpBanked ?? 0);
-    // (Stars conquered too, to the hero leading the run: what unlocks the race's next hero.)
+    // (Stars conquered too, to the run's race: what unlocks its later heroes.)
     const stars = (s?.starsTaken ?? 0) - (s?.starsBanked ?? 0);
     if (!s || (s.petals <= s.petalsBanked && xp <= 0 && stars <= 0)) return;
     const meta = loadMeta();
-    const hero = campaignPlayer(s).hero ?? flagship(s, s.playerId)?.general;
-    const conquests = hero && stars > 0 ? { ...meta.conquests, [hero]: (meta.conquests?.[hero] ?? 0) + stars } : meta.conquests;
+    const race = campaignPlayer(s)?.race;
+    const conquests = race !== undefined && stars > 0 ? { ...meta.conquests, [race]: raceConquests(meta, race) + stars } : meta.conquests;
     saveMeta({ ...meta, petals: meta.petals + (s.petals - s.petalsBanked), xp: (meta.xp ?? 0) + Math.max(0, xp), best: Math.max(meta.best, s.universe - 1), ...(conquests ? { conquests } : {}) });
     this.state = applyCampaignAction(s, { type: 'petalsBanked' });
   }
@@ -1413,10 +1413,10 @@ export class CampaignView {
             open
               ? ''
               : (() => {
-                  // (Not bought: earned, by the stars conquered with the hero before.)
+                  // (Not bought: earned, by the stars the race has conquered.)
                   const need = heroUnlockNeed(g)!;
-                  const had = Math.min(need.stars, heroConquests(meta, need.after));
-                  return `<div class="cs-hero-lock cs-hero-earn"><div><b>${had}<small>/${need.stars}</small></b><span>stars conquered as ${cardDef(need.after).name}</span><i style="--k:${(had / need.stars).toFixed(3)}"></i></div></div>`;
+                  const had = Math.min(need.stars, raceConquests(meta, need.race));
+                  return `<div class="cs-hero-lock cs-hero-earn"><div><b>${had}<small>/${need.stars}</small></b><span>stars conquered as ${esc(RACE_NAMES[need.race])}</span><i style="--k:${(had / need.stars).toFixed(3)}"></i></div></div>`;
                 })()
           }
         </div>`;
@@ -2739,7 +2739,7 @@ export class CampaignView {
             <li><b>The collapse:</b> regional stability lasts ${CAMPAIGN.stabilityTurns} moves in the first universe, ${CAMPAIGN.stabilityStep} fewer in each one after (never under ${CAMPAIGN.stabilityMin}). Then the strip gives way from the near end, a whole column with every move, each marked (⚠) a move before. Whatever stands there is lost, your flagship too.</li>
             <li><b>Every move is a turn.</b> Your flagship flies one route at a time, any way you like, back on itself too. Into a system you hold it simply moves; into a <b>find</b> (a derelict, a depot, an archive) it takes what is there with no fight; into any other, it fights. After each move the collapse comes on. Changing the deck or repairing costs no move. If your flagship has nowhere to go, time moves on by itself.</li>
             <li><b>Win</b> a system and it is yours: it pays its materials once, your flagship moves in, and it counts for petals. Nothing pays by the move. Some worlds hold extra materials, taken with the system.</li>
-            <li><b>Stellari petals</b> are grabbed at every wormhole: a few for getting there, more for every share of the strip you conquered. They are banked at once and outlive the run. Spend them between runs on a stronger start, a tougher flagship, run perks, and new races and heroes.</li>
+            <li><b>Stellari petals</b> are grabbed at every wormhole: a few for getting there, more for every share of the strip you conquered. They are banked at once and outlive the run. Spend them between runs on a stronger start, a tougher flagship, run perks, and new races. A race's later heroes are earned by conquering stars as it.</li>
             <li><b>Its deck</b> starts with ${CAMPAIGN.armySize} cards: your hero and your race's own, with a few neutral cards. It grows with every card you salvage or put in, and never drops below ${CAMPAIGN.armySize}.</li>
             <li><b>Battles</b> are the card game, by its rules. Your hero is in your deck, played like any card. Each universe's <b>galaxy</b> (a black hole, a pulsar, a meteor shower, a nebula or dark matter) bends every battle fought in it.</li>
             <li>${ARMORY_ICON} <b>Space stations</b> sell ${CAMPAIGN.armoryStock} cards each, every one only once. ${RESEARCH_ICON} <b>Research stations</b> offer ${CAMPAIGN.researchOptions} upgrades each: pick one, free. Both are better deep in the strip. Bring your flagship to one to use it.</li>

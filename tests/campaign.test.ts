@@ -616,15 +616,16 @@ describe('Dreams of the Lost', () => {
 });
 
 describe('Heroes earned by conquest', () => {
-  it("unlock in order, by stars conquered with the one before, and bring stronger decks the later they come", async () => {
+  it("unlock in order, by stars the race has conquered, and bring stronger decks the later they come", async () => {
     const { heroUnlocked, emptyMeta, HERO_UNLOCK_STARS } = await import('../src/engine/meta');
     const [veyra, aurex, solenne] = GENERALS[0];
     const meta = emptyMeta();
     expect(heroUnlocked(meta, veyra)).toBe(true);
     expect(heroUnlocked(meta, aurex)).toBe(false);
-    expect(heroUnlocked({ ...meta, conquests: { [veyra]: HERO_UNLOCK_STARS[1] } }, aurex)).toBe(true);
-    expect(heroUnlocked({ ...meta, conquests: { [veyra]: 99, [aurex]: HERO_UNLOCK_STARS[2] - 1 } }, solenne)).toBe(false);
-    expect(heroUnlocked({ ...meta, conquests: { [aurex]: HERO_UNLOCK_STARS[2] } }, solenne)).toBe(true);
+    expect(heroUnlocked({ ...meta, conquests: { 0: HERO_UNLOCK_STARS[1] } }, aurex)).toBe(true);
+    expect(heroUnlocked({ ...meta, conquests: { 0: HERO_UNLOCK_STARS[2] - 1 } }, solenne)).toBe(false);
+    expect(heroUnlocked({ ...meta, conquests: { 0: HERO_UNLOCK_STARS[2] } }, solenne)).toBe(true);
+    expect(heroUnlocked({ ...meta, conquests: { 1: 99 } }, aurex)).toBe(false);
     const rare = (hero: string) => armyDeck(0, hero).filter((id) => cardDef(id).rarity === 'stellar' || cardDef(id).rarity === 'anomaly').length;
     expect(rare(aurex)).toBeGreaterThan(rare(veyra));
     expect(rare(solenne)).toBeGreaterThan(rare(aurex));
