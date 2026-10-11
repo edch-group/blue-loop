@@ -109,7 +109,7 @@ import { CampaignView, loadCampaign } from './campaign';
 import { relicMark } from './relic-art';
 
 import { closeTour, tourShowing } from './tour';
-import { shownKind, isBurst, isBossCard, bossIntent, bossAim, relicN, relicOf, RELIC_POWERS, type ShownKind } from '../engine';
+import { shownKind, isBurst, isBossCard, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS, type ShownKind } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -1646,23 +1646,26 @@ export class App {
    */
   private syncBossAim() {
     const s = this.screen === 'game' ? this.state : null;
-    const boss = s && !isGameOver(s) && !this.stage ? s.players.find((p) => p.boss && bossIntent(p)) : undefined;
-    const at = s && boss ? bossAim(s, boss) : null;
+    const boss = s && !isGameOver(s) && !this.stage ? s.players.find((p) => p.boss) : undefined;
     const foe = s && boss ? s.players.find((p) => p !== boss && !p.eliminated) : undefined;
-    const from = boss ? bossIntent(boss)!.card.uid : '';
-    const key = at && foe && (at.sun || at.cards.length) ? `${from}|${at.sun ? foe.id : ''}|${at.cards.map((x) => x.uid).join(',')}` : '';
+    // Each part that acts next (its chosen action, and every minion), with what it will strike.
+    const parts = s && boss && foe ? [...(bossIntent(boss) ? [bossIntent(boss)!.card] : []), ...bossMinions(boss)] : [];
+    const lines = parts.flatMap((c) => {
+      const at = partAim(s!, boss!, c);
+      return [...(at.sun ? [`[data-anchor="player:${foe!.id}"]`] : []), ...at.cards.map((x) => `.tableau [data-uid="${x.uid}"]`)].map((to) => ({ from: c.uid, to }));
+    });
+    const key = lines.map((l) => `${l.from}>${l.to}`).join('|');
     if (key === this.bossAimKey) return;
     this.bossAimKey = key;
     this.bossUnaim.forEach((f) => f());
     this.bossUnaim = [];
-    if (!key || !at || !foe) return;
+    if (!key) return;
     const root = this.root;
-    const source = () => {
-      const el = root.querySelector(`.tableau [data-uid="${from}"]`);
+    const rectOf = (sel: string) => {
+      const el = root.querySelector(sel);
       return el ? pageRect(el) : null;
     };
-    const targets = [...(at.sun ? [`[data-anchor="player:${foe.id}"]`] : []), ...at.cards.map((x) => `.tableau [data-uid="${x.uid}"]`)];
-    this.bossUnaim = targets.map((sel) => aim(source, () => targetRect(root.querySelector(sel)), { alive: () => this.bossAimKey === key }));
+    this.bossUnaim = lines.map((l) => aim(() => rectOf(`.tableau [data-uid="${l.from}"]`), () => targetRect(root.querySelector(l.to)), { alive: () => this.bossAimKey === key }));
   }
   private bossAimKey = '';
   private bossUnaim: (() => void)[] = [];
@@ -5966,7 +5969,10 @@ export class App {
     const full = isBossCard(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}${opts.owner?.boss?.intent === c.uid ? ' card-intent' : ''}` : '';
     // (Its action's name shows in the inspector only [direction: hide the unique ability pills other than in the
     // inspector]. The part acting next carries the heat it will deal, large across its middle.)
-    const aimHeat = opts.tableau && opts.owner?.boss?.intent === c.uid && this.state ? Math.max(0, bossAim(this.state, opts.owner).sun, ...bossAim(this.state, opts.owner).cards.map((x) => x.heat)) : 0;
+    // (Its minions too: each acts every day.)
+    const acting = opts.tableau && opts.owner?.boss && this.state && (opts.owner.boss.intent === c.uid || bossMinions(opts.owner).some((m) => m.uid === c.uid));
+    const blow = acting ? partAim(this.state!, opts.owner!, c) : null;
+    const aimHeat = blow ? Math.max(0, blow.sun, ...blow.cards.map((x) => x.heat)) : 0;
     const actionTag = aimHeat ? `<b class="boss-aim-heat">${symbolIcon('heat')}<span>${aimHeat}</span></b>` : '';
     return `
       <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}${opts.tableau && c.frozen ? ' card-frozen' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">

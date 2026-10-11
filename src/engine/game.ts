@@ -1888,7 +1888,7 @@ export function bossAim(state: GameState, p: PlayerState): { sun: number; cards:
 }
 
 /** Where one of a Lost Overlord's parts would strike, were it to act now (see bossAim). */
-function partAim(state: GameState, p: PlayerState, part: CardInstance): { sun: number; cards: { uid: string; heat: number }[] } {
+export function partAim(state: GameState, p: PlayerState, part: CardInstance): { sun: number; cards: { uid: string; heat: number }[] } {
   const out = { sun: 0, cards: [] as { uid: string; heat: number }[] };
   const t = targetOf(state, p);
   const action = cardDef(part.defId).bossAction;
@@ -1925,8 +1925,10 @@ function bossActionScore(state: GameState, p: PlayerState, part: CardInstance): 
   const aim = partAim(state, p, part);
   let score = 0;
   // The sun: past its shields, more the hotter it already runs; a supernova above all.
-  const through = Math.max(0, aim.sun - t.shields);
-  if (through > 0 && t.heat + through >= supernovaThreshold(t)) score += 1000;
+  // (Its minions strike the sun the same day: heat that, with theirs, would finish it.)
+  const minions = bossMinions(p).reduce((n, m) => n + partAim(state, p, m).sun, 0);
+  const through = Math.max(0, aim.sun + minions - t.shields) - Math.max(0, minions - t.shields);
+  if (aim.sun > 0 && t.heat + Math.max(0, aim.sun + minions - t.shields) >= supernovaThreshold(t)) score += 1000;
   score += through * (1 + Math.max(0, t.heat) / Math.max(1, supernovaThreshold(t)));
   // Cards: heat that lands (its shields, defence and stability between it and the card's end), and a card ended is
   // worth what it cost and the attack it brought.
@@ -1972,9 +1974,22 @@ function rechooseBossIntents(state: GameState) {
   for (const p of state.players) if (p.boss && !p.eliminated) chooseBossIntent(state, p);
 }
 
-/** A Lost Overlord's parts that act, in the order they take their turns: left to right, the Overlord itself last. */
+/** The parts of a Lost Overlord's own body (and a Lost Lord): one of their actions is chosen each day. */
+const BODY_PARTS = new Set(['overlord', 'body', 'gear', 'lost lord', 'vault']);
+/** Whether a card with an action is an entity of its own (a retainer, a challenge's creature): it acts every day. */
+const actsAlone = (c: CardInstance) => !!cardDef(c.defId).bossAction && !BODY_PARTS.has(cardDef(c.defId).overlordPart ?? '');
+
+/**
+ * A Lost Overlord's minions with actions of their own (its retinue, a challenge's creatures): separate entities,
+ * each acts every day, beside the one action its body takes [direction: minions always act].
+ */
+export function bossMinions(p: PlayerState): CardInstance[] {
+  return p.tableau.filter(actsAlone).sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
+}
+
+/** A Lost Overlord's own parts that act, one chosen a day: left to right, the Overlord itself last. */
 export function bossOrder(p: PlayerState): CardInstance[] {
-  return p.tableau.filter((c) => cardDef(c.defId).bossAction).sort((a, b) => (a.slot === COMMAND_SLOT ? 99 : a.slot ?? 0) - (b.slot === COMMAND_SLOT ? 99 : b.slot ?? 0));
+  return p.tableau.filter((c) => cardDef(c.defId).bossAction && !actsAlone(c)).sort((a, b) => (a.slot === COMMAND_SLOT ? 99 : a.slot ?? 0) - (b.slot === COMMAND_SLOT ? 99 : b.slot ?? 0));
 }
 
 /** A Lost Overlord's next action: its part, and what it is (none if the part is gone: it will stagger). */
@@ -1994,7 +2009,14 @@ function bossAct(state: GameState, p: PlayerState) {
     const a = cardDef(intent.card.defId).bossAction!;
     log(state, `⚔ ${p.name}: ${a.name}!`);
     resolveEffects(state, p, intent.card, a.effects, 'turn');
-  } else log(state, `${p.name} reaches for a part it no longer has, and staggers.`);
+  } else if (p.boss?.leader) log(state, `${p.name} reaches for a part it no longer has, and staggers.`);
+  // Its minions, each acting for itself.
+  for (const m of bossMinions(p)) {
+    if (state.winnerId || p.eliminated || !p.tableau.includes(m)) continue;
+    const a = cardDef(m.defId).bossAction!;
+    log(state, `⚔ ${p.name}'s ${cardDef(m.defId).name}: ${a.name}!`);
+    resolveEffects(state, p, m, a.effects, 'turn');
+  }
   if (state.winnerId || p.eliminated || !p.boss) return;
   // The next: its best against the board as it now stands.
   chooseBossIntent(state, p);

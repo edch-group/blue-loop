@@ -113,3 +113,18 @@ describe('Lost Overlord blows with no card to strike', () => {
     expect(s.players[0].heat - heat).toBeGreaterThanOrEqual(6);
   });
 });
+
+describe("A Lost Overlord's minions", () => {
+  it('act every day, beside the one action its body takes', async () => {
+    const { bossMinions, bossOrder: order } = await import('../src/engine/game');
+    const tyrant = OVERLORDS.find((o) => o.parts.includes('tyrant_retainers'))!;
+    let s = createGame({ seed: 5, campaign: true, players: [{ name: 'Ada', isAI: false }, { name: tyrant.name, isAI: true, deck: [], boss: true, tableau: [tyrant.hero, ...tyrant.parts] }] });
+    const boss = s.players[1];
+    expect(bossMinions(boss).map((c) => c.defId)).toEqual(['tyrant_retainers']);
+    expect(order(boss).some((c) => c.defId === 'tyrant_retainers')).toBe(false);
+    s = applyAction(s, { type: 'endTurn' });
+    s = applyAction(s, { type: 'endTurn' });
+    const acted = s.log.filter((l) => l.text.startsWith('⚔')).map((l) => l.text);
+    expect(acted.filter((t) => t.includes('Retainers') || t.includes('retainers')).length).toBeGreaterThanOrEqual(1);
+  });
+});
