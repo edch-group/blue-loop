@@ -15,6 +15,7 @@
  * from campaign state and fed back in with `finishBattle` once they are over.
  */
 import { chooseAIAction } from './ai';
+import { ENIGMA_CARDS, isEnigma } from './cards-enigma';
 import { CARDS, cardDef, cardIn, copyLimit, fusedId, fusionProblem, presetDeck, RACE_NAMES, rarityOf } from './cards';
 import { CORE_RACES, inMode, type GameMode } from './modes';
 import { BALANCE } from './balance';
@@ -218,9 +219,10 @@ export const CAMPAIGN = {
 } as const;
 
 /** Armory prices in materials, by rarity (race cards cost 1 more than neutral ones). */
-export const ARMORY_PRICE = { dwarf: 3, stellar: 5, anomaly: 8, race: 1 } as const;
+export const ARMORY_PRICE = { dwarf: 3, stellar: 5, anomaly: 8, enigma: 20, race: 1 } as const;
 /** How often each rarity turns up in the armory and mission rewards (relative weights). */
-export const OFFER_WEIGHT = { dwarf: 4, stellar: 2, anomaly: 1 } as const;
+// (Enigmas are never in a pool: they are found apart, by enigmaChance.)
+export const OFFER_WEIGHT = { dwarf: 4, stellar: 2, anomaly: 1, enigma: 0 } as const;
 
 /** A planet orbiting a map system (cosmetic; the tint names its colour). */
 export interface MapPlanet {
@@ -1274,7 +1276,8 @@ export function armyDeck(race: number, general: string, mode: GameMode = 'lost')
  * How many copies of a card a flagship's deck may carry: as many of an Anomaly as of any other card [direction:
  * campaign decks can have more than one of each Anomaly].
  */
-export const campaignCopies = (_id: string) => BALANCE.maxCopies;
+/** Copies of a card a campaign deck may hold: two of anything (Anomalies too), one of each Enigma. */
+export const campaignCopies = (id: string) => (isEnigma(id) ? 1 : BALANCE.maxCopies);
 
 export function armyDeckProblems(deck: string[], general: string): string[] {
   const out: string[] = [];
@@ -1924,6 +1927,36 @@ export const dreamTier = (s: CampaignState) => Math.min(4, s.universe);
 /** The chance a dream's card reward is an Anomaly: none in the first two galaxies, then 10% more, compounding, each. */
 export const dreamAnomalyChance = (universe: number) => (universe <= 2 ? 0 : 1 - Math.pow(0.9, universe - 2));
 
+/**
+ * Enigmas [direction: findable only once the chance of an Anomaly is very high, and even then very small; a little
+ * better from the harder events: high dreams, Overlords, rifts]. None until the galaxy where an Anomaly is more
+ * likely than not (dreamAnomalyChance past a half: the ninth); there, 1% a reward, half a point more each galaxy
+ * after, to 4% at most; three times that from a hard event.
+ */
+export const ENIGMA_FROM = (() => {
+  let u = 1;
+  while (dreamAnomalyChance(u) < 0.5) u++;
+  return u;
+})();
+export function enigmaChance(universe: number, hard = false): number {
+  if (universe < ENIGMA_FROM) return 0;
+  const base = Math.min(0.04, 0.01 + 0.005 * (universe - ENIGMA_FROM));
+  return hard ? base * 3 : base;
+}
+
+/** A reward's cards, one perhaps swapped for an Enigma the player doesn't hold yet (by enigmaChance). */
+function withEnigma(s: CampaignState, options: string[], hard: boolean): string[] {
+  const chance = enigmaChance(s.universe, hard);
+  if (!chance || !options.length || nextRandom(s) >= chance) return options;
+  const f = campaignPlayer(s);
+  const held = new Set([...f.reserve, ...s.armies.filter((a) => a.owner === f.id).flatMap((a) => a.deck)]);
+  const free = ENIGMA_CARDS.map((c) => c.id).filter((id) => !held.has(id));
+  if (!free.length) return options;
+  const id = free[randomInt(s, free.length)];
+  clog(s, `Something impossible glimmers among the spoils: ${cardDef(id).name}.`, undefined, f.id);
+  return [...options.slice(0, options.length - 1), id];
+}
+
 /** A dream for the player: of this galaxy's tier (or the nearest below it), never as the player's own race. */
 function pickDream(s: CampaignState): string | null {
   const race = campaignPlayer(s).race;
@@ -1956,8 +1989,8 @@ function startDream(s: CampaignState) {
   s.battle = { attacker: f.id, defender: null, fromId: p.nodeId, nodeId: p.nodeId, armyId: army.id, defenderArmyId: null, game, dream: { id: spec.id, damage: army.damage } };
 }
 
-/** The cards a solved dream offers: rare or better, an Anomaly by the galaxy's chance. */
-function dreamCards(s: CampaignState): string[] {
+/** The cards a solved dream offers: rare or better, an Anomaly by the galaxy's chance (an Enigma, rarely: likelier from a deep dream). */
+function dreamCards(s: CampaignState, tier = 1): string[] {
   const f = campaignPlayer(s);
   const of = (r: string) => shuffleInPlace(s, CARDS.filter((c) => (c.rarity ?? 'dwarf') === r && c.kind !== 'command' && c.kind !== 'global' && !c.fusion && (c.race === undefined || c.race === f.race) && legalIn(s.mode, c.id)).map((c) => c.id));
   const stellar = of('stellar'), anomaly = of('anomaly');
@@ -1968,7 +2001,7 @@ function dreamCards(s: CampaignState): string[] {
     if (!id) break;
     out.push(id);
   }
-  return out;
+  return withEnigma(s, out, tier >= 3);
 }
 
 /** A dream over: solved, petals and cards; not, nothing lost (the sun as it was). */
@@ -1988,7 +2021,7 @@ function resolveDream(s: CampaignState, game: GameState) {
   s.petals += petals;
   gainXp(s, CAMPAIGN.xpChallenge);
   clog(s, `${f.name} wakes from the dream with ${petals} Stellari petals.`, b.nodeId, f.id);
-  const options = dreamCards(s);
+  const options = dreamCards(s, tier);
   if (options.length) s.cardRewards.push({ source: 'The Dreams of the Lost', options, ...(army ? { toDeck: army.id } : {}), take: 'dreams up' });
 }
 
@@ -2127,7 +2160,9 @@ export function deepIn(s: CampaignState, n: CampaignNode): boolean {
 function randomCardChoices(s: CampaignState, f: Faction): string[] {
   const pool = [...new Set(shuffleInPlace(s, riftPool(s) ?? offerPool(f, s.mode, s.universe)))];
   // (Wide offers, bought between runs: more to choose from.)
-  return pool.slice(0, CAMPAIGN.cardChoices + (f.id === s.playerId ? s.run?.choices ?? 0 : 0));
+  const options = pool.slice(0, CAMPAIGN.cardChoices + (f.id === s.playerId ? s.run?.choices ?? 0 : 0));
+  // (The player's, now and then an Enigma: a rift's spoils are a hard event's.)
+  return f.id === s.playerId ? withEnigma(s, options, !!s.rift) : options;
 }
 
 // ---------------------------------------------------------------------------
@@ -2668,7 +2703,9 @@ function overlordBounty(s: CampaignState, f: Faction, army?: Army) {
   gainXp(s, CAMPAIGN.xpBoss);
   clog(s, `${lord.name} falls: ${f.name} gathers ${petals} Stellari petal${petals === 1 ? '' : 's'} from its remains.`, undefined, f.id);
   const fits = (id: string) => rarityOf(id) !== 'dwarf' && cardDef(id).kind !== 'command' && (!army || deckAddProblem({ ...f, reserve: [id] }, army, id) === null);
-  const options = [...new Set(shuffleInPlace(s, riftPool(s) ?? offerPool(f, s.mode, s.universe)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices + (s.run?.vault ?? 0));
+  const hoard = [...new Set(shuffleInPlace(s, riftPool(s) ?? offerPool(f, s.mode, s.universe)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices + (s.run?.vault ?? 0));
+  // (An Overlord's hoard is a hard event's: an Enigma a little likelier.)
+  const options = f.id === s.playerId ? withEnigma(s, hoard, true) : hoard;
   if (options.length) s.cardRewards.push({ source: `${lord.name}'s hoard`, options, ...(army ? { toDeck: army.id } : {}), take: 'claims' });
 }
 
@@ -3026,6 +3063,8 @@ function takeResearch(s: CampaignState, f: Faction, n: CampaignNode, projectId: 
   const st = n.station as Extract<Station, { kind: 'research' }>;
   st.takenBy = f.id;
   st.project = projectId;
+  // (Its upgrade taken, the system is the taker's [direction: shown as conquered after the visit].)
+  n.owner = f.id;
   (f.research ??= { done: [] }).done.push(projectId);
   clog(s, `${f.name} takes ${researchProject(projectId)!.name} from ${n.name}'s research station.`, n.id, f.id);
 }

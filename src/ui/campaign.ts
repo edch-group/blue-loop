@@ -439,6 +439,8 @@ export class CampaignView {
    */
   /** The research station's upgrade tapped, waiting on "take". */
   private rsPick: string | null = null;
+  /** The card lifted in a card reward (chosen with a confirm), and the reward it was lifted in. */
+  private cardPick: { reward: unknown; id: string } | null = null;
   private upBranch = 0;
   private upTurn = 90;
   /** A phone (or a narrow window): the tree one branch at a time. */
@@ -1017,7 +1019,13 @@ export class CampaignView {
         if (this.apply({ type: 'healArmy', armyId: arg, all: el.dataset.all === '1' })) el.dataset.all === '1' ? sound.upgrade() : sound.repair();
         break;
       case 'cmp-research':
-        if (el.dataset.project && this.apply({ type: 'research', nodeId: arg, projectId: el.dataset.project })) sound.upgrade();
+        // Confirm: the upgrade picked is taken, and it is back to the map (nothing to take: just back).
+        if (el.dataset.project) {
+          if (!this.apply({ type: 'research', nodeId: arg, projectId: el.dataset.project })) break;
+          sound.upgrade();
+        }
+        this.rsPick = null;
+        this.sheet = null;
         break;
       case 'cmp-visit':
         // A station the flagship stands in: its armoury, or its research.
@@ -1146,8 +1154,16 @@ export class CampaignView {
       case 'cmp-conquer':
         if (this.apply({ type: 'conquer', choice: 'settle' })) sound.upgrade();
         break;
+      case 'cmp-card-pick':
+        // A card reward: a tap lifts a card (again, lets it down); confirm takes it [direction: highlight, then confirm].
+        this.cardPick = this.cardPick?.id === arg && this.cardPick.reward === s?.cardRewards[0] ? null : { reward: s?.cardRewards[0], id: arg };
+        sound.hover();
+        break;
       case 'cmp-card':
-        if (this.apply({ type: 'chooseCard', defId: arg || null })) sound.buy();
+        if (this.apply({ type: 'chooseCard', defId: arg || null })) {
+          this.cardPick = null;
+          if (arg) sound.buy();
+        }
         break;
       case 'cmp-loot-open': {
         if (this.lootOpen || !s?.loot) break;
@@ -1230,7 +1246,7 @@ export class CampaignView {
     const scene = !overlay && s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? s.story.queue[0] : null;
     const me = campaignPlayer(s);
     return `
-      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}${s.rift ? ` cmp-rift-${s.rift.kind}` : ''}${s.dream && !s.battle && !s.struggle ? ' cmp-dreaming' : ''}${this.cine === 'ride' || this.cine === 'start' || this.cine === 'reveal' ? ' cmp-cine' : this.cine === 'done' ? ' cmp-cine-done' : ''}">
+      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}${s.rift ? ` cmp-rift-${s.rift.kind}` : ''}${s.dream && !s.battle && !s.struggle && !s.loot && !s.cardRewards.length && !s.conquest ? ' cmp-dreaming' : ''}${this.cine === 'ride' || this.cine === 'start' || this.cine === 'reveal' ? ' cmp-cine' : this.cine === 'done' ? ' cmp-cine-done' : ''}">
         <canvas class="cmp-nebula" data-key="cmp-nebula" aria-hidden="true"></canvas>
         ${s.rift?.kind === 'dark' ? '<div class="cmp-darkness" data-key="cmp-darkness" aria-hidden="true"></div>' : ''}
         <header class="cmp-top">
@@ -2546,12 +2562,14 @@ export class CampaignView {
       </div>`;
     }
     // A Dream of the Lost: the screen drifts, wavering, into dark, with a line; then the dream begins by itself.
-    if (s.dream && !s.battle && !s.struggle) {
+    // (Only once the battle's spoils are seen to: its loot opened and its card chosen, a conquest decided.)
+    const spoilsWaiting = (x: CampaignState) => !!x.loot || x.cardRewards.length > 0 || !!x.conquest;
+    if (s.dream && !s.battle && !s.struggle && !spoilsWaiting(s)) {
       if (!this.dreamStarting) {
         this.dreamStarting = true;
         window.setTimeout(() => {
           this.dreamStarting = false;
-          if (this.state?.dream && !this.state.struggle && this.apply({ type: 'dream' })) sound.encounter();
+          if (this.state?.dream && !this.state.struggle && !spoilsWaiting(this.state) && this.apply({ type: 'dream' })) sound.encounter();
           this.host.render();
         }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 900 : 4200);
       }
@@ -2576,11 +2594,12 @@ export class CampaignView {
     }
     const reward = s.cardRewards[0];
     if (reward) {
-      const cards = reward.options.map((id) => `<button class="cmp-pick" data-act="cmp-card" data-arg="${id}">${cardHtml(id)}</button>`).join('');
+      const picked = this.cardPick?.reward === reward && reward.options.includes(this.cardPick.id) ? this.cardPick.id : null;
+      const cards = reward.options.map((id) => `<button class="cmp-pick ${picked === id ? 'cmp-pick-on' : ''}" data-act="cmp-card-pick" data-arg="${id}" aria-pressed="${picked === id}">${cardHtml(id)}</button>`).join('');
       return this.modal(
         `★ ${lower(reward.source)} · choose a new card`,
         `<div class="cmp-cards">${cards}</div>
-         <div class="center-row"><button class="btn" data-act="cmp-card" data-arg="">skip</button></div>`,
+         <div class="center-row"><button class="btn" data-act="cmp-card" data-arg="">skip</button><button class="btn-primary" data-act="cmp-card" data-arg="${picked ?? ''}" ${picked ? '' : 'disabled'}>confirm</button></div>`,
       );
     }
     const sh = this.sheet;
@@ -2833,14 +2852,12 @@ export class CampaignView {
         </button>`;
       })
       .join('');
-    const action = taken
-      ? `<p class="ar-hint">${taken === me.id ? 'taken' : `taken by ${esc(factionById(s, taken).name.toLowerCase())}`}</p>`
-      : pick
-        ? `<button class="btn-primary ar-go" data-act="cmp-research" data-arg="${n.id}" data-project="${esc(pick)}">take</button>`
-        : `<p class="ar-hint">take one · the rest are lost</p>`;
+    // [direction: no way back to the map but a confirm beneath the options, which takes the one picked and returns]
+    const open = !taken && st.options.some((id) => !RETIRED_RESEARCH.has(id) && !researchProblem(s, me, n, id));
+    const action = `${taken ? `<p class="ar-hint">${taken === me.id ? 'taken' : `taken by ${esc(factionById(s, taken).name.toLowerCase())}`}</p>` : ''}
+      <button class="btn-primary ar-go" data-act="cmp-research" data-arg="${n.id}" ${pick ? `data-project="${esc(pick)}"` : ''} ${open && !pick ? 'disabled' : ''}>confirm</button>`;
     return `
       <div class="ar rs">
-        <button class="ar-back" data-act="cmp-close" aria-label="Back to the map">‹ map</button>
         <header class="ar-head">
           <small>research station</small>
           <h3>${esc(lower(n.name))}</h3>

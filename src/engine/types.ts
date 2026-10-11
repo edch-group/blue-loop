@@ -20,9 +20,10 @@ export const KIND_NAME: Record<CardKind, string> = { attack: 'attack', defence: 
 /**
  * How rare a card is, shown by a gem at the top of the card: a White Dwarf
  * (the standard rarity), a Stellar sun, or an Anomaly (a black hole). A deck
- * may hold only one copy of each Anomaly.
+ * may hold only one copy of each Anomaly. Above them all, campaign only, the Enigma (a jewel with light
+ * refracting inside it): a god tier, found rarely deep in a run (cards-enigma.ts).
  */
-export type Rarity = 'dwarf' | 'stellar' | 'anomaly';
+export type Rarity = 'dwarf' | 'stellar' | 'anomaly' | 'enigma';
 export const RARITIES: readonly Rarity[] = ['dwarf', 'stellar', 'anomaly'];
 
 /** Global cards change the table for everyone while they are in play. Only one can be in play at a time. */
@@ -154,6 +155,14 @@ export type Effect = (
   | { type: 'devour' }
   /** A Lost Overlord calls its retainers: this many of a card into its free slots. */
   | { type: 'summon'; defId: string; amount: number }
+  /** Enigma (Mirror of Ends): your sun's heat and your rival's change places (no rival sun: yours cools to nothing). */
+  | { type: 'swapSuns' }
+  /** Enigma (Usurper's Crown): a rival card of your choice comes over to your tableau, ready to act (to your hand, if it is full). */
+  | { type: 'steal' }
+  /** Enigma (The Stopped Clock): your rival's next day is skipped whole. */
+  | { type: 'skipDay' }
+  /** Enigma (Singularity Seed): this card's attack doubles. */
+  | { type: 'doubleAttack' }
   /** Move an orbit on by `amount` turns (negative: back), yours or your rival's. Three turns is a whole planet. */
   | { type: 'orbit'; amount: number; who: 'self' | 'rival' }
 ) & { if?: Condition };
@@ -203,7 +212,15 @@ export type Passive =
   /** Guard: rival attacks and aimed heat can only target your Guard cards while you have one. */
   | { type: 'taunt' }
   /** Your rivals' planets all count as the dead planet (no energy or cards from them) while this is in play. */
-  | { type: 'eatPlanets' };
+  | { type: 'eatPlanets' }
+  /** Enigma (The Second Dawn): when your day ends you take another, once a round. */
+  | { type: 'secondDawn' }
+  /** Enigma (The Unburning): your sun can't go supernova (it stops one short). */
+  | { type: 'unburning' }
+  /** Enigma (Zero-Point Core): your other cards cost nothing to play. */
+  | { type: 'freeCards' }
+  /** Enigma (Null Edict): your rivals' cards' dawn and dusk effects don't happen. */
+  | { type: 'silence' };
 
 /**
  * What springs a trap, during an enemy's day (from its owner's face-down slot). Each is something the enemy
@@ -538,6 +555,10 @@ export interface PlayerState {
   skills?: (BattleSkill & { spent?: boolean; usedTurn?: number })[];
   /** The turn (turnNumber) this player last used their Hero's ability: one a day. */
   abilityTurn?: number;
+  /** The Second Dawn: the day (turnNumber) of the extra day it gave (which gives none of its own). */
+  extraDay?: number;
+  /** The Stopped Clock: this player's days still to be skipped. */
+  skipDays?: number;
 }
 
 export interface LogEntry {

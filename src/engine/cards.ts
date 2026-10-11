@@ -14,6 +14,7 @@ import { HERO_CARDS, heroCost } from './heroes-battle';
 import { ruleAttack } from './attack';
 import { FUSION_CARDS, FUSION_COSTS, TOKENS } from './cards-fusion';
 import { BOSS_CARDS } from './cards-bosses';
+import { ENIGMA_CARDS } from './cards-enigma';
 import { BOONS } from './boons';
 import { raceTrait } from './races';
 import { CARD_COSTS } from './costs';
@@ -784,7 +785,7 @@ export function isBurst(def: CardDef): boolean {
 }
 
 /** Display names for the rarities. */
-export const RARITY_NAME: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly' };
+export const RARITY_NAME: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly', enigma: 'Enigma' };
 
 export function rarityOf(defId: string): Rarity {
   return cardDef(defId).rarity ?? 'dwarf';
@@ -792,12 +793,14 @@ export function rarityOf(defId: string): Rarity {
 
 /** Copies of a card a deck may hold: one for an Anomaly, otherwise the usual limit. */
 export function copyLimit(defId: string): number {
-  return rarityOf(defId) === 'anomaly' ? BALANCE.maxAnomalyCopies : BALANCE.maxCopies;
+  const r = rarityOf(defId);
+  return r === 'anomaly' || r === 'enigma' ? BALANCE.maxAnomalyCopies : BALANCE.maxCopies;
 }
 
 for (const t of TOKENS) Object.assign(t, { cost: 0 });
 // (Tokens are cards in play, but not in the pool: no deck, shop or collection has them.)
-const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS, ...BOSS_CARDS].map((c) => [c.id, c]));
+// (Enigmas too: in play and in campaign decks, never in the pool.)
+const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS, ...BOSS_CARDS, ...ENIGMA_CARDS].map((c) => [c.id, c]));
 
 /**
  * Dawn heat as attack: each card's plain dawn heat at the rival (no condition) becomes that much more
@@ -991,7 +994,7 @@ function lostDef(defId: string): CardDef {
 // ---------------------------------------------------------------------------
 
 const FUSE = 'fuse:';
-const RARITY_RANK: Record<Rarity, number> = { dwarf: 0, stellar: 1, anomaly: 2 };
+const RARITY_RANK: Record<Rarity, number> = { dwarf: 0, stellar: 1, anomaly: 2, enigma: 3 };
 
 export function fusedId(a: string, b: string): string {
   return `${FUSE}${a}+${b}`;
@@ -1020,6 +1023,7 @@ export function unfusable(id: string): string | null {
   if (d.kind === 'global') return 'Global cards cannot be fused.';
   if (d.kind === 'trap') return 'Traps cannot be fused.';
   if (d.kind === 'relic') return 'Relics cannot be fused.';
+  if (d.rarity === 'enigma') return 'Enigmas cannot be fused.';
   return null;
 }
 
