@@ -377,7 +377,7 @@ export function modeCards(current: 'core' | 'lost', act: string, modes: Record<'
   return `<aside class="mode-cards">${top ? `<div class="mode-cards-top">${top}</div>` : ''}<div class="mode-cards-in" role="group" aria-label="Game mode">${card('core')}${card('lost')}</div></aside>`;
 }
 
-const RARITY_TITLE: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly (one per deck)' };
+const RARITY_TITLE: Record<Rarity, string> = { dwarf: 'White Dwarf', stellar: 'Stellar', anomaly: 'Anomaly (one per deck)', enigma: 'Enigma (one per deck)' };
 
 /** A stable per-card phase, so gems on neighbouring cards shine out of step. */
 function phase(id: string): string {
@@ -402,12 +402,15 @@ const GEM_LIGHT: Record<Rarity, string[]> = {
   dwarf: ['shimmer1', 'shimmer2', 'spikes', 'sparks'],
   stellar: ['corona1', 'corona2', 'flares1', 'flares2'],
   anomaly: ['swirl2', 'swirl1', 'lens'],
+  enigma: ['prism1', 'prism2'],
 };
 
 export function rarityGem(def: CardDef): string {
   const r: Rarity = def.rarity ?? 'dwarf';
   const body =
-    r === 'anomaly'
+    r === 'enigma'
+      ? '<i class="g g-en-prism"></i><i class="g g-en-prism g-en-prism2"></i><i class="g g-en-facets"></i><i class="g g-en-glint"></i><i class="g g-en-spark"></i>'
+      : r === 'anomaly'
       ? '<i class="g g-ah-glow"></i><i class="g g-ah-swirl"></i><i class="g g-ah-swirl g-ah-swirl2"></i><i class="g g-ah-core"></i>'
       : r === 'stellar'
         ? '<i class="g g-sun-corona"></i><i class="g g-sun-disc"></i>'
@@ -423,6 +426,33 @@ const GEM_IMAGES: Record<string, string> = {
   lightDwarfSpikes, lightDwarfShimmer1, lightDwarfShimmer2, lightDwarfSparks, lightSunCorona1, lightSunCorona2, lightSunFlares1, lightSunFlares2, lightHoleSwirl1, lightHoleSwirl2, lightHoleLens,
 };
 for (const [name, url] of Object.entries(GEM_IMAGES)) document.documentElement.style.setProperty(`--gem-${name}`, `url("${url}")`);
+
+/**
+ * The Enigma's jewel, seen from above: a brilliant cut (an octagonal table, star, kite and girdle facets), each facet
+ * lit or shaded, lying over the spectrum turning beneath it, so the light seems to refract from facet to facet.
+ */
+function enigmaFacets(): string {
+  const at = (r: number, deg: number) => {
+    const a = (deg * Math.PI) / 180;
+    return `${(50 + r * Math.cos(a)).toFixed(2)},${(50 + r * Math.sin(a)).toFixed(2)}`;
+  };
+  const T = (k: number) => at(21, k * 45 + 22.5);
+  const S = (k: number) => at(35, k * 45 + 45);
+  const G = (k: number) => at(52, k * 45 + 22.5);
+  const H = (k: number) => at(52, k * 45 + 45);
+  const poly = (pts: string[], fill: string) => `<polygon points="${pts.join(' ')}" fill="${fill}"/>`;
+  let out = poly([0, 1, 2, 3, 4, 5, 6, 7].map(T), 'rgba(255,255,255,0.16)');
+  for (let k = 0; k < 8; k++) {
+    const n = (k + 1) % 8, p = (k + 7) % 8;
+    out += poly([T(k), S(k), T(n)], k % 2 ? 'rgba(255,255,255,0.34)' : 'rgba(10,26,64,0.22)');
+    out += poly([T(k), S(p), G(k), S(k)], k % 2 ? 'rgba(10,26,64,0.34)' : 'rgba(255,255,255,0.14)');
+    out += poly([S(k), G(k), H(k)], k % 2 ? 'rgba(255,255,255,0.26)' : 'rgba(10,26,64,0.4)');
+    out += poly([S(k), H(k), G(n)], k % 2 ? 'rgba(10,26,64,0.3)' : 'rgba(255,255,255,0.22)');
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><g stroke="rgba(255,255,255,0.6)" stroke-width="0.7" stroke-linejoin="round">${out}</g></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+document.documentElement.style.setProperty('--gem-enFacets', enigmaFacets());
 
 /**
  * The Anomaly's black hole, seen from above: its accretion disk as streaks of light circling the hole,
@@ -550,7 +580,7 @@ function circuitTile(colour: string, seed: number, strength = 0.27): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${S} ${S}"><g fill="${colour}" stroke="${colour}" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" fill-opacity="0.5" opacity="${strength}">${paths}${pads}${chip}</g></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
-const CIRCUIT: Record<Rarity, [string, number]> = { dwarf: ['#6f86ad', 7], stellar: ['#c08a24', 11], anomaly: ['#8c5ad6', 19] };
+const CIRCUIT: Record<Rarity, [string, number]> = { dwarf: ['#6f86ad', 7], stellar: ['#c08a24', 11], anomaly: ['#8c5ad6', 19], enigma: ['#2f9fb4', 23] };
 for (const [r, [colour, seed]] of Object.entries(CIRCUIT)) document.documentElement.style.setProperty(`--circuit-${r}`, circuitTile(colour, seed));
 // The stat jewels (scripts/render_jewels.py): a garnet for attack, a topaz for stability, a ruby when it is about to run out.
 for (const [k, url] of Object.entries({ emerald: jewelEmerald, topaz: jewelTopaz, ruby: jewelRuby, garnet: jewelGarnet })) document.documentElement.style.setProperty(`--jewel-${k}`, `url(${url})`);

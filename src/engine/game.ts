@@ -195,6 +195,16 @@ function passives(p: PlayerState): { card: CardInstance; passive: Passive }[] {
   return p.tableau.flatMap((card) => cardPassives(card).map((passive) => ({ card, passive })));
 }
 
+/** Whether a player has an Enigma's power in play (The Second Dawn, The Unburning, Zero-Point Core, Null Edict). */
+export function hasPower(p: PlayerState, type: 'secondDawn' | 'unburning' | 'freeCards' | 'silence'): boolean {
+  return !p.eliminated && p.tableau.some((card) => cardPassives(card).some((x) => x.type === type));
+}
+
+/** Null Edict: a rival of this player's holds it, so this player's cards' dawn and dusk effects don't happen. */
+export function silenced(state: GameState, p: PlayerState): boolean {
+  return state.players.some((o) => o !== p && hasPower(o, 'silence'));
+}
+
 /** What a card carries on top of its own text: its Fusion cards and a campaign hero's boons. */
 /** What a Fusion card lends the card it is fused onto: its Fusion bonus, and nothing else of it. */
 const FUSED = new Map<string, CardDef>();
@@ -306,11 +316,11 @@ function fieldActive(state: GameState, field: FieldId): boolean {
   return !!g && (cardDef(g.card.defId).passive ?? []).some((ps) => ps.type === 'field' && ps.field === field);
 }
 
-type EnemyEffect = Extract<Effect, { type: 'destroy' | 'bounce' | 'erode' | 'shift' | 'offer' | 'rootbreak' }>;
+type EnemyEffect = Extract<Effect, { type: 'destroy' | 'bounce' | 'erode' | 'shift' | 'offer' | 'rootbreak' | 'steal' }>;
 
 /** The effect a card aims at one card in a rival's tableau (destroy, return or erode), if any. */
 export function enemyEffect(defId: string): EnemyEffect | undefined {
-  return (cardDef(defId).onPlay ?? []).find((e): e is EnemyEffect => e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all) || (e.type === 'shift' && !!e.enemy) || e.type === 'offer' || (e.type === 'rootbreak' && !e.shields));
+  return (cardDef(defId).onPlay ?? []).find((e): e is EnemyEffect => e.type === 'destroy' || e.type === 'bounce' || (e.type === 'erode' && !e.all) || (e.type === 'shift' && !!e.enemy) || e.type === 'offer' || (e.type === 'rootbreak' && !e.shields) || e.type === 'steal');
 }
 
 /**
@@ -328,6 +338,8 @@ function canReach(owner: PlayerState, c: CardInstance, e: EnemyEffect, wear = 0)
   if (owner.boss?.leader === c.uid && e.type !== 'offer' && e.type !== 'rootbreak' && !(e.type === 'destroy' && destroyImmune(c.defId))) return false;
   // (A Hero leads from its own slot: it can't be shifted.)
   if (e.type === 'shift') return c.slot !== COMMAND_SLOT;
+  // (Usurper's Crown takes any card but a Hero, an Overlord's body and armour, or a Reliquary Obelisk.)
+  if (e.type === 'steal') return c.slot !== COMMAND_SLOT && !destroyImmune(c.defId);
   // (Rootbreak splits defence: a card with none left to split is no target.)
   if (e.type === 'rootbreak') return cardDefence(owner, c) > 0;
   if (e.type === 'offer') return true;
@@ -526,7 +538,7 @@ function giftCard(state: GameState, p: PlayerState, n: number): string | undefin
 }
 
 /** What a card's removal does to the chosen card. */
-export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' | 'shift' | 'offer' | 'rootbreak' | null {
+export function enemyEffectKind(defId: string): 'destroy' | 'bounce' | 'erode' | 'shift' | 'offer' | 'rootbreak' | 'steal' | null {
   return enemyEffect(defId)?.type ?? null;
 }
 
@@ -663,8 +675,9 @@ export function cardCost(defId: string): number {
   return cardDef(defId).cost ?? 1;
 }
 
-/** What a card in hand costs to play now: its cost, less any Bargain on it. */
-export function handCost(c: CardInstance): number {
+/** What a card in hand costs to play now: its cost, less any Bargain on it (nothing at all, with a Zero-Point Core in play). */
+export function handCost(c: CardInstance, p?: PlayerState): number {
+  if (p && hasPower(p, 'freeCards')) return 0;
   return Math.max(0, cardCost(c.defId) - (c.discount ?? 0));
 }
 
@@ -946,7 +959,7 @@ export function turnForecast(state: GameState, p: PlayerState): TurnForecast {
   f.plays += f.planetPlays;
   // Run the effects on a copy, so growth and the like carry from one effect to the next (its dawn, then its dusk).
   const me: PlayerState = { ...p, orbit, tableau: p.tableau.map((c) => ({ ...c })) };
-  for (const card of me.tableau) {
+  for (const card of silenced(state, p) ? [] : me.tableau) {
     for (const e of [...dawnEffects(card, me, state), ...duskEffects(card)]) {
       if (!conditionMet(me, e.if, state, card)) continue;
       switch (e.type) {
@@ -1103,6 +1116,12 @@ export function isDraw(state: GameState): boolean {
 
 function supernova(state: GameState, p: PlayerState, decide = true) {
   if (p.eliminated) return;
+  // The Unburning: the sun stops one short.
+  if (hasPower(p, 'unburning')) {
+    p.heat = Math.min(p.heat, supernovaThreshold(p) - 1);
+    log(state, `${p.name}'s sun will not burn out: The Unburning holds it at ${p.heat}.`);
+    return;
+  }
   p.eliminated = true;
   log(state, `☀ ${p.name}'s sun goes SUPERNOVA!`);
   // Their tableau burns away with them (without triggering anything).
@@ -1202,6 +1221,66 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'plant':
         plant(state, p, e.amount);
         break;
+      case 'swapSuns': {
+        const t = ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p);
+        if (!t || t.boss) {
+          // (No rival sun to trade with (an Overlord's): yours cools to nothing.)
+          cool(state, p, p.heat - BALANCE.minHeat, `${p.name}'s ${cardDef(card.defId).name}`);
+          break;
+        }
+        const mine = p.heat;
+        p.heat = t.heat;
+        t.heat = mine;
+        log(state, `${p.name}'s ${cardDef(card.defId).name}: the suns change places (${p.name} ${p.heat}, ${t.name} ${t.heat}).`);
+        if (t.heat >= supernovaThreshold(t)) supernova(state, t);
+        if (!state.winnerId && p.heat >= supernovaThreshold(p)) supernova(state, p);
+        break;
+      }
+      case 'skipDay': {
+        const t = ctx.against && !ctx.against.eliminated ? ctx.against : targetOf(state, p);
+        if (!t) break;
+        t.skipDays = (t.skipDays ?? 0) + 1;
+        log(state, `${p.name}'s ${cardDef(card.defId).name}: ${t.name}'s next day will never come.`);
+        break;
+      }
+      case 'doubleAttack': {
+        const now = cardAttack(state, p, card);
+        if (now <= 0) break;
+        card.attackBonus = Math.min(99, (card.attackBonus ?? 0) + now);
+        log(state, `${p.name}'s ${cardDef(card.defId).name} doubles: attack ${cardAttack(state, p, card)}.`);
+        break;
+      }
+      case 'steal': {
+        const t = ctx.against ?? targetOf(state, p);
+        const victim = t?.tableau.find((c) => c.uid === ctx.enemyUid && canReach(t, c, e));
+        if (!t || !victim || t.eliminated) break;
+        // It leaves its owner's tableau (wear on the slot stays in the slot), but never leaves play: no leave effects.
+        t.tableau = t.tableau.filter((c) => c !== victim);
+        const wear = Math.min(victim.dented ?? 0, slotDefence(victim.slot));
+        if (wear > 0 && victim.slot !== undefined) (t.slotWear ??= {})[victim.slot] = wear;
+        for (const k of ['boons', 'dented', 'shields', 'frozen', 'fortified', 'spentAttack', 'dimmed', 'fresh', 'maxHealth'] as const) delete victim[k];
+        victim.slot = undefined;
+        const open = freeSlots(p);
+        const slot = slotsBySafety().find((i) => open.includes(i));
+        if (slot !== undefined) {
+          const health = victim.health;
+          place(p, victim, slot);
+          // (It keeps the stability it had left, and its attack bonus.)
+          if (health !== undefined) victim.health = Math.min(victim.health ?? health, Math.max(1, health));
+          log(state, `${p.name} takes ${t.name}'s ${cardDef(victim.defId).name}: it serves them now.`);
+        } else if (cardDef(victim.defId).token) {
+          log(state, `${p.name} takes ${t.name}'s ${cardDef(victim.defId).name}, and it fades with nowhere to stand.`);
+        } else {
+          victim.health = undefined;
+          p.hand.push(victim);
+          log(state, `${p.name} takes ${t.name}'s ${cardDef(victim.defId).name} into their hand.`);
+        }
+        // (Cards of its old owner's that answer one of theirs leaving answer this too.)
+        for (const { card: watcher, passive } of passives(t)) {
+          if (passive.type === 'allyLeaves' && t.tableau.includes(watcher) && !state.winnerId) resolveEffects(state, t, watcher, passive.effects, 'leave');
+        }
+        break;
+      }
       case 'destroy':
       case 'bounce': {
         const t = ctx.against ?? targetOf(state, p);
@@ -1537,6 +1616,8 @@ function regionalInstability(state: GameState, roundStarter: PlayerState) {
   const living = state.players.filter((x) => !x.eliminated);
   log(state, `Regional instability heats every sun by ${n}.`);
   for (const x of living) x.heat = Math.max(BALANCE.minHeat, x.heat + n);
+  // (The Unburning: a sun it holds stops one short, and is not among those that burn out.)
+  for (const x of living) if (hasPower(x, 'unburning')) x.heat = Math.min(x.heat, supernovaThreshold(x) - 1);
   const over = living.filter((x) => x.heat >= supernovaThreshold(x));
   if (over.length && over.length === living.length) {
     // (All at once: none of them is left standing to win.)
@@ -1704,7 +1785,7 @@ function startTurn(state: GameState) {
   notePulse(state, p, null, 'start', p, 0);
   // The table: instability, the map's modifiers, then any global card.
   // Regional instability strikes as each round begins: every sun at once (so no seat takes it first).
-  if (state.players.find((x) => !x.eliminated) === p) regionalInstability(state, p);
+  if (state.players.find((x) => !x.eliminated) === p && p.extraDay !== state.turnNumber) regionalInstability(state, p);
   if (state.winnerId) return;
   if (p.eliminated) return passOn(state);
   const m = p.modifiers;
@@ -1743,7 +1824,10 @@ function dawn(state: GameState, p: PlayerState) {
   // first thing in your day (or let it be). (A relic's blow at any target, from the day's draw, still waits.)
   p.dawnChoices = p.dawnChoices?.filter((c) => c.kind === 'aim');
   if (!p.dawnChoices?.length) delete p.dawnChoices;
-  for (const card of [...p.tableau]) {
+  // (Null Edict: a rival holds it, and their cards' dawns don't happen.)
+  const hushed = silenced(state, p);
+  if (hushed && p.tableau.some((c) => dawnEffects(c, p, state).length)) log(state, `Null Edict: ${p.name}'s cards stay silent at dawn.`);
+  for (const card of hushed ? [] : [...p.tableau]) {
     if (state.winnerId || p.eliminated) break;
     if (!p.tableau.includes(card)) continue;
     const effects = dawnEffects(card, p, state);
@@ -1802,6 +1886,10 @@ function dusk(state: GameState, p: PlayerState) {
   // (Only cards whose dusk will do something: a Vigil card that attacked today sits it out.)
   const cards = p.tableau.filter((c) => !c.fresh && duskEffects(c).some((e) => conditionMet(p, e.if, state, c)));
   if (!cards.length) return;
+  if (silenced(state, p)) {
+    log(state, `Null Edict: ${p.name}'s cards stay silent at dusk.`);
+    return;
+  }
   log(state, `— Dusk: ${p.name}.`);
   notePulse(state, p, null, 'start', p, 0);
   for (const card of cards) {
@@ -1847,12 +1935,33 @@ function passOn(state: GameState) {
 
 function advanceTurn(state: GameState) {
   if (state.winnerId) return;
-  do {
+  for (;;) {
     state.activePlayerIndex = (state.activePlayerIndex + 1) % state.players.length;
     if (state.activePlayerIndex === 0) state.round += 1;
-  } while (activePlayer(state).eliminated);
+    const q = activePlayer(state);
+    if (q.eliminated) continue;
+    // The Stopped Clock: a day that never comes (no dawn, no draw, nothing: play passes on).
+    if (q.skipDays) {
+      q.skipDays -= 1;
+      if (!q.skipDays) delete q.skipDays;
+      state.turnNumber += 1;
+      log(state, `— ${q.name}'s day never comes: the clock stands still.`);
+      continue;
+    }
+    break;
+  }
   state.turnNumber += 1;
   startTurn(state);
+}
+
+/** The Second Dawn: a day just ended (not one it gave) is followed by another of the same player's. */
+function secondDawn(state: GameState, p: PlayerState): boolean {
+  if (state.winnerId || !hasPower(p, 'secondDawn') || p.extraDay === state.turnNumber || state.challenge?.kind === 'dream') return false;
+  state.turnNumber += 1;
+  p.extraDay = state.turnNumber;
+  log(state, `The Second Dawn: ${p.name}'s day breaks again.`);
+  startTurn(state);
+  return true;
 }
 
 /** The other living players, in seat order after this one. */
@@ -2377,7 +2486,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
       if (openReaction(state, p, events, { kind: 'play', action })) return;
     }
   }
-  const cost = Math.max(0, playCost(def.id, asTrap) - (card.discount ?? 0));
+  const cost = hasPower(p, 'freeCards') ? 0 : Math.max(0, playCost(def.id, asTrap) - (card.discount ?? 0));
   if (p.playsLeft < cost) throw new GameError(p.playsLeft <= 0 ? 'You have no energy left today.' : `${def.name} costs ${cost} energy: you have ${p.playsLeft} left today.`);
   if (asTrap && !canSetTrap(p)) throw new GameError('You already have a trap face down.');
   // Consume: one of your other cards in play is given up first (your choice; unchosen, the weakest), and leaves
@@ -2700,7 +2809,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       // Energy left unspent is banked through the enemy's day, to answer them with a Lightspeed card from hand.
       p.banked = Math.max(0, p.playsLeft);
       state.keepPulses = true;
-      advanceTurn(state);
+      if (!secondDawn(state, p)) advanceTurn(state);
       break;
     case 'attack': {
       const why = attackProblem(state, p, action.attackerUid, action.targetUid);

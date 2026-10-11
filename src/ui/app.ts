@@ -30,6 +30,7 @@ import {
   enemyChoices,
   heatFirst,
   enemyEffectKind,
+  hasPower,
   GameError,
   instabilityHeat,
   KEYWORDS,
@@ -3284,8 +3285,8 @@ export class App {
         { duration: 380, easing: 'ease-out' },
       );
     };
-    if (handCost(card) > me.playsLeft && !canSetFaceDown(me, card.defId)) {
-      this.showToast(`${cardDef(card.defId).name} costs ${handCost(card)} energy: you have ${me.playsLeft} left today.`, 'info');
+    if (handCost(card, me) > me.playsLeft && !canSetFaceDown(me, card.defId)) {
+      this.showToast(`${cardDef(card.defId).name} costs ${handCost(card, me)} energy: you have ${me.playsLeft} left today.`, 'info');
       return refuse();
     }
     // (Another card in your hand, while one waits to be placed: that one is played instead.)
@@ -5539,7 +5540,7 @@ export class App {
     if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
     if (p.step === 'aim') return hint('aim heat');
     if (p.step === 'sacrifice') return hint(p.ability !== undefined ? 'sacrifice a card' : this.state && cardDef(this.state.players.find((x) => x.hand.some((c) => c.uid === p.uid))?.hand.find((c) => c.uid === p.uid)?.defId ?? '').consume ? 'consume a card' : 'replace a card');
-    if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card', shift: 'move a card', offer: 'strike a card', rootbreak: 'split a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
+    if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card', shift: 'move a card', offer: 'strike a card', steal: 'take a card', rootbreak: 'split a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint({ recall: 'recall a card', empower: 'choose a card', offer: 'offer a card’s attack', rootbreak: 'choose a grown card', restore: 'restore a card', shift: 'choose a card' }[allyEffectKind(card.defId) ?? 'restore']);
     if (p.step === 'host') return hint('fuse onto a card');
     if (p.step === 'shift') return hint('choose where it moves');
@@ -5978,7 +5979,7 @@ export class App {
     if (p && opts.hand && c.uid === p.uid) state = 'card-picked';
     if (opts.hand && this.dawnChoice()?.kind === 'discount') state = 'card-choosable';
     // On your day, a card that costs more energy than you have left is dimmed.
-    if (opts.hand && !state && me && act && me.id === this.viewer().id && handCost(c) > me.playsLeft) state = 'card-pricey';
+    if (opts.hand && !state && me && act && me.id === this.viewer().id && handCost(c, me) > me.playsLeft) state = 'card-pricey';
     // ...and one that can be played now has a faint green rim.
     if (opts.hand && !state && me && act && me.id === this.viewer().id && this.canPlayNow(me, c.defId, c.discount)) state = 'card-playable';
     // (Marked to discard at the day's end.)
@@ -6030,7 +6031,7 @@ export class App {
     return `
       <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}${opts.tableau && c.frozen ? ' card-frozen' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
-        ${growth}${resonance}${fusedTags}${stats}${actionTag}${opts.hand && c.discount ? `<b class="card-discount" title="Costs ${handCost(c)} now (a Bargain)">−${c.discount}</b>` : ''}${opts.tableau && c.shields ? `<b class="card-shields" title="Shields: they take heat before its defence does, and fade at its owner's dawn">${symbolIcon('shield')}<span>${c.shields}</span></b>` : ''}
+        ${growth}${resonance}${fusedTags}${stats}${actionTag}${opts.hand && me && hasPower(me, 'freeCards') && cardCost(c.defId) > 0 ? `<b class="card-discount" title="Costs 0 now (Zero-Point Core)">−${cardCost(c.defId)}</b>` : opts.hand && c.discount ? `<b class="card-discount" title="Costs ${handCost(c)} now (a Bargain)">−${c.discount}</b>` : ''}${opts.tableau && c.shields ? `<b class="card-shields" title="Shields: they take heat before its defence does, and fade at its owner's dawn">${symbolIcon('shield')}<span>${c.shields}</span></b>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(this.shownDef(def, c), opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>

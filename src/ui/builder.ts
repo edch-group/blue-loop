@@ -65,7 +65,7 @@ const MULTI: MultiKey[] = ['race', 'kind', 'rarity', 'cost', 'own'];
 const noFilters = (): Filters => ({ q: '', race: new Set(), kind: new Set(), rarity: new Set(), cost: new Set(), own: new Set(), sort: 'cost', characters: false, inDeck: false });
 /** A card's cost as the cost filter groups it: 0–3, 4+ or X. */
 const costGroup = (c: CardDef) => (c.spendAll ? 'x' : String(Math.min(4, cardCost(c.id))));
-const RARITY_ORDER: Record<Rarity, number> = { dwarf: 0, stellar: 1, anomaly: 2 };
+const RARITY_ORDER: Record<Rarity, number> = { dwarf: 0, stellar: 1, anomaly: 2, enigma: 3 };
 
 /** The card-size buttons: many small cards, some medium, a few large. */
 const GRID_ICON = {

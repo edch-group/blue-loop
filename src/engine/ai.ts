@@ -147,6 +147,8 @@ function cardValue(state: GameState, p: PlayerState, card: CardInstance): number
   const def = cardDef(card.defId);
   const foes = Math.max(1, livingOpponents(state, p).length);
   let perTurn = 0;
+  // (An Enigma's power bends the game: worth a great deal a day, so a rival spends what it has to take it down.)
+  if (def.rarity === 'enigma' && (def.passive?.length || def.onTurn?.length)) perTurn += 6;
   // (Dusk effects count as dawn effects do: once a day.)
   for (const e of [...dawnEffects(card, p, state), ...duskEffects(card)]) {
     if (!conditionMet(p, e.if, state) && !(e.if && 'minKind' in e.if)) continue;
@@ -417,7 +419,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     // A card that can also be set as a trap may be set face down (for 1 more energy).
     if (canSetFaceDown(me, card.defId)) plays.push({ type: 'playCard', cardUid: card.uid, faceDown: true });
     if (cardDef(card.defId).kind === 'trap' && !canSetTrap(me)) continue;
-    if (handCost(card) > me.playsLeft) continue;
+    if (handCost(card, me) > me.playsLeft) continue;
     const choices = opt(cardChoices(card.defId));
     if (!hasRoomFor(me, card.defId)) continue;
     const slots = needsSlot(me, card.defId) ? freeSlots(me) : [undefined];
@@ -572,7 +574,7 @@ export function chooseAIAction(state: GameState): Action {
     if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
     for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
   }
-  if (!abilities.length && !attacks.length && !me.hand.some((c) => handCost(c) <= me.playsLeft)) return { type: 'endTurn' };
+  if (!abilities.length && !attacks.length && !me.hand.some((c) => handCost(c, me) <= me.playsLeft)) return { type: 'endTurn' };
 
   // The AI cannot see its rivals' face-down traps (or their hands), so it plans as if no answer
   // would come: no reaction windows in its look-ahead.
@@ -709,7 +711,7 @@ function dawnPick(state: GameState, me: PlayerState): Action {
   const dawn = me.dawnChoices![0];
   // (A Bargain: the costliest card in hand, which the board can't price.)
   if (dawn.kind === 'discount') {
-    const dear = [...me.hand].sort((a, b) => handCost(b) - handCost(a))[0];
+    const dear = [...me.hand].sort((a, b) => handCost(b, me) - handCost(a, me))[0];
     return dear ? { type: 'dawnChoice', allyUid: dear.uid } : { type: 'dawnChoice' };
   }
   const rival = targetOf(state, me);

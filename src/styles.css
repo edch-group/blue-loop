@@ -2226,6 +2226,18 @@ html.rotate-ask body { overflow: hidden; }
 .gem-dwarf { --gem-halo: rgba(170, 205, 255, 0.95); }
 .gem-stellar { --gem-halo: rgba(255, 196, 90, 0.95); }
 .gem-anomaly { --gem-halo: rgba(185, 125, 255, 0.95); }
+.gem-enigma { --gem-halo: rgba(140, 235, 255, 0.95); }
+/* Enigma: a cut jewel, the spectrum turning beneath its facets (two wheels, against each other), a glint sweeping
+   across it now and then and a spark on its crown. Ice and gold and sea-green light, never the warm reds. */
+.gem-enigma .g-socket { background: radial-gradient(circle at 36% 30%, #f4fbff, #9fb9cf 55%, #2a3a52); }
+.g-en-prism { background: conic-gradient(from 0deg, #7ff3ff, #ffffff, #8fb8ff, #3b6bff, #a8f0d8, #ffe48a, #fffbe8, #6fe8c8, #9cc8ff, #7ff3ff); animation: gemTurn 6s linear infinite; animation-delay: calc(var(--gp) * -6s); }
+.g-en-prism2 { mix-blend-mode: screen; opacity: 0.55; transform: scale(1.3); animation: gemTurnBack 9s linear infinite; animation-delay: calc(var(--gp) * -9s); }
+.g-en-facets { background-image: var(--gem-enFacets); }
+.g-en-glint { background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.95) 50%, transparent 62%); animation: gemGlint 3.4s ease-in-out infinite; animation-delay: calc(var(--gp) * -3.4s); }
+.g-en-spark { background: radial-gradient(circle at 32% 28%, #fff 0, rgba(255, 255, 255, 0.9) 5%, transparent 14%); animation: gemTwinkle 1.9s ease-in-out infinite; animation-delay: calc(var(--gp) * -1.9s); }
+@media (prefers-reduced-motion: reduce) { .g-en-prism { animation-duration: 40s; } .g-en-prism2 { animation-duration: 60s; } .g-en-glint { animation: none; opacity: 0; } }
+@keyframes gemTurnBack { from { transform: scale(1.3) rotate(0); } to { transform: scale(1.3) rotate(-360deg); } }
+@keyframes gemGlint { 0%, 55% { transform: translateX(-120%); opacity: 0; } 60% { opacity: 1; } 85%, 100% { transform: translateX(120%); opacity: 0; } }
 .g-glass { background-image: var(--gem-glass); }
 
 /* White dwarf: a searing point whose glare breathes and twinkles. */
@@ -2258,6 +2270,7 @@ html.rotate-ask body { overflow: hidden; }
 /* Rarer cards get a faint edge in their gem's colour. */
 .card.rarity-stellar { border-color: rgba(255, 214, 140, 0.9); }
 .card.rarity-anomaly { border-color: rgba(190, 160, 255, 0.85); box-shadow: 0 0 0 1px rgba(160, 120, 255, 0.25), 0 5px 16px rgba(90, 90, 110, 0.15); }
+.card.rarity-enigma { border-color: rgba(140, 225, 245, 0.95); box-shadow: 0 0 0 1px rgba(120, 220, 255, 0.35), 0 0 14px rgba(110, 210, 255, 0.35), 0 5px 16px rgba(90, 90, 110, 0.15); }
 
 /* ---------- Character portraits ---------- */
 /* The growth counter: small, on the card's top right corner. */
@@ -4751,6 +4764,10 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* (Turning forward, the lanes' spirals sweep inward: the hole is pulling the light in.) */
 .gl-swirl1 { background-image: var(--gem-lightHoleSwirl1); animation: glTurn 24s linear infinite, glShimmer 5s ease-in-out infinite; animation-delay: calc(var(--gp) * -24s), calc(var(--gp) * -5s); }
 .gl-swirl2 { background-image: var(--gem-lightHoleSwirl2); animation: glTurn 42s linear infinite, glShimmer 7.5s ease-in-out infinite; animation-delay: calc(var(--gp) * -42s), calc(var(--gp) * -7.5s - 3s); }
+/* (The Enigma's light: rays of the spectrum thrown out of the jewel, turning slowly, two sets against each other.) */
+.gl-prism1, .gl-prism2 { -webkit-mask: radial-gradient(circle, #000 12%, rgba(0, 0, 0, 0.5) 22%, transparent 40%); mask: radial-gradient(circle, #000 12%, rgba(0, 0, 0, 0.5) 22%, transparent 40%); }
+.gl-prism1 { background: repeating-conic-gradient(from 0deg, rgba(127, 243, 255, 0.85) 0deg 4deg, transparent 4deg 22deg, rgba(255, 228, 138, 0.8) 22deg 25deg, transparent 25deg 45deg); animation: glTurn 40s linear infinite, glShimmer 4s ease-in-out infinite; animation-delay: calc(var(--gp) * -40s), calc(var(--gp) * -4s); }
+.gl-prism2 { background: repeating-conic-gradient(from 11deg, rgba(143, 184, 255, 0.8) 0deg 3deg, transparent 3deg 30deg, rgba(168, 240, 216, 0.75) 30deg 33deg, transparent 33deg 60deg); animation: glTurnBack 55s linear infinite, glShimmer 6s ease-in-out infinite; animation-delay: calc(var(--gp) * -55s), calc(var(--gp) * -6s - 2s); }
 .gl-lens { background-image: var(--gem-lightHoleLens); animation: glLens 4s ease-in-out infinite; animation-delay: calc(var(--gp) * -4s); }
 @keyframes glTurn { to { rotate: 360deg; } }
 @keyframes glTurnBack { to { rotate: -360deg; } }
@@ -4768,12 +4785,14 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .card .art-wrap .gem.gem-dwarf { --m-hi: #ffffff; --m-mid: #c9d0dd; --m-lo: #7d8699; }
 .card .art-wrap .gem.gem-stellar { --m-hi: #fff4cf; --m-mid: #e1b453; --m-lo: #99671b; }
 .card .art-wrap .gem.gem-anomaly { --m-hi: #f6efff; --m-mid: #b9a6e0; --m-lo: #6c5a98; }
-.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+/* (An Enigma's: platinum, with ice in it.) */
+.card .art-wrap .gem.gem-enigma { --m-hi: #ffffff; --m-mid: #c4e6f0; --m-lo: #5b8494; }
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before, .card .art-wrap .gem.gem-enigma::before {
   inset: calc(var(--gs) * -0.17); clip-path: none; border-radius: 50%;
   background: conic-gradient(from 200deg, var(--m-hi), var(--m-mid) 18%, var(--m-lo) 34%, var(--m-mid) 50%, var(--m-hi) 62%, var(--m-mid) 76%, var(--m-lo) 90%, var(--m-hi));
   box-shadow: inset 0 0 0 calc(var(--gs) * 0.035) rgba(255, 255, 255, 0.55), inset 0 0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.06) rgba(0, 0, 0, 0.18), 0 calc(var(--gs) * 0.05) calc(var(--gs) * 0.12) rgba(20, 22, 34, 0.45);
 }
-.card .art-wrap .gem.gem-dwarf::after, .card .art-wrap .gem.gem-stellar::after, .card .art-wrap .gem.gem-anomaly::after {
+.card .art-wrap .gem.gem-dwarf::after, .card .art-wrap .gem.gem-stellar::after, .card .art-wrap .gem.gem-anomaly::after, .card .art-wrap .gem.gem-enigma::after {
   inset: calc(var(--gs) * -0.17); clip-path: none; border-radius: 50%; box-shadow: none;
   border: var(--bump-w, 1px) solid var(--bump-ring, rgba(30, 32, 48, 0.4));
 }
@@ -4789,6 +4808,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 }
 .card.rarity-stellar { --sky-lit: #ffc460; --sky-night: #5c2f0c; }
 .card.rarity-anomaly { --sky-lit: #0e061a; --sky-night: #2a1046; }
+.card.rarity-enigma { --sky-lit: #bff4ff; --sky-night: #0d3550; }
 .card:has(> .card-stock):not(.kind-command) {
   background-image: var(--skyband), var(--bg2);
   background-size: 100% var(--strip), 100% 100%; background-position: 0 0, 0 0; background-repeat: no-repeat, no-repeat;
@@ -4806,7 +4826,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* The bezel lit evenly from above (a band of light round the top, shade toward the bottom), so it reads as a flat
    round ring and not a tilted one; and set into the card: a very soft shadow just round its rim, and the rim's own
    shadow falling on the top of the stone, as the suns and planets sit in the board. */
-.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before, .card .art-wrap .gem.gem-enigma::before {
   background: linear-gradient(180deg, var(--m-hi) 0%, var(--m-mid) 42%, var(--m-lo) 100%);
   box-shadow:
     inset 0 calc(var(--gs) * 0.03) 0 rgba(255, 255, 255, 0.6), inset 0 calc(var(--gs) * -0.03) 0 rgba(0, 0, 0, 0.18),
@@ -4817,7 +4837,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* The bezel's metalwork: a raised band across its width (a dark groove where it grips the stone, a bright crest,
    a darker outer edge), the same all the way round so it never looks tilted, under the light from above and a
    faint glint at the top left and bottom right. */
-.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before, .card .art-wrap .gem.gem-enigma::before {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, 0.22)),
     conic-gradient(from 315deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 10%, rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0) 60%, rgba(255, 255, 255, 0) 90%, rgba(255, 255, 255, 0.5)),
@@ -4826,13 +4846,13 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 /* Layers, bottom to top: the setting's shadow (::after), the gem's light, the bezel (::before), the stone. The
    shadow sits under the light so it never dims it; and the ::after is whole (no mask or clip left over from when
    the gem sat on the card's top edge), so the setting is a true circle. */
-.card .art-wrap .gem.gem-dwarf::after, .card .art-wrap .gem.gem-stellar::after, .card .art-wrap .gem.gem-anomaly::after {
+.card .art-wrap .gem.gem-dwarf::after, .card .art-wrap .gem.gem-stellar::after, .card .art-wrap .gem.gem-anomaly::after, .card .art-wrap .gem.gem-enigma::after {
   z-index: -3; -webkit-mask: none; mask: none; clip-path: none; background: none;
   border: var(--bump-w, 0px) solid var(--bump-ring, transparent);
   box-shadow: 0 0 0 calc(var(--gs) * 0.04) rgba(14, 16, 26, 0.45), 0 0 calc(var(--gs) * 0.14) calc(var(--gs) * 0.03) rgba(14, 16, 26, 0.5),
     0 calc(var(--gs) * 0.06) calc(var(--gs) * 0.22) rgba(14, 16, 26, 0.55);
 }
-.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before, .card .art-wrap .gem.gem-enigma::before {
   -webkit-mask: none; mask: none;
   box-shadow: inset 0 calc(var(--gs) * 0.03) 0 rgba(255, 255, 255, 0.6), inset 0 calc(var(--gs) * -0.03) 0 rgba(0, 0, 0, 0.18);
 }
@@ -4840,7 +4860,7 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
    before the card's name. */
 .card .gem .gem-light { -webkit-mask: linear-gradient(180deg, #000 56%, transparent 74%); mask: linear-gradient(180deg, #000 56%, transparent 74%); }
 /* The bezel lit only from above, the same on its left and right (no glint: on silver it read as a lopsided ring). */
-.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before {
+.card .art-wrap .gem.gem-dwarf::before, .card .art-wrap .gem.gem-stellar::before, .card .art-wrap .gem.gem-anomaly::before, .card .art-wrap .gem.gem-enigma::before {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, 0.22)),
     radial-gradient(circle closest-side, var(--m-lo) 0 74%, color-mix(in srgb, var(--m-lo) 70%, #000) 76.5%, var(--m-mid) 81%, var(--m-hi) 86%, var(--m-mid) 92%, var(--m-lo) 97.5%, color-mix(in srgb, var(--m-lo) 60%, #000) 100%);

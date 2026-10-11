@@ -48,6 +48,8 @@ const PAL: Record<string, Pal> = {
   pyrr: { sky: ['#1c0505', '#6a140c', '#f06a24'], glow: '#ffd060', accent: '#ff6a1e', deep: '#160302' },
   trap: { sky: ['#0f1030', '#2e3180', '#9ea2f0'], glow: '#dfe0ff', accent: '#f5f5ff', deep: '#07081c' },
   relic: { sky: ['#1a1408', '#4a3a1a', '#c9a24e'], glow: '#ffe7a8', accent: '#fff3c4', deep: '#0e0a04' },
+  // The Enigmas: a deep sea-dark void, ice and gold light refracting through it.
+  enigma: { sky: ['#01050e', '#0a2740', '#3c8ea6'], glow: '#bff6ff', accent: '#ffe48a', deep: '#01040a' },
   // The Lost Overlords: dried blood and embers, out past the last stars.
   overlord: { sky: ['#0a0406', '#3a0c10', '#9a3a22'], glow: '#ff6a3a', accent: '#ffb070', deep: '#050203' },
 };
@@ -1776,7 +1778,46 @@ const ART_DUSK: Record<string, Draw> = {
   pyr_banked_embers: (S) => dusk(S, 40) + `<path d="M76 86 Q90 70 104 86 Z" fill="#2a1410"/>` + [0, 1, 2, 3].map((i) => S.glow(80 + i * 7, 82 - (i % 2) * 3, 5, '#ff6a1a', 0.9)).join('') + S.motes(92, 60, 16, 24, '#ffb040', 0.8) + S.glow(92, 50, 18, '#9fd0ff', 0.25),
 };
 
-Object.assign(ART, ART_RACES, ART_DUSK);
+/** The Enigmas: what each one breaks, drawn in light. */
+const prismRays = (S: Scene, x: number, y: number, n: number, len: number) =>
+  ['#7ff3ff', '#ffe48a', '#8fb8ff', '#a8f0d8', '#ffffff'].slice(0, n).map((c, i) => S.beam(x, y, x + Math.cos(-0.5 + i * 0.28) * len, y + Math.sin(-0.5 + i * 0.28) * len, 0.9, c)).join('');
+const ART_ENIGMA: Record<string, Draw> = {
+  // Two dawns on one horizon: the sun, and its echo rising after it.
+  enigma_second_dawn: (S) =>
+    S.glow(80, 70, 70, '#ffe48a', 0.3) + S.sun(58, 66, 11, '#ffe48a', 10) + S.sun(104, 56, 9, '#bff6ff', 10) + S.ground(78) + S.rings(104, 56, 14, 3, 7, '#bff6ff', 0.4) + S.motes(80, 40, 18, 50, '#fff', 0.8),
+  // A tall mirror between two suns: a burning one, and its cold reflection.
+  enigma_mirror_of_ends: (S) =>
+    S.sun(44, 50, 12, '#ffb070', 9) + S.sun(116, 50, 12, '#9fd8ff', 9) +
+    `<ellipse cx="80" cy="50" rx="11" ry="36" fill="${S.linear([[0, '#e8fbff', 0.85], [0.5, '#4f8fb0', 0.55], [1, '#0a2740', 0.8]], 0, 0, 1, 1)}" stroke="#ffe48a" stroke-width="1.6"/>` +
+    `<ellipse cx="80" cy="50" rx="7" ry="31" fill="none" stroke="#fff" stroke-width="0.6" opacity="0.7"/>` + S.beam(56, 50, 74, 50, 1.2, '#ffe48a') + S.beam(104, 50, 86, 50, 1.2, '#bff6ff'),
+  // A sun held whole in a cage of crystal, its fire going nowhere.
+  enigma_unburning: (S) =>
+    S.sun(80, 50, 14, '#ffd060', 12) + [0, 1, 2, 3, 4, 5].map((i) => S.crystal(80 + Math.cos((i * Math.PI) / 3) * 30, 50 + Math.sin((i * Math.PI) / 3) * 26, 30, 9, i * 60 + 90, '#bff6ff', 0.9)).join('') + S.rings(80, 50, 38, 2, 6, '#bff6ff', 0.45),
+  // A seed of light, the rings round it each twice as far out as the last.
+  enigma_singularity_seed: (S) =>
+    S.glow(80, 52, 40, '#7ff3ff', 0.45) + [3, 6, 12, 24, 48].map((r, i) => `<circle cx="80" cy="52" r="${r}" fill="none" stroke="${i % 2 ? '#ffe48a' : '#7ff3ff'}" stroke-width="${1.6 - i * 0.2}" opacity="${0.9 - i * 0.14}"/>`).join('') + S.sun(80, 52, 4, '#ffffff', 6),
+  // A crown of crystal, hanging over a throne it was never offered.
+  enigma_usurpers_crown: (S) =>
+    S.glow(80, 46, 44, '#ffe48a', 0.35) + S.ground(84) +
+    `<path d="M54 62 L58 34 L68 48 L80 26 L92 48 L102 34 L106 62 Z" fill="${S.linear([[0, '#fff6d0'], [0.5, '#e1b453'], [1, '#7a5418']])}" stroke="#fff3c4" stroke-width="1"/>` +
+    [58, 80, 102].map((x, i) => S.crystal(x, i === 1 ? 24 : 32, 10, 5, 0, '#7ff3ff')).join('') + `<rect x="54" y="60" width="52" height="6" rx="2" fill="#e1b453" stroke="#fff3c4" stroke-width="0.8"/>` + prismRays(S, 80, 26, 5, 60),
+  // A clock face, every hand stopped, the motes about it hanging still in the air.
+  enigma_stopped_clock: (S) =>
+    S.glow(80, 50, 46, '#bff6ff', 0.3) + `<circle cx="80" cy="50" r="30" fill="${S.radial([[0, '#0a2740'], [1, '#01050e']])}" stroke="#ffe48a" stroke-width="1.6"/>` +
+    Array.from({ length: 12 }, (_, i) => { const a = (i * Math.PI) / 6; return `<line x1="${f(80 + Math.cos(a) * 25)}" y1="${f(50 + Math.sin(a) * 25)}" x2="${f(80 + Math.cos(a) * 28)}" y2="${f(50 + Math.sin(a) * 28)}" stroke="#bff6ff" stroke-width="${i % 3 ? 0.8 : 1.6}"/>`; }).join('') +
+    `<line x1="80" y1="50" x2="80" y2="30" stroke="#ffe48a" stroke-width="2" stroke-linecap="round"/><line x1="80" y1="50" x2="94" y2="58" stroke="#ffe48a" stroke-width="1.4" stroke-linecap="round"/><circle cx="80" cy="50" r="2" fill="#fff"/>` +
+    `<path d="M98 30 L90 42 L96 46 L86 60" fill="none" stroke="#fff" stroke-width="0.7" opacity="0.8"/>` + S.motes(80, 50, 22, 56, '#bff6ff', 0.9),
+  // A sphere of nothing at the heart of a lattice, light pouring into it from every side.
+  enigma_zero_point: (S) =>
+    Array.from({ length: 10 }, (_, i) => { const a = (i * Math.PI) / 5; return S.beam(80 + Math.cos(a) * 70, 50 + Math.sin(a) * 50, 80, 50, 0.7, i % 2 ? '#7ff3ff' : '#ffe48a'); }).join('') +
+    `<circle cx="80" cy="50" r="13" fill="${S.radial([[0, '#000000'], [0.8, '#02101c'], [1, '#bff6ff']])}"/>` + S.rings(80, 50, 16, 3, 6, '#bff6ff', 0.6),
+  // A black seal laid over the suns: their light stops at its edge.
+  enigma_null_edict: (S) =>
+    S.sun(40, 34, 7, '#ffe48a', 6) + S.sun(124, 66, 7, '#bff6ff', 6) + eclipse(S, 80, 50, 22, '#bff6ff') +
+    `<circle cx="80" cy="50" r="15" fill="none" stroke="#ffe48a" stroke-width="0.8" stroke-dasharray="2 2.5" opacity="0.8"/><path d="M68 38 L92 62" stroke="#ffe48a" stroke-width="1.6" opacity="0.85"/>`,
+};
+
+Object.assign(ART, ART_RACES, ART_DUSK, ART_ENIGMA);
 
 /**
  * Plain cards (cards-plain.ts): a figure of the card's race, bigger the more it costs, carrying what its profile
@@ -1878,7 +1919,7 @@ export function cardScene(def: CardDef): string {
   if (def.fusedFrom) return fusedScene(def);
   const painted = RENDERED[def.id];
   if (painted) return `<svg class="art" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><image href="${painted}" width="160" height="100" preserveAspectRatio="xMidYMid slice"/></svg>`;
-  const palette = def.overlordPart || def.id.startsWith('boss_') ? PAL.overlord : PAL[def.race !== undefined ? RACE_PAL[def.race] : def.kind] ?? PAL.command;
+  const palette = def.rarity === 'enigma' ? PAL.enigma : def.overlordPart || def.id.startsWith('boss_') ? PAL.overlord : PAL[def.race !== undefined ? RACE_PAL[def.race] : def.kind] ?? PAL.command;
   const S = new Scene(`a-${def.id}`, palette);
   const p = S.p;
   const body = (ART[def.id] ?? ((s: Scene) => s.sun(80, 50, 12)))(S);
