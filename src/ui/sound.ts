@@ -237,6 +237,8 @@ class SoundBoard {
   private sfx: GainNode | null = null;
   /** Sounds kept out of the reverb: paper on paper is close and dry (in the hall, a sweep across the hand swelled into a roar). */
   private sfxDry: GainNode | null = null;
+  /** Sounds in a smaller room: half the hall's send (the blows and the heat, which the full hall washed out). */
+  private sfxRoom: GainNode | null = null;
   private lastHandLift = -Infinity;
   private musicBus: GainNode | null = null;
   /** The battle theme's two faders: one lightly reverbed (bass, kick), one drenched like the ambient score. */
@@ -387,6 +389,12 @@ class SoundBoard {
     this.sfxDry = ctx.createGain();
     this.sfxDry.gain.value = 0.9;
     this.sfxDry.connect(master);
+    this.sfxRoom = ctx.createGain();
+    this.sfxRoom.gain.value = 0.9;
+    this.sfxRoom.connect(master);
+    const roomSend = ctx.createGain();
+    roomSend.gain.value = 0.5;
+    this.sfxRoom.connect(roomSend).connect(this.reverb);
 
     this.musicBus = ctx.createGain();
     this.musicBus.gain.value = 0.0001;
@@ -1010,7 +1018,7 @@ class SoundBoard {
   }
   /** Heat fired at a rival or a card: the recorded laser, slowed a little (the strike, as it lands, is the blow). */
   launch() {
-    this.clip(SFX.heatFire, 0.55);
+    this.clip(SFX.heatFire, 0.55, 1, true);
   }
   /**
    * The targeting beam sweeping onto a card: an airy swish that rises as it flies, then (if it takes the card
@@ -1042,7 +1050,7 @@ class SoundBoard {
    */
   private sunHit(amount: number, level: number) {
     const a = Math.max(1, amount);
-    this.clip(SFX.sunHit, level * Math.min(1.5, 0.85 + 0.12 * (a - 1)), 1 - Math.min(0.14, 0.035 * (a - 1)));
+    this.clip(SFX.sunHit, level * Math.min(1.5, 0.85 + 0.12 * (a - 1)), 1 - Math.min(0.14, 0.035 * (a - 1)), true);
   }
   /** Your sun takes enemy heat. */
   hurt(amount = 1) {
@@ -1054,14 +1062,15 @@ class SoundBoard {
   }
   /** Shields take a hit: a hammer on metal. */
   block() {
+    const room = this.sfxRoom ?? undefined;
     // [direction: hitting shields makes a deeper "tink", like a hammer hitting metal] A struck plate: a low ring and
     // its inharmonic overtones (as a bar's are, a little apart), each dying sooner than the last; the hammer's hard
     // strike on top; a dull thud of the blow beneath.
-    this.voice(262, { dur: 0.75, attack: 0.002, gain: 0.07, type: 'triangle', cutoff: 2600 });
-    this.voice(723, { dur: 0.42, attack: 0.002, gain: 0.035, cutoff: 3000, detune: 4 });
-    this.voice(1415, { dur: 0.2, attack: 0.002, gain: 0.016, cutoff: 3200 });
-    this.breath({ dur: 0.035, freq: 1900, type: 'bandpass', q: 2.2, gain: 0.12, attack: 0.002 });
-    this.voice(120, { dur: 0.14, attack: 0.002, gain: 0.09, to: 78, type: 'triangle', cutoff: 500 });
+    this.voice(262, { dur: 0.75, attack: 0.002, gain: 0.07, type: 'triangle', cutoff: 2600, out: room });
+    this.voice(723, { dur: 0.42, attack: 0.002, gain: 0.035, cutoff: 3000, detune: 4, out: room });
+    this.voice(1415, { dur: 0.2, attack: 0.002, gain: 0.016, cutoff: 3200, out: room });
+    this.breath({ dur: 0.035, freq: 1900, type: 'bandpass', q: 2.2, gain: 0.12, attack: 0.002, out: room });
+    this.voice(120, { dur: 0.14, attack: 0.002, gain: 0.09, to: 78, type: 'triangle', cutoff: 500, out: room });
   }
   /** A card lunging to attack: a quick rising swoosh as it leaves the table. */
   swing() {
@@ -1077,13 +1086,14 @@ class SoundBoard {
     const a = Math.max(1, amount);
     const g = Math.min(1.5, 0.85 + 0.12 * (a - 1));
     const deeper = 1 - Math.min(0.14, 0.035 * (a - 1));
-    this.voice(92 * deeper, { dur: 0.7, attack: 0.004, gain: 0.16 * g, to: 38, type: 'triangle', cutoff: 420 });
-    this.breath({ dur: 0.55, freq: 1300, to: 180, type: 'lowpass', q: 0.9, gain: 0.16 * g, attack: 0.004 });
-    this.breath({ dur: 0.3, freq: 700, to: 300, type: 'bandpass', q: 1.2, gain: 0.08 * g, attack: 0.003 });
+    const room = this.sfxRoom ?? undefined;
+    this.voice(92 * deeper, { dur: 0.7, attack: 0.004, gain: 0.16 * g, to: 38, type: 'triangle', cutoff: 420, out: room });
+    this.breath({ dur: 0.55, freq: 1300, to: 180, type: 'lowpass', q: 0.9, gain: 0.16 * g, attack: 0.004, out: room });
+    this.breath({ dur: 0.3, freq: 700, to: 300, type: 'bandpass', q: 1.2, gain: 0.08 * g, attack: 0.003, out: room });
     [0.03, 0.07, 0.12, 0.19].forEach((d, i) =>
-      this.breath({ dur: 0.05, freq: [1900, 1400, 2300, 1100][i], q: 2.2, gain: 0.035 * g, attack: 0.002, delay: d, type: 'bandpass' }),
+      this.breath({ dur: 0.05, freq: [1900, 1400, 2300, 1100][i], q: 2.2, gain: 0.035 * g, attack: 0.002, delay: d, type: 'bandpass', out: room }),
     );
-    this.clip(SFX.cardHit, 0.32 * g, 0.75 * deeper);
+    this.clip(SFX.cardHit, 0.32 * g, 0.75 * deeper, true);
   }
   /** A card's defence cracking: a brittle snap with splintering ticks after it. */
   crack() {
@@ -1173,8 +1183,11 @@ class SoundBoard {
     return buf;
   }
 
-  /** Play a recording (a voice line, a recorded effect) through the effects mix, so it sits in the same hall. */
-  clip(url: string, gain = 0.85, rate = 1) {
+  /**
+   * Play a recording (a voice line, a recorded effect) through the effects mix, so it sits in the same hall (or,
+   * given `room`, the smaller one).
+   */
+  clip(url: string, gain = 0.85, rate = 1, room = false) {
     const ctx = this.ready();
     if (!ctx) return;
     // (Already decoded, it plays at once: an offline board schedules everything as the effect is called.)
@@ -1186,7 +1199,7 @@ class SoundBoard {
       src.playbackRate.value = rate;
       const g = ctx.createGain();
       g.gain.value = gain;
-      src.connect(g).connect(this.sfx!);
+      src.connect(g).connect((room && this.sfxRoom) || this.sfx!);
       src.start();
     };
     if (known) play(known);
