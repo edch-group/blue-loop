@@ -220,7 +220,7 @@ export const isBossCard = (id: string) => BOSS_IDS.has(id);
 
 /**
  * The cards nothing removes (game.ts destroyImmune): an Overlord, its body and its gear, a Lost Lord, a Reliquary
- * Obelisk. Each says so, first thing, with its keyword (keywords.ts indestructible).
+ * Obelisk. Each says so, first thing, with its keyword (keywords.ts entrenched).
  */
-const INDESTRUCTIBLE_PARTS = new Set(['overlord', 'body', 'gear', 'lost lord', 'vault']);
-for (const c of BOSS_CARDS) if (c.overlordPart && INDESTRUCTIBLE_PARTS.has(c.overlordPart) && !c.text.includes('{indestructible}')) c.text = c.text ? `{indestructible}. ${c.text}` : '{indestructible}.';
+const ENTRENCHED_PARTS = new Set(['overlord', 'body', 'gear', 'lost lord', 'vault']);
+for (const c of BOSS_CARDS) if (c.overlordPart && ENTRENCHED_PARTS.has(c.overlordPart) && !c.text.includes('{entrenched}')) c.text = c.text ? `{entrenched}. ${c.text}` : '{entrenched}.';

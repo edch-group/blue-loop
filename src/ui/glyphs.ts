@@ -676,8 +676,8 @@ const MECHANIC_SVG: Record<string, string> = {
   orbit: '<circle cx="6" cy="6" r="1.8"/><ellipse cx="6" cy="6" rx="4.8" ry="2.2" transform="rotate(-25 6 6)"/>',
   attune: '<circle cx="6" cy="6" r="4.2"/><circle cx="9" cy="3" r="1.2" class="kw-ico-fill"/><circle cx="6" cy="6" r="1" class="kw-ico-fill"/>',
   lightspeed: '<path d="M6.8 1.2 2.8 6.6h3l-.6 4.2 4-5.4h-3Z"/>',
-  // Indestructible: a shield, a band of steel across it.
-  indestructible: '<path d="M6 1.3 10.2 3v3.1c0 2.7-1.9 4.5-4.2 5.3C3.7 10.6 1.8 8.8 1.8 6.1V3Z"/><path d="M2.4 5.6h7.2M2.8 7.8h6.4"/>',
+  // Entrenched: a shield, a band of steel across it (dug in: no removal shifts it).
+  entrenched: '<path d="M6 1.3 10.2 3v3.1c0 2.7-1.9 4.5-4.2 5.3C3.7 10.6 1.8 8.8 1.8 6.1V3Z"/><path d="M2.4 5.6h7.2M2.8 7.8h6.4"/>',
   // An open bear trap: its two jaws spread wide, teeth turned in, on its base.
   trap: '<path d="M1 3.4C1 7 3.2 8.6 6 8.6S11 7 11 3.4"/><path d="M1 3.4 2.6 4.6 1.6 6M11 3.4 9.4 4.6 10.4 6M3.4 7.4l.6-1.6M8.6 7.4 8 5.8"/><path d="M3.4 10.6h5.2"/>',
   global: '<circle cx="6" cy="6" r="4.4"/><path d="M1.6 6h8.8M6 1.6c1.6 1.6 1.6 7.2 0 8.8M6 1.6c-1.6 1.6-1.6 7.2 0 8.8"/>',
@@ -840,7 +840,7 @@ export function keywordList(text: string, stats: { defence?: number; health?: nu
   // (Gaining energy explains itself; a Hero's ability names are not keywords.)
   // (Attack and stability are a card's own numbers, not keywords to explain.)
   const plainNumbers = new Set(['energy', 'cost', 'act', 'abilities', 'attack', 'stability']);
-  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && !plainNumbers.has(k.id)) row(k.id === 'indestructible' ? `<b class="kw kw-defence">${mechanicMark('indestructible')} Indestructible</b>` : keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain(k.value));
+  for (const k of keywordsIn(texts)) if (KEYWORDS[k.id] && !plainNumbers.has(k.id)) row(k.id === 'entrenched' ? `<b class="kw kw-defence">${mechanicMark('entrenched')} Entrenched</b>` : keywordHtml(k.id, undefined, { named: true }), KEYWORDS[k.id].explain(k.value));
   const plain = plainText(text);
   for (const r of TEXT_RULES) if (r.pattern.test(plain)) row(`<b class="kw kw-${r.group}">${escText(r.name)}</b>`, r.explain);
   if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability.');

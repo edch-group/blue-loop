@@ -394,6 +394,30 @@ function cardMechanics(c: CardInstance): { id: string; n: string; name: string; 
 }
 
 /**
+ * A chip's mark, its frame cropped to the ink it draws (stroke included), so CSS can set it exactly as tall as
+ * the number beside it [direction: the icon and the number next to it always the same height].
+ */
+const INK_BOX = new Map<string, string>();
+function inkTight(svg: string): string {
+  let box = INK_BOX.get(svg);
+  if (!box) {
+    box = '0 0 12 12';
+    try {
+      const host = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      host.setAttribute('style', 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden');
+      host.innerHTML = `<g>${svg.replace(/^<svg[^>]*>|<\/svg>$/g, '')}</g>`;
+      document.body.appendChild(host);
+      const b = (host.firstChild as SVGGElement).getBBox();
+      host.remove();
+      const pad = 0.9; // (half the chips' stroke: 1.8)
+      if (b.height > 0) box = `${(b.x - pad).toFixed(2)} ${(b.y - pad).toFixed(2)} ${(b.width + 2 * pad).toFixed(2)} ${(b.height + 2 * pad).toFixed(2)}`;
+    } catch { /* (no layout: the full frame) */ }
+    INK_BOX.set(svg, box);
+  }
+  return svg.replace('viewBox="0 0 12 12"', `viewBox="${box}"`);
+}
+
+/**
  * The marks over a card in play (under, on the rival's side): what it gives each day now (heat, cooling, shields
  * and the like, with their numbers), then a mark for each of its mechanics, so the board reads at a glance.
  */
@@ -402,8 +426,8 @@ function yieldMarks(st: GameState, p: PlayerState, c: CardInstance, side: 'mine'
   const y = cardYield(st, p, c).filter(([k]) => side === 'mine' || k !== 'selfHeat');
   const mech = cardMechanics(c);
   if (!y.length && !mech.length) return '';
-  const yields = y.map(([k, n, when]) => `<i class="yield yield-${k}" data-tip-title="${esc(YIELD_NAMES[k])}" data-tip="${esc(when)}">${effectMark(k === 'selfHeat' ? 'heat' : k === 'plays' ? 'energy' : k)}${n}</i>`);
-  const marks = mech.map((m) => `<i class="yield mech kw-${m.group}${m.n ? '' : ' mech-bare'}" data-tip-title="${esc(m.name)}" data-tip="${esc(m.tip)}">${mechanicMark(m.id)}${m.n}</i>`);
+  const yields = y.map(([k, n, when]) => `<i class="yield yield-${k}" data-tip-title="${esc(YIELD_NAMES[k])}" data-tip="${esc(when)}">${inkTight(effectMark(k === 'selfHeat' ? 'heat' : k === 'plays' ? 'energy' : k))}${n}</i>`);
+  const marks = mech.map((m) => `<i class="yield mech kw-${m.group}${m.n ? '' : ' mech-bare'}" data-tip-title="${esc(m.name)}" data-tip="${esc(m.tip)}">${inkTight(mechanicMark(m.id))}${m.n}</i>`);
   return `<span class="card-yield card-yield-${side}">${[...yields, ...marks].join('')}</span>`;
 }
 

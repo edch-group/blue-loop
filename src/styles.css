@@ -6888,3 +6888,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield .yield { height: calc(var(--tcw, 80px) * 0.26); font-size: calc(var(--tcw, 80px) * 0.14); }
   .table-view:not(.zoom-rival):not(.zoom-mine) .card-yield .yield .kw-ico { width: calc(var(--tcw, 80px) * 0.14); height: calc(var(--tcw, 80px) * 0.14); }
 }
+
+/* A chip's mark exactly as tall as its number (Orbitron's digits stand 0.72em): its frame is cropped to its ink
+   (app.ts inkTight), and both sit on the baseline. */
+.table-view .card-yield .yield,
+.table-view:not(.zoom-rival):not(.zoom-mine) .card-yield .yield { align-items: baseline; line-height: 1; height: auto; padding-top: 0.425em; padding-bottom: 0.475em; }
+.table-view .card-yield .yield .kw-ico,
+.table-view:not(.zoom-rival):not(.zoom-mine) .card-yield .yield .kw-ico { height: 0.72em; width: auto; }

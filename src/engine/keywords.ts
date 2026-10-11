@@ -67,8 +67,8 @@ export const KEYWORDS: Record<string, Keyword> = {
   eject: { name: 'eject', group: 'removal', explain: () => 'Returns a rival card with this much defence or less to hand.' },
   sting: { name: 'sting', group: 'defence', explain: () => 'Hits back at attackers.' },
   // [direction: give the destroy immunity rule a name, an icon and an inspector description]
-  indestructible: {
-    name: 'indestructible',
+  entrenched: {
+    name: 'entrenched',
     group: 'defence',
     explain: () => "Can't be destroyed or returned to hand. A destroy deals its number as damage instead; Obelisks can't be aimed at.",
   },
