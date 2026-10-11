@@ -186,6 +186,54 @@ const BOSS_PHRASES: [number, string][][] = [
   [[0, 'D6'], [8, 'F6'], [16, 'D6'], [24, 'A#5']], // B-flat
 ];
 
+/**
+ * The reverser's audio worklet: overlapping slices of what comes in (half a second each, half overlapping, each
+ * shaped by a Hann window so they add up evenly), each played out reversed.
+ */
+const REVERSER = `
+class Reverser extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.L = Math.round(sampleRate * 0.5);
+    this.hop = this.L >> 1;
+    this.inBuf = [new Float32Array(this.L), new Float32Array(this.L)];
+    this.out = [new Float32Array(this.L * 2), new Float32Array(this.L * 2)];
+    this.w = new Float32Array(this.L);
+    for (let i = 0; i < this.L; i++) this.w[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / this.L);
+    this.pos = 0;
+    this.since = 0;
+    this.read = 0;
+  }
+  process(inputs, outputs) {
+    const inp = inputs[0], out = outputs[0];
+    const n = out[0].length, L = this.L, M = L * 2;
+    for (let i = 0; i < n; i++) {
+      for (let c = 0; c < 2; c++) {
+        const x = inp[c] ? inp[c][i] : inp[0] ? inp[0][i] : 0;
+        this.inBuf[c][this.pos] = x;
+        out[c] && (out[c][i] = this.out[c][this.read]);
+        this.out[c][this.read] = 0;
+      }
+      this.pos = (this.pos + 1) % L;
+      this.read = (this.read + 1) % M;
+      if (++this.since >= this.hop) {
+        this.since = 0;
+        // The last L samples, reversed and windowed, laid into what plays from here on.
+        for (let c = 0; c < 2; c++) {
+          const src = this.inBuf[c], dst = this.out[c];
+          for (let k = 0; k < L; k++) {
+            const s = src[(this.pos - 1 - k + L) % L];
+            dst[(this.read + k) % M] += s * this.w[k];
+          }
+        }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('reverser', Reverser);
+`;
+
 class SoundBoard {
   private ctx: AudioContext | null = null;
   private sfx: GainNode | null = null;
@@ -306,6 +354,9 @@ class SoundBoard {
       comp.threshold.value = -14;
       comp.ratio.value = 3;
       master.connect(comp).connect(ctx.destination);
+      this.master = master;
+      this.comp = comp;
+      if (this.reversed) this.routeReverse();
 
       this.reverb = ctx.createConvolver();
       this.reverb.buffer = this.impulse(4.5, 2.6);
@@ -497,6 +548,67 @@ class SoundBoard {
    * A clock's hand moving on: day or dusk coming in (they have no banner). A low, dry, wooden tick, the escapement's
    * catch, and its fainter tock just after, nothing bright.
    */
+  /**
+   * Time Dense Space turning: a deep booming tick, once a second [direction: a booming tick every time the galaxy
+   * turns]. Low: a thud with a long dark tail, nothing bright.
+   */
+  boomTick() {
+    this.voice(64, { dur: 0.9, attack: 0.004, gain: 0.32, to: 38, type: 'sine' });
+    this.voice(96, { dur: 0.35, attack: 0.004, gain: 0.1, to: 60, type: 'triangle', cutoff: 400 });
+    this.breath({ dur: 0.12, freq: 260, type: 'lowpass', q: 0.8, gain: 0.22, attack: 0.002 });
+  }
+
+  /**
+   * Time running backwards (Time Dense Space) [direction: music plays in reverse, as do all sounds in combat]:
+   * everything that sounds is caught in overlapping half-second slices and each is played back reversed, so the
+   * score and every blow swell in backwards, a slice behind.
+   */
+  private master: GainNode | null = null;
+  private comp: DynamicsCompressorNode | null = null;
+  private reverser: AudioWorkletNode | null = null;
+  private reversed = false;
+  private reverserLoading: Promise<void> | null = null;
+  setReverse(on: boolean) {
+    if (on === this.reversed) return;
+    this.reversed = on;
+    if (this.ctx) this.routeReverse();
+  }
+
+  private routeReverse() {
+    const ctx = this.ctx, master = this.master, comp = this.comp;
+    if (!ctx || !master || !comp) return;
+    if (!this.reversed) {
+      if (this.reverser) {
+        try {
+          master.disconnect(this.reverser);
+          this.reverser.disconnect();
+        } catch {
+          // (already apart)
+        }
+        this.reverser = null;
+      }
+      try {
+        master.connect(comp);
+      } catch {
+        // (already joined)
+      }
+      return;
+    }
+    if (this.reverser || !ctx.audioWorklet) return;
+    this.reverserLoading ??= ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([REVERSER], { type: 'application/javascript' })));
+    void this.reverserLoading.then(() => {
+      if (!this.reversed || this.reverser || !this.ctx) return;
+      const node = new AudioWorkletNode(this.ctx, 'reverser', { outputChannelCount: [2] });
+      try {
+        master.disconnect(comp);
+      } catch {
+        // (not joined)
+      }
+      master.connect(node).connect(comp);
+      this.reverser = node;
+    }).catch(() => undefined);
+  }
+
   clockTick() {
     this.breath({ dur: 0.05, freq: 900, type: 'bandpass', q: 3.5, gain: 0.16, attack: 0.003 });
     this.voice(170, { dur: 0.1, attack: 0.003, gain: 0.12, to: 120, type: 'triangle', cutoff: 900 });

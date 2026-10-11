@@ -122,7 +122,7 @@ export const RELIC_POWERS: Record<RelicPower, RelicPowerDef> = {
   // The Seren's emblems, granted by Aster alone (never rolled) [direction: Aster grants 1 of 3 Seren emblems: the
   // paradise planet, orbit +3, your Hero gains attunement 3].
   orbitShift: { kind: 'trigger', amounts: [3, 3, 3], text: (n) => `Your orbit +${n} as each battle begins.` },
-  starsworn: { kind: 'trigger', amounts: [3, 3, 3], text: (n) => `Your Hero gains {attune:${n}}.` },
+  starsworn: { kind: 'trigger', amounts: [3, 3, 3], text: (n) => `Your Hero gains Attunement ${n}.` },
   phoenix: { kind: 'once', amounts: [1, 1, 1], text: () => 'Once per battle: return your last discarded card to your hand.', effects: () => [{ type: 'recover', latest: true }] },
 };
 

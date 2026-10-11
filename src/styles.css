@@ -6926,3 +6926,20 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   font-family: var(--display); font-size: calc(var(--tcw, 80px) * 0.22); line-height: 1; pointer-events: none;
 }
 .boss-aim-heat .kw-ico, .boss-aim-heat svg { width: 0.72em; height: 0.72em; }
+
+/* ---------- Rifts: a Lost Race's galaxy (rifts.ts) ---------- */
+/* The Dark Galaxy: complete darkness round the ship [direction: complete darkness around the ship, one star ahead
+   seen at a time], lit a little where it stands; its stars black. */
+.cmp-darkness {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(circle 240px at var(--sx, 35%) var(--sy, 62%), rgba(10, 8, 18, 0.72), #06050a 72%);
+}
+.cmp-rift-dark .cmp-star .cmp-core { background: #0b0912; box-shadow: 0 0 0 1px rgba(150, 120, 230, 0.5), 0 0 14px rgba(120, 90, 220, 0.45); }
+.cmp-rift-dark .cmp-top, .cmp-rift-dark .cmp-relics { color: #e9e6f5; }
+/* (The wormhole's own marks: violet.) */
+.cmp-emblems { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; padding: 8px 0 4px; }
+.cmp-emblem-pick { cursor: pointer; border: 0; background: none; font: inherit; color: inherit; }
+.cmp-emblem-pick:hover .loot-glow { transform: translateY(-3px); }
+.cmp-pick .cmp-mark { display: block; margin-top: 6px; font-family: var(--display); letter-spacing: 0.14em; text-transform: uppercase; font-size: 0.6rem; color: #6b4fc8; text-align: center; }
+.cmp-emblems .loot-tile { --lw: min(150px, 26vw); height: auto; padding-bottom: 6px; }
+.cmp-emblems .loot-emblem small { -webkit-line-clamp: 4; }

@@ -462,7 +462,7 @@ class Layer {
     }
   }
 
-  draw(cam: Camera, time: number, fade: number, gone: number, crack: number, look: GalaxyLook | null) {
+  draw(cam: Camera, time: number, fade: number, gone: number, crack: number, look: GalaxyLook | null, dark = false) {
     const galaxy = look ? GALAXY_CODE[look] : 0;
     // The pulsar's sweep: round once every 9 seconds.
     const beam = time * ((Math.PI * 2) / 9);
@@ -516,6 +516,11 @@ class Layer {
       return () => used.forEach((l) => gl.disableVertexAttribArray(l));
     };
     let done: () => void;
+    // (The Dark Galaxy: nothing but the map's own things, in the dark.)
+    if (dark) {
+      this.objects?.draw(cam, time, 1);
+      return;
+    }
     // The starry abyss, only under what has fallen.
     if (this.abyssProg && this.maskProg && this.groundCount && gone > -9) {
       // Mark where the land has fallen (seen through), then fill it with the sky beneath.
@@ -640,6 +645,14 @@ export class Nebula {
       this.pose = this.home();
       this.moved = true;
     }
+    this.wake();
+  }
+
+  /** The Dark Galaxy: no land, no gas, no sky: only the map's own things, drawn over the dark. */
+  private dark = false;
+  setDark(on: boolean) {
+    if (on === this.dark) return;
+    this.dark = on;
     this.wake();
   }
 
@@ -927,7 +940,7 @@ export class Nebula {
       if (!this.camera || this.camera.width !== cam.width || this.camera.height !== cam.height) this.moved = true;
       this.camera = cam;
       const fade = this.fade * this.fade * (3 - 2 * this.fade);
-      if (!document.hidden) for (const l of this.layers) l.draw(cam, this.time, fade, this.gone, this.crack, this.look);
+      if (!document.hidden) for (const l of this.layers) l.draw(cam, this.time, fade, this.gone, this.crack, this.look, this.dark);
       if (this.moved) {
         this.moved = false;
         this.onCamera?.(cam);

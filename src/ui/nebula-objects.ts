@@ -40,6 +40,8 @@ export interface MapObject {
   prop?: 'station' | 'lab';
   /** Which system it is (for the pointer hovering it). */
   id?: string;
+  /** A black star (the Dark Galaxy's): drawn near black, ringed in a faint violet light. */
+  black?: boolean;
 }
 
 /** A route between two systems (world x, z at each end): held (in its holder's colour), or gone (a faint dashed trace). */
@@ -968,10 +970,11 @@ export class MapObjects {
       if (o.dead) solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0, o.seed, r * 0.55), 4, [0.62, 0.62, 0.64], 1);
       else {
         // A held sun takes its holder's colour, softened toward the paper.
-        const held: [number, number, number] = o.ring ? [0, 1, 2].map((i) => SUN[i] * 0.45 + o.ring![i] * 0.55) as [number, number, number] : SUN;
+        const base: [number, number, number] = o.black ? [0.05, 0.04, 0.08] : SUN;
+        const held: [number, number, number] = o.ring ? [0, 1, 2].map((i) => base[i] * 0.45 + o.ring![i] * 0.55) as [number, number, number] : base;
         // A slow pulse in its size, as if it breathes.
         const pulse = 1 + 0.035 * Math.sin(time * 1.4 + o.seed * 3);
-        solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0.3, time * 0.15 + o.seed, r * pulse), o.dim && !o.doom ? 4 : 0, o.doom ? DOOM : o.dim ? [0.8, 0.81, 0.84] : held, 1, o.seed);
+        solid.draw(this.sphereBuf, this.counts.sphere, model(o.x, y, o.z, 0.3, time * 0.15 + o.seed, r * pulse), o.black ? 1 : o.dim && !o.doom ? 4 : 0, o.doom ? DOOM : o.dim ? [0.8, 0.81, 0.84] : held, 1, o.seed);
       }
     }
     solid.done();
@@ -1004,7 +1007,7 @@ export class MapObjects {
         const breathe = 1 + 0.1 * Math.sin(time * 1.1 + o.seed);
         // A soft paper glow; where the player can travel, a fine dashed ring turning slowly and rings pulsing out
         // (in ink, or the holder's colour once held).
-        sprite.draw(o.x, y, o.z, r * 4 * breathe, 0, [1, 1, 1], 0.7);
+        sprite.draw(o.x, y, o.z, r * 4 * breathe, 0, o.black ? [0.55, 0.42, 0.95] : [1, 1, 1], o.black ? 0.35 : 0.7);
         const mark = o.ring ?? INK;
         if (o.reach) sprite.draw(o.x, y, o.z, r * 4.4, 4, mark, 0.6, o.seed);
         if (o.reach) sprite.draw(o.x, y, o.z, r * 3.9, 3, mark, 0.35, o.seed);

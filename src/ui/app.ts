@@ -4394,6 +4394,9 @@ export class App {
     // (A match against an Overlord, or a challenge, gets the boss track.)
     const inPlay = this.screen === 'game' && this.state && !isGameOver(this.state);
     sound.setScene(inPlay ? (this.state!.players.some((p) => p.boss) ? 'boss' : 'battle') : this.screen === 'campaign' && this.campaign.state ? 'ambient' : 'voyage');
+    // (Time Dense Space: the map's score and its battles run backwards.)
+    const rift = this.campaign.state?.rift?.kind === 'time';
+    sound.setReverse(rift && (this.screen === 'campaign' || (this.screen === 'game' && !!this.campaign.state?.battle)));
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });
     this.fitHand();

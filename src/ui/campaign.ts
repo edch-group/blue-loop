@@ -87,6 +87,10 @@ import {
   CHALLENGES,
   type ChallengeKind,
   type Relic,
+  markedId,
+  NYX_MARKS,
+  RIFTS,
+  spinGalaxy,
 } from '../engine';
 import { account, markDirty } from './account';
 import { profile } from './profile';
@@ -388,7 +392,9 @@ type Sheet =
   | { kind: 'log' }
   | { kind: 'attack'; armyId: string; toId: string }
   | { kind: 'help' }
-  | { kind: 'settings' };
+  | { kind: 'settings' }
+  /** A wormhole off the route: entered only once the player says so (there is no way back). */
+  | { kind: 'rift'; armyId: string; toId: string };
 
 /** Map stages already listening for drags and zooms (kept through redraws, which no longer rebuild them). */
 const boundStages = new WeakSet<HTMLElement>();
@@ -1066,6 +1072,12 @@ export class CampaignView {
           const army = (this.army ? s.armies.find((a) => a.id === this.army) : undefined) ?? flagship(s, s.playerId);
           const move = army ? armyMoves(s, army).find((m) => m.toId === arg) : undefined;
           if (army && move) {
+            // A wormhole: asked first [direction: "enter wormhole? You may not come back"].
+            if (nodeById(s, arg).challenge?.kind === 'rift') {
+              this.sheet = { kind: 'rift', armyId: army.id, toId: arg };
+              sound.hover();
+              break;
+            }
             // Into the unknown (who knows what a system holds until you get there): the ship just sets out.
             if (!this.known(arg) && !nodeById(s, arg).owner) return this.setOut(army.id, arg);
             if (move.battle) this.sheet = { kind: 'attack', armyId: army.id, toId: arg };
@@ -1110,6 +1122,17 @@ export class CampaignView {
         break;
       case 'cmp-travel':
         return this.setOut(el.dataset.army!, arg);
+      case 'cmp-rift-go': {
+        if (this.sheet?.kind !== 'rift') break;
+        const { armyId, toId } = this.sheet;
+        return this.setOut(armyId, toId);
+      }
+      case 'cmp-prophet':
+        if (this.apply({ type: 'prophetPick', index: arg === '' ? null : Number(arg) })) arg === '' ? sound.hover() : sound.upgrade();
+        break;
+      case 'cmp-emblem':
+        if (this.apply({ type: 'chooseEmblem', index: Number(arg) })) sound.upgrade();
+        break;
       case 'cmp-fight': {
         if (this.sheet?.kind !== 'attack') break;
         const { armyId, toId } = this.sheet;
@@ -1202,8 +1225,9 @@ export class CampaignView {
     const scene = !overlay && s.story.queue[0] && this.shownLines(s.story.queue[0]).length ? s.story.queue[0] : null;
     const me = campaignPlayer(s);
     return `
-      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}${this.cine === 'ride' || this.cine === 'start' || this.cine === 'reveal' ? ' cmp-cine' : this.cine === 'done' ? ' cmp-cine-done' : ''}">
+      <main class="cmp ${canNebula() ? 'cmp-3d' : ''}${s.rift ? ` cmp-rift-${s.rift.kind}` : ''}${this.cine === 'ride' || this.cine === 'start' || this.cine === 'reveal' ? ' cmp-cine' : this.cine === 'done' ? ' cmp-cine-done' : ''}">
         <canvas class="cmp-nebula" data-key="cmp-nebula" aria-hidden="true"></canvas>
+        ${s.rift?.kind === 'dark' ? '<div class="cmp-darkness" data-key="cmp-darkness" aria-hidden="true"></div>' : ''}
         <header class="cmp-top">
           <div class="cmp-top-left">
             ${this.renderProfile()}
@@ -1940,6 +1964,7 @@ export class CampaignView {
   afterRender(root: HTMLElement) {
     // (In development, reachable from the console.)
     if (import.meta.env.DEV) (window as unknown as { campaignView?: CampaignView }).campaignView = this;
+    this.keepSpinning();
     const stage = root.querySelector<HTMLElement>('.cmp-stage');
     this.stageEl = stage;
     if (stage) this.sailShips(stage);
@@ -2113,7 +2138,10 @@ export class CampaignView {
       const v = m ? parseInt(m[1], 16) : 0x999999;
       return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
     };
-    const objects: MapObject[] = s.nodes.filter((n) => !n.challenge?.hidden).map((n) => {
+    // (In the Dark Galaxy only what the ship can see is drawn at all; its stars are black.)
+    const seen = visibleNodes(s, s.playerId);
+    const dark = s.rift?.kind === 'dark';
+    const objects: MapObject[] = s.nodes.filter((n) => !n.challenge?.hidden && seen.has(n.id)).map((n) => {
       const [x, z] = at.get(n.id)!;
       return {
         x,
@@ -2125,6 +2153,7 @@ export class CampaignView {
         doom: !!n.collapsing,
         dead: !!(n.collapsed || n.ruined),
         reach: this.reach.has(n.id),
+        ...(dark ? { black: true } : {}),
         seed: parseFloat(seedOf(n.id)) * 10 || 0,
         id: n.id,
         // (Its station, so it can be found: a space station circling it, a research station's test tube over it.)
@@ -2140,6 +2169,7 @@ export class CampaignView {
       }),
     );
     this.nebula.setGalaxy(s.galaxy ?? null);
+    this.nebula.setDark(s.rift?.kind === 'dark');
     // (A spiral arm's galaxy turns slowly round its heart.)
     this.nebula.setSpin(s.layout === 'spiral');
     // The ships, as 3D objects: each over the star it stands at (or, setting out to attack, halfway there).
@@ -2210,6 +2240,71 @@ export class CampaignView {
     plane.style.setProperty('--tilt', '0deg');
     this.drawRays(stage);
     this.placePop();
+    this.placeDarkness(stage);
+  }
+
+  /**
+   * Time Dense Space turns, a step a second, with a booming tick [direction: the galaxy rotates anticlockwise, the stars
+   * in reach changing every second, a booming tick each time]: each step glides round over a little under half a
+   * second; it holds still while the ship is under way, a battle is on, or anything waits on the player.
+   */
+  private spinTimer = 0;
+  private spinning = false;
+  private keepSpinning() {
+    const on = this.state?.rift?.kind === 'time';
+    if (!on) {
+      window.clearInterval(this.spinTimer);
+      this.spinTimer = 0;
+      return;
+    }
+    if (this.spinTimer) return;
+    this.spinTimer = window.setInterval(() => this.spinStep(), 1000);
+  }
+
+  private spinStep() {
+    const s = this.state;
+    const stage = this.stageEl;
+    if (!s || s.rift?.kind !== 'time' || !stage?.isConnected) return this.keepSpinning();
+    if (this.spinning || this.advance || s.battle || s.phase !== 'player' || this.sheet || s.loot || s.cardRewards.length || s.prophet || s.emblemChoice || s.story.queue.length) return;
+    const from = s.spin ?? 0;
+    const root = stage.closest<HTMLElement>('.cmp');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    sound.boomTick();
+    this.spinning = true;
+    const t0 = performance.now(), dur = reduce ? 0 : 420;
+    const frame = () => {
+      const k = dur ? Math.min(1, (performance.now() - t0) / dur) : 1;
+      const e = 1 - Math.pow(1 - k, 3);
+      if (!this.state || this.state !== s) return void (this.spinning = false);
+      spinGalaxy(s, from + e);
+      for (const n of s.nodes) {
+        if (n.spinRing === undefined) continue;
+        const el = stage.querySelector<HTMLElement>(`[data-key="sys-${n.id}"]`);
+        if (el) {
+          el.style.left = `${n.x}px`;
+          el.style.top = `${n.y}px`;
+        }
+      }
+      if (root && k < 1) this.showNebula(root);
+      if (k < 1) return void requestAnimationFrame(frame);
+      spinGalaxy(s, from + 1);
+      this.spinning = false;
+      this.host.render();
+    };
+    requestAnimationFrame(frame);
+  }
+
+  /** The Dark Galaxy's dark: lit only a little round the flagship, wherever it now stands on screen. */
+  private placeDarkness(stage: HTMLElement) {
+    const s = this.state;
+    const veil = stage.closest('.cmp')?.querySelector<HTMLElement>('.cmp-darkness');
+    const ship = s && flagship(s, s.playerId);
+    if (!veil || !s || !ship || !this.nebula) return;
+    const n = nodeById(s, ship.nodeId);
+    const q = this.nebula.toScreen((n.x - MAP_WIDTH / 2) * MAP_K, PLANE_Y + (n.h ?? 0) * MAP_K, (n.y - MAP_HEIGHT / 2) * MAP_K);
+    if (!q) return;
+    veil.style.setProperty('--sx', `${q.x.toFixed(0)}px`);
+    veil.style.setProperty('--sy', `${q.y.toFixed(0)}px`);
   }
 
   private writeCamera() {
@@ -2391,8 +2486,8 @@ export class CampaignView {
         <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <p class="pop-tip">${esc(c.text)}</p>${lord}
-      <p class="pop-tip"><b>Reward:</b> ${esc(c.reward)}. Lose, and your flagship is thrown clear (the run goes on), but the way in is sealed.</p>
-      ${can && army ? `<div class="pop-row"><button class="btn-primary pop-attack" data-act="cmp-travel" data-arg="${n.id}" data-army="${army.id}">${armyFace(army)}enter</button></div>` : ''}`;
+      ${n.challenge.kind === 'rift' ? '' : `<p class="pop-tip"><b>Reward:</b> ${esc(c.reward)}. Lose, and your flagship is thrown clear (the run goes on), but the way in is sealed.</p>`}
+      ${can && army ? `<div class="pop-row"><button class="btn-primary pop-attack" data-act="${n.challenge.kind === 'rift' ? 'cmp-select' : 'cmp-travel'}" data-arg="${n.id}" data-army="${army.id}">${armyFace(army)}enter</button></div>` : ''}`;
     }
     const mine = n.owner === me.id;
     const owner = n.owner ? factionById(s, n.owner) : null;
@@ -2526,6 +2621,20 @@ export class CampaignView {
         <button class="btn-primary loot-take" style="--i:${items.length + first}" data-act="cmp-loot-ok">take it</button>
       </div>`;
     }
+    // A Dark Prophet's offer: three of your cards, each shown as its mark would make it; one taken, for good.
+    if (s.prophet) {
+      const cards = s.prophet.offers.map((o, i) => `<button class="cmp-pick" data-act="cmp-prophet" data-arg="${i}">${cardHtml(markedId(o.mark, o.card))}<small class="cmp-mark">${esc(NYX_MARKS[o.mark].name.toLowerCase())}</small></button>`).join('');
+      return this.modal(
+        'the dark prophet',
+        `<p class="center-text muted">Choose a card. Its mark is for good.</p><div class="cmp-cards">${cards}</div>
+         <div class="center-row"><button class="btn" data-act="cmp-prophet" data-arg="">turn away</button></div>`,
+      );
+    }
+    // Aster's gift: one of the Seren's three emblems.
+    if (s.emblemChoice?.length) {
+      const tiles = s.emblemChoice.map((r, i) => `<button class="loot-tile loot-emblem cmp-emblem-pick" data-act="cmp-emblem" data-arg="${i}"><span class="loot-glow"><span class="cmp-relic">${relicMark(r.name, r.slot)}</span></span><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></button>`).join('');
+      return this.modal('aster’s gift · choose an emblem', `<div class="cmp-emblems">${tiles}</div>`);
+    }
     const reward = s.cardRewards[0];
     if (reward) {
       const cards = reward.options.map((id) => `<button class="cmp-pick" data-act="cmp-card" data-arg="${id}">${cardHtml(id)}</button>`).join('');
@@ -2576,6 +2685,18 @@ export class CampaignView {
           </ul>`,
           true,
         );
+      case 'rift': {
+        const to = nodeById(s, sh.toId);
+        const kind = to.challenge?.rift;
+        return this.modal(
+          'enter wormhole?',
+          `<p class="center-text">You may not come back.</p>${kind ? `<p class="center-text muted">${esc(RIFTS[kind].name)}</p>` : ''}
+           <div class="cmp-attack-go"><button class="btn-primary" data-act="cmp-rift-go">enter</button><button class="btn" data-act="cmp-close">stay</button></div>`,
+          false,
+          '',
+          'cmp-modal-narrow',
+        );
+      }
       case 'attack': {
         const to = nodeById(s, sh.toId);
         return this.modal(
