@@ -908,7 +908,7 @@ export function shipModel3d(race: number): ShipModel {
 
 /**
  * The map's stations, modelled as the ships are (1 long, the same materials): a space station (where cards are
- * bought, circling its star) and a research station's flask (hovering over its star). [direction: space stations
+ * bought, circling its star) and a research station's test tube (hovering over its star). [direction: space stations
  * orbiting the stars they belong to, research stations a model of their own; both were near impossible to find]
  */
 export type PropKind = 'station' | 'lab';
@@ -916,7 +916,8 @@ export type PropKind = 'station' | 'lab';
 const HULL_WHITE: RGB = [0.86, 0.87, 0.9];
 const PANEL_BLUE: RGB = [0.16, 0.3, 0.62];
 const LAMP: RGB = [1, 0.86, 0.55];
-const GLASS: RGB = [0.72, 0.86, 0.95];
+// (Lit glass: pale, glowing faintly with the brew's light, so it reads against the paper.)
+const GLASS: RGB = [0.72, 0.84, 0.97];
 const BREW: RGB = [0.35, 0.62, 1];
 const BRASS: RGB = [0.78, 0.64, 0.36];
 
@@ -927,35 +928,33 @@ export function propModel3d(kind: PropKind): Float32Array {
   if (mesh) return mesh;
   const m = new Mesh();
   if (kind === 'lab') {
-    // A research flask: a glass body (wide at its foot, a long neck), glowing brew inside it, a brass collar and
-    // stopper, and a ring of brass round its middle, tipped, as an orbit is drawn.
-    // (The brew fills the bulb, glowing; the glass rises from it to the neck.)
+    // A research test tube: glowing brew in its round-bottomed lower half, clear glass above to a lipped mouth, and a
+    // brass ring round it, tipped, as an orbit is drawn.
     m.loft(
       [
         { x: 2, w: 0, t: 0, b: 0 },
-        { x: 3, w: 9, t: 9, b: 9, p: 2 },
-        { x: 12, w: 11.5, t: 11.5, b: 11.5, p: 2 },
-        { x: 17, w: 9.6, t: 9.6, b: 9.6, p: 2 },
+        { x: 2.6, w: 2.6, t: 2.6, b: 2.6, p: 2 },
+        { x: 4.2, w: 4.2, t: 4.2, b: 4.2, p: 2 },
+        { x: 6.2, w: 4.6, t: 4.6, b: 4.6, p: 2 },
+        { x: 20, w: 4.6, t: 4.6, b: 4.6, p: 2 },
       ],
       BREW,
       2,
-      { segs: 20, under: 0 },
+      { segs: 18, under: 0 },
     );
     m.loft(
       [
-        { x: 17, w: 9.6, t: 9.6, b: 9.6, p: 2 },
-        { x: 20, w: 8, t: 8, b: 8, p: 2 },
-        { x: 25, w: 3.4, t: 3.4, b: 3.4, p: 2 },
-        { x: 34, w: 3, t: 3, b: 3, p: 2 },
+        { x: 20, w: 4.6, t: 4.6, b: 4.6, p: 2 },
+        { x: 35, w: 4.6, t: 4.6, b: 4.6, p: 2 },
+        { x: 35.4, w: 5.6, t: 5.6, b: 5.6, p: 2 },
+        { x: 37, w: 5.6, t: 5.6, b: 5.6, p: 2 },
       ],
       GLASS,
-      1,
-      { segs: 20, under: 0 },
+      2,
+      { segs: 18, under: 0 },
     );
-    m.loft([{ x: 33, w: 3.8, t: 3.8, b: 3.8, p: 2 }, { x: 36.5, w: 3.8, t: 3.8, b: 3.8, p: 2 }], BRASS, 0, { segs: 14 });
-    m.loft([{ x: 36.5, w: 2.4, t: 2.4, b: 2.4, p: 2 }, { x: 39, w: 1.6, t: 1.6, b: 1.6, p: 2 }, { x: 40, w: 0, t: 0, b: 0 }], BRASS, 0, { segs: 12 });
-    m.ring(12, 12, 0, 16, 0.8, Math.PI / 2 + 0.4, BRASS, 0);
-    m.ball(12, 12 + 16 * Math.cos(0.4), 16 * Math.sin(0.4), 1.4, LAMP, 2, 8, 5);
+    m.ring(18, 12, 0, 11, 0.7, Math.PI / 2 + 0.4, BRASS, 0);
+    m.ball(18, 12 + 11 * Math.cos(0.4), 11 * Math.sin(0.4), 1.2, LAMP, 2, 8, 5);
   } else {
     // A hub standing up through a great ring, four spokes out to it, lamps round the ring, a mast and two wings of
     // solar panels over the top, a dish under.

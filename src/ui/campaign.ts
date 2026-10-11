@@ -153,7 +153,8 @@ const MATERIALS =
 const ARMORY_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7 10 3.5 17 7v7L10 17.5 3 14Z" fill="#c99a52" stroke="#7d5a26" stroke-width=".9" stroke-linejoin="round"/><path d="M3 7 10 10.5 17 7M10 10.5v7" fill="none" stroke="#7d5a26" stroke-width=".9"/></svg>';
 const RESEARCH_ICON =
-  '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 2.5h4M8.8 2.5v5L4.5 15a1.6 1.6 0 0 0 1.4 2.4h8.2a1.6 1.6 0 0 0 1.4-2.4l-4.3-7.5v-5" fill="#9fd3d9" stroke="#2f6f79" stroke-width=".9" stroke-linejoin="round"/><ellipse cx="10" cy="12.5" rx="7.5" ry="2.4" fill="none" stroke="#a98fe0" stroke-width="1"/></svg>';
+  // A test tube, leaning, glowing brew in its lower half, a lip at its mouth.
+  '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><g transform="rotate(25 10 10)"><path d="M7 2.2v12.2a3 3 0 0 0 6 0V2.2Z" fill="#eef6fb"/><path d="M7 9.6h6v4.8a3 3 0 0 1-6 0Z" fill="#6aa6ff"/><path d="M6.2 2.2h7.6M7 2.2v12.2a3 3 0 0 0 6 0V2.2" fill="none" stroke="#2f5f86" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></g></svg>';
 /** A Finite Stellari bloom: a small six-petalled flower. */
 const BLOOM =
   '<svg class="cur cur-bloom" viewBox="0 0 20 20" aria-hidden="true">' +
@@ -2126,7 +2127,7 @@ export class CampaignView {
         reach: this.reach.has(n.id),
         seed: parseFloat(seedOf(n.id)) * 10 || 0,
         id: n.id,
-        // (Its station, so it can be found: a space station circling it, a research station's flask over it.)
+        // (Its station, so it can be found: a space station circling it, a research station's test tube over it.)
         ...(n.station ? { prop: n.station.kind === 'armory' ? ('station' as const) : ('lab' as const) } : {}),
       };
     });
@@ -2419,8 +2420,9 @@ export class CampaignView {
     // What you can do here.
     const attackers = s.phase === 'player' && !s.battle ? attackOptions(s, me.id).find((o) => o.toId === n.id)?.armyIds ?? [] : [];
     // A known foe (the wormhole's guardian, a ship standing there) is attacked; anywhere else, the flagship just travels.
-    const travellers = s.phase === 'player' && !s.battle && !n.owner && !this.known(n.id) ? armiesOf(s, me.id).filter((a) => armyMoves(s, a).some((m) => m.toId === n.id)).map((a) => a.id) : [];
-    const attack = this.known(n.id)
+    // (A station is a pit stop: always travelled to, never attacked.)
+    const travellers = s.phase === 'player' && !s.battle && (n.station || (!n.owner && !this.known(n.id))) ? armiesOf(s, me.id).filter((a) => armyMoves(s, a).some((m) => m.toId === n.id)).map((a) => a.id) : [];
+    const attack = this.known(n.id) && !n.station
       ? attackers.map((id) => `<button class="btn-primary pop-attack" data-act="cmp-attack-pick" data-arg="${n.id}" data-army="${id}">${armyFace(armyById(s, id))}attack</button>`).join('')
       : travellers.map((id) => `<button class="btn-primary pop-attack" data-act="cmp-travel" data-arg="${n.id}" data-army="${id}">${armyFace(armyById(s, id))}travel</button>`).join('');
     const here = armyAt(s, n.id);

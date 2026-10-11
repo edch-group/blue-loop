@@ -878,8 +878,8 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
       continue;
     }
     const there = armyAt(s, id);
-    // (A system it holds, or a burnt-out ruin, is passed through freely.)
-    if (n.owner === army.owner || ((n.ruined || n.cache) && !n.owner && !there)) {
+    // (A system it holds, a burnt-out ruin, or a station (a pit stop, never fought over), is passed through freely.)
+    if (n.owner === army.owner || n.station || ((n.ruined || n.cache) && !n.owner && !there)) {
       if (!there) out.push({ toId: id, battle: false });
       continue;
     }
@@ -1895,8 +1895,10 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     startChallenge(s, army, target);
     return;
   }
-  if (target.owner === f.id || ((target.ruined || target.cache) && !target.owner && !armyAt(s, toId))) {
-    if (armyAt(s, toId)) throw new GameError(`An army already stands in ${target.name}.`);
+  // A space station or research station is a pit stop [direction: neither should ever have a battle]: flown into
+  // freely (while no other ship is docked there), never fought over, never taken.
+  if (target.owner === f.id || target.station || ((target.ruined || target.cache) && !target.owner && !armyAt(s, toId))) {
+    if (armyAt(s, toId)) throw new GameError(`${target.station ? 'A ship is already docked at' : 'An army already stands in'} ${target.name}.`);
     army.nodeId = toId;
     if (target.cache && !army.lost) takeCache(s, f, target, army);
     army.steps = (army.steps ?? 0) + 1;

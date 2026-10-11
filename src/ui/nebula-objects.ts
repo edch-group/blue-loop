@@ -36,7 +36,7 @@ export interface MapObject {
   reach?: boolean;
   /** A stable number to vary each one by (spin, phase). */
   seed: number;
-  /** What stands at it: a space station circling it, or a research station's flask hovering over it. */
+  /** What stands at it: a space station circling it, or a research station's test tube hovering over it. */
   prop?: 'station' | 'lab';
   /** Which system it is (for the pointer hovering it). */
   id?: string;
@@ -646,7 +646,7 @@ export class MapObjects {
 
   /**
    * The stations, so they can be found: round a space station's star the station circles, its ring turning, its lamps
-   * lit; over a research station's star its flask hovers upright, turning slowly and bobbing, its brew glowing.
+   * lit; over a research station's star its test tube hovers upright, turning slowly and bobbing, its brew glowing.
    */
   private drawProps(cam: Camera, time: number, fade: number) {
     const gl = this.gl;
@@ -686,7 +686,7 @@ export class MapObjects {
         S = 0.12;
         x = o.x;
         z = o.z;
-        y = y0 + 0.1 + 0.012 * Math.sin(time * 1.3 + o.seed);
+        y = y0 + 0.125 + 0.012 * Math.sin(time * 1.3 + o.seed);
         const turn = time * 0.5 + o.seed;
         const cy = Math.cos(turn), sy = Math.sin(turn);
         const F = [0, 1, 0], U = [cy, 0, sy], R = [-sy, 0, cy];

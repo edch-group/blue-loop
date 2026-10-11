@@ -411,3 +411,22 @@ describe('emblems', () => {
     expect(new Set(curses.map((r) => r.text)).size).toBe(3);
   });
 });
+
+describe('stations', () => {
+  it('are pit stops: flown into without a battle, never taken', () => {
+    for (const kind of ['armory', 'research'] as const) {
+      let s = run(11);
+      const st = s.nodes.find((n) => n.station?.kind === kind)!;
+      const from = s.nodes.find((n) => n.links.includes(st.id) && !n.station && !n.challenge && !n.heart)!;
+      standAt(s, from.id);
+      const army = flag(s);
+      army.moved = false;
+      army.steps = 0;
+      expect(armyMoves(s, army).find((m) => m.toId === st.id)?.battle).toBe(false);
+      s = applyCampaignAction(s, { type: 'move', armyId: army.id, toId: st.id });
+      expect(s.battle).toBeFalsy();
+      expect(flag(s).nodeId).toBe(st.id);
+      expect(nodeById(s, st.id).owner ?? null).toBeNull();
+    }
+  });
+});
