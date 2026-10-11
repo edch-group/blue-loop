@@ -24,7 +24,7 @@ import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types
 import { LOST_LORDS, OVERLORDS, overlordById, overlordHealth } from './cards-bosses';
 import type { RelicInPlay } from './relics';
 import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
-import { RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, type ResearchState } from './research';
+import { RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, supersededResearch, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
 import { runBonuses, type RunBonuses } from './meta';
 import {
@@ -848,6 +848,7 @@ export function researchProblem(s: CampaignState, f: Faction, n: CampaignNode, p
   if (projectId === undefined) return open.length ? null : 'You have all of its upgrades already.';
   if (!n.station.options.includes(projectId)) return `${n.name}'s research station doesn't offer that.`;
   if (f.research?.done.includes(projectId)) return 'You have that upgrade already.';
+  if (supersededResearch([...(f.research?.done ?? []), projectId], projectId)) return 'You have a better one already.';
   return null;
 }
 

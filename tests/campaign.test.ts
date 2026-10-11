@@ -539,3 +539,15 @@ describe('no run-ending moves, and relic caches', () => {
     expect(nodeById(s, to).vault).toBeUndefined();
   });
 });
+
+import { researchBonus as researchTotal } from '../src/engine/research';
+
+describe('research upgrades state their totals', () => {
+  it('the higher of a pair stands in place of the lower', () => {
+    expect(researchTotal({ done: ['mend1'] }).mend).toBe(2);
+    expect(researchTotal({ done: ['mend2'] }).mend).toBe(4);
+    expect(researchTotal({ done: ['mend1', 'mend2'] }).mend).toBe(4);
+    expect(researchTotal({ done: ['hull1', 'hull2'] }).mods.maxHealthDelta).toBe(5);
+    expect(researchTotal({ done: ['energy1', 'energy2', 'cool1'] }).mods).toEqual({ extraPlays: 2, startingHeat: -1 });
+  });
+});

@@ -112,8 +112,8 @@ export const META_UPGRADES: MetaUpgrade[] = [
   // A cooler sun: its heat and health.
   { id: 'cryo', group: 'sun', tier: 1, name: 'Cryo core', text: 'Your sun starts every battle 1 cooler.', max: 3, cost: rising(20, 15) },
   { id: 'plating', group: 'sun', tier: 2, requires: [['cryo', 1]], name: 'Stellar plating', text: '+2 max health on your sun in battle.', max: 2, cost: rising(45, 35) },
-  { id: 'mend', group: 'sun', tier: 2, requires: [['cryo', 2]], name: 'Field cooling', text: 'Your sun cools by 1 with each jump.', max: 2, cost: rising(50, 40) },
-  { id: 'favour', group: 'sun', tier: 3, requires: [['plating', 1], ['mend', 1]], name: "Stellari's Favour", text: 'Your sun cools by 3 after every battle won.', max: 1, cost: flat(180) },
+  { id: 'mend', group: 'sun', tier: 2, requires: [['cryo', 2]], name: 'Field cooling', text: 'Your sun cools 1 each jump.', max: 2, cost: rising(50, 40) },
+  { id: 'favour', group: 'sun', tier: 3, requires: [['plating', 1], ['mend', 1]], name: "Stellari's Favour", text: 'Your sun cools 3 after each battle won.', max: 1, cost: flat(180) },
   // Kinder planets [direction: skills that upgrade the planets, rather than straight draws or energy].
   { id: 'abundance', group: 'command', tier: 1, name: 'Fertile orbit', text: 'The abundant planet draws 1 more card each day it faces your sun.', max: 2, cost: rising(25, 25) },
   { id: 'foundry', group: 'command', tier: 2, requires: [['abundance', 1]], name: 'Deep foundries', text: 'The industrial planet gives 1 more energy each day it faces your sun.', max: 1, cost: flat(90) },

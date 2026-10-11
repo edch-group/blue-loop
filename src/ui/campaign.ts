@@ -50,7 +50,6 @@ import {
   battleOdds,
   GENERALS,
   ORACLE_NAME,
-  STELLARIA_NAME,
   QUARTERMASTER,
   armyLeader,
   STAR_TYPES,
@@ -73,7 +72,6 @@ import {
   ownedNodes,
   RACE_NAMES,
   RARITY_NAME,
-  starOdds,
   SUBRACES,
   type MetaState,
   type CampaignAction,
@@ -192,37 +190,37 @@ const RESEARCH_MARK = (): Record<string, string> => ({
   loot: UPGRADE_LOOK.scouts.icon,
 });
 
-/** Each lasting upgrade's mark, and what it gives at a level, in a few words (the number large on its tile). */
-const UPGRADE_LOOK: Record<string, { icon: string; unit: string; value: (level: number) => string }> = {
-  materials: { icon: glyph('M12 2.5 20 7v10l-8 4.5L4 17V7ZM4 7l8 4.5L20 7M12 11.5v10'), unit: 'materials to start a run', value: (l) => `+${3 * l}` },
-  cards: { icon: glyph('M7 3.5h9a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5ZM11.5 8.5v7M8 12h7'), unit: 'race cards in the starting deck', value: (l) => `+${l}` },
-  pick: { icon: glyph('M6 4.5h8.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V6A1.5 1.5 0 0 1 6 4.5ZM16 7.5l2.6.7a1.5 1.5 0 0 1 1 1.8l-3 11.2M8 12.5l2 2 3.5-4.5'), unit: 'cards of your choice to start', value: (l) => `+${l}` },
-  shields: { icon: glyph('M12 2.8 19.5 6v5.5c0 4.6-3.2 7.8-7.5 9.5-4.3-1.7-7.5-4.9-7.5-9.5V6Z'), unit: 'shield on your sun as battle begins', value: (l) => `+${l}` },
-  walls: { icon: glyph('M3.5 20.5h17M5 20.5V9h14v11.5M5 9V5.5h3V9M10.5 9V5.5h3V9M16 9V5.5h3V9M9 20.5v-5h6v5'), unit: 'defence on every tableau slot', value: (l) => `+${l}` },
-  bastion: { icon: glyph('M5 20.5V8l3-2 4 2 4-2 3 2v12.5ZM9.5 20.5v-5h5v5'), unit: 'defence on your Guards', value: (l) => `+${2 * l}` },
-  grace: { icon: glyph('M12 3v4M12 17v4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M3 12h4M17 12h4M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8M12 9.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z'), unit: 'turns of stability in every galaxy', value: (l) => `+${l}` },
-  armory: { icon: glyph('M4 8.5 12 4l8 4.5v7L12 20l-8-4.5ZM4 8.5l8 4.5 8-4.5M12 13v7M8.5 6.2l8 4.5'), unit: 'material off every space station card', value: (l) => `−${l}` },
-  petals: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM12 5.5v10M5 20.5h14'), unit: 'more petals at every wormhole', value: (l) => `+${20 * l}%` },
-  hoard: { icon: glyph('M3.5 13.5 9 10.5l5.5 3v6l-5.5 3-5.5-3ZM3.5 13.5 9 16.5l5.5-3M9 16.5v6M9.5 7.5 15 4.5l5.5 3v6l-5.5 3M9.5 7.5 15 10.5l5.5-3M15 10.5v6'), unit: 'materials in every new galaxy', value: (l) => `+${6 * l}` },
-  favour: { icon: glyph('M12 3.5c3 2.4 3.8 6.4 0 11.5-3.8-5.1-3-9.1 0-11.5ZM4.5 9.5c3.6-.6 7 1.4 7.5 5.5-4.4.5-7.3-1.6-7.5-5.5ZM19.5 9.5c-3.6-.6-7 1.4-7.5 5.5 4.4.5 7.3-1.6 7.5-5.5ZM12 15v5.5'), unit: 'cooling for your sun after each battle won', value: (l) => `${3 * l}` },
-  cryo: { icon: glyph('M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 6.5l2.5-2M9.5 19.5l2.5-2 2.5 2'), unit: 'cooler start for your sun in every battle', value: (l) => `${l}` },
-  plating: { icon: glyph('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17ZM12 7.5v9M7.5 12h9'), unit: 'max health on your sun in battle', value: (l) => `+${2 * l}` },
-  mend: { icon: glyph('M14.5 4.5a4 4 0 0 0-4.8 5.3L4.5 15a2.1 2.1 0 0 0 3 3l5.2-5.2a4 4 0 0 0 5.3-4.8l-2.5 2.5-2.4-.6-.6-2.4Z'), unit: 'cooling for your sun with each jump', value: (l) => `${l}` },
-  mantle: { icon: glyph('M12 4.5c4.2 0 7.5 2 7.5 4.5S16.2 13.5 12 13.5 4.5 11.5 4.5 9 7.8 4.5 12 4.5ZM12 13.5c-3.6 0-6.5 2.8-7 6.5h14c-.5-3.7-3.4-6.5-7-6.5Z'), unit: 'shield on your sun every day of battle', value: (l) => `+${l}` },
-  abundance: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM5 10c3 1 5 0 7-2M9 19c0-3 2-5 6-5'), unit: 'more cards drawn on the abundant planet', value: (l) => `+${l}` },
-  foundry: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM4.5 9.5h15M4.5 14.5h15M10 4.5v15'), unit: 'more energy on the industrial planet', value: (l) => `+${l}` },
-  coldworld: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM12 8.5v7M9 10l6 4M15 10l-6 4'), unit: 'cooling each dawn the dead planet faces you', value: (l) => `${2 * l}` },
-  scouts: { icon: glyph('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM15.5 15.5l5 5'), unit: 'more chance of emblems', value: (l) => `+${10 * l}%` },
-  plunder: { icon: glyph('M4.5 9.5h15l-1.5 10h-12ZM8 9.5a4 4 0 0 1 8 0M10 13.5h4'), unit: 'materials for every battle won', value: (l) => `+${2 * l}` },
-  study: { icon: glyph('M3 8.5 12 4.5l9 4-9 4ZM6.5 10.5v4.5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-4.5M21 8.5v5'), unit: 'more experience from everything', value: (l) => `+${10 * l}%` },
-  choice: { icon: glyph('M4 6.5h6v9H4ZM14 6.5h6v9h-6ZM9 18.5h6'), unit: 'card to choose from in every reward', value: (l) => `+${l}` },
-  tithe: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM5 20.5h14M8 17.5l-2 3M16 17.5l2 3'), unit: 'petals from every Overlord beaten', value: (l) => `+${2 * l}` },
-  heirloom: { icon: glyph('M12 3.5 14.5 8.5l5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8Z'), unit: 'Stellar emblem to start each run', value: (l) => `${l}` },
-  stock: { icon: glyph('M4 9.5h16M5 9.5V20h14V9.5M3.5 9.5 6 4.5h12l2.5 5M9.5 13.5h5'), unit: 'cards in every space station', value: (l) => `+${3 * l}` },
-  legacy: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM7 21h10'), unit: 'petal for every battle won', value: (l) => `+${l}` },
-  aligned: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM3 12h18M12 3v18'), unit: 'from the planets', value: (l) => `+${l} card, +${l} energy, +${2 * l} cooling` },
-  vault: { icon: glyph('M4 6.5h16v13H4ZM4 10.5h16M12 13.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z'), unit: "cards in every Overlord's hoard", value: (l) => `+${2 * l}` },
-  salvage: { icon: glyph('M5.5 7.5h13l-1.2 12a1.5 1.5 0 0 1-1.5 1.4H8.2a1.5 1.5 0 0 1-1.5-1.4ZM3.5 7.5h17M9 7.5V4.5h6v3M10 11.5v6M14 11.5v6'), unit: 'card to choose from when salvaging', value: (l) => `+${l}` },
+/** Each lasting upgrade's mark, what it gives at a level as a plain sentence (its total, not what each point adds), and its number. */
+const UPGRADE_LOOK: Record<string, { icon: string; say: (level: number) => string; value: (level: number) => string }> = {
+  materials: { icon: glyph('M12 2.5 20 7v10l-8 4.5L4 17V7ZM4 7l8 4.5L20 7M12 11.5v10'), say: (l) => `Start each run with ${3 * l} materials.`, value: (l) => `+${3 * l}` },
+  cards: { icon: glyph('M7 3.5h9a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5ZM11.5 8.5v7M8 12h7'), say: (l) => `${l} more race card${l === 1 ? '' : 's'} in your starting deck.`, value: (l) => `+${l}` },
+  pick: { icon: glyph('M6 4.5h8.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V6A1.5 1.5 0 0 1 6 4.5ZM16 7.5l2.6.7a1.5 1.5 0 0 1 1 1.8l-3 11.2M8 12.5l2 2 3.5-4.5'), say: (l) => `Choose ${l} card${l === 1 ? '' : 's'} for your starting deck.`, value: (l) => `+${l}` },
+  shields: { icon: glyph('M12 2.8 19.5 6v5.5c0 4.6-3.2 7.8-7.5 9.5-4.3-1.7-7.5-4.9-7.5-9.5V6Z'), say: (l) => `Your sun starts each battle with ${l} shield${l === 1 ? '' : 's'}.`, value: (l) => `+${l}` },
+  walls: { icon: glyph('M3.5 20.5h17M5 20.5V9h14v11.5M5 9V5.5h3V9M10.5 9V5.5h3V9M16 9V5.5h3V9M9 20.5v-5h6v5'), say: (l) => `+${l} defence on every tableau slot.`, value: (l) => `+${l}` },
+  bastion: { icon: glyph('M5 20.5V8l3-2 4 2 4-2 3 2v12.5ZM9.5 20.5v-5h5v5'), say: (l) => `Your Guards have +${2 * l} defence.`, value: (l) => `+${2 * l}` },
+  grace: { icon: glyph('M12 3v4M12 17v4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M3 12h4M17 12h4M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8M12 9.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z'), say: (l) => `Stability holds ${l} longer in every galaxy.`, value: (l) => `+${l}` },
+  armory: { icon: glyph('M4 8.5 12 4l8 4.5v7L12 20l-8-4.5ZM4 8.5l8 4.5 8-4.5M12 13v7M8.5 6.2l8 4.5'), say: (l) => `Space station cards cost ${l} less.`, value: (l) => `−${l}` },
+  petals: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM12 5.5v10M5 20.5h14'), say: (l) => `${20 * l}% more petals at every wormhole.`, value: (l) => `+${20 * l}%` },
+  hoard: { icon: glyph('M3.5 13.5 9 10.5l5.5 3v6l-5.5 3-5.5-3ZM3.5 13.5 9 16.5l5.5-3M9 16.5v6M9.5 7.5 15 4.5l5.5 3v6l-5.5 3M9.5 7.5 15 10.5l5.5-3M15 10.5v6'), say: (l) => `${6 * l} materials in every new galaxy.`, value: (l) => `+${6 * l}` },
+  favour: { icon: glyph('M12 3.5c3 2.4 3.8 6.4 0 11.5-3.8-5.1-3-9.1 0-11.5ZM4.5 9.5c3.6-.6 7 1.4 7.5 5.5-4.4.5-7.3-1.6-7.5-5.5ZM19.5 9.5c-3.6-.6-7 1.4-7.5 5.5 4.4.5 7.3-1.6 7.5-5.5ZM12 15v5.5'), say: (l) => `Your sun cools ${3 * l} after each battle won.`, value: (l) => `${3 * l}` },
+  cryo: { icon: glyph('M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 6.5l2.5-2M9.5 19.5l2.5-2 2.5 2'), say: (l) => `Your sun starts each battle ${l} cooler.`, value: (l) => `${l}` },
+  plating: { icon: glyph('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17ZM12 7.5v9M7.5 12h9'), say: (l) => `+${2 * l} max health on your sun.`, value: (l) => `+${2 * l}` },
+  mend: { icon: glyph('M14.5 4.5a4 4 0 0 0-4.8 5.3L4.5 15a2.1 2.1 0 0 0 3 3l5.2-5.2a4 4 0 0 0 5.3-4.8l-2.5 2.5-2.4-.6-.6-2.4Z'), say: (l) => `Your sun cools ${l} each jump.`, value: (l) => `${l}` },
+  mantle: { icon: glyph('M12 4.5c4.2 0 7.5 2 7.5 4.5S16.2 13.5 12 13.5 4.5 11.5 4.5 9 7.8 4.5 12 4.5ZM12 13.5c-3.6 0-6.5 2.8-7 6.5h14c-.5-3.7-3.4-6.5-7-6.5Z'), say: (l) => `Your sun gains ${l} shield every day of battle.`, value: (l) => `+${l}` },
+  abundance: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM5 10c3 1 5 0 7-2M9 19c0-3 2-5 6-5'), say: (l) => `The abundant planet draws ${l} more card${l === 1 ? '' : 's'}.`, value: (l) => `+${l}` },
+  foundry: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM4.5 9.5h15M4.5 14.5h15M10 4.5v15'), say: (l) => `The industrial planet gives ${l} more energy.`, value: (l) => `+${l}` },
+  coldworld: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM12 8.5v7M9 10l6 4M15 10l-6 4'), say: (l) => `The dead planet cools your sun ${2 * l} each dawn.`, value: (l) => `${2 * l}` },
+  scouts: { icon: glyph('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM15.5 15.5l5 5'), say: (l) => `${10 * l}% more chance of emblems.`, value: (l) => `+${10 * l}%` },
+  plunder: { icon: glyph('M4.5 9.5h15l-1.5 10h-12ZM8 9.5a4 4 0 0 1 8 0M10 13.5h4'), say: (l) => `${2 * l} materials for every battle won.`, value: (l) => `+${2 * l}` },
+  study: { icon: glyph('M3 8.5 12 4.5l9 4-9 4ZM6.5 10.5v4.5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-4.5M21 8.5v5'), say: (l) => `${10 * l}% more experience.`, value: (l) => `+${10 * l}%` },
+  choice: { icon: glyph('M4 6.5h6v9H4ZM14 6.5h6v9h-6ZM9 18.5h6'), say: (l) => `${l} more card${l === 1 ? '' : 's'} to choose from in every reward.`, value: (l) => `+${l}` },
+  tithe: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM5 20.5h14M8 17.5l-2 3M16 17.5l2 3'), say: (l) => `${2 * l} petals from every Overlord beaten.`, value: (l) => `+${2 * l}` },
+  heirloom: { icon: glyph('M12 3.5 14.5 8.5l5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8Z'), say: () => 'Start each run with a Stellar emblem.', value: (l) => `${l}` },
+  stock: { icon: glyph('M4 9.5h16M5 9.5V20h14V9.5M3.5 9.5 6 4.5h12l2.5 5M9.5 13.5h5'), say: (l) => `${3 * l} more cards in every space station.`, value: (l) => `+${3 * l}` },
+  legacy: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM7 21h10'), say: (l) => `${l} petal${l === 1 ? '' : 's'} for every battle won.`, value: (l) => `+${l}` },
+  aligned: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM3 12h18M12 3v18'), say: (l) => `Every planet gives ${l} more card, ${l} more energy and ${2 * l} more cooling.`, value: (l) => `+${l} card, +${l} energy, +${2 * l} cooling` },
+  vault: { icon: glyph('M4 6.5h16v13H4ZM4 10.5h16M12 13.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z'), say: (l) => `${2 * l} more cards in every Overlord's hoard.`, value: (l) => `+${2 * l}` },
+  salvage: { icon: glyph('M5.5 7.5h13l-1.2 12a1.5 1.5 0 0 1-1.5 1.4H8.2a1.5 1.5 0 0 1-1.5-1.4ZM3.5 7.5h17M9 7.5V4.5h6v3M10 11.5v6M14 11.5v6'), say: (l) => `${l} more card${l === 1 ? '' : 's'} to choose from when salvaging.`, value: (l) => `+${l}` },
 };
 
 /** A hero's portrait: their card's picture, cropped round. */
@@ -354,8 +352,6 @@ const RECYCLER_PORTRAIT = `<span class="cmp-portrait cmp-portrait-keeper"><svg v
   <path d="M30 34q3-3 6-2M44 32q3-1 6 2" fill="none" stroke="#efe6da" stroke-width="1.2" stroke-linecap="round"/>
   <rect x="29" y="24" width="7" height="5" rx="1" fill="#a39684" transform="rotate(-12 32 26)"/>
 </svg></span>`;
-
-const STELLARIA = STELLARIA_NAME;
 
 /** A stable 0–1 value per id, to spread animation phases so stars never pulse in step. */
 function seedOf(id: string): string {
@@ -723,6 +719,8 @@ export class CampaignView {
       if (!battle) {
         this.advance = null;
         this.encountering = false;
+        // A station: straight in, its screen open on arrival.
+        this.enterStation(toId);
         return this.host.render();
       }
       // A dive-bombing synth as it lands; the battle board opens a second later.
@@ -748,13 +746,26 @@ export class CampaignView {
     return !!a && armyMoves(s, a).length === 0;
   }
 
+  /** Into a station's screen (its space station, or its research): none, if the system has no station. */
+  private enterStation(nodeId: string) {
+    const node = this.state && nodeById(this.state, nodeId);
+    if (node?.station?.kind === 'armory') {
+      this.keeperVisit++;
+      this.sheet = { kind: 'armory', nodeId, tab: 'buy' };
+    } else if (node?.station?.kind === 'research') {
+      this.rsPick = null;
+      this.sheet = { kind: 'research', nodeId };
+    }
+  }
+
   /** Time moves on: the collapse comes on. */
   private passTime(wait = false) {
     if (!wait && !this.moveSpent()) return;
     if (!this.apply({ type: 'endTurn', stepwise: true })) return;
     this.selected = null;
     this.army = null;
-    this.sheet = null;
+    // (A station's screen, opened as the ship arrived, stays open.)
+    if (this.sheet?.kind !== 'armory' && this.sheet?.kind !== 'research') this.sheet = null;
     this.host.render();
   }
 
@@ -1001,19 +1012,11 @@ export class CampaignView {
       case 'cmp-research':
         if (el.dataset.project && this.apply({ type: 'research', nodeId: arg, projectId: el.dataset.project })) sound.upgrade();
         break;
-      case 'cmp-visit': {
+      case 'cmp-visit':
         // A station the flagship stands in: its armoury, or its research.
-        const node = nodeById(s!, arg);
-        if (node.station?.kind === 'armory') {
-          this.keeperVisit++;
-          this.sheet = { kind: 'armory', nodeId: arg, tab: 'buy' };
-        } else if (node.station?.kind === 'research') {
-          this.rsPick = null;
-          this.sheet = { kind: 'research', nodeId: arg };
-        }
+        this.enterStation(arg);
         sound.hover();
         break;
-      }
       case 'cmp-rs-pick':
         this.rsPick = this.rsPick === arg ? null : arg;
         sound.hover();
@@ -1056,11 +1059,7 @@ export class CampaignView {
           if (this.sheet?.kind === 'armory') this.sheet = { kind: 'armory', nodeId: this.sheet.nodeId, tab: 'recycle', pick: campaignPlayer(this.state!).reserve.includes(arg) ? arg : undefined };
         }
         break;
-      case 'cmp-tip':
-        this.popTip = this.popTip === el.dataset.tip ? null : el.dataset.tip ?? null;
-        break;
       case 'cmp-select':
-        this.popTip = null;
         // A star in the flagship's reach sends it there (no need to pick the ship first); a known foe gets a
         // look at the matchup first.
         if (s && s.phase === 'player' && !s.battle) {
@@ -1215,13 +1214,13 @@ export class CampaignView {
               // Your flagship's sun: it starts the next battle as the last one left it.
               const f = flagship(s, s.playerId);
               const heat = f?.damage ?? 0;
-              return `<span class="cmp-sunstat ${heat > 0 ? 'hot' : heat < 0 ? 'cold' : ''}" data-tip="Your sun: your next battle starts at ${heat} heat, as your last one ended${heat > 0 ? '. Repair at a space station to cool it.' : heat < 0 ? ': cooled, a head start.' : '.'}"><i class="cmp-sunstat-orb"></i><b>${heat}</b></span>`;
+              return `<span class="cmp-sunstat ${heat > 0 ? 'hot' : heat < 0 ? 'cold' : ''}"><i class="cmp-sunstat-orb"></i><b>${heat}</b></span>`;
             })()}
-            <span data-tip="Materials: paid once by every system taken, finds and battles. Spent on cards at space stations.">${MATERIALS}<b>${me.materials}</b></span>
-            <span data-tip="Stellari petals grabbed this run (they are kept, whatever happens)">${PETAL}<b>${s.petals}</b></span>
+            <span>${MATERIALS}<b>${me.materials}</b></span>
+            <span>${PETAL}<b>${s.petals}</b></span>
           </div>
           <nav class="cmp-nav">
-            <button class="icon-btn" data-act="cmp-menu" aria-label="Settings" title="Settings">${MENU_ICON}</button>
+            <button class="icon-btn" data-act="cmp-menu" aria-label="Settings">${MENU_ICON}</button>
           </nav>
         </header>
         <section class="cmp-map">${this.renderMap()}</section>
@@ -1283,7 +1282,7 @@ export class CampaignView {
   private renderProfile(): string {
     const { level, into, need } = levelFor(this.commanderXp());
     const name = profile().name || 'Commander';
-    return `<div class="cmp-profile" data-tip-title="commander level ${level}" data-tip="${into} / ${need} experience to level ${level + 1}. Every level brings a skill point, for the skill tree between runs." aria-label="${esc(`${name}, level ${level}`)}">
+    return `<div class="cmp-profile" aria-label="${esc(`${name}, level ${level}`)}">
       ${playerAvatar(account()?.avatar ?? (this.state ? campaignPlayer(this.state).hero : undefined), 'cmp-profile-face')}
       <span class="cmp-profile-who"><b>${esc(name.toLowerCase())}</b><small>level ${level}</small><span class="cmp-xpbar"><i style="width:${Math.round((into / need) * 100)}%"></i></span></span>
     </div>`;
@@ -1316,7 +1315,7 @@ export class CampaignView {
     let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
     if (angle > 90) angle -= 180;
     if (angle < -90) angle += 180;
-    return `<button class="cmp-galaxy cmp-galaxy-land" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--a:${angle.toFixed(1)}deg;--h:${(((a.h ?? 0) + (b.h ?? 0)) / 2).toFixed(0)}px" data-tip-title="${esc(g.name.toLowerCase())}" data-tip="${esc(g.text)}" data-tip-note="Every battle in this galaxy, both sides." aria-label="${esc(g.name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${GALAXY_GLYPH[kind]}</svg><b>${esc(g.name.toLowerCase())}</b></button>`;
+    return `<button class="cmp-galaxy cmp-galaxy-land" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--a:${angle.toFixed(1)}deg;--h:${(((a.h ?? 0) + (b.h ?? 0)) / 2).toFixed(0)}px" aria-label="${esc(g.name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${GALAXY_GLYPH[kind]}</svg><b>${esc(g.name.toLowerCase())}</b></button>`;
   }
 
   /**
@@ -1329,7 +1328,7 @@ export class CampaignView {
     const tokens = relics
       .map(
         (r) =>
-          `<button class="cmp-relic ${r.cursed ? 'cursed' : 'blessed'} rarity-${r.rarity}" data-key="relic-${r.id}" data-tip-title="${esc(r.name.toLowerCase())}" data-tip="${esc(relicText(r))}" data-tip-note="${esc(relicNote(r))}" aria-label="${esc(r.name)}">${relicMark(r.name, r.slot)}</button>`,
+          `<button class="cmp-relic ${r.cursed ? 'cursed' : 'blessed'} rarity-${r.rarity}" data-key="relic-${r.id}" aria-label="${esc(r.name)}">${relicMark(r.name, r.slot)}</button>`,
       )
       .join('');
     return `<aside class="cmp-relics" aria-label="Emblems">${tokens}</aside>`;
@@ -1517,7 +1516,7 @@ export class CampaignView {
         // (Its tip: its name, what it gives now, and what the next point would make it, nothing more [direction: title,
         // current value, next value].)
         // (Not yet learnt: what its first point gives, with no "next" line.)
-        const vals = look ? `${look.value(Math.max(level, 1))} ${look.unit}` : u.text;
+        const vals = look ? look.say(Math.max(level, 1)) : u.text;
         const price = maxed ? '' : `${pointCost(u)} point${pointCost(u) === 1 ? '' : 's'}`;
         const next = [look && level > 0 && !maxed ? `Next: ${look.value(level + 1)}` : '', price].filter(Boolean).join(' · ');
         const term = this.upSearch.trim().toLowerCase();
@@ -1691,7 +1690,7 @@ export class CampaignView {
         const badges = [
           n.garrison.length ? `<i class="cmp-badge">▣${n.garrison.length}</i>` : '',
           n.damage ? `<i class="cmp-badge cmp-dmg">✸${n.damage}</i>` : '',
-          n.collapsing ? `<i class="cmp-badge cmp-doom" title="Collapsing: gone next turn">⚠</i>` : '',
+          n.collapsing ? `<i class="cmp-badge cmp-doom">⚠</i>` : '',
         ].join('');
         return `
           <div class="${cls}" data-key="sys-${n.id}" style="left:${n.x}px;top:${n.y}px;--fc:${colour};--h:${n.h ?? 0}px">
@@ -1704,7 +1703,7 @@ export class CampaignView {
             ${this.selected === n.id || leaving?.id === n.id ? this.renderOrbits(n) : ''}
             <button class="cmp-bb" data-act="cmp-select" data-arg="${n.id}" aria-label="${esc(n.name)}">
               <span class="cmp-badges">${badges}</span>
-              <span class="cmp-star" style="--seed:${seedOf(n.id)}">${n.heart ? `<i class="cmp-bloom3d" title="The ${esc(STELLARIA)}">${stellariaFlower()}</i>` : ''}<i class="cmp-flare"></i><i class="cmp-corona"></i><i class="cmp-core"></i></span>
+              <span class="cmp-star" style="--seed:${seedOf(n.id)}">${n.heart ? `<i class="cmp-bloom3d">${stellariaFlower()}</i>` : ''}<i class="cmp-flare"></i><i class="cmp-corona"></i><i class="cmp-core"></i></span>
             </button>
           </div>`;
       })
@@ -1765,7 +1764,6 @@ export class CampaignView {
   /** The flagship has landed at a guarded star: the encounter sounds and the battle waits a second to open. */
   private encountering = false;
   /** The words of the chip last tapped in the popover (shown under its chips). */
-  private popTip: string | null = null;
   /** Where the popover was last placed (in the map's box), so a redraw doesn't jump it. */
   private popPos: { x: number; y: number } | null = null;
   /** What the popover was last about (a new subject is placed afresh, not where the last one was). */
@@ -1867,7 +1865,7 @@ export class CampaignView {
           <div class="cmp-orbit" style="--t:${period}s;--d:${delay}s">
             <div class="cmp-arm" style="--r:${r}px">
               <div class="cmp-counter">
-                <span class="cmp-orb-planet" style="--pc:${TRACK_TINT[pl.tint]};--ps:${size}px" title="${esc(pl.name)}"><em>${lower(pl.name)}</em></span>
+                <span class="cmp-orb-planet" style="--pc:${TRACK_TINT[pl.tint]};--ps:${size}px"><em>${lower(pl.name)}</em></span>
               </div>
             </div>
           </div>`;
@@ -2398,26 +2396,23 @@ export class CampaignView {
     }
     const mine = n.owner === me.id;
     const owner = n.owner ? factionById(s, n.owner) : null;
-    const chip = (body: string, tip: string, tone = '') => `<button class="pop-chip ${tone}" data-act="cmp-tip" data-tip="${esc(tip)}" title="${esc(tip)}">${body}</button>`;
+    // (Labels only: nothing on the map explains itself in a tooltip [direction: no map tooltips at all].)
+    const chip = (body: string, tone = '') => `<span class="pop-chip ${tone}">${body}</span>`;
     const icon = (body: string) => `<svg class="pi" viewBox="0 0 16 16" aria-hidden="true">${body}</svg>`;
     const hp = sunHealth(n);
     // What a system holds is known only once you hold it or your flagship is there.
     const known = mine || flagship(s, me.id)?.nodeId === n.id;
     const chips = [
-      n.owner || n.heart || n.ruined ? '' : chip(`${icon('<circle cx="8" cy="8" r="6"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.4M8 11.4v.1"/>')}<b>unknown</b>`, `What ${n.name} holds is unknown until you get there: defenders, or something to find. ${starOdds(n)}`),
-      n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`, `${STAR_TYPES[n.star].name}. ${STAR_TYPES[n.star].text} + ${STAR_TYPES[n.star].boon} − ${STAR_TYPES[n.star].cost}`) : '',
-      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, `Torn open by a Stellari bloom, and guarded by a Lost Overlord: ${overlordById(this.state!.overlord ?? 'colossus').name}. Beat it and go through, into the next galaxy, with the petals you grab.`, 'gold') : '',
-      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`, `Suns have ${hp} max health in a battle here, both sides (before the star, the galaxy and your upgrades): more the further along the strip, and in every galaxy after the first.`),
-      (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, `A Finite Stellari bloom: +${CAMPAIGN.stellariaMaterials} materials a turn to whoever holds it, for ${n.stellaria} more turn${n.stellaria === 1 ? '' : 's'}.`, 'good') : '',
-      n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'Its star has guttered: it yields less than it did.', 'muted') : '',
-      n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'Collapsing: regional stability has failed here, and it will be gone next turn, with anything still in it.', 'bad') : '',
-      (n.stableUntil ?? 0) > s.turn ? chip(`${icon('<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>')}<b>${n.stableUntil}</b>`, `Stabilised: it holds until turn ${n.stableUntil}.`, 'good') : '',
-      known && n.station?.kind === 'armory'
-        ? chip(`${ARMORY_ICON}<b>${n.station.cards.length ? `space station · ${n.station.cards.length}` : 'space station · sold out'}</b>`, n.station.cards.length ? `A space station: ${n.station.cards.length} card${n.station.cards.length === 1 ? '' : 's'} for sale, each only once. Fly here to dock.` : 'A space station, sold out.', n.station.cards.length ? 'gold' : 'muted')
-        : '',
-      known && n.station?.kind === 'research'
-        ? chip(`${RESEARCH_ICON}<b>${n.station.takenBy ? 'research · taken' : 'research'}</b>`, n.station.takenBy ? `A research station. Its upgrade has been taken${n.station.takenBy === me.id ? ' (by you)' : ''}.` : `A research station: fly here and pick one of its ${n.station.options.length} upgrades, free.`, n.station.takenBy ? 'muted' : 'good')
-        : '',
+      n.owner || n.heart || n.ruined ? '' : chip(`${icon('<circle cx="8" cy="8" r="6"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.4M8 11.4v.1"/>')}<b>unknown</b>`),
+      n.star ? chip(`<i class="pop-star pop-star-${n.star}"></i><b>${lower(STAR_TYPES[n.star].name)}</b>`) : '',
+      n.heart ? chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5"/>')}<b>wormhole</b>`, 'gold') : '',
+      chip(`${icon('<circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="3"/>')}<b>${hp}</b>`),
+      (n.stellaria ?? 0) > 0 ? chip(`${BLOOM}<b>${n.stellaria}</b>`, 'good') : '',
+      n.dimmed ? chip(icon('<path d="M10.5 2.5a5.5 5.5 0 1 0 3 9 5 5 0 0 1-3-9z"/>'), 'muted') : '',
+      n.collapsing ? chip(`${icon('<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>')}<b>collapsing</b>`, 'bad') : '',
+      (n.stableUntil ?? 0) > s.turn ? chip(`${icon('<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>')}<b>${n.stableUntil}</b>`, 'good') : '',
+      known && n.station?.kind === 'armory' ? chip(`${ARMORY_ICON}<b>${n.station.cards.length ? `space station · ${n.station.cards.length}` : 'space station · sold out'}</b>`, n.station.cards.length ? 'gold' : 'muted') : '',
+      known && n.station?.kind === 'research' ? chip(`${RESEARCH_ICON}<b>${n.station.takenBy ? 'research · taken' : 'research'}</b>`, n.station.takenBy ? 'muted' : 'good') : '',
     ].join('');
     // What you can do here.
     const attackers = s.phase === 'player' && !s.battle ? attackOptions(s, me.id).find((o) => o.toId === n.id)?.armyIds ?? [] : [];
@@ -2438,7 +2433,6 @@ export class CampaignView {
           }
         </div>`
       : '';
-    const tip = this.popTip ? `<p class="pop-tip">${esc(this.popTip)}</p>` : '';
     // A station your flagship stands in: visit it.
     const atStation = n.station && flagship(s, me.id)?.nodeId === n.id && s.phase === 'player' && !s.battle;
     const visit = atStation ? `<button class="btn-primary pop-attack" data-act="cmp-visit" data-arg="${n.id}">${n.station!.kind === 'armory' ? `${ARMORY_ICON}dock at the space station` : `${RESEARCH_ICON}visit the research station`}</button>` : '';
@@ -2449,7 +2443,6 @@ export class CampaignView {
         <button class="pop-x" data-act="cmp-deselect" aria-label="Close">×</button>
       </div>
       <div class="pop-chips">${chips}</div>
-      ${tip}
       ${attack ? `<div class="pop-row">${attack}</div>` : ''}
       ${visit ? `<div class="pop-row">${visit}</div>` : ''}
       ${army}
@@ -2605,7 +2598,7 @@ export class CampaignView {
     const odds = attacker ? battleOdds(s, attacker, to) : null;
     // Each side's sun as the battle starts it: its heat, of its max health.
     const sun = (o: { heat: number; mods: { maxHealthDelta?: number } } | undefined) =>
-      o ? `<small class="cmp-vs-sun" title="Its sun starts at ${Math.max(0, o.heat)} heat, of ${BALANCE.supernovaAt + (o.mods.maxHealthDelta ?? 0)} max health">${Math.max(0, o.heat)}<i>/</i>${BALANCE.supernovaAt + (o.mods.maxHealthDelta ?? 0)}</small>` : '';
+      o ? `<small class="cmp-vs-sun">${Math.max(0, o.heat)}<i>/</i>${BALANCE.supernovaAt + (o.mods.maxHealthDelta ?? 0)}</small>` : '';
     const side = (army: Army | null, n: CampaignNode, o?: { heat: number; mods: { maxHealthDelta?: number } }) => {
       const name = army ? armyLeader(army) : n.owner ? `${factionById(s, n.owner).name} guard` : n.heart ? overlordById(s.overlord ?? 'colossus').name : `${n.name} sentinels`;
       const face = army ? armyFace(army) : n.owner ? this.avatarOf(n.owner, 'cmp-vs-av') : '<span class="cmp-portrait cmp-vs-blank"></span>';
@@ -2658,7 +2651,7 @@ export class CampaignView {
     // Guidance, not a gate: it sits under the turn count, and the game goes on around it.
     return `
       <aside class="cmp-guide ${sp.kind === 'oracle' ? 'cmp-guide-oracle' : ''} ${scene.id === 'intro' && this.introFlight ? 'cmp-guide-arrive' : ''}" data-key="guide:${esc(scene.id)}:${i}" style="--sc:${who.colour}">
-        <div class="cmp-guide-face" title="${esc(who.name)}${who.sub ? ` · ${esc(who.sub)}` : ''}">${who.face}</div>
+        <div class="cmp-guide-face">${who.face}</div>
         <div class="cmp-guide-body">
           <small class="cmp-guide-who">${esc(who.name.toLowerCase())}</small>
           <p class="cmp-guide-text">${esc(line.text)}</p>

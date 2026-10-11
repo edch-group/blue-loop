@@ -43,16 +43,16 @@ const BRANCHES: P[][] = [
   [
     { id: 'cool1', name: 'Cryo Reserves', text: 'Your sun starts every battle 1 cooler.', cost: 8, turns: 3, icon: 'cool', effect: { mods: { startingHeat: -1 } } },
     { id: 'energy1', name: 'Fusion Cells', text: '+1 energy every day of battle.', cost: 14, turns: 4, icon: 'energy', effect: { mods: { extraPlays: 1 } } },
-    { id: 'energy2', name: 'Stellar Taps', text: 'Another +1 energy every day of battle.', cost: 24, turns: 6, icon: 'energy', effect: { mods: { extraPlays: 1 } } },
+    { id: 'energy2', name: 'Stellar Taps', text: '+2 energy every day of battle.', cost: 24, turns: 6, icon: 'energy', effect: { mods: { extraPlays: 2 } } },
   ],
   [
-    { id: 'hull1', name: 'Dense Core', text: '+2 max health on your sun in battle.', cost: 8, turns: 3, icon: 'hull', effect: { mods: { maxHealthDelta: 2 } } },
-    { id: 'mend1', name: 'Field Cooling', text: 'Your sun cools 2 with each jump.', cost: 8, turns: 3, icon: 'mend', effect: { mend: 2 } },
-    { id: 'hull2', name: 'Stellar Plating', text: 'Another +3 max health on your sun (+5 in all).', cost: 16, turns: 5, icon: 'hull', effect: { mods: { maxHealthDelta: 3 } } },
-    { id: 'mend2', name: 'Nanite Swarms', text: 'Your sun cools 2 more with each jump (4 in all).', cost: 16, turns: 5, icon: 'mend', effect: { mend: 2 } },
+    { id: 'hull1', name: 'Dense Core', text: '+2 max health on your sun.', cost: 8, turns: 3, icon: 'hull', effect: { mods: { maxHealthDelta: 2 } } },
+    { id: 'mend1', name: 'Field Cooling', text: 'Your sun cools 2 each jump.', cost: 8, turns: 3, icon: 'mend', effect: { mend: 2 } },
+    { id: 'hull2', name: 'Stellar Plating', text: '+5 max health on your sun.', cost: 16, turns: 5, icon: 'hull', effect: { mods: { maxHealthDelta: 5 } } },
+    { id: 'mend2', name: 'Nanite Swarms', text: 'Your sun cools 4 each jump.', cost: 16, turns: 5, icon: 'mend', effect: { mend: 4 } },
   ],
   [
-    { id: 'loot1', name: 'Salvage Crews', text: 'Far more chance of an emblem after a battle won.', cost: 6, turns: 2, icon: 'loot', effect: { loot: 0.25 } },
+    { id: 'loot1', name: 'Salvage Crews', text: 'More emblems after battles won.', cost: 6, turns: 2, icon: 'loot', effect: { loot: 0.25 } },
     { id: 'hand1', name: 'Battle Doctrine', text: '+1 card in your opening hand.', cost: 8, turns: 3, icon: 'draw', effect: { mods: { openingHand: 1 } } },
     { id: 'dread1', name: 'Terror Broadcasts', text: 'The weakest neutral systems surrender to your flagship without a battle.', cost: 12, turns: 4, icon: 'dread', effect: { dread: 1 } },
     { id: 'dread2', name: 'Shadow of Empire', text: 'Stronger neutral systems surrender too.', cost: 18, turns: 6, icon: 'dread', effect: { dread: 1 } },
@@ -77,10 +77,19 @@ export interface ResearchState {
   current?: { id: string; left: number };
 }
 
+/** Whether a faction's upgrade is outdone by a higher one of the same kind it also holds. */
+export function supersededResearch(done: string[], id: string): boolean {
+  const p = researchProject(id);
+  // (Retired upgrades, kept by older saves, add up as they always did.)
+  return !!p && !RETIRED_RESEARCH.has(id) && done.some((o) => o !== id && researchProject(o)?.icon === p.icon && researchProject(o)!.tier > p.tier);
+}
+
 /** Everything a faction's research gives each of its armies. */
 export function researchBonus(r: ResearchState | undefined) {
   const out = { mods: {} as BattleModifiers, march: 0, mend: 0, loot: 0, sight: 0, dread: 0 };
+  // (Each upgrade states its total: of two of a kind, the higher stands in place of the lower, not on top of it.)
   for (const id of r?.done ?? []) {
+    if (supersededResearch(r!.done, id)) continue;
     const e = researchProject(id)?.effect;
     if (!e) continue;
     for (const [k, v] of Object.entries(e.mods ?? {}) as [keyof BattleModifiers, number][]) out.mods[k] = (out.mods[k] ?? 0) + v;
