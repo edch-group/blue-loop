@@ -17,10 +17,10 @@ puzzle for every race (0 Aureline … 7 Pyrr). Missing:
 Where a tier has no puzzle for a combination, the game falls back to another dream, so deep galaxies repeat tier 4
 dreams more often. To fill the gaps, run only what's missing (each tier-4 race takes hours), e.g.
 
-    TIERS=4 RACES=2-3 SEED=6 OUT=d4c.jsonl npx vite-node scripts/dreams-gen.ts
+    TIERS=4 RACES=2-3 SEED=6 OUT=scripts/dreams/d4c.jsonl npx vite-node scripts/dreams-gen.ts
 
-then merge every file (the old ones too, or their puzzles drop out):
-`npx vite-node scripts/dreams-merge.ts d12.jsonl d3.jsonl d4a.jsonl d4b.jsonl d4c.jsonl ...`. The combinations
+then merge every file in `scripts/dreams/` (the puzzles found so far are kept there; leave one out and its puzzles
+drop out of the game): `npx vite-node scripts/dreams-merge.ts scripts/dreams/*.jsonl`. The combinations
 searched with no result may need the generator's tier settings loosened (`TIERS` in the script) for those races.
 
 ## Rifts: the other two Lost Races
