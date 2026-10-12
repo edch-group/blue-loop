@@ -7339,3 +7339,13 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-base-label small .cur { width: 0.95em; height: 0.95em; margin: 0; }
 .cs-base-label::after { content: ''; position: absolute; left: 50%; top: 100%; width: 1px; height: clamp(8px, calc(3 * var(--vh)), 18px); background: linear-gradient(rgba(58, 66, 86, 0.3), rgba(58, 66, 86, 0)); }
 .cs-base-label.on, .cs-base-label:hover { background: #fff; box-shadow: 0 0 0 1.5px #3a4256, 0 8px 20px rgba(58, 66, 86, 0.14); transform: translate(-50%, calc(-100% - 3px)); }
+
+/* The ship menu with a section open: its page beside the ship (the camera frames the ship's part on the left), the
+   page's own header and footer put away; the skill tree over the whole of it, the ship showing through. */
+.cs-captain-page.cs-focus > .setup-top, .cs-captain-page.cs-focus > .setup-foot { visibility: hidden; }
+.cs-captain-page.cs-focus .cs-base-label { opacity: 0; pointer-events: none; }
+.cs-captain-page .up-shop.hero-panel, .cs-captain-page .up-shop.hangar-panel { left: 40%; background: linear-gradient(90deg, rgba(251, 251, 252, 0), rgba(251, 251, 252, 0.88) 9%, rgba(251, 251, 252, 0.94)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.cs-captain-page .up-shop.hero-panel .hp-card { display: none; }
+.cs-captain-page .up-shop.hero-panel .hp-body { grid-template-columns: minmax(0, 1fr); }
+.cs-captain-page .up-shop.up-tree { background: rgba(251, 251, 252, 0.72); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+.cs-captain-page .cs-base-label { transition: opacity 0.3s, box-shadow 0.18s, background 0.18s, transform 0.18s; }

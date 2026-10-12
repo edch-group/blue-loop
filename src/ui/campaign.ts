@@ -1558,7 +1558,7 @@ export class CampaignView {
     const body = canNebula()
       ? `<div class="cs-base">
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
-          ${label('hangar', 'cmp-hangar', 'hangar', 'fit parts')}
+          ${label('hangar', 'cmp-hangar', 'ship', 'fit parts')}
           ${label('captain', 'cmp-hero', 'the captain', `${XP_MARK}${pointsLeft(meta)} skill points`)}
           ${label('research', 'cmp-shop', 'research', `${PETAL}${meta.petals} petals`)}
         </div>`
@@ -1575,7 +1575,7 @@ export class CampaignView {
           </section>
         </div>`;
     return `
-      <main class="cmp-setup setup-page cs-page cs-captain-page">
+      <main class="cmp-setup setup-page cs-page cs-captain-page${canNebula() && (this.heroOpen || this.hangarOpen || this.shopOpen) ? ' cs-focus' : ''}">
         <header class="setup-top">
           <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
           <h2 class="menu-heading">a dying universe</h2>
@@ -2358,7 +2358,8 @@ export class CampaignView {
     }
     if (!this.base) return;
     this.base.setShip(this.metaShipSpec(meta));
-    this.base.paused = this.shopOpen || this.heroOpen || this.hangarOpen;
+    // (A section's page open: its camera, the ship flying on behind the page.)
+    this.base.focus(this.heroOpen ? 'captain' : this.hangarOpen ? 'hangar' : this.shopOpen ? 'research' : null);
     this.base.onFrame?.();
   }
 
