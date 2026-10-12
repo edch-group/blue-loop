@@ -4037,6 +4037,13 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .phase-step span { font-family: var(--display); font-size: clamp(8px, calc(1.5 * var(--vh)), 11px); letter-spacing: 0.24em; text-transform: uppercase; }
 .phase-step i { width: 9px; height: 9px; border-radius: 50%; background: #c9ced8; box-shadow: 0 0 0 1.5px #fff; transition: background 0.4s, box-shadow 0.4s; }
 .phase-step.on { color: #2f3a52; }
+/* A phase coming in lights up a moment (see flashPhase): a soft glow well out round its dot and word, fading to
+   nothing at its edges (no flush border round the text), in the phase's own colour. */
+.phase-step { position: relative; isolation: isolate; }
+.phase-glow { position: absolute; inset: -10px -20px -10px -14px; z-index: -1; border-radius: 999px; opacity: 0; pointer-events: none; background: radial-gradient(closest-side, var(--pc) 0%, color-mix(in srgb, var(--pc) 45%, transparent) 45%, transparent 100%); }
+.phase-step[data-phase='dawn'] { --pc: rgba(240, 160, 64, 0.32); }
+.phase-step[data-phase='day'] { --pc: rgba(232, 194, 58, 0.32); }
+.phase-step[data-phase='dusk'] { --pc: rgba(138, 106, 208, 0.3); }
 .phase-step.on[data-phase='dawn'] i { background: #f0a040; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(240, 160, 64, 0.8); }
 .phase-step.on[data-phase='day'] i { background: #e8c23a; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(232, 194, 58, 0.8); }
 .phase-step.on[data-phase='dusk'] i { background: #8a6ad0; box-shadow: 0 0 0 1.5px #fff, 0 0 10px rgba(138, 106, 208, 0.8); }

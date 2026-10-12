@@ -2115,8 +2115,25 @@ export class App {
   private phase: 'dawn' | 'day' | 'dusk' = 'day';
 
   private setPhase(phase: 'dawn' | 'day' | 'dusk') {
+    const changed = phase !== this.phase;
     this.phase = phase;
     this.root.querySelectorAll<HTMLElement>('.phase-track [data-phase]').forEach((el) => el.classList.toggle('on', el.dataset.phase === phase));
+    if (changed) this.flashPhase(phase);
+  }
+
+  /**
+   * The phase coming in lights up a moment [direction: a subtle change animation on the phase text, alongside the
+   * clock's tick; any light well clear of the text, so the word never gains a flush border]: a soft glow swelling
+   * round it (fading to nothing well out past the word: see .phase-glow) and its dot pulsing, then settling.
+   */
+  private flashPhase(phase: 'dawn' | 'day' | 'dusk') {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const step = this.root.querySelector<HTMLElement>(`.phase-track [data-phase="${phase}"]`);
+    step?.querySelector('.phase-glow')?.animate(
+      [{ opacity: 0, transform: 'scale(0.82)' }, { opacity: 1, transform: 'scale(1)', offset: 0.28 }, { opacity: 0, transform: 'scale(1.06)' }],
+      { duration: 1100, easing: 'ease-out' },
+    );
+    step?.querySelector('i')?.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.55)', offset: 0.25 }, { transform: 'scale(1)' }], { duration: 700, easing: 'ease-out' });
   }
 
   /** Beside the Stellari in the board's middle: whose turn it is on its left (the rival above you, the one whose turn
@@ -2126,7 +2143,7 @@ export class App {
     if (isGameOver(s)) return '';
     const mine = activePlayer(s).id === this.viewer().id;
     const who = `<div class="turn-who" title="${mine ? 'Your turn' : "Your opponent's turn"}"><span class="${mine ? '' : 'on'}">opponent</span><span class="${mine ? 'on' : ''}">you</span></div>`;
-    const phases = `<div class="phase-track" title="Dawn, then day, then dusk">${(['dawn', 'day', 'dusk'] as const).map((k) => `<div class="phase-step ${this.phase === k ? 'on' : ''}" data-phase="${k}"><i></i><span>${k}</span></div>`).join('')}</div>`;
+    const phases = `<div class="phase-track" title="Dawn, then day, then dusk">${(['dawn', 'day', 'dusk'] as const).map((k) => `<div class="phase-step ${this.phase === k ? 'on' : ''}" data-phase="${k}"><b class="phase-glow" aria-hidden="true"></b><i></i><span>${k}</span></div>`).join('')}</div>`;
     return who + phases;
   }
 
