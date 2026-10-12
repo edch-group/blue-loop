@@ -1222,3 +1222,7 @@ The check now reports none.
 ## Time Dense Space turns a ring at a time
 
 [direction: the whole map turning at once is a mess; the node the ship is on should never move; move it in segments, every second one part of the map]. Each second one ring turns a step (campaign.ts nextTurningRing, turnRing): the rings take turns, innermost first, and the ring the flagship stands on never turns, so its star holds still and what it can reach changes as the rings inside it come round. Each ring keeps how far it has turned (CampaignState.ringSpins; a run saved before this starts every ring where the whole galaxy stood). A scene with nothing to show is passed over rather than holding the galaxy still, and arriving through a rift no longer opens a station of the new galaxy that happens to share the rift's id.
+
+## A rift fields its own race, in any mode
+
+[direction: an enemy in a rift had no cards: no deck, no hand]. A Core run's rift filtered the Lost Race's cards out as not Core, leaving its defenders with an empty deck (and its stations and rewards with nothing). A rift is that race's own galaxy: within it, the race's cards are fielded by its defenders, stocked by its stations and given as its rewards, whatever the run's mode (campaign.ts riftLegal). Its defenders never field an Enigma.

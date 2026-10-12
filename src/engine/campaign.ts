@@ -1335,6 +1335,13 @@ export function armyDeckProblems(deck: string[], general: string): string[] {
 /** Whether a card can be in a deck in this mode (in Core, as its core version). */
 export const legalIn = (mode: GameMode | undefined, id: string) => mode !== 'core' || inMode(cardIn(id, 'core'), 'core');
 
+/**
+ * Within a rift's galaxy: its race's own cards, whatever the run's mode [direction: an enemy there with no deck and no
+ * hand; a Core run's rift had nothing of the Lost Race's it could field, stock or give]. The rift is that race's
+ * galaxy: its defenders field their cards, its stations sell them, its rewards are them.
+ */
+const riftLegal = (s: CampaignState, id: string) => (riftRace(s) !== undefined && cardDef(id).race === riftRace(s)) || legalIn(s.mode, id);
+
 /** Plain neutral cards legal in Core, to stand in for those that aren't in a Core run's decks. */
 const CORE_FILL = ['coronal_lance', 'thermal_exchange', 'cryo_vault', 'gravity_sling', 'heat_sink', 'plasma_relay', 'deep_scanners', 'solar_battery', 'coolant_array', 'dreadnought'];
 
@@ -1887,7 +1894,7 @@ function serenEmblems(s: CampaignState): Relic[] {
 /** The cards a rift's sentinels fight with: the race's own, the heavier the deeper. */
 function riftDeck(s: CampaignState, n: CampaignNode): string[] {
   const race = riftRace(s)!;
-  const pool = shuffleInPlace(s, CARDS.filter((c) => c.race === race && c.kind !== 'command' && legalIn(s.mode, c.id)).map((c) => c.id));
+  const pool = shuffleInPlace(s, CARDS.filter((c) => c.race === race && c.kind !== 'command' && c.rarity !== 'enigma' && riftLegal(s, c.id)).map((c) => c.id));
   const size = n.heart ? 20 : Math.min(20, CAMPAIGN.enemyDeck + 6);
   const deck: string[] = [];
   for (let i = 0; deck.length < size && i < pool.length * 2; i++) {
@@ -2153,7 +2160,7 @@ function clog(s: CampaignState, text: string, at?: string | string[], who?: stri
 function riftPool(s: CampaignState): string[] | null {
   const race = riftRace(s);
   if (race === undefined) return null;
-  return CARDS.filter((c) => c.race === race && c.kind !== 'command' && legalIn(s.mode, c.id)).flatMap((c) => Array(offerWeight(c.rarity ?? 'dwarf', s.universe + 2)).fill(c.id) as string[]);
+  return CARDS.filter((c) => c.race === race && c.kind !== 'command' && riftLegal(s, c.id)).flatMap((c) => Array(offerWeight(c.rarity ?? 'dwarf', s.universe + 2)).fill(c.id) as string[]);
 }
 
 function offerPool(f: Faction, mode?: GameMode, universe = 1): string[] {
@@ -2184,7 +2191,7 @@ function armoryStock(s: CampaignState, n: CampaignNode): string[] {
   const near = deepIn(s, n);
   // (A rift's galaxy: its race's cards alone.)
   const race = riftRace(s);
-  const of = (r: ItemRarity) => shuffleInPlace(s, STOCK.filter((c) => (c.rarity ?? 'dwarf') === r && legalIn(s.mode, c.id) && (race === undefined || c.race === race)).map((c) => c.id));
+  const of = (r: ItemRarity) => shuffleInPlace(s, STOCK.filter((c) => (c.rarity ?? 'dwarf') === r && riftLegal(s, c.id) && (race === undefined || c.race === race)).map((c) => c.id));
   const dwarfs = of('dwarf');
   const stellar = of('stellar');
   const anomaly = of('anomaly');

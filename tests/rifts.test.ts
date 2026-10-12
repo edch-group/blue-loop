@@ -26,6 +26,32 @@ const enter = (s: CampaignState) => {
 };
 
 describe('Rifts', () => {
+  it("fields, stocks and gives the rift's own race even in a Core run (no enemy with an empty deck)", () => {
+    for (const kind of ['dark', 'time'] as const) {
+      const base = withRift(kind);
+      base.mode = 'core';
+      const s = enter(base);
+      const race = kind === 'dark' ? 4 : 6;
+      const armory = s.nodes.find((n) => n.station?.kind === 'armory');
+      if (armory?.station?.kind === 'armory') expect(armory.station.cards.length).toBeGreaterThan(0);
+      // A battle against a system of the rift: its defenders have a deck, of the rift's race.
+      // (From wherever a fight is in reach.)
+      let fight: { toId: string } | undefined;
+      for (const n of s.nodes) {
+        ship(s).nodeId = n.id;
+        fight = armyMoves(s, ship(s)).find((m) => m.battle && !nodeById(s, m.toId).heart);
+        if (fight) break;
+      }
+      expect(fight).toBeDefined();
+      if (!fight) continue;
+      const t = applyCampaignAction(s, { type: 'move', armyId: ship(s).id, toId: fight.toId });
+      const rival = t.battle!.game.players[1];
+      const all = [...rival.deck, ...rival.hand, ...rival.tableau].map((c) => c.defId);
+      expect(all.length).toBeGreaterThan(5);
+      expect(all.every((id) => cardDef(id).race === race)).toBe(true);
+    }
+  });
+
   it('take the flagship into the Dark Galaxy: five jumps to Nyxara, one star ahead seen, the stars behind going out', () => {
     let s = enter(withRift('dark'));
     expect(s.rift?.kind).toBe('dark');
