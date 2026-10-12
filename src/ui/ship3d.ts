@@ -244,6 +244,35 @@ export class Mesh {
       }
   }
 
+  /**
+   * A rounded block (a superquadric) round (x, y, z), its half sizes rx (along), ry (across), rz (up): `nh` how square it
+   * is seen from above (2 round, 4 or more a rounded square), `nv` how square from the side. Smooth all over (no hard
+   * edges), so it shades and outlines cleanly.
+   */
+  rbox(x: number, y: number, z: number, rx: number, ry: number, rz: number, col: RGB, mat: number, nh = 4, nv = 4, segs = 28, rings = 16) {
+    const f = (c: number, e: number) => Math.sign(c) * Math.pow(Math.abs(c), e);
+    const eh = 2 / nh, ev = 2 / nv, gh = 2 - 2 / nh, gv = 2 - 2 / nv;
+    const at = (i: number, j: number): [V3, V3] => {
+      const ph = -Math.PI / 2 + (i / rings) * Math.PI, th = (j / segs) * Math.PI * 2;
+      const cp = Math.cos(ph), sp = Math.sin(ph), ct = Math.cos(th), st = Math.sin(th);
+      const p = P(x + rx * f(cp, ev) * f(ct, eh), y + ry * f(cp, ev) * f(st, eh), z + rz * f(sp, ev));
+      let n: V3 = [(f(cp, gv) * f(ct, gh)) / rx, f(sp, gv) / rz, (f(cp, gv) * f(st, gh)) / ry];
+      // (At the poles the sums give nothing: straight up or down.)
+      if (len(n) < 1e-9) n = [0, Math.sign(sp) || 1, 0];
+      return [p, norm(n)];
+    };
+    for (let i = 0; i < rings; i++)
+      for (let j = 0; j < segs; j++) {
+        const [a, na] = at(i, j), [b, nb] = at(i, j + 1), [c, nc] = at(i + 1, j + 1), [e, ne] = at(i + 1, j);
+        this.v(a, na, col, mat);
+        this.v(c, nc, col, mat);
+        this.v(b, nb, col, mat);
+        this.v(a, na, col, mat);
+        this.v(e, ne, col, mat);
+        this.v(c, nc, col, mat);
+      }
+  }
+
   /** A ball round (x, y, z). */
   ball(x: number, y: number, z: number, r: number, col: RGB, mat: number, segs = 14, rings = 8) {
     this.orb(x, y, z - r, r, r, r, col, mat, false, segs, rings);

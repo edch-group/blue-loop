@@ -8,7 +8,7 @@
  * Modelled as the ships are (ship3d.ts's Mesh, box units: 40 to the world's 1; x across, y toward the eye, z up) and
  * drawn with the ships' own shader (nebula-objects.ts), so it is lit and textured as the map's ships are.
  */
-import { SHIP_FRAG, SHIP_VERT } from './nebula-objects';
+import { SHIP_VERT } from './nebula-objects';
 import { captainShip3d, Mesh, SHIP_STRIDE, type CaptainShipSpec, type RGB, type V3 } from './ship3d';
 import { uiZoom } from './viewport';
 
@@ -22,26 +22,29 @@ const SPOT: Record<BaseZone, { x: number; z: number; label: V3; r: number; cx?: 
   research: { x: 1.95, z: -0.05, label: [2.35, 1.55, -0.2], r: 1, cx: 0.4 },
 };
 
-/** The deck's own material: smooth and pale as the paper, softly lit (no plating's seams or grime at its size). */
+/** The deck's own material: pale as the paper, its light in two soft bands. */
 const PAPER = 7;
 
-// ---- Colours ----
-const DECK: RGB = [0.95, 0.95, 0.96];
-const DECK_EDGE: RGB = [0.8, 0.82, 0.86];
-const STEEL: RGB = [0.93, 0.94, 0.96];
-const STEEL_DARK: RGB = [0.6, 0.63, 0.7];
-const WHITE: RGB = [0.95, 0.95, 0.96];
-const LAMP: RGB = [1, 0.88, 0.62];
-const CYAN: RGB = [0.55, 0.85, 1];
-const SCREEN: RGB = [0.42, 0.7, 1];
-const HAZARD: RGB = [0.95, 0.72, 0.3];
-const COAT: RGB = [0.2, 0.23, 0.32];
-const COAT_DARK: RGB = [0.14, 0.15, 0.2];
-const BRAID: RGB = [0.86, 0.7, 0.38];
-const SKIN: RGB = [0.82, 0.66, 0.55];
-const HAIR: RGB = [0.18, 0.15, 0.14];
-const BOOT: RGB = [0.12, 0.12, 0.14];
-const SEAT: RGB = [0.3, 0.32, 0.38];
+// ---- Colours (a cartoon's: clean, a little brighter than life) ----
+const DECK: RGB = [0.96, 0.96, 0.97];
+const STEEL: RGB = [0.86, 0.89, 0.94];
+const STEEL_DARK: RGB = [0.5, 0.56, 0.68];
+const WHITE: RGB = [0.97, 0.97, 0.98];
+const LAMP: RGB = [1, 0.88, 0.58];
+const CYAN: RGB = [0.5, 0.84, 1];
+const SCREEN: RGB = [0.46, 0.74, 1];
+const HAZARD: RGB = [0.98, 0.74, 0.28];
+const COAT: RGB = [0.2, 0.27, 0.46];
+const COAT_DARK: RGB = [0.15, 0.19, 0.32];
+const BRAID: RGB = [0.98, 0.78, 0.34];
+const SKIN: RGB = [0.98, 0.79, 0.64];
+const SKIN_SHADE: RGB = [0.92, 0.66, 0.52];
+const HAIR: RGB = [0.36, 0.24, 0.16];
+const INK: RGB = [0.12, 0.12, 0.18];
+const BOOT: RGB = [0.22, 0.2, 0.24];
+const GLOVE: RGB = [0.97, 0.97, 0.98];
+const SEAT: RGB = [0.36, 0.42, 0.56];
+const CRATE: RGB = [0.86, 0.66, 0.38];
 const PETAL_GLASS: RGB = [0.66, 0.84, 1];
 
 /** Builds parts placed on the deck at world (x, z): the station's own box units round its centre (box 20, 12). */
@@ -64,146 +67,163 @@ function turnY(m: Mesh, a: number, build: () => void) {
   m.with((p) => [p[0] * c + p[2] * s, p[1], -p[0] * s + p[2] * c], build);
 }
 
-/** The deck: a broad, thin oval slab, a lit rim round its edge; a pad under each station. */
-function deck(m: Mesh) {
-  m.with((p) => [p[0] * 3.45, p[1], p[2] * 1.45], () => {
-    m.cyl([20, 12, -5], [20, 12, 0], 40, 40, DECK, PAPER, 96);
-    m.cyl([20, 12, -8], [20, 12, -5], 37.5, 40, DECK_EDGE, PAPER, 96);
-    m.ring(20, 12, 0, 39.3, 0.25, 0, CYAN, 2);
-  });
-  at(m, SPOT.hangar.x, SPOT.hangar.z, () => {
-    m.cyl([20, 12, 0], [20, 12, 0.8], 42, 42, WHITE, PAPER, 72);
-    m.ring(20, 12, 0.85, 38.5, 0.45, 0, HAZARD, 0);
-  });
-  at(m, SPOT.research.x, SPOT.research.z, () => m.cyl([32, 10, 0], [32, 10, 0.8], 37, 37, WHITE, PAPER, 72));
+/** A rounded block from corner to corner (box units): `n` how square (2 round, 4 or more a softened box). */
+function block(m: Mesh, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, col: RGB, mat: number, n = 5, nv = n) {
+  m.rbox((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2, col, mat, n, nv);
 }
 
-/** The hangar bay: a slender arch behind the ship, a gantry over it with floodlights, clamps under it. */
+/** A round puck (a disc with soft edges) standing from z0 to z1. */
+function puck(m: Mesh, x: number, y: number, z0: number, z1: number, r: number, col: RGB, mat: number, nv = 6) {
+  m.rbox(x, y, (z0 + z1) / 2, r, r, (z1 - z0) / 2, col, mat, 2, nv, 48, 14);
+}
+
+/** The deck: a broad oval puck, a lit rim round its edge; a pad under each station. */
+function deck(m: Mesh) {
+  m.with((p) => [p[0] * 3.45, p[1], p[2] * 1.45], () => {
+    m.rbox(20, 12, -4, 40, 40, 4, DECK, PAPER, 2, 7, 96, 16);
+    m.ring(20, 12, -1.2, 39.6, 0.35, 0, CYAN, 2);
+  });
+  at(m, SPOT.hangar.x, SPOT.hangar.z, () => {
+    puck(m, 20, 12, -0.6, 1, 42, WHITE, PAPER);
+    m.ring(20, 12, 1.02, 38.5, 0.55, 0, HAZARD, 2);
+  });
+  at(m, SPOT.research.x, SPOT.research.z, () => puck(m, 32, 10, -0.6, 1, 37, WHITE, PAPER));
+}
+
+/** The hangar bay: a rounded arch behind the ship, a gantry over it with two lamps, clamps under it. */
 function hangar(m: Mesh) {
   at(m, SPOT.hangar.x, SPOT.hangar.z, () => {
     for (const x of [-24, 64]) {
-      m.box(x - 1.8, x + 1.8, -21.8, -18.2, 0.8, 68, STEEL, 0, 0.3);
-      m.box(x - 3, x + 3, -23, -17, 0.8, 3, STEEL_DARK, 0, 0.5);
-      for (let z = 12; z < 62; z += 10) m.box(x + 1.8, x + 2.1, -20.6, -19.4, z, z + 3, LAMP, 2);
+      block(m, x - 3, x + 3, -23, -17, 0, 70, STEEL, 0, 4, 8);
+      puck(m, x, -20, 0, 4, 5, STEEL_DARK, 0);
+      for (let z = 14; z < 62; z += 12) m.ball(x + 3.2, -20, z, 1.1, LAMP, 2, 12, 8);
     }
-    m.box(-27, 67, -21.8, -18.2, 66, 69.5, STEEL, 0, 0.3);
-    m.cyl([-22, -20, 8], [62, -20, 62], 0.3, 0.3, STEEL_DARK, 0, 6);
-    m.cyl([62, -20, 8], [-22, -20, 62], 0.3, 0.3, STEEL_DARK, 0, 6);
-    // The gantry, reaching forward over the ship, two floodlights under it.
-    m.box(18.5, 21.5, -18.2, 24, 66.5, 68.8, STEEL, 0, 0.3);
+    block(m, -28, 68, -23, -17, 64, 71, STEEL, 0, 6, 4);
+    // The gantry, reaching forward over the ship, two lamps under it.
+    block(m, 17, 23, -18, 25, 64.5, 69, STEEL, 0, 5, 4);
     for (const y of [0, 16]) {
-      m.cyl([20, y, 66.5], [20, y, 63], 0.8, 1.8, STEEL_DARK, 0, 14);
-      m.ball(20, y, 62.8, 1.3, LAMP, 2, 12, 6);
+      m.rbox(20, y, 62.5, 2.4, 2.4, 2.2, STEEL_DARK, 0, 2, 3);
+      m.ball(20, y, 60.4, 1.6, LAMP, 2, 14, 8);
     }
-    m.cyl([20, 22, 66.5], [20, 22, 46], 0.18, 0.18, STEEL_DARK, 0, 6);
-    m.ring(20, 22, 45, 1.3, 0.3, Math.PI / 2, STEEL, 0);
+    m.tube([[20, 22, 64.5], [20, 22, 47]], 0.3, 0.3, STEEL_DARK, 0, 8);
+    m.ring(20, 22, 45.5, 1.6, 0.5, Math.PI / 2, HAZARD, 0);
     // Clamps the ship rests on.
     for (const [x, y] of [[6, 12], [33, 5], [33, 19]] as const) {
-      m.cyl([x, y, 0.8], [x, y, 12], 1.2, 0.8, STEEL_DARK, 0, 12);
-      m.cyl([x, y, 11.4], [x, y, 12.4], 2, 2, STEEL, 0, 14);
+      m.rbox(x, y, 6, 1.5, 1.5, 6, STEEL_DARK, 0, 2, 6);
+      puck(m, x, y, 10.6, 12.6, 2.6, STEEL, 0);
     }
-    m.tube([[62, -16, 1.4], [56, -4, 1.2], [44, 4, 1.2], [36, 10, 6]], 0.55, 0.55, STEEL_DARK, 4, 8);
+    m.tube([[62, -16, 1.6], [56, -4, 1.4], [44, 4, 1.4], [36, 10, 6]], 0.8, 0.8, HAZARD, 0, 10, false);
     // A couple of crates by the pad's edge.
-    m.box(-20, -14, 26, 32, 0.8, 6.8, [0.72, 0.66, 0.54], 0, 0.3);
-    m.box(-12.5, -8, 27, 31.5, 0.8, 5.3, [0.68, 0.62, 0.5], 0, 0.3);
+    block(m, -21, -13, 25, 33, 0.5, 8.5, CRATE, 0, 5);
+    block(m, -12, -6, 26.5, 32.5, 0.5, 6.5, CRATE, 0, 5);
   });
 }
 
-const FACE_DARK: RGB = [0.12, 0.1, 0.1];
-const LIPS: RGB = [0.58, 0.36, 0.32];
-
-/** The Captain in a command chair on a round dais. */
+/** The Captain in a command chair on a round dais: a cartoon captain, big head, white gloves, a smile. */
 function captain(m: Mesh) {
   at(m, SPOT.captain.x, SPOT.captain.z, () => {
-    m.cyl([20, 12, 0], [20, 12, 1.6], 30, 30, WHITE, PAPER, 72);
-    m.cyl([20, 12, 1.6], [20, 12, 3], 23, 23, WHITE, PAPER, 72);
-    m.ring(20, 12, 3.05, 22.7, 0.28, 0, CYAN, 2);
-    // The chair: a slim pillar, the seat, a tall back and headrest, narrow arms with lit panels.
-    m.cyl([20, 6, 3], [20, 6, 15.5], 1.6, 1.2, STEEL_DARK, 0, 16);
-    m.box(12, 28, -1, 14, 15.5, 18, SEAT, 0, 0.8);
-    m.box(12.5, 27.5, -4, -1.5, 17.5, 45, SEAT, 0, 0.8);
-    m.box(15, 25, -4.4, -1.8, 44, 50.5, SEAT, 0, 0.8);
-    m.box(12.2, 27.8, -4.6, -4, 17, 46, STEEL, 0, 0.2);
-    for (const x of [9.6, 28.4]) {
-      m.box(x, x + 2, 0, 13, 24, 25.2, STEEL, 0, 0.3);
-      m.box(x + 0.2, x + 1.8, 7, 12, 25.2, 25.5, CYAN, 2);
-      m.cyl([x + 1, 3, 17], [x + 1, 3, 24], 0.5, 0.5, STEEL_DARK, 0, 8);
+    puck(m, 20, 12, -0.6, 1.8, 30, WHITE, PAPER);
+    puck(m, 20, 12, 1.4, 3.6, 23, WHITE, PAPER);
+    m.ring(20, 12, 3.4, 22.4, 0.4, 0, CYAN, 2);
+    // The chair: a stout pillar, a cushioned seat, a tall rounded back, padded arms.
+    m.rbox(20, 6, 9.5, 2.4, 2.4, 6.5, STEEL_DARK, 0, 2, 6);
+    block(m, 11.5, 28.5, -2, 14, 14.5, 19.5, SEAT, 0, 4);
+    block(m, 12, 28, -6, 0, 17, 49, SEAT, 0, 4, 3);
+    for (const x of [9, 31]) {
+      block(m, x - 2, x + 2, -1, 14, 22.5, 26.5, SEAT, 0, 3);
+      m.rbox(x, 2, 19.5, 1.2, 1.2, 3.5, STEEL_DARK, 0, 2, 6);
     }
-    // Legs: thighs forward along the seat, shins down, boots on the dais.
+    // Legs: round thighs along the seat, shins down, big boots.
     for (const s of [-1, 1]) {
-      const x = 20 + s * 3.4;
-      m.tube([[x, 1, 21], [x + s * 0.2, 12, 21.4]], 2.4, 2.1, COAT_DARK, 0, 14);
-      m.ball(x + s * 0.2, 12.2, 21.2, 2.1, COAT_DARK, 0, 14, 8);
-      m.tube([[x + s * 0.2, 12.6, 20], [x + s * 0.3, 13.6, 7]], 1.9, 1.6, COAT_DARK, 0, 14);
-      m.tube([[x + s * 0.3, 13.6, 8.5], [x + s * 0.3, 13.8, 4]], 1.75, 1.75, BOOT, 4, 14);
-      m.box(x + s * 0.3 - 1.7, x + s * 0.3 + 1.7, 12, 18.5, 3, 5, BOOT, 4, 0.5);
+      const x = 20 + s * 3.6;
+      m.tube([[x, 0, 21.5], [x, 12, 21.5]], 2.8, 2.6, COAT_DARK, 0, 16, false);
+      m.ball(x, 12, 21.2, 2.6, COAT_DARK, 0, 16, 10);
+      m.tube([[x, 12.6, 20], [x, 13.6, 8]], 2.3, 2.1, COAT_DARK, 0, 16, false);
+      m.rbox(x, 15.2, 5.6, 2.8, 4.6, 2.6, BOOT, 0, 3, 3);
     }
-    // The coat: hips, waist, chest; its skirt over the seat's front; a line of braid; the collar.
-    m.orb(20, 1.5, 17.8, 6, 4.4, 3.6, COAT, 0, false, 22, 10);
-    m.orb(20, 0.4, 20.5, 4.9, 3.4, 6.5, COAT, 0, false, 22, 10);
-    m.orb(20, 0, 26.5, 6.1, 3.8, 8.2, COAT, 0, false, 22, 12);
-    m.box(15.2, 24.8, 5.5, 9.5, 17.2, 19.6, COAT, 0, 0.8);
-    m.box(19.75, 20.25, 3.6, 4, 25, 41, BRAID, 0);
-    m.cyl([20, 0, 41.5], [20, 0.3, 44.2], 2.9, 2.2, COAT, 0, 18);
-    // Shoulders and epaulettes; arms down to the elbows, forearms along the chair's arms, hands at their ends.
+    // The coat: a round body, its skirt over the seat's front, gold buttons and a belt.
+    m.rbox(20, 0.5, 29, 7, 5, 10.5, COAT, 0, 2.4, 2.6);
+    block(m, 13.5, 26.5, 2, 10, 16, 21, COAT, 0, 3, 3);
+    m.rbox(20, 0.5, 21.6, 7.15, 5.15, 1.1, BOOT, 0, 2.4, 6);
+    m.rbox(20, 5.7, 21.6, 1.2, 0.5, 0.9, BRAID, 0, 4, 4);
+    for (const z of [26, 30, 34]) m.ball(20, 5.3, z, 0.65, BRAID, 0, 10, 6);
+    // Shoulders with golden epaulettes; arms bent to the chair's arms; big white gloves.
     for (const s of [-1, 1]) {
-      m.ball(20 + s * 6.2, 0, 40.4, 2.3, COAT, 0, 14, 8);
-      m.box(20 + s * 6.2 - 1.8, 20 + s * 6.2 + 1.8, -1.6, 1.6, 42.4, 43.1, BRAID, 0, 0.2);
-      const sx = 20 + s * 7;
-      m.tube([[sx, 0, 39.8], [sx + s * 1.6, 1.5, 31], [sx + s * 2.3, 2.5, 27.4]], 1.7, 1.5, COAT, 0, 14);
-      m.tube([[sx + s * 2.3, 2.5, 27.4], [sx + s * 2.6, 11.5, 26.6]], 1.45, 1.25, COAT, 0, 14);
-      m.ball(sx + s * 2.6, 12.9, 26.6, 1.25, SKIN, 3, 12, 7);
+      m.rbox(20 + s * 7.2, 0.5, 37.6, 3, 3, 1.3, BRAID, 0, 2, 3);
+      const sx = 20 + s * 7.6;
+      m.tube([[sx, 0.5, 36], [sx + s * 1.4, 2, 29], [sx + s * 1.4, 4, 27]], 2.2, 2, COAT, 0, 16, false);
+      m.ball(sx + s * 1.4, 4, 27, 2, COAT, 0, 14, 8);
+      m.tube([[sx + s * 1.4, 4, 27], [sx + s * 1.4, 11, 27]], 2, 1.9, COAT, 0, 16, false);
+      m.rbox(sx + s * 1.4, 11.4, 27, 2.3, 1.2, 1.3, GLOVE, 0, 2, 2);
+      m.ball(sx + s * 1.4, 13, 27.6, 2.2, GLOVE, 0, 16, 10);
     }
-    // Neck and head: a face looking out over the deck (eyes, brows, nose, mouth, ears), the hair cropped short.
-    m.cyl([20, 0.6, 43], [20, 0.9, 46.5], 1.35, 1.35, SKIN, 3, 14);
-    m.orb(20, 1, 45.5, 2.7, 3.1, 3.6, SKIN, 3, false, 22, 14);
-    m.orb(20, 2.3, 45.2, 1.9, 1.7, 1.5, SKIN, 3, false, 18, 8);
-    m.orb(20, 0.35, 49.2, 2.95, 3.35, 3.85, HAIR, 3, true, 22, 8);
+    // A high collar, then the head: big and round, hair swept over, a face looking out over the deck.
+    m.rbox(20, 0.8, 40, 4.4, 3.8, 1.8, COAT, 0, 2, 3);
+    const H = { x: 20, y: 1.4, z: 47, rx: 5, ry: 5.2, rz: 5.6 };
+    m.rbox(H.x, H.y, H.z, H.rx, H.ry, H.rz, SKIN, 0, 2, 2, 32, 20);
+    // (Points on the face's surface, for its features.)
+    const face = (dx: number, dz: number, out = 0) => H.y + (H.ry + out) * Math.sqrt(Math.max(0, 1 - (dx / H.rx) ** 2 - (dz / H.rz) ** 2));
+    m.rbox(H.x, H.y - 0.6, H.z + 1.6, 5.3, 5.3, 4.6, HAIR, 0, 2, 2.2, 32, 20);
+    m.rbox(H.x - 1.2, face(-1.2, 3.8) - 0.6, H.z + 4.2, 3.6, 1.6, 1.4, HAIR, 0, 2, 2);
     for (const s of [-1, 1]) {
-      m.ball(20 + s * 1.05, 3.7, 49.5, 0.38, FACE_DARK, 4, 10, 6);
-      m.box(20 + s * 0.45, 20 + s * 1.75, 3.25, 3.95, 50.35, 50.75, HAIR, 3);
-      m.orb(20 + s * 2.65, 1, 47.4, 0.4, 0.75, 1.05, SKIN, 3, false, 10, 6);
+      const ex = H.x + s * 1.75;
+      m.rbox(ex, face(s * 1.75, 0.5) - 0.25, H.z + 0.5, 0.7, 0.45, 1.05, INK, 0, 2, 2, 16, 10);
+      m.ball(ex + 0.25, face(s * 1.75, 0.5) + 0.1, H.z + 0.95, 0.24, [1, 1, 1], 2, 8, 6);
+      m.rbox(ex, face(s * 1.75, 2.1) - 0.15, H.z + 2.1, 1.05, 0.4, 0.28, HAIR, 0, 2, 2, 12, 8);
+      m.rbox(H.x + s * 5, H.y, H.z - 0.2, 0.7, 1.1, 1.4, SKIN, 0, 2, 2, 14, 8);
     }
-    m.orb(20, 3.75, 47.3, 0.42, 0.65, 0.95, [0.78, 0.6, 0.5], 3, false, 10, 6);
-    m.box(19.25, 20.75, 3.2, 3.62, 46.85, 47.2, LIPS, 3);
+    m.rbox(H.x, face(0, -0.9) - 0.1, H.z - 0.9, 0.75, 0.7, 0.8, SKIN_SHADE, 0, 2, 2, 14, 8);
+    m.tube(
+      [
+        [H.x - 1.4, face(-1.4, -2.3) - 0.05, H.z - 2.2],
+        [H.x - 0.5, face(-0.5, -2.75) - 0.05, H.z - 2.75],
+        [H.x + 0.5, face(0.5, -2.75) - 0.05, H.z - 2.75],
+        [H.x + 1.4, face(1.4, -2.3) - 0.05, H.z - 2.2],
+      ],
+      0.24,
+      0.24,
+      INK,
+      0,
+      8,
+    );
     // A data slate on its stand at the Captain's side.
-    m.cyl([36, 16, 3], [36, 16, 22], 0.4, 0.4, STEEL_DARK, 0, 8);
-    tiltX(m, [0.4, 22 / 40, 0.1], -0.6, () => m.box(32.5, 39.5, 12.5, 19.5, 22, 22.6, SCREEN, 2));
+    m.rbox(36, 16, 12, 0.7, 0.7, 10, STEEL_DARK, 0, 2, 8);
+    tiltX(m, [0.4, 22 / 40, 0.1], -0.6, () => block(m, 32, 40, 12, 20, 21.8, 23, STEEL, 0, 6, 3));
+    tiltX(m, [0.4, 22 / 40, 0.1], -0.6, () => block(m, 33, 39, 13, 19, 22.7, 23.2, SCREEN, 2, 6, 3));
   });
 }
 
-/** The research console: a slim desk on two legs, its top tilted up and lit, a screen over it; a holo pedestal. */
+/** The research console: a rounded desk, its top tilted up and lit, a screen over it; a stool; a holo pedestal. */
 function research(m: Mesh) {
   at(m, SPOT.research.x, SPOT.research.z, () => {
-    for (const x of [4, 34]) m.box(x, x + 2, -4, 6, 0.8, 20, STEEL, 0, 0.3);
-    m.box(4, 36, -4, -3, 6, 20, WHITE, PAPER, 0.2);
-    tiltX(m, [0, 20 / 40, (2 - 12) / 40], 0.3, () => {
-      m.box(2, 38, -4, 9, 20, 21.4, WHITE, PAPER, 0.4);
-      for (let i = 0; i < 6; i++) m.box(5 + i * 5.2, 8.8 + i * 5.2, 1, 6.5, 21.4, 21.8, i % 2 ? CYAN : SCREEN, 2);
+    block(m, 3, 37, -5, 7, 1, 19, WHITE, 0, 5, 4);
+    tiltX(m, [0, 19 / 40, (1 - 12) / 40], 0.28, () => {
+      block(m, 1.5, 38.5, -5, 10, 17.5, 22, WHITE, 0, 6, 3);
+      for (let i = 0; i < 5; i++) m.rbox(8 + i * 6, 3.8, 22, 2.2, 2.2, 0.5, i % 2 ? CYAN : SCREEN, 2, 3, 3, 16, 8);
     });
-    m.cyl([20, -5, 20], [20, -5, 27], 0.6, 0.6, STEEL_DARK, 0, 8);
-    tiltX(m, [0, 27 / 40, (-5 - 12) / 40], -0.18, () => {
-      m.box(5, 35, -5.8, -5, 26, 45, STEEL_DARK, 0, 0.2);
-      m.box(6, 34, -5.05, -4.8, 27, 44, SCREEN, 2);
+    m.rbox(20, -4, 25, 1, 1, 4, STEEL_DARK, 0, 2, 6);
+    tiltX(m, [0, 28 / 40, (-5 - 12) / 40], -0.16, () => {
+      block(m, 4, 36, -7, -3, 27, 47, STEEL_DARK, 0, 6, 6);
+      block(m, 5.6, 34.4, -4, -2.6, 28.6, 45.4, SCREEN, 2, 8, 8);
     });
     // Its stool.
-    m.cyl([20, 21, 0.8], [20, 21, 13.5], 0.6, 0.6, STEEL_DARK, 0, 10);
-    m.cyl([20, 21, 13.5], [20, 21, 14.7], 4.6, 4.6, SEAT, 0, 24);
+    m.rbox(20, 21, 7, 0.9, 0.9, 6.5, STEEL_DARK, 0, 2, 6);
+    puck(m, 20, 21, 12.5, 15.5, 5, SEAT, 0, 3);
     // The holo pedestal beside it, a ring of light on top.
-    m.cyl([56, 4, 0.8], [56, 4, 9], 5.5, 4.4, WHITE, PAPER, 32);
-    m.ring(56, 4, 9.1, 4, 0.3, 0, CYAN, 2);
-    m.ball(56, 4, 9.6, 1.4, CYAN, 2, 12, 6);
-    m.tube([[36, 0, 1.4], [44, 2, 1.1], [51, 4, 1.1]], 0.45, 0.45, STEEL_DARK, 4, 8);
+    puck(m, 56, 4, 0, 9, 5.5, WHITE, 0, 4);
+    m.ring(56, 4, 9.1, 4, 0.4, 0, CYAN, 2);
+    m.ball(56, 4, 10, 1.6, CYAN, 2, 14, 8);
+    m.tube([[37, 0, 1.6], [44, 2, 1.3], [51, 4, 1.3]], 0.6, 0.6, STEEL_DARK, 0, 10, false);
   });
 }
 
 /** The light round a station's floor when it is under the pointer: a thin bright ring and a soft wide one. */
 function halo(zone: BaseZone): Float32Array {
   const m = new Mesh();
-  const [x, y, r] = zone === 'hangar' ? [20, 12, 43] : zone === 'captain' ? [20, 12, 31] : [32, 10, 38];
+  const [x, y, r] = zone === 'hangar' ? [20, 12, 43.5] : zone === 'captain' ? [20, 12, 31.5] : [32, 10, 38.5];
   at(m, SPOT[zone].x, SPOT[zone].z, () => {
-    m.ring(x, y, 0.9, r, 0.35, 0, CYAN, 2);
-    m.ring(x, y, 0.9, r + 2.2, 0.18, 0, CYAN, 2);
+    m.ring(x, y, 1.1, r, 0.45, 0, CYAN, 2);
+    m.ring(x, y, 1.1, r + 2.4, 0.22, 0, CYAN, 2);
   });
   return new Float32Array(m.out);
 }
@@ -284,29 +304,72 @@ function program(gl: WebGLRenderingContext, vs: string, fs: string): WebGLProgra
   return p;
 }
 
-/** The ships' look, with one material more: the deck's (PAPER); and its lights burn steady (no engine flicker). */
-const BASE_FRAG = SHIP_FRAG.replace(/float flick = [^;]*;/, 'float flick = 1.0;').replace(
-  'float m = vMat;',
-  `float m = vMat;
-  if (m > 6.5) {
-    vec3 pc = vCol * (0.8 + 0.24 * diff) + vec3(1.0) * pow(max(dot(n, h), 0.0), 40.0) * 0.06;
-    pc = mix(pc, sky, fres * 0.25);
-    gl_FragColor = vec4(min(pc, vec3(1.0)) * uAlpha, uAlpha);
+/**
+ * Cel shading [direction: a cel shaded, cartoony look, smooth edges without everything looking blocky]: each colour
+ * in flat bands of light (lit, half-lit, a cool shade), a crisp highlight on the glossy, a thin rim of light at the
+ * edges; lights glow flat and steady. The paper deck's bands are softer.
+ */
+const TOON_FRAG = `
+#extension GL_OES_standard_derivatives : enable
+precision highp float;
+varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vMat; varying vec3 vCol;
+uniform vec3 uEye; uniform float uAlpha;
+float band(float x, float at) { float w = max(fwidth(x), 1e-4) * 0.9; return smoothstep(at - w, at + w, x); }
+void main() {
+  vec3 n = normalize(vN);
+  vec3 v = normalize(uEye - vW);
+  if (dot(n, v) < 0.0) n = -n;
+  float m = vMat;
+  if (m > 1.5 && m < 2.5) {
+    gl_FragColor = vec4(mix(vCol, vec3(1.0), 0.2) * uAlpha, uAlpha);
     return;
-  }`,
-);
+  }
+  vec3 l = normalize(vec3(0.42, 0.85, 0.35));
+  float d = dot(n, l);
+  vec3 shade = vec3(0.72, 0.76, 0.9);
+  float k = m > 6.5 ? 0.9 + 0.1 * band(d, 0.0) : 0.0;
+  vec3 c;
+  if (m > 6.5) c = vCol * mix(shade, vec3(1.0), 0.55 + 0.45 * band(d, 0.0));
+  else c = vCol * mix(shade * 0.82, vec3(1.0), 0.45 * band(d, -0.1) + 0.55 * band(d, 0.45));
+  vec3 h = normalize(l + v);
+  float spec = pow(max(dot(n, h), 0.0), 48.0);
+  if (m < 6.5) c += vec3(1.0) * band(spec, 0.55) * (m > 0.5 && m < 1.5 ? 0.45 : 0.22);
+  float rim = 1.0 - max(dot(n, v), 0.0);
+  c = mix(c, vec3(1.0), band(rim, 0.78) * 0.16 * (1.0 - k));
+  gl_FragColor = vec4(min(c, vec3(1.0)) * uAlpha, uAlpha);
+}`;
+
+/** The ink outline: each model drawn again, swollen along its normals by about a pixel and a half, in ink, set just behind itself (so only its rim shows round the edge). */
+const OUTLINE_VERT = `
+attribute vec3 aPos; attribute vec3 aNorm;
+uniform mat4 uView; uniform mat4 uProj; uniform mat4 uModel; uniform float uWidth;
+void main() {
+  vec4 w = uModel * vec4(aPos, 1.0);
+  vec4 v = uView * w;
+  vec3 vn = normalize(mat3(uView) * normalize(mat3(uModel) * aNorm));
+  v.xyz += vn * uWidth * -v.z;
+  vec4 p = uProj * v;
+  p.z += 0.0012 * p.w;
+  gl_Position = p;
+}`;
+const OUTLINE_FRAG = `
+precision mediump float;
+void main() { gl_FragColor = vec4(0.16, 0.17, 0.24, 1.0); }`;
 
 interface Part {
   buf: WebGLBuffer;
   count: number;
   zone: BaseZone | null;
   model: () => M4;
+  /** Inked round its edge (not the hologram's light). */
+  outline: boolean;
 }
 
 /** A base drawn on a canvas: hover a station to light it, ask which station is at a point, where each label goes. */
 export class Base3d {
   private gl: WebGLRenderingContext;
   private prog: WebGLProgram;
+  private inkProg: WebGLProgram;
   private shadowProg: WebGLProgram;
   private shadowBuf: WebGLBuffer;
   private parts: Part[] = [];
@@ -328,7 +391,8 @@ export class Base3d {
   private constructor(readonly canvas: HTMLCanvasElement, gl: WebGLRenderingContext, ship: CaptainShipSpec) {
     this.gl = gl;
     gl.getExtension('OES_standard_derivatives');
-    this.prog = program(gl, SHIP_VERT, '#extension GL_OES_standard_derivatives : enable\n' + BASE_FRAG.replace('#extension GL_OES_standard_derivatives : enable', ''));
+    this.prog = program(gl, SHIP_VERT, TOON_FRAG);
+    this.inkProg = program(gl, OUTLINE_VERT, OUTLINE_FRAG);
     this.shadowProg = program(gl, SHADOW_VERT, SHADOW_FRAG);
     const quads: number[] = [];
     for (const [x, z, rx, rz] of SHADOWS) {
@@ -359,7 +423,7 @@ export class Base3d {
     this.add(hologram(), 'research', () => {
       const t = this.time();
       return place(holo.x + 0.9, 0.72 + 0.03 * Math.sin(t * 1.3), holo.z - 0.2, t * 0.5, 0.95);
-    });
+    }, false);
     this.setShip(ship);
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
@@ -372,12 +436,12 @@ export class Base3d {
     return new Base3d(canvas, gl, ship);
   }
 
-  private add(data: Float32Array, zone: BaseZone | null, model: () => M4) {
+  private add(data: Float32Array, zone: BaseZone | null, model: () => M4, outline = true) {
     const gl = this.gl;
     const buf = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-    this.parts.push({ buf, count: data.length / SHIP_STRIDE, zone, model });
+    this.parts.push({ buf, count: data.length / SHIP_STRIDE, zone, model, outline });
   }
 
   /** The Captain's ship in the bay, as fitted (rebuilt only when it changes). */
@@ -482,6 +546,27 @@ export class Base3d {
 
     // (Each station's light eases in and out.)
     for (const z of BASE_ZONES) this.glow[z] += ((this.hovered === z ? 1 : 0) - this.glow[z]) * 0.35;
+
+    // The ink first: every model's outline, a little behind it.
+    const ip = this.inkProg;
+    gl.useProgram(ip);
+    gl.uniformMatrix4fv(gl.getUniformLocation(ip, 'uView'), false, this.view);
+    gl.uniformMatrix4fv(gl.getUniformLocation(ip, 'uProj'), false, this.proj);
+    // (About 1.4 CSS pixels wide, whatever the distance.)
+    gl.uniform1f(gl.getUniformLocation(ip, 'uWidth'), (1.4 * 2 * half) / lh);
+    const ipos = gl.getAttribLocation(ip, 'aPos'), inorm = gl.getAttribLocation(ip, 'aNorm');
+    gl.enableVertexAttribArray(ipos);
+    gl.enableVertexAttribArray(inorm);
+    for (const part of this.parts) {
+      if (!part.outline) continue;
+      gl.uniformMatrix4fv(gl.getUniformLocation(ip, 'uModel'), false, part.model());
+      gl.bindBuffer(gl.ARRAY_BUFFER, part.buf);
+      gl.vertexAttribPointer(ipos, 3, gl.FLOAT, false, SHIP_STRIDE * 4, 0);
+      gl.vertexAttribPointer(inorm, 3, gl.FLOAT, false, SHIP_STRIDE * 4, 12);
+      gl.drawArrays(gl.TRIANGLES, 0, part.count);
+    }
+    gl.disableVertexAttribArray(ipos);
+    gl.disableVertexAttribArray(inorm);
 
     const p = this.prog;
     gl.useProgram(p);
