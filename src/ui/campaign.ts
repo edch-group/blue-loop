@@ -664,6 +664,13 @@ export class CampaignView {
         this.encountering = false;
         return this.host.render();
       }
+      // (Through a rift the galaxy is a new one, and the system flown to is gone: nothing to select or open.)
+      if (!this.state.nodes.some((n) => n.id === toId)) {
+        this.advance = null;
+        this.encountering = false;
+        this.selected = null;
+        return this.host.render();
+      }
       this.selected = toId;
       // What was there, found as the ship arrives.
       const found = this.state.log.find((l) => l.seq > seq && / finds /.test(l.text));
