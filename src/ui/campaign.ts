@@ -2968,7 +2968,8 @@ export class CampaignView {
       </div>`;
     }
     // A Power Struggle: a hero of your own race, come for your command while your sun runs overheated.
-    if (s.struggle && !s.battle) {
+    // (A card found in the same system is chosen first: the struggle waits for it.)
+    if (s.struggle && !s.battle && !s.cardRewards.length) {
       // (A moment first, for the rival's ship to come alongside on the map.)
       if (this.struggleSeen !== s.struggle.hero) {
         this.struggleSeen = s.struggle.hero;
@@ -2987,7 +2988,7 @@ export class CampaignView {
       </div>`;
     }
     // A rival beaten (the Captain's runs): recruit them, or slay them for their hoard.
-    if (s.beaten && !s.battle) {
+    if (s.beaten && !s.battle && !s.cardRewards.length) {
       const hero = s.beaten.hero;
       return `<div class="overlay overlay-soft struggle struggle-beaten">
         <div class="struggle-face">${portrait(hero)}</div>
