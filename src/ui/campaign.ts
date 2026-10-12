@@ -171,13 +171,13 @@ const RESEARCH_ICON =
   // A test tube, leaning, glowing brew in its lower half, a lip at its mouth.
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><g transform="rotate(25 10 10)"><path d="M7 2.2v12.2a3 3 0 0 0 6 0V2.2Z" fill="#eef6fb"/><path d="M7 9.6h6v4.8a3 3 0 0 1-6 0Z" fill="#6aa6ff"/><path d="M6.2 2.2h7.6M7 2.2v12.2a3 3 0 0 0 6 0V2.2" fill="none" stroke="#2f5f86" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></g></svg>';
 
-/** Experience: a small four-pointed star in ink. */
+/** Experience: two chevrons rising (a level up) on a gold disc. */
 const XP_MARK =
-  '<svg class="cur cur-xp" viewBox="0 0 20 20" aria-label="experience"><path d="M10 1.5 12 8l6.5 2-6.5 2L10 18.5 8 12 1.5 10 8 8Z" fill="#ffffff" stroke="#3a4256" stroke-width="1.1" stroke-linejoin="round"/><circle cx="10" cy="10" r="1.6" fill="#3a4256"/></svg>';
+  '<svg class="cur cur-xp" viewBox="0 0 20 20" aria-label="experience"><circle cx="10" cy="10" r="9.3" fill="#f5e6bd" stroke="#9a7a32" stroke-width=".9"/><path d="M6 11.4 10 7.6l4 3.8M6 14.8l4-3.8 4 3.8" fill="none" stroke="#7a5f22" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-/** A Stellari petal: what a wormhole gives, banked for every run after. */
+/** Stellari petals: what a wormhole gives, banked for every run after. A six-petalled bloom on a pale blue disc. */
 const PETAL =
-  '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.5C14.5 5 15.5 11 10 18.5 4.5 11 5.5 5 10 1.5Z" fill="#ffffff" stroke="#6b7590" stroke-width="1" stroke-linejoin="round"/><path d="M10 4.5v11" stroke="#6b7590" stroke-width=".7" opacity=".55"/></svg>';
+  '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><circle cx="10" cy="10" r="9.3" fill="#dfe8f6" stroke="#6b7590" stroke-width=".9"/><g fill="#ffffff" stroke="#6b7590" stroke-width=".75" stroke-linejoin="round"><path d="M10 10C11.7 8 11.7 5.1 10 3.4 8.3 5.1 8.3 8 10 10Z" transform="rotate(0 10 10)"/><path d="M10 10C11.7 8 11.7 5.1 10 3.4 8.3 5.1 8.3 8 10 10Z" transform="rotate(60 10 10)"/><path d="M10 10C11.7 8 11.7 5.1 10 3.4 8.3 5.1 8.3 8 10 10Z" transform="rotate(120 10 10)"/><path d="M10 10C11.7 8 11.7 5.1 10 3.4 8.3 5.1 8.3 8 10 10Z" transform="rotate(180 10 10)"/><path d="M10 10C11.7 8 11.7 5.1 10 3.4 8.3 5.1 8.3 8 10 10Z" transform="rotate(240 10 10)"/><path d="M10 10C11.7 8 11.7 5.1 10 3.4 8.3 5.1 8.3 8 10 10Z" transform="rotate(300 10 10)"/></g><circle cx="10" cy="10" r="1.25" fill="#6b7590"/></svg>';
 
 /** The skill tree's seven branches, one off each petal of the Stellari, each its own colour. */
 const UP_BRANCHES: { g: MetaGroup; title: string; dir: number; colour: string }[] = [
