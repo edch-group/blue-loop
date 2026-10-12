@@ -38,14 +38,18 @@ export interface MetaUpgrade {
   requires?: [string, number][];
 }
 
-/** What an upgrade is bought with: skill points, or petals (unlocks). */
-export const currencyOf = (u: MetaUpgrade): 'points' | 'petals' => (u.group === 'unlock' ? 'petals' : 'points');
+/**
+ * What an upgrade is bought with: petals, now, for the skill tree and unlocks alike [direction: hero upgrades bought
+ * with skill points, overall upgrades with petals]. (Skill points buy the Captain: see captainPointsSpent.)
+ */
+export const currencyOf = (_u: MetaUpgrade): 'points' | 'petals' => 'petals';
 
-/** A skill's price in points, every level of it: its tier (1, 2, or 3 for a capstone). */
-export const pointCost = (u: MetaUpgrade) => u.tier ?? 1;
+/** A skill's price in petals, every level of it, by its tier (the capstones dearest). */
+export const TREE_PETALS = [0, 3, 5, 8];
+export const pointCost = (u: MetaUpgrade) => TREE_PETALS[u.tier ?? 1] ?? 3;
 
-/** An upgrade's next level's price, in its own currency. */
-export const priceOf = (u: MetaUpgrade, level: number) => (currencyOf(u) === 'points' ? pointCost(u) : u.cost(level));
+/** An upgrade's next level's price, in petals. */
+export const priceOf = (u: MetaUpgrade, level: number) => (u.group === 'unlock' ? u.cost(level) : pointCost(u));
 
 /** The experience to rise from a level to the next: a little more each level. */
 export const commanderXpToNext = (level: number) => 25 + level;
@@ -63,9 +67,15 @@ export function levelFor(xp: number): { level: number; into: number; need: numbe
 /** The experience it takes, in all, to reach a level. */
 export const xpForLevel = (level: number) => Array.from({ length: Math.max(0, level - 1) }, (_, i) => commanderXpToNext(i + 1)).reduce((t, n) => t + n, 0);
 
-/** Points spent on the skill tree. */
-export const pointsSpent = (meta: MetaState) =>
-  META_UPGRADES.filter((u) => currencyOf(u) === 'points').reduce((t, u) => t + pointCost(u) * (meta.upgrades[u.id] ?? 0), 0);
+/** Skill levels bought on the tree, each by its tier (what skill points once bought them with: kept for older saves). */
+const treeTiers = (meta: MetaState) => META_UPGRADES.filter((u) => u.group !== 'unlock').reduce((t, u) => t + (u.tier ?? 1) * (meta.upgrades[u.id] ?? 0), 0);
+
+/** Petals the skill tree's skills cost in all (what a reset gives back). */
+export const treePetalsSpent = (meta: MetaState) =>
+  META_UPGRADES.filter((u) => u.group !== 'unlock').reduce((t, u) => t + pointCost(u) * Math.min(meta.upgrades[u.id] ?? 0, u.max), 0);
+
+/** Skill points spent: on the Captain (captain.ts prices). */
+export const pointsSpent = (meta: MetaState) => captainPointsSpent(meta);
 
 /** Skill points to spend: one for every level past the first, less those spent. */
 export const pointsLeft = (meta: MetaState) => levelFor(meta.xp ?? 0).level - 1 - pointsSpent(meta);
@@ -176,12 +186,24 @@ export function captainPrice(meta: MetaState, buy: CaptainBuy): number | null {
   return c.leads.includes(buy.id) ? null : (captainLead(buy.id)?.price ?? null);
 }
 
-/** Why it can't be bought now (null if it can). */
+/** Why it can't be bought now (null if it can): skill points it needs. */
 export function captainBuyProblem(meta: MetaState, buy: CaptainBuy): string | null {
   const price = captainPrice(meta, buy);
   if (price === null) return buy.kind === 'stat' || buy.kind === 'slot' ? 'At its most.' : 'Learnt.';
-  if (meta.petals < price) return `Needs ${price} petals.`;
+  if (pointsLeft(meta) < price) return `Needs ${price} skill point${price === 1 ? '' : 's'}.`;
   return null;
+}
+
+/** Skill points spent on the Captain, in all. */
+export function captainPointsSpent(meta: MetaState): number {
+  const c = meta.captain;
+  if (!c) return 0;
+  let n = 0;
+  for (const k of ['attack', 'stability', 'cheaper'] as const) n += CAPTAIN_STAT_PRICES[k].slice(0, c[k] ?? 0).reduce((t, p) => t + p, 0);
+  n += CAPTAIN_SLOT_PRICES.slice(0, c.slots ?? 0).reduce((t, p) => t + p, 0);
+  for (const a of c.abilities ?? []) n += captainAbility(a)?.price ?? 0;
+  for (const l of c.leads ?? []) n += captainLead(l)?.price ?? 0;
+  return n;
 }
 
 /** Buy it (a new state; throws if it can't be bought). A new ability is carried at once if a slot is free; a new lead is taken up. */
@@ -189,7 +211,6 @@ export function buyCaptain(meta: MetaState, buy: CaptainBuy): MetaState {
   const why = captainBuyProblem(meta, buy);
   if (why) throw new Error(why);
   const c = captainMeta(meta);
-  const price = captainPrice(meta, buy)!;
   const next: CaptainMeta = { ...c, abilities: [...c.abilities], equipped: [...c.equipped], leads: [...c.leads] };
   if (buy.kind === 'stat') next[buy.stat]++;
   else if (buy.kind === 'slot') next.slots++;
@@ -200,7 +221,8 @@ export function buyCaptain(meta: MetaState, buy: CaptainBuy): MetaState {
     next.leads.push(buy.id);
     next.lead = buy.id;
   }
-  return { ...meta, petals: meta.petals - price, captain: next };
+  // (Points are not taken: what is left is worked out from what the Captain has.)
+  return { ...meta, captain: next };
 }
 
 /** Carry a learnt ability into battle, or leave it behind (carried only while a slot is free). */
@@ -219,7 +241,7 @@ export function setCaptainLead(meta: MetaState, id: string | undefined): MetaSta
   return { ...meta, captain: { ...c, lead: id } };
 }
 
-export const emptyMeta = (): MetaState => ({ petals: 0, xp: 0, upgrades: {}, deck: {}, best: 0, runs: 0, v: 2 });
+export const emptyMeta = (): MetaState => ({ petals: 0, xp: 0, upgrades: {}, deck: {}, best: 0, runs: 0, v: 3 });
 
 const flat = (n: number) => () => n;
 const rising = (base: number, step: number) => (level: number) => base + step * level;
@@ -291,9 +313,25 @@ export function migrateMeta(meta: MetaState): MetaState {
   // earned), and the commander stands at least high enough to have the points for every skill already bought.
   if ((meta.v ?? 1) < 2) {
     let spent = 0;
-    for (const u of META_UPGRADES) if (currencyOf(u) === 'points') for (let l = 0; l < (meta.upgrades[u.id] ?? 0); l++) spent += u.cost(l);
-    const xp = Math.max((meta.xp ?? 0) + spent, xpForLevel(pointsSpent(meta) + 1));
+    for (const u of META_UPGRADES) if (u.group !== 'unlock') for (let l = 0; l < (meta.upgrades[u.id] ?? 0); l++) spent += u.cost(l);
+    const xp = Math.max((meta.xp ?? 0) + spent, xpForLevel(treeTiers(meta) + 1));
     meta = { ...meta, xp, v: 2 };
+  }
+  // Skill points to the Captain, petals to the skill tree [direction: hero upgrades bought with skill points, overall
+  // upgrades with petals]: skills already learnt are kept; the petals once spent on the Captain come back, and the
+  // Captain is plain again, to be rebuilt with points.
+  if ((meta.v ?? 1) < 3) {
+    const c = meta.captain;
+    let back = 0;
+    if (c) {
+      const OLD = { attack: [5, 9, 14], stability: [3, 6, 10, 15], cheaper: [8, 16], slots: [6, 12] } as const;
+      const OLD_ABILITY: Record<string, number> = { patch: 3, scout: 4, volley: 5, bulwark: 6, vent: 6, strafe: 8, overdrive: 8, rally: 10, mend: 10 };
+      const OLD_LEAD: Record<string, number> = { steady: 12, iron: 12, salvo: 14, gunnery: 16 };
+      for (const k of ['attack', 'stability', 'cheaper', 'slots'] as const) back += OLD[k].slice(0, c[k] ?? 0).reduce((t, n) => t + n, 0);
+      for (const a of c.abilities ?? []) back += OLD_ABILITY[a] ?? 0;
+      for (const l of c.leads ?? []) back += OLD_LEAD[l] ?? 0;
+    }
+    meta = { ...meta, petals: meta.petals + back, v: 3, ...(c ? { captain: plainCaptain() } : {}) };
   }
   return meta;
 }
@@ -313,7 +351,7 @@ export function buyUpgradeProblem(meta: MetaState, id: string): string | null {
   const missing = (u.requires ?? []).find(([r, n]) => levelOf(meta, r) < n);
   if (missing) return `Needs ${metaUpgrade(missing[0])?.name ?? missing[0]} ${'I'.repeat(missing[1])} first.`;
   const price = priceOf(u, level);
-  if (currencyOf(u) === 'points' ? pointsLeft(meta) < price : meta.petals < price) return `Needs ${price} ${currencyOf(u) === 'points' ? (price === 1 ? 'point' : 'points') : 'petals'}.`;
+  if (meta.petals < price) return `Needs ${price} petals.`;
   return null;
 }
 
@@ -326,9 +364,7 @@ export function buyUpgrade(meta: MetaState, id: string): MetaState {
   if (why) throw new Error(why);
   const level = levelOf(meta, id);
   const u = metaUpgrade(id)!;
-  // (Points are not taken: what is left is worked out from the skills bought.)
-  const paid = currencyOf(u) === 'points' ? {} : { petals: meta.petals - u.cost(level) };
-  return { ...meta, ...paid, upgrades: { ...meta.upgrades, [id]: level + 1 } };
+  return { ...meta, petals: meta.petals - priceOf(u, level), upgrades: { ...meta.upgrades, [id]: level + 1 } };
 }
 
 /** Take back the last level of a skill (a point placed by mistake): its points (or petals) back. */
@@ -336,10 +372,9 @@ export function refundUpgrade(meta: MetaState, id: string): MetaState {
   const level = levelOf(meta, id);
   const u = metaUpgrade(id);
   if (!u || level <= 0) return meta;
-  const back = currencyOf(u) === 'points' ? {} : { petals: meta.petals + u.cost(level - 1) };
   const upgrades = { ...meta.upgrades, [id]: level - 1 };
   if (!upgrades[id]) delete upgrades[id];
-  return { ...meta, ...back, upgrades };
+  return { ...meta, petals: meta.petals + priceOf(u, level - 1), upgrades };
 }
 
 /** The petals it costs to take back every skill point placed, to place them all again. */
@@ -347,17 +382,31 @@ export const SKILL_RESET_PETALS = 5;
 
 /** Why the skill tree can't be reset now (null if it can). */
 export function resetSkillsProblem(meta: MetaState): string | null {
-  if (!pointsSpent(meta)) return 'No skills to reset.';
+  if (!treePetalsSpent(meta)) return 'No skills to reset.';
+  if (meta.petals + treePetalsSpent(meta) < SKILL_RESET_PETALS) return `Needs ${SKILL_RESET_PETALS} petals.`;
+  return null;
+}
+
+/** Every skill on the tree taken back, its petals returned to spend again, less SKILL_RESET_PETALS (unlocks kept). */
+export function resetSkills(meta: MetaState): MetaState {
+  const why = resetSkillsProblem(meta);
+  if (why) throw new Error(why);
+  const upgrades = Object.fromEntries(Object.entries(meta.upgrades).filter(([id]) => metaUpgrade(id)?.group === 'unlock'));
+  return { ...meta, petals: meta.petals + treePetalsSpent(meta) - SKILL_RESET_PETALS, upgrades };
+}
+
+/** Why the Captain can't be reset now (null if they can). */
+export function resetCaptainProblem(meta: MetaState): string | null {
+  if (!captainPointsSpent(meta)) return 'Nothing to reset.';
   if (meta.petals < SKILL_RESET_PETALS) return `Needs ${SKILL_RESET_PETALS} petals.`;
   return null;
 }
 
-/** Every skill on the tree taken back, all its points free to place again, for SKILL_RESET_PETALS (unlocks kept). */
-export function resetSkills(meta: MetaState): MetaState {
-  const why = resetSkillsProblem(meta);
+/** The Captain made plain again, every skill point back to spend, for SKILL_RESET_PETALS. */
+export function resetCaptain(meta: MetaState): MetaState {
+  const why = resetCaptainProblem(meta);
   if (why) throw new Error(why);
-  const upgrades = Object.fromEntries(Object.entries(meta.upgrades).filter(([id]) => { const u = metaUpgrade(id); return !u || currencyOf(u) !== 'points'; }));
-  return { ...meta, petals: meta.petals - SKILL_RESET_PETALS, upgrades };
+  return { ...meta, petals: meta.petals - SKILL_RESET_PETALS, captain: plainCaptain() };
 }
 
 export function raceUnlocked(meta: MetaState, race: number): boolean {

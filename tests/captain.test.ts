@@ -20,6 +20,11 @@ import {
   simulateBattle,
   RIVAL_NODES,
   SLAY_LOOT,
+  pointsLeft,
+  xpForLevel,
+  migrateMeta,
+  resetCaptain,
+  swapPartProblem,
   raceWeight,
   runBonuses,
   setAffinity,
@@ -70,17 +75,18 @@ describe('the Captain', () => {
     expect(d.onTurn).toEqual([{ type: 'cool', amount: 1 }]);
   });
 
-  it('is bought up with petals: stats in order, abilities carried while a slot is free', () => {
-    let meta = { ...emptyMeta(), petals: 100 };
+  it('is bought up with skill points: stats in order, abilities carried while a slot is free', () => {
+    let meta = { ...emptyMeta(), xp: xpForLevel(11) };
+    expect(pointsLeft(meta)).toBe(10);
     meta = buyCaptain(meta, { kind: 'stat', stat: 'attack' });
-    expect(meta.petals).toBe(95);
+    expect(pointsLeft(meta)).toBe(9);
     meta = buyCaptain(meta, { kind: 'ability', id: 'volley' });
     // (One slot, Brace in it: Volley is learnt but left behind until there's room.)
     expect(meta.captain!.equipped).toEqual(['brace']);
     meta = equipCaptainAbility(equipCaptainAbility(meta, 'brace'), 'volley');
     expect(meta.captain!.equipped).toEqual(['volley']);
     expect(cardDef(captainCard(meta)).abilities?.map((a) => a.id)).toEqual(['volley']);
-    expect(captainBuyProblem({ ...meta, petals: 0 }, { kind: 'stat', stat: 'stability' })).toMatch(/petals/);
+    expect(captainBuyProblem({ ...meta, xp: 0 }, { kind: 'stat', stat: 'stability' })).toMatch(/point/);
   });
 
   it("is offered any core race's cards and neutral ones, never a hero", () => {
@@ -159,7 +165,7 @@ describe("Power Struggles on the Captain's runs", () => {
 
 describe('Kinship', () => {
   it("lean the Captain's rewards: a big lean to the favoured race, a smaller one to the second", () => {
-    let meta = { ...emptyMeta(), xp: 9999 };
+    let meta = { ...emptyMeta(), petals: 999 };
     for (let i = 0; i < 5; i++) meta = buyUpgrade(meta, 'kinship');
     meta = setAffinity(setAffinity(meta, 'primary', 2), 'secondary', 0);
     const s = createCampaign({ seed: 3, captain: CAPTAIN, run: runBonuses(meta) });
@@ -231,6 +237,44 @@ describe('the ship and its parts', () => {
     t = applyCampaignAction(t, { type: 'finishBattle', game });
     expect(t.partsFound).toHaveLength(1);
     expect(have).not.toContain(t.partsFound![0]);
+  });
+});
+
+describe('skill points for the Captain, petals for the skill tree', () => {
+  it('brings an older save over: petals spent on the Captain back, the Captain plain, skills kept', () => {
+    const old = { ...emptyMeta(), v: 2, petals: 1, upgrades: { cryo: 2 }, captain: { attack: 1, stability: 0, cheaper: 0, slots: 1, abilities: ['brace', 'volley'], equipped: ['brace', 'volley'], leads: [] } };
+    const now = migrateMeta(old);
+    expect(now.petals).toBe(1 + 5 + 6 + 5);
+    expect(now.captain).toMatchObject({ attack: 0, slots: 0, abilities: ['brace'] });
+    expect(now.upgrades).toEqual({ cryo: 2 });
+    expect(now.v).toBe(3);
+  });
+
+  it("resets the Captain for 5 petals, every skill point back", () => {
+    let meta = { ...emptyMeta(), xp: xpForLevel(6), petals: 7 };
+    meta = buyCaptain(buyCaptain(meta, { kind: 'stat', stat: 'attack' }), { kind: 'ability', id: 'volley' });
+    expect(pointsLeft(meta)).toBe(3);
+    const reset = resetCaptain(meta);
+    expect(pointsLeft(reset)).toBe(5);
+    expect(reset.petals).toBe(2);
+  });
+});
+
+describe('a part swapped at a space station', () => {
+  it('fits a part from the hangar, once per station, and the run fights with it', () => {
+    const meta = fitPart(stowParts(emptyMeta(), ['scrap_plating', 'ceramic_armour']), 'armour', 'scrap_plating');
+    const s = createCampaign({ seed: 5, captain: CAPTAIN, run: runBonuses(meta) });
+    const station = s.nodes.find((n) => n.station?.kind === 'armory')!;
+    const army = myArmy(s);
+    army.nodeId = station.id;
+    const me = s.factions.find((f) => f.id === s.playerId)!;
+    expect(swapPartProblem(s, me, station, 'armour', 'aegis_hull')).toMatch(/hangar/);
+    expect(swapPartProblem(s, me, station, 'port', 'ceramic_armour')).toMatch(/fit/);
+    let t = applyCampaignAction(s, { type: 'swapPart', nodeId: station.id, slot: 'armour', partId: 'ceramic_armour' });
+    expect(t.run!.ship!.fitted.armour).toBe('ceramic_armour');
+    expect(armyBonus(t, myArmy(t)).mods.maxHealthDelta).toBe(4);
+    const st = t.nodes.find((n) => n.id === station.id)!;
+    expect(swapPartProblem(t, t.factions.find((f) => f.id === t.playerId)!, st, 'armour', 'scrap_plating')).toMatch(/One part swap/);
   });
 });
 

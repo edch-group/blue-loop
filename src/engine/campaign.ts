@@ -29,7 +29,7 @@ import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type H
 import { RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, supersededResearch, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
 import { isCaptain } from './captain';
-import { newPart, partRarity, shipPart } from './parts';
+import { newPart, partRarity, partSlots, shipFit, shipPart, type PartSlot } from './parts';
 import { RIFT_JUMPS, RIFT_KINDS, RIFTS, markedId, marksFor, NYX_MARKS, type NyxMark, type RiftKind } from './rifts';
 const NYX_MARK_NAME = (Object.fromEntries(Object.entries(NYX_MARKS).map(([k, v]) => [k, v.name])) as Record<NyxMark, string>);
 import { RELIC_POWERS, SEREN_POWERS } from './relics';
@@ -351,7 +351,7 @@ export interface CampaignNode {
  */
 export type Station =
   /** A space station: its stock, and what has been done there [direction: one buy, one recycle and one fusion per station]. */
-  | { kind: 'armory'; cards: string[]; used?: { buy?: boolean; recycle?: boolean; fuse?: boolean } }
+  | { kind: 'armory'; cards: string[]; used?: { buy?: boolean; recycle?: boolean; fuse?: boolean; part?: boolean } }
   | { kind: 'research'; options: string[]; project?: string; takenBy?: string };
 
 /** A flagship: its rooms (the five card slots and the command room), its shields and its hull. */
@@ -708,7 +708,7 @@ export interface CampaignState {
   /** Aster's gift waiting on the player: three Seren emblems, one to take. */
   emblemChoice?: Relic[];
   /** A Power Struggle waiting to be fought: where, and which of the player's race's heroes has come for their command. */
-  struggle?: { nodeId: string; hero: string };
+  struggle?: { nodeId: string; hero: string; ambush?: boolean };
   /** A rival hero beaten in a Power Struggle (the Captain's runs), waiting on the Captain: recruit them, or slay them. */
   beaten?: { nodeId: string; hero: string };
   /** Heroes slain in this run (the Captain's): they come for no one again. */
@@ -820,6 +820,7 @@ export type CampaignAction =
   /** Face the Power Struggle waiting (the battle begins). */
   | { type: 'struggle' }
   | { type: 'struggleChoice'; recruit: boolean }
+  | { type: 'swapPart'; nodeId: string; slot: PartSlot; partId: string | null }
   /** Drift into the Dream of the Lost waiting (its puzzle begins). */
   | { type: 'dream' };
 
@@ -953,6 +954,28 @@ export function buyProblem(s: CampaignState, f: Faction, n: CampaignNode, index:
   if (!id) return 'That card has been sold.';
   if (n.station.used?.buy) return 'One purchase per station';
   if (f.materials < buyPrice(s, f, id)) return 'Not enough materials';
+  return null;
+}
+
+/** The parts the Captain has to fit on this run: the hangar's as the run began, and those found since. */
+export const runHangar = (s: CampaignState): string[] => [...new Set([...(s.run?.hangar ?? []), ...(s.partsFound ?? [])])];
+
+/**
+ * Why a ship part can't be swapped into a slot at this space station (null if it can) [direction: players gain the
+ * ability to swap out one ship part per space station, which gives real meaning to what they have in their hangar].
+ * `id` null: the slot emptied.
+ */
+export function swapPartProblem(s: CampaignState, f: Faction, n: CampaignNode, slot: PartSlot, id: string | null): string | null {
+  const why = stationProblem(s, f, n);
+  if (why) return why;
+  if (n.station?.kind !== 'armory') return `${n.name} has no space station.`;
+  if (!f.human) return 'No parts to fit.';
+  if (n.station.used?.part) return 'One part swap per station';
+  const now = s.run?.ship?.fitted[slot];
+  if (id === null) return now ? null : 'Nothing fitted there.';
+  if (!runHangar(s).includes(id)) return 'Not in your hangar.';
+  if (!partSlots(id).includes(slot)) return "It doesn't fit there.";
+  if (now === id) return 'Fitted there already.';
   return null;
 }
 
@@ -2740,7 +2763,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     const ambush = f.human ? nextRandom(s) < AMBUSH_CHANCE : flagshipOverheated(s, army) && nextRandom(s) < STRUGGLE_CHANCE;
     if (f.id === s.playerId && !army.lost && !s.prophet && !s.struggle && !s.beaten && ambush) {
       const hero = struggleRival(s, army);
-      if (hero) s.struggle = { nodeId: toId, hero };
+      if (hero) s.struggle = { nodeId: toId, hero, ambush: true };
     }
     dreamHere(s, army);
     return;
@@ -3656,6 +3679,21 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       if (!s.struggle) throw new GameError('No one has come for your command.');
       startStruggle(s);
       break;
+    case 'swapPart': {
+      const n = nodeById(s, action.nodeId);
+      const why = swapPartProblem(s, f, n, action.slot, action.partId);
+      if (why) throw new GameError(why);
+      const fitted = { ...(s.run?.ship?.fitted ?? {}) };
+      if (action.partId === null) delete fitted[action.slot];
+      else {
+        for (const k of Object.keys(fitted) as PartSlot[]) if (fitted[k] === action.partId) delete fitted[k];
+        fitted[action.slot] = action.partId;
+      }
+      s.run = { ...(s.run ?? runBonuses(null)), ship: shipFit(fitted) };
+      if (n.station?.kind === 'armory') n.station.used = { ...n.station.used, part: true };
+      clog(s, action.partId ? `${f.name} fits ${shipPart(action.partId)!.name} at ${n.name}.` : `${f.name} strips a part at ${n.name}.`, n.id, f.id);
+      break;
+    }
     case 'struggleChoice': {
       if (!s.beaten) throw new GameError('There is no one to decide on.');
       const before = lootMark(s);

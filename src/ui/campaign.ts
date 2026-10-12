@@ -30,7 +30,6 @@ import {
   resetSkills,
   resetSkillsProblem,
   SKILL_RESET_PETALS,
-  pointsSpent,
   buyUpgradeProblem,
   levelFor,
   pointCost,
@@ -85,6 +84,11 @@ import {
   SLAY_LOOT,
 
   captainCard,
+  runHangar,
+  captainPointsSpent,
+  resetCaptain,
+  resetCaptainProblem,
+  treePetalsSpent,
   captainBuild,
   fitPart,
   partSlots,
@@ -195,6 +199,9 @@ const XP_MARK =
   '<svg class="cur cur-xp" viewBox="0 0 20 20" aria-label="experience"><path d="M4.6 10.2 10 5l5.4 5.2M4.6 15.2 10 10l5.4 5.2" fill="none" stroke="#b8953f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** A Stellari petal: what a wormhole gives, banked for every run after. Symmetrical both ways: a pale blue almond. */
+/** How long a Power Struggle's rival takes to come alongside, before its screen opens. */
+const STRUGGLE_ARRIVE_MS = 1600;
+
 /** The ship: a hull from above, nose to the right (the setup page's ship tab). */
 const SHIP_ICON =
   '<svg class="cur cur-ship" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10c0-1.6 1.6-2.6 3.6-2.7L13 7c2.4 0 4 1.3 4.6 3-.6 1.7-2.2 3-4.6 3l-6.9-.3C4.1 12.6 2.5 11.6 2.5 10Z" fill="#dfe8f6" stroke="#6b7590" stroke-width=".9" stroke-linejoin="round"/><path d="M7 7.2 9.5 4.5h2L10.4 7M7 12.8l2.5 2.7h2l-1.1-2.5" fill="none" stroke="#6b7590" stroke-width=".9" stroke-linejoin="round"/><circle cx="12.6" cy="10" r="1.2" fill="#6b7590"/></svg>';
@@ -371,7 +378,7 @@ export interface CampaignHost {
   zoom(id: string): void;
 }
 
-type ArmoryTab = 'buy' | 'recycle' | 'fuse';
+type ArmoryTab = 'buy' | 'recycle' | 'fuse' | 'ship';
 
 type Sheet =
   /** An armoury on the map, the flagship visiting: buying its stock, recycling or fusing; the card picked (or, fusing, the two). */
@@ -424,6 +431,9 @@ export class CampaignView {
   private hangarPick: string | null = null;
   /** The move under way is a warp-drive jump (the Captain's ship warps; otherwise it flies). */
   private warpMove = false;
+  /** The struggle whose rival is coming alongside, and since when (its screen waits for the ship). */
+  private struggleSeen: string | null = null;
+  private struggleAt = 0;
   /** The lasting upgrade picked in the shop, shown in the flower's heart. */
   /**
    * Skill points placed on the tree this visit [direction: a tap assigns a point at once; undo and clear, by the back
@@ -432,6 +442,8 @@ export class CampaignView {
   private upPlaced: string[] = [];
   /** The reset tapped once: a second tap pays and resets. */
   private upResetArmed = false;
+  /** The hero panel's reset tapped once. */
+  private capResetArmed = false;
   /** The skill a point was just placed on (its new ring segment draws itself in). */
   private upJust: string | null = null;
   /**
@@ -858,6 +870,7 @@ export class CampaignView {
     const s = this.state;
     const n = () => Number(arg);
     if (act !== 'cmp-up-reset') this.upResetArmed = false;
+    if (act !== 'cmp-cap-reset') this.capResetArmed = false;
     switch (act) {
       case 'cmp-rivals':
         this.setup.rivals = n();
@@ -999,6 +1012,27 @@ export class CampaignView {
         sound.hover();
         break;
       }
+      case 'cmp-cap-reset': {
+        // The Captain plain again, every skill point back (tapped twice: once to arm it, once to pay).
+        const meta = loadMeta();
+        const why = resetCaptainProblem(meta);
+        if (why) {
+          this.capResetArmed = false;
+          this.host.toast(why);
+          sound.error();
+          break;
+        }
+        if (!this.capResetArmed) {
+          this.capResetArmed = true;
+          sound.hover();
+          break;
+        }
+        this.capResetArmed = false;
+        this.capPick = null;
+        saveMeta(resetCaptain(meta));
+        sound.upgrade();
+        break;
+      }
       case 'cmp-cap-equip':
         saveMeta(equipCaptainAbility(loadMeta(), arg));
         sound.hover();
@@ -1136,11 +1170,22 @@ export class CampaignView {
         break;
       }
       case 'cmp-armory-tab':
-        if (this.sheet?.kind === 'armory' && (arg === 'buy' || arg === 'recycle' || arg === 'fuse')) {
+        if (this.sheet?.kind === 'armory' && (arg === 'buy' || arg === 'recycle' || arg === 'fuse' || arg === 'ship')) {
           this.sheet = { kind: 'armory', nodeId: this.sheet.nodeId, tab: arg };
           this.keeperVisit++;
         }
         break;
+      case 'cmp-ar-slot': {
+        // A part in hand, fitted in this slot (one swap per station); the run's fit kept as the hangar's too.
+        if (this.sheet?.kind !== 'armory' || !this.sheet.pick || !s) break;
+        const nodeId = this.sheet.nodeId;
+        if (this.apply({ type: 'swapPart', nodeId, slot: arg as PartSlot, partId: this.sheet.pick })) {
+          saveMeta({ ...loadMeta(), fitted: { ...(this.state?.run?.ship?.fitted ?? {}) } });
+          sound.upgrade();
+          this.sheet = { ...this.sheet, pick: undefined };
+        }
+        break;
+      }
       case 'cmp-buy': {
         if (this.sheet?.kind !== 'armory') break;
         const nodeId = this.sheet.nodeId;
@@ -1485,8 +1530,8 @@ export class CampaignView {
           <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
           <h2 class="menu-heading">a dying universe</h2>
           <div class="cs-purses">
-            <button class="cs-petals" data-act="cmp-hero">${PETAL}<b>${meta.petals}</b><span>petals</span></button>
-            <button class="cs-petals cs-xp" data-act="cmp-shop">${XP_MARK}<b>${pointsLeft(meta)}</b><span>skill points</span></button>
+            <button class="cs-petals" data-act="cmp-shop">${PETAL}<b>${meta.petals}</b><span>petals</span></button>
+            <button class="cs-petals cs-xp" data-act="cmp-hero">${XP_MARK}<b>${pointsLeft(meta)}</b><span>skill points</span></button>
           </div>
         </header>
         <div class="cs-body cs-captain-body">
@@ -1495,9 +1540,9 @@ export class CampaignView {
             <h3>the captain</h3>
             <p>No name. No race. A battered hulk and a hold of salvage.</p>
             <div class="cs-tabs">
-              ${tile('cmp-hero', 'hero', 'spend petals', PETAL)}
+              ${tile('cmp-hero', 'hero', 'spend skill points', XP_MARK)}
               ${tile('cmp-hangar', 'ship', 'fit parts', SHIP_ICON)}
-              ${tile('cmp-shop', 'skills', 'spend skill points', XP_MARK)}
+              ${tile('cmp-shop', 'skills', 'spend petals', PETAL)}
             </div>
           </section>
         </div>
@@ -1539,8 +1584,11 @@ export class CampaignView {
     return `
       <div class="up-shop hero-panel">
         <header class="up-head up-head-tree">
-          <div class="up-left"><button class="up-back" data-act="cmp-hero" aria-label="Back">‹ back</button></div>
-          <div class="up-title-big"><h3>the captain</h3><span class="up-xp">${PETAL}<b>${meta.petals}</b><small>petals</small></span></div>
+          <div class="up-left">
+            <button class="up-back" data-act="cmp-hero" aria-label="Back">‹ back</button>
+            ${captainPointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.capResetArmed ? 'armed' : ''}" data-act="cmp-cap-reset">${this.capResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}
+          </div>
+          <div class="up-title-big"><h3>the captain</h3><span class="up-xp">${XP_MARK}<b>${pointsLeft(meta)}</b><small>skill point${pointsLeft(meta) === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small></span></div>
           <span></span>
         </header>
         <div class="hp-body">
@@ -1607,6 +1655,45 @@ export class CampaignView {
       </div>`;
   }
 
+  /**
+   * A space station's ship tab (the Captain's runs) [direction: one ship part swapped per space station, giving real
+   * meaning to the hangar]: the ship's schematic as fitted for the run, and every part in the hangar beside it; pick a
+   * part, then its slot.
+   */
+  private renderStationShip(sh: Extract<Sheet, { kind: 'armory' }>, n: CampaignNode, repair: string, tabs: string, materials: number): string {
+    const s = this.state!;
+    const fitted = s.run?.ship?.fitted ?? {};
+    const have = runHangar(s);
+    const used = n.station?.kind === 'armory' && !!n.station.used?.part;
+    const pick = !used && sh.pick && have.includes(sh.pick) ? sh.pick : null;
+    const fits = pick ? partSlots(pick) : [];
+    const on = new Set(Object.values(fitted));
+    const tiles = SHIP_PARTS.filter((p) => have.includes(p.id))
+      .map((p) => `<button class="hg-part rarity-${p.rarity} ${pick === p.id ? 'on' : ''} ${on.has(p.id) ? 'fitted' : ''}" data-act="cmp-ar-pick" data-arg="${p.id}" ${used ? 'disabled' : ''} aria-label="${esc(p.name)}">${partShape(p.id)}<b>${esc(p.name.toLowerCase())}</b>${on.has(p.id) ? '<small>fitted</small>' : ''}</button>`)
+      .join('');
+    const p = shipPart(pick ?? undefined);
+    const action = used
+      ? '<p class="ar-hint">refitted here · one part per station</p>'
+      : p
+        ? `<p class="ar-hint">${esc(p.text)} · tap its slot</p>`
+        : `<p class="ar-hint">${have.length ? 'swap one part · pick it, then its slot' : 'no parts in your hangar yet'}</p>`;
+    return `
+      <div class="ar">
+        <button class="ar-back" data-act="cmp-close" aria-label="Back to the map">‹ map</button>
+        <div class="ar-purse">${repair}<span title="Materials">${MATERIALS}<b>${materials}</b></span></div>
+        <header class="ar-head">
+          <small>space station</small>
+          <h3>${esc(lower(n.name))}</h3>
+          <nav class="ar-tabs">${tabs}</nav>
+        </header>
+        <div class="ar-ship">
+          <div class="hg-ship">${schematic(fitted, pick, fits, 'cmp-ar-slot')}</div>
+          <div class="hg-parts">${tiles || '<p class="hg-none">No parts yet.</p>'}</div>
+        </div>
+        <div class="ar-act">${action}</div>
+      </div>`;
+  }
+
   /** The picked node of the hero panel: what it gives, and buying it (or carrying it, or leading with it). */
   private renderCapDetail(meta: MetaState): string {
     const key = this.capPick;
@@ -1617,7 +1704,7 @@ export class CampaignView {
       const price = captainPrice(meta, buy);
       if (price === null) return '';
       const why = captainBuyProblem(meta, buy);
-      return `<button class="btn-primary hp-buy" data-act="cmp-cap-buy" data-arg="${esc(key)}" ${why ? 'disabled' : ''}>${label} · ${PETAL}${price}</button>`;
+      return `<button class="btn-primary hp-buy" data-act="cmp-cap-buy" data-arg="${esc(key)}" ${why ? 'disabled' : ''}>${label} · ${XP_MARK}${price}</button>`;
     };
     let title = '', text = '', act = '';
     if (kind === 'stat') {
@@ -1785,7 +1872,7 @@ export class CampaignView {
         // current value, next value].)
         // (Not yet learnt: what its first point gives, with no "next" line.)
         const vals = look ? look.say(Math.max(level, 1)) : u.text;
-        const price = maxed ? '' : `${pointCost(u)} point${pointCost(u) === 1 ? '' : 's'}`;
+        const price = maxed ? '' : `${pointCost(u)} petals`;
         const next = [look && level > 0 && !maxed ? `Next: ${look.value(level + 1)}` : '', price].filter(Boolean).join(' · ');
         const term = this.upSearch.trim().toLowerCase();
         const hit = !!term && `${u.name} ${vals}`.toLowerCase().includes(term);
@@ -1802,11 +1889,11 @@ export class CampaignView {
           <div class="up-left">
             <button class="up-back" data-act="cmp-shop" aria-label="Back">‹ back</button>
             ${this.upPlaced.length ? '<button class="up-plan-undo" data-act="cmp-up-undo">undo</button><button class="up-plan-undo" data-act="cmp-up-clear">clear</button>' : ''}
-            ${pointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.upResetArmed ? 'armed' : ''}" data-act="cmp-up-reset" ${resetSkillsProblem(meta) ? `data-tip="${esc(resetSkillsProblem(meta)!)}"` : ''}>${this.upResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}
+            ${treePetalsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.upResetArmed ? 'armed' : ''}" data-act="cmp-up-reset" ${resetSkillsProblem(meta) ? `data-tip="${esc(resetSkillsProblem(meta)!)}"` : ''}>${this.upResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}
           </div>
           <div class="up-title-big">
             <h3>skills</h3>
-            <span class="up-xp">${XP_MARK}<b>${pointsLeft(meta)}</b><small>skill point${pointsLeft(meta) === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small></span>
+            <span class="up-xp">${PETAL}<b>${meta.petals}</b><small>petals</small></span>
           </div>
           <label class="up-search" aria-label="Search the skills">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM15.5 15.5l5 5"/></svg>
@@ -2410,6 +2497,17 @@ export class CampaignView {
         const captain = a.id === mine?.id && campaignPlayer(s).human ? this.captainSpec(a.general) : undefined;
         return { id: a.id, x: adv ? x + (adv[0] - x) * k : x, z: adv ? z + (adv[1] - z) * k : z, y: y0 + (y1 - y0) * k, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race, arrive, ...(captain ? { captain, fly: !this.warpMove } : {}) };
       });
+    // A Power Struggle: the rival's ship comes alongside the flagship [direction: when a power struggle happens, that
+    // race's ship should appear on the map], drifting over from where it waited, or (an ambush) flying in from the
+    // dark; it stays until the Captain has decided the rival's fate.
+    const rival = s.struggle ?? s.beaten;
+    if (rival && mine && this.seenNow.has(rival.nodeId)) {
+      const [x, z] = at.get(rival.nodeId)!;
+      const race = cardDef(rival.hero).race ?? 0;
+      const y = lift.get(rival.nodeId) ?? 0;
+      const from: [number, number] = s.struggle?.ambush ? [x + 1.4, z - 0.9] : [x, z];
+      ships.push({ id: `rival:${rival.hero}`, x: x + 0.2, z: z - 0.15, y, colour: hex(FACTION_COLOUR[`f${race + 1}`] ?? NEUTRAL), race, arrive: { from, dur: 1.4 } });
+    }
     this.nebula.setShips(ships);
     if (this.cine === 'start') {
       if (mine) this.nebula.ride(mine.id);
@@ -2827,6 +2925,13 @@ export class CampaignView {
     }
     // A Power Struggle: a hero of your own race, come for your command while your sun runs overheated.
     if (s.struggle && !s.battle) {
+      // (A moment first, for the rival's ship to come alongside on the map.)
+      if (this.struggleSeen !== s.struggle.hero) {
+        this.struggleSeen = s.struggle.hero;
+        this.struggleAt = performance.now();
+        window.setTimeout(() => this.host.render(), STRUGGLE_ARRIVE_MS + 50);
+      }
+      if (performance.now() - this.struggleAt < STRUGGLE_ARRIVE_MS && canNebula() && !reducedMotion()) return '';
       const hero = s.struggle.hero;
       const human = !!campaignPlayer(s).human;
       return `<div class="overlay overlay-soft struggle">
@@ -3055,7 +3160,7 @@ export class CampaignView {
     const used = n.station?.kind === 'armory' ? n.station.used ?? {} : {};
     const picks = sh.fuse ?? [];
     const repair = ship && ship.damage > 0 ? `<span class="ar-repair"><small>sun ✸${ship.damage}</small>${this.repairButtons('cmp-heal-army', ship.id, ship.damage, CAMPAIGN.armyHealCost, '')}</span>` : '';
-    const tabs = (['buy', 'recycle', 'fuse'] as const).map((t) => `<button class="${t === tab ? 'on' : ''}" data-act="cmp-armory-tab" data-arg="${t}">${t}</button>`).join('');
+    const tabs = (me.human ? (['buy', 'recycle', 'fuse', 'ship'] as const) : (['buy', 'recycle', 'fuse'] as const)).map((t) => `<button class="${t === tab ? 'on' : ''}" data-act="cmp-armory-tab" data-arg="${t}">${t}</button>`).join('');
     // The cards, each with what it costs, fetches or how many are kept.
     const cards = list
       .map((id, i) => {
@@ -3071,6 +3176,7 @@ export class CampaignView {
         return `<button class="ar-card ${picked ? 'picked' : ''}" ${act} style="--i:${i};--r:${(((i * 37) % 7) - 3) * 0.5}deg">${cardHtml(id)}${tag}</button>`;
       })
       .join('');
+    if (tab === 'ship') return this.renderStationShip(sh, n, repair, tabs, me.materials);
     const empty = tab === 'buy' ? 'sold out' : 'nothing in your deck';
     // The one action, beneath the row (once each here: a buy, a recycle, a fusion).
     let action = '';

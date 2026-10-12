@@ -34,7 +34,7 @@ export const CAPTAIN_BASE = { cost: 2, stability: 3, attack: 0 };
 export const CAPTAIN_STABILITY_STEP = 2;
 export const CAPTAIN_START_ABILITY = 'brace';
 
-/** An ability the Captain can learn: its card text, effects and cost to use, and its price in petals. */
+/** An ability the Captain can learn: its card text, effects and cost to use, and its price in skill points. */
 export interface CaptainAbility {
   id: string;
   price: number;
@@ -46,20 +46,20 @@ const ab = (id: string, price: number, name: string, text: string, effects: Effe
 /** Everything the Captain can learn, cheapest first. */
 export const CAPTAIN_ABILITIES: CaptainAbility[] = [
   ab('brace', 0, 'Brace', '{shield:1}.', [{ type: 'shield', amount: 1 }]),
-  ab('patch', 3, 'Patch Up', '{cool:1}.', [{ type: 'cool', amount: 1 }]),
-  ab('scout', 4, 'Scout', 'Draw 1.', [{ type: 'draw', amount: 1 }], { stability: 1 }),
-  ab('volley', 5, 'Volley', '{heat:2}.', [{ type: 'heat', amount: 2, to: 'target' }]),
-  ab('bulwark', 6, 'Bulwark', '{shield:3}.', [{ type: 'shield', amount: 3 }]),
-  ab('vent', 6, 'Vent', '{cool:2}.', [{ type: 'cool', amount: 2 }]),
-  ab('strafe', 8, 'Strafe', '{heat:3}.', [{ type: 'heat', amount: 3, to: 'target' }], { selfHeat: 2 }),
-  ab('overdrive', 8, 'Overdrive', '{energy:1}.', [{ type: 'plays', amount: 1 }], { stability: 1 }),
-  ab('rally', 10, 'Rally', '{chosen}: +2 attack to a card.', [{ type: 'empower', amount: 2 }]),
-  ab('mend', 10, 'Mend', '{renew:1}.', [{ type: 'restore', amount: 1, all: true }]),
+  ab('patch', 1, 'Patch Up', '{cool:1}.', [{ type: 'cool', amount: 1 }]),
+  ab('scout', 1, 'Scout', 'Draw 1.', [{ type: 'draw', amount: 1 }], { stability: 1 }),
+  ab('volley', 1, 'Volley', '{heat:2}.', [{ type: 'heat', amount: 2, to: 'target' }]),
+  ab('bulwark', 2, 'Bulwark', '{shield:3}.', [{ type: 'shield', amount: 3 }]),
+  ab('vent', 2, 'Vent', '{cool:2}.', [{ type: 'cool', amount: 2 }]),
+  ab('strafe', 2, 'Strafe', '{heat:3}.', [{ type: 'heat', amount: 3, to: 'target' }], { selfHeat: 2 }),
+  ab('overdrive', 2, 'Overdrive', '{energy:1}.', [{ type: 'plays', amount: 1 }], { stability: 1 }),
+  ab('rally', 3, 'Rally', '{chosen}: +2 attack to a card.', [{ type: 'empower', amount: 2 }]),
+  ab('mend', 3, 'Mend', '{renew:1}.', [{ type: 'restore', amount: 1, all: true }]),
 ];
 export const captainAbility = (id: string) => CAPTAIN_ABILITIES.find((a) => a.id === id);
 
 /** Ability slots: one to start, more bought (their prices). */
-export const CAPTAIN_SLOT_PRICES = [6, 12];
+export const CAPTAIN_SLOT_PRICES = [2, 3];
 export const captainSlots = (bought: number) => 1 + Math.min(bought, CAPTAIN_SLOT_PRICES.length);
 
 /** How the Captain can lead (one at a time): a lasting effect while it is in play. */
@@ -71,18 +71,18 @@ export interface CaptainLead {
   def: Pick<CardDef, 'onTurn' | 'onPlay' | 'passive'>;
 }
 export const CAPTAIN_LEADS: CaptainLead[] = [
-  { id: 'steady', name: 'Steady Hand', price: 12, text: '{dawn}: {cool:1}.', def: { onTurn: [{ type: 'cool', amount: 1 }] } },
-  { id: 'iron', name: 'Iron Will', price: 12, text: '{dawn}: {shield:1}.', def: { onTurn: [{ type: 'shield', amount: 1 }] } },
-  { id: 'salvo', name: 'Opening Salvo', price: 14, text: '{heat:3}.', def: { onPlay: [{ type: 'heat', amount: 3, to: 'target' }] } },
-  { id: 'gunnery', name: 'Gunnery Drill', price: 16, text: 'Your attack cards {heat:+1}.', def: { passive: [{ type: 'kindBonus', kind: 'attack', amount: 1 }] } },
+  { id: 'steady', name: 'Steady Hand', price: 3, text: '{dawn}: {cool:1}.', def: { onTurn: [{ type: 'cool', amount: 1 }] } },
+  { id: 'iron', name: 'Iron Will', price: 3, text: '{dawn}: {shield:1}.', def: { onTurn: [{ type: 'shield', amount: 1 }] } },
+  { id: 'salvo', name: 'Opening Salvo', price: 3, text: '{heat:3}.', def: { onPlay: [{ type: 'heat', amount: 3, to: 'target' }] } },
+  { id: 'gunnery', name: 'Gunnery Drill', price: 4, text: 'Your attack cards {heat:+1}.', def: { passive: [{ type: 'kindBonus', kind: 'attack', amount: 1 }] } },
 ];
 export const captainLead = (id: string | undefined) => CAPTAIN_LEADS.find((l) => l.id === id);
 
-/** Stat upgrades: the price of each level, in petals (their count is the most). */
+/** Stat upgrades: the price of each level, in skill points (their count is the most). */
 export const CAPTAIN_STAT_PRICES = {
-  attack: [5, 9, 14],
-  stability: [3, 6, 10, 15],
-  cheaper: [8, 16],
+  attack: [1, 2, 3],
+  stability: [1, 1, 2, 2],
+  cheaper: [2, 3],
 } as const;
 export type CaptainStat = keyof typeof CAPTAIN_STAT_PRICES;
 

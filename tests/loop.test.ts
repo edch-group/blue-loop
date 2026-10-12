@@ -23,6 +23,7 @@ import {
   armyBonus,
   migrateMeta,
   refundUpgrade,
+  TREE_PETALS,
   resetSkills,
   resetSkillsProblem,
   SKILL_RESET_PETALS,
@@ -97,7 +98,7 @@ describe('the strip', () => {
   });
 
   it('starts the flagship with ten cards, and the bought upgrades on top', () => {
-    let meta = { ...emptyMeta(), xp: 999, petals: 20 };
+    let meta = { ...emptyMeta(), xp: 999, petals: 999 };
     // (Requisition needs Stockpile II: Stockpile is bought twice.)
     for (const id of ['materials', 'materials', 'cards', 'pick', 'grace', 'heirloom']) meta = buyUpgrade(meta, id);
     // A card bought into the race's starting deck with petals.
@@ -119,7 +120,7 @@ describe('the strip', () => {
 
 describe('the skill tree', () => {
   it("brings the branches' skills to the flagship: its battles, finds and rewards", () => {
-    let meta = { ...emptyMeta(), xp: 9999 };
+    let meta = { ...emptyMeta(), xp: 9999, petals: 9999 };
     for (const id of ['cryo', 'cryo', 'plating', 'abundance', 'scouts', 'scouts', 'plunder', 'choice', 'study', 'study', 'petals', 'tithe', 'legacy', 'grace', 'grace', 'armory', 'hoard', 'stock']) meta = buyUpgrade(meta, id);
     const run = runBonuses(meta, 1);
     expect(run.mods).toMatchObject({ startingHeat: -2, maxHealthDelta: 2, abundantDraw: 1 });
@@ -141,13 +142,13 @@ describe('the reworked skill tree', () => {
   });
 
   it('Aligned worlds: every planet gives more again', () => {
-    let meta = { ...emptyMeta(), xp: 9999 };
+    let meta = { ...emptyMeta(), xp: 9999, petals: 9999 };
     for (const id of ['abundance', 'abundance', 'foundry', 'coldworld', 'aligned']) meta = buyUpgrade(meta, id);
     expect(runBonuses(meta).mods).toMatchObject({ abundantDraw: 3, industrialPlays: 2, deadCool: 4 });
   });
 
   it('Quartermaster: every armoury stocks 3 more cards', () => {
-    let meta = { ...emptyMeta(), xp: 9999 };
+    let meta = { ...emptyMeta(), xp: 9999, petals: 9999 };
     for (const id of ['grace', 'grace', 'armory', 'hoard', 'stock']) meta = buyUpgrade(meta, id);
     const s = createCampaign({ seed: 11, race: 1, run: runBonuses(meta, 1) });
     const shop = (x: typeof s) => x.nodes.flatMap((n) => (n.station?.kind === 'armory' ? [n.station.cards.length] : []))[0];
@@ -155,35 +156,32 @@ describe('the reworked skill tree', () => {
   });
 });
 
-describe('a point taken back', () => {
-  it('gives the point back', () => {
-    let meta = { ...emptyMeta(), xp: 100 };
-    const points = pointsLeft(meta);
+describe('a skill taken back', () => {
+  it('gives its petals back', () => {
+    let meta = { ...emptyMeta(), xp: 100, petals: 20 };
     meta = buyUpgrade(buyUpgrade(meta, 'cryo'), 'cryo');
-    expect(pointsLeft(meta)).toBe(points - 2);
+    expect(meta.petals).toBe(20 - 2 * TREE_PETALS[1]);
     const after = refundUpgrade(meta, 'cryo');
     expect(after.upgrades.cryo).toBe(1);
-    expect(pointsLeft(after)).toBe(points - 1);
-    expect(refundUpgrade(after, 'cryo')).toMatchObject({ xp: 100, upgrades: {} });
+    expect(after.petals).toBe(20 - TREE_PETALS[1]);
+    expect(refundUpgrade(after, 'cryo')).toMatchObject({ xp: 100, petals: 20, upgrades: {} });
   });
 });
 
 describe('the skill tree reset', () => {
-  it('takes back every skill point for 5 petals, keeping unlocks and experience', () => {
-    let meta = { ...emptyMeta(), xp: 999, petals: 20 };
-    const points = pointsLeft(meta);
+  it("gives back every skill's petals, less 5, keeping unlocks and experience", () => {
+    let meta = { ...emptyMeta(), xp: 999, petals: 30 };
     meta = buyUpgrade(buyUpgrade(buyUpgrade(meta, 'cryo'), 'cryo'), 'race:4');
     const reset = resetSkills(meta);
     expect(SKILL_RESET_PETALS).toBe(5);
-    expect(reset.petals).toBe(meta.petals - 5);
+    expect(reset.petals).toBe(meta.petals + 2 * TREE_PETALS[1] - 5);
     expect(reset.upgrades).toEqual({ 'race:4': 1 });
     expect(reset.xp).toBe(999);
-    expect(pointsLeft(reset)).toBe(points);
   });
-  it('needs the petals, and a skill to reset', () => {
-    expect(resetSkillsProblem({ ...emptyMeta(), xp: 999, petals: 20 })).toBeTruthy();
-    expect(resetSkillsProblem(buyUpgrade({ ...emptyMeta(), xp: 999, petals: 4 }, 'cryo'))).toBeTruthy();
-    expect(resetSkillsProblem(buyUpgrade({ ...emptyMeta(), xp: 999, petals: 5 }, 'cryo'))).toBeNull();
+  it('needs a skill to reset, and 5 petals in all', () => {
+    expect(resetSkillsProblem({ ...emptyMeta(), petals: 20 })).toBeTruthy();
+    expect(resetSkillsProblem(buyUpgrade({ ...emptyMeta(), petals: 3 }, 'cryo'))).toBeTruthy();
+    expect(resetSkillsProblem(buyUpgrade({ ...emptyMeta(), petals: 5 }, 'cryo'))).toBeNull();
   });
 });
 
@@ -198,7 +196,7 @@ describe('commander levels', () => {
   it('brings an older save over: the XP it spent counts again, and it keeps every skill it bought', () => {
     const old = { ...emptyMeta(), v: 1, xp: 10, upgrades: { cryo: 2, plating: 1 } };
     const now = migrateMeta(old);
-    expect(now.v).toBe(2);
+    expect(now.v).toBe(3);
     // (Cryo 20 + 35, Stellar plating 45: spent, and earned all the same.)
     expect(now.xp).toBeGreaterThanOrEqual(10 + 20 + 35 + 45);
     expect(pointsLeft(now)).toBeGreaterThanOrEqual(0);
@@ -379,13 +377,13 @@ describe('progress between runs', () => {
     meta = buyUpgrade(meta, 'race:5');
     expect(raceUnlocked(meta, 5)).toBe(true);
     expect(meta.petals).toBe(2);
-    // The skill tree costs points (a level's worth each), and each tier needs the one below it.
-    expect(buyUpgradeProblem(meta, 'materials')).toMatch(/point/);
-    expect(buyUpgradeProblem({ ...meta, xp: 999 }, 'bastion')).toMatch(/first/);
-    let rich = { ...meta, xp: 999 };
+    // The skill tree costs petals (by tier), and each tier needs the one below it.
+    expect(buyUpgradeProblem(meta, 'materials')).toMatch(/petals/);
+    expect(buyUpgradeProblem({ ...meta, petals: 999 }, 'bastion')).toMatch(/first/);
+    let rich = { ...meta, petals: 999 };
     for (const id of ['walls', 'walls', 'shields', 'bastion']) rich = buyUpgrade(rich, id);
     expect(levelOf(rich, 'bastion')).toBe(1);
-    expect(rich.petals).toBe(2);
+    expect(rich.petals).toBe(999 - 2 * TREE_PETALS[1] - 2 * TREE_PETALS[2]);
     expect(buyUpgradeProblem(rich, 'bastion')).toMatch(/most/);
     // Bastion: the Guards stand thicker in every battle.
     expect(runBonuses(rich).mods?.guardDefence).toBe(2);

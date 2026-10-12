@@ -7314,3 +7314,8 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   .hg-body { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px; }
   .hg-part .part-shape { height: 34px; }
 }
+
+/* A space station's ship tab (the Captain's runs): one part swapped here. */
+.ar-ship { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: clamp(10px, 2.4vw, 24px); align-items: center; width: min(1000px, 100%); justify-self: center; padding: 4px; }
+.ar-ship .hg-schematic { max-height: calc(100 * var(--vh) - 230px); }
+.hg-part:disabled { opacity: 0.55; cursor: default; }

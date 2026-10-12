@@ -62,14 +62,14 @@ export function partShape(id: string): string {
  * The schematic: the hull in blueprint lines, every slot outlined (dashed while empty, filled with its part when
  * fitted), each a button. `picked`: the part in hand, its slots lit to show where it goes.
  */
-export function schematic(fitted: Partial<Record<PartSlot, string>>, picked: string | null, fits: PartSlot[]): string {
+export function schematic(fitted: Partial<Record<PartSlot, string>>, picked: string | null, fits: PartSlot[], act = 'cmp-slot'): string {
   const grid = Array.from({ length: 9 }, (_, i) => `<path d="M${i * 50} 0V240" />`).join('') + Array.from({ length: 6 }, (_, i) => `<path d="M0 ${i * 48}H400" />`).join('');
   const slots = SHIP_SLOTS.map((sl) => {
     const p = shipPart(fitted[sl.id]);
     const [fill, line] = p ? RARITY_INK[p.rarity] : ['transparent', '#8ea6c8'];
     // (Lit where the part in hand could go: not where it already is.)
     const lit = picked && fits.includes(sl.id) && fitted[sl.id] !== picked;
-    return `<g class="hg-slot ${p ? 'hg-fitted' : 'hg-empty'} ${lit ? 'hg-lit' : ''}" data-act="cmp-slot" data-arg="${sl.id}" role="button" aria-label="${sl.name}${p ? `: ${p.name}` : ''}">
+    return `<g class="hg-slot ${p ? 'hg-fitted' : 'hg-empty'} ${lit ? 'hg-lit' : ''}" data-act="${act}" data-arg="${sl.id}" role="button" aria-label="${sl.name}${p ? `: ${p.name}` : ''}">
       <path d="${SLOT_SHAPE[sl.id]}" fill="${fill}" stroke="${line}" stroke-width="${p ? 1.6 : 1.2}" ${p ? '' : 'stroke-dasharray="4 3"'} stroke-linejoin="round" fill-rule="evenodd"/>
     </g>`;
   }).join('');
