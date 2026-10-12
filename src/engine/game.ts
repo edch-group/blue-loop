@@ -35,6 +35,50 @@ function log(state: GameState, text: string) {
   if (state.log.length > BALANCE.maxLogEntries) state.log.splice(0, state.log.length - BALANCE.maxLogEntries);
 }
 
+/**
+ * A dawn's or a dusk's effects, summed into one line [direction: dawn/dusk heat and cooling, and each other action
+ * that doesn't target an enemy card, one summed line; little value in them broken down]: while a player's dawn or
+ * dusk resolves, heat on the suns, cooling, shields raised and defence repaired are added up here rather than logged
+ * one by one, and written as one line once it is done (or before a sun goes supernova, so the log keeps its order).
+ * What strikes a card is still told as it happens.
+ */
+interface Tally {
+  phase: 'dawn' | 'dusk';
+  owner: PlayerState;
+  suns: Map<string, { name: string; applied: number; blocked: number; cooled: number; to: number }>;
+  shields: number;
+  repaired: number;
+}
+let tally: Tally | null = null;
+const tallySun = (p: PlayerState) => {
+  const t = tally!;
+  let at = t.suns.get(p.id);
+  if (!at) t.suns.set(p.id, (at = { name: p.name, applied: 0, blocked: 0, cooled: 0, to: p.heat }));
+  return at;
+};
+function beginTally(state: GameState, phase: Tally['phase'], owner: PlayerState) {
+  if (tally) flushTally(state);
+  tally = { phase, owner, suns: new Map(), shields: 0, repaired: 0 };
+}
+function flushTally(state: GameState) {
+  const t = tally;
+  tally = null;
+  if (!t) return;
+  const parts: string[] = [];
+  // (The rival's sun first, then the owner's own.)
+  const order = [...t.suns.entries()].sort(([a], [b]) => (a === t.owner.id ? 1 : 0) - (b === t.owner.id ? 1 : 0));
+  for (const [id, x] of order) {
+    const own = id === t.owner.id;
+    const whose = own ? 'own sun' : `${x.name}'s sun`;
+    const net = x.applied - x.cooled;
+    if (x.applied || x.cooled) parts.push(`${whose} ${net >= 0 ? '+' : '−'}${Math.abs(net)} → ${x.to}${x.blocked ? ` (${x.blocked} into shields)` : ''}`);
+    else if (x.blocked) parts.push(`${x.blocked} into ${x.name}'s shields`);
+  }
+  if (t.shields) parts.push(`+${t.shields} shield${t.shields === 1 ? '' : 's'}`);
+  if (t.repaired) parts.push(`repair ${t.repaired}`);
+  if (parts.length) log(state, `${t.owner.name}'s ${t.phase}: ${parts.join(' · ')}.`);
+}
+
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
@@ -1087,10 +1131,16 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   if (enemy) source.turn.heatDealt += amount;
   const byCard = cardUid && source ? cardIn(source, cardUid) : undefined;
   const from = why ?? (byCard && source ? `${source.name}'s ${cardDef(byCard.defId).name}` : undefined);
-  // Two lines, led by what did it: the shields it broke (or wore down), then the sun it heated.
+  // Two lines, led by what did it: the shields it broke (or wore down), then the sun it heated. (In a dawn or dusk:
+  // added to its one line.)
   const From = from ? from[0].toUpperCase() + from.slice(1) : '';
-  if (blocked > 0) log(state, from ? `${From} ${target.shields ? 'hits' : 'breaks'} ${target.name}'s shields (−${blocked}).` : `${target.name}'s shields absorb ${blocked} heat.`);
-  if (applied > 0) log(state, from ? `${From} heats ${target.name}'s sun to ${target.heat} (+${applied}).` : `${target.name}'s sun heats to ${target.heat} (+${applied}).`);
+  if (tally) {
+    const at = tallySun(target);
+    at.applied += applied;
+    at.blocked += blocked;
+    at.to = target.heat;
+  } else if (blocked > 0) log(state, from ? `${From} ${target.shields ? 'hits' : 'breaks'} ${target.name}'s shields (−${blocked}).` : `${target.name}'s shields absorb ${blocked} heat.`);
+  if (!tally && applied > 0) log(state, from ? `${From} heats ${target.name}'s sun to ${target.heat} (+${applied}).` : `${target.name}'s sun heats to ${target.heat} (+${applied}).`);
   if (target.heat >= supernovaThreshold(target)) supernova(state, target);
   if (enemy && blocked > 0 && !retaliation && !target.eliminated) shieldsAnswer(state, target, source, cardUid);
   return applied;
@@ -1126,7 +1176,11 @@ function cool(state: GameState, p: PlayerState, amount: number, why?: string) {
   const before = p.heat;
   p.heat = Math.max(BALANCE.minHeat, p.heat - amount);
   p.turn.cooled += before - p.heat;
-  if (p.heat !== before) log(state, why ? `${why[0].toUpperCase() + why.slice(1)} cools ${p.name}'s sun to ${p.heat} (−${before - p.heat}).` : `${p.name}'s sun cools to ${p.heat} (−${before - p.heat}).`);
+  if (tally && p.heat !== before) {
+    const at = tallySun(p);
+    at.cooled += before - p.heat;
+    at.to = p.heat;
+  } else if (p.heat !== before) log(state, why ? `${why[0].toUpperCase() + why.slice(1)} cools ${p.name}'s sun to ${p.heat} (−${before - p.heat}).` : `${p.name}'s sun cools to ${p.heat} (−${before - p.heat}).`);
 }
 
 /** A game's winnerId when it ends with no one left: every sun gone supernova together. */
@@ -1139,6 +1193,8 @@ export function isDraw(state: GameState): boolean {
 
 function supernova(state: GameState, p: PlayerState, decide = true) {
   if (p.eliminated) return;
+  // (What a dawn or dusk had done so far, told before the sun goes.)
+  if (tally) flushTally(state);
   // (The rival's sun in a survival dream: never the way through.)
   if (survivalDream(state) && p === state.players[1]) {
     p.heat = Math.min(p.heat, supernovaThreshold(p) - 1);
@@ -1223,7 +1279,8 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         const amount = effectAmount(state, p, card, e, when);
         if (amount > 0) {
           p.shields += amount;
-          log(state, `${p.name} raises ${amount} shield${amount === 1 ? '' : 's'}.`);
+          if (tally && tally.owner === p) tally.shields += amount;
+          else log(state, `${p.name} raises ${amount} shield${amount === 1 ? '' : 's'}.`);
           if (when === 'turn') notePulse(state, p, card, 'shield', p, amount);
         }
         break;
@@ -1748,7 +1805,10 @@ function repair(state: GameState, p: PlayerState, amount: number) {
     left -= by;
     if (!p.slotWear![slot]) delete p.slotWear![slot];
   }
-  if (left < amount) log(state, `${p.name} repairs ${amount - left} defence.`);
+  if (left < amount) {
+    if (tally && tally.owner === p) tally.repaired += amount - left;
+    else log(state, `${p.name} repairs ${amount - left} defence.`);
+  }
 }
 
 function startTurn(state: GameState) {
@@ -1849,6 +1909,20 @@ function startTurn(state: GameState) {
 
 /** A player's dawn: their tableau's dawn effects, cards fading, and the day's energy. */
 function dawn(state: GameState, p: PlayerState) {
+  beginTally(state, 'dawn', p);
+  try {
+    dawnResolve(state, p);
+  } finally {
+    flushTally(state);
+  }
+  p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
+  p.turn.energyTotal = p.playsLeft;
+  p.turn.energyBase = Math.min(p.playsLeft, Math.min(p.turnsTaken, BALANCE.maxPlays));
+  if (p.eliminated) passOn(state);
+}
+
+/** A player's dawn's effects: their tableau's, their relics', their emblems'. */
+function dawnResolve(state: GameState, p: PlayerState) {
   // Your tableau's dawn effects, left to right. A Recall or Shift of your own waits on you: you choose which card,
   // first thing in your day (or let it be). (A relic's blow at any target, from the day's draw, still waits.)
   p.dawnChoices = p.dawnChoices?.filter((c) => c.kind === 'aim');
@@ -1904,28 +1978,31 @@ function dawn(state: GameState, p: PlayerState) {
   }
   // (Cards no longer fade with the days: they stand until beaten down or removed.) Anchor mends its neighbours.
   for (const card of p.tableau) if (anchored(p, card) && cardDef(card.defId).kind !== 'relic') mend(state, p, card, 1);
-  p.playsLeft = playsAllowed(state, p) + (p.turn.dawnEnergy ?? 0);
-  p.turn.energyTotal = p.playsLeft;
-  p.turn.energyBase = Math.min(p.playsLeft, Math.min(p.turnsTaken, BALANCE.maxPlays));
-  if (p.eliminated) passOn(state);
 }
 
 /** A player's dusk: their tableau's dusk effects, left to right, as their day ends. */
 function dusk(state: GameState, p: PlayerState) {
   // (Only cards whose dusk will do something: a Vigil card that attacked today sits it out.)
   const cards = p.tableau.filter((c) => !c.fresh && duskEffects(c).some((e) => conditionMet(p, e.if, state, c)));
+  // (Whether this dusk did anything, kept for the board: it plays the dusk only then.)
+  state.lastDusk = { playerId: p.id, acted: false };
   if (!cards.length) return;
   if (silenced(state, p)) {
     log(state, `Null Edict: ${p.name}'s cards stay silent at dusk.`);
     return;
   }
-  log(state, `— Dusk: ${p.name}.`);
+  state.lastDusk.acted = true;
   notePulse(state, p, null, 'start', p, 0);
-  for (const card of cards) {
-    if (state.winnerId || p.eliminated) break;
-    // (A card played today rests: its dusk first works the dusk after it lands. Attacking or acting doesn't stop it.)
-    if (!p.tableau.includes(card) || card.fresh) continue;
-    resolveEffects(state, p, card, duskEffects(card), 'turn');
+  beginTally(state, 'dusk', p);
+  try {
+    for (const card of cards) {
+      if (state.winnerId || p.eliminated) break;
+      // (A card played today rests: its dusk first works the dusk after it lands. Attacking or acting doesn't stop it.)
+      if (!p.tableau.includes(card) || card.fresh) continue;
+      resolveEffects(state, p, card, duskEffects(card), 'turn');
+    }
+  } finally {
+    flushTally(state);
   }
 }
 

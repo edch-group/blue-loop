@@ -599,6 +599,8 @@ export interface GameState {
   /** Campaign: a Reliquary Obelisk on the field was broken (its relics are the attacker's, whoever wins). */
   vaultOpened?: boolean;
   /** Traps that sprang (or Lightspeed cards played in reply) during this move, and the enemy card that sprang each (if a card did). */
+  /** The last dusk: whose, and whether any of its effects resolved (the board plays the dusk only then). */
+  lastDusk?: { playerId: string; acted: boolean };
   sprung?: { ownerId: string; defId: string; enemyId: string; against?: string; trigger: TrapTrigger['on'] }[];
   /** The attack this move made (only this move's state): the attacker and what it struck (null, the sun). */
   struck?: { attackerUid: string; targetUid: string | null };

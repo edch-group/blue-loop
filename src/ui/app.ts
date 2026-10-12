@@ -2100,16 +2100,9 @@ export class App {
     }
   }
 
-  /** Whether this player's day just ended with a dusk that did something (their dusk effects resolved). */
+  /** Whether this player's day just ended with a dusk that did something (the engine keeps it: GameState.lastDusk). */
   private duskHappened(next: GameState, actor: PlayerState): boolean {
-    // Back through the log to the day before this one's start: a "— Dusk" line for them in between.
-    let days = 0;
-    for (let i = next.log.length - 1; i >= 0 && days < 2; i--) {
-      const t = next.log[i].text;
-      if (t.startsWith('— Day ')) days++;
-      else if (days === 1 && t === `— Dusk: ${actor.name}.`) return true;
-    }
-    return false;
+    return next.lastDusk?.playerId === actor.id && next.lastDusk.acted;
   }
 
   /** Your day begins: each once-a-day relic ready to use pulses once, down the right, as a reminder. */

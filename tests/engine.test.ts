@@ -402,7 +402,7 @@ describe('attacks and dimming', () => {
     s = applyAction(s, { type: 'endTurn' });
     const after = s.players.find((p) => p.id === me.id)!;
     expect(after.hand.length).toBe(hand + 1);
-    expect(s.log.some((l) => l.text.startsWith('— Dusk:'))).toBe(true);
+    expect(s.lastDusk).toEqual({ playerId: me.id, acted: true });
     expect(star.uid).toBeTruthy();
     // Gloaming Battery: heat per 2 of your other cards not dimmed.
     let t = twoPlayer();

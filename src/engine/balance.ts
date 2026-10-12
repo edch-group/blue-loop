@@ -82,5 +82,5 @@ export const BALANCE = {
   instabilityRampEvery: 1,
 
   /** Log entries kept in game state (older ones are dropped). */
-  maxLogEntries: 200,
+  maxLogEntries: 20,
 } as const;
