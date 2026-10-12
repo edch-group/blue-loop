@@ -1441,8 +1441,8 @@ export class CampaignView {
           <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
           <h2 class="menu-heading">a dying universe</h2>
           <div class="cs-purses">
-            <button class="cs-petals" data-act="cmp-deck" data-tip-title="starting deck" data-tip="Spend Stellari petals on cards for this race's starting deck.">${PETAL}<b>${meta.petals}</b><span>starting deck</span></button>
-            <button class="cs-petals cs-xp" data-act="cmp-shop" data-tip-title="skills · level ${levelFor(meta.xp ?? 0).level}" data-tip="Spend skill points on the skill tree: one for every commander level, raised by the experience every run earns, won or lost.">${XP_MARK}<b>${pointsLeft(meta)}</b><span>skill points</span></button>
+            <button class="cs-petals" data-act="cmp-deck">${PETAL}<b>${meta.petals}</b><span>starting deck</span></button>
+            <button class="cs-petals cs-xp" data-act="cmp-shop">${XP_MARK}<b>${pointsLeft(meta)}</b><span>skill points</span></button>
           </div>
         </header>
         <div class="cs-body">
