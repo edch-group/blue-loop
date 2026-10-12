@@ -9,7 +9,7 @@
  */
 
 import type { Camera } from './nebula3d';
-import { propModel3d, shipModel3d, SHIP_STRIDE, type PropKind } from './ship3d';
+import { captainShip3d, propModel3d, shipModel3d, SHIP_STRIDE, type CaptainShipSpec, type PropKind } from './ship3d';
 import sunCoronaUrl from './gems/sun-corona.png';
 import sunDiscUrl from './gems/sun-disc.png';
 
@@ -61,6 +61,8 @@ export interface MapRoute {
 
 /** A warp from star to star: how long it takes, and where its charge ends and its jump does (fractions of it). */
 export const WARP_SECONDS = 1.1;
+/** A flight from star to star (the Captain's ship, without its warp drive): a little longer than a warp. */
+export const FLY_SECONDS = 1.8;
 const WARP_PHASES = [0.42, 0.58] as const;
 
 /** A ship on the map: where it is bound (world x, z, over a star), and its holder's colour. */
@@ -75,6 +77,10 @@ export interface MapShip {
   race: number;
   /** Flying in from here (world x, z), taking this long (seconds): a ship arriving from off screen. */
   arrive?: { from: [number, number]; dur: number; cruise?: boolean };
+  /** The Captain's ship: built from what it is fitted with (in place of its race's model). */
+  captain?: CaptainShipSpec;
+  /** Bound somewhere new by flying there (the Captain's jumps without the warp drive), not warping. */
+  fly?: boolean;
 }
 
 /** What lies under the galaxy (drawn on the layer behind the map). */
@@ -470,7 +476,7 @@ export class MapObjects {
   /** Each race's model, uploaded the first time a ship of it is drawn. */
   private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }>();
   /** Each ship as it flies: where it set out from and is bound, since when, and which way it faces. */
-  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number; fromY: number; toY: number; warp?: boolean }>();
+  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number; fromY: number; toY: number; warp?: boolean; captain?: CaptainShipSpec }>();
   private routeProg: WebGLProgram;
   private routeBuf: WebGLBuffer;
   private routeCount = 0;
@@ -573,11 +579,12 @@ export class MapObjects {
         const heading = a ? Math.atan2(sh.z - from[1], sh.x - from[0]) : 0;
         // (Cruising: it flies slowly in, never quite arriving, until it is let go: see release.)
         const cruise = a?.cruise ? (Math.hypot(sh.x - from[0], sh.z - from[1]) * 0.85) / a.dur : undefined;
-        this.ships.set(sh.id, { from, to: [sh.x, sh.z], t0: now, dur: a?.dur ?? 0, heading, colour: sh.colour, race: sh.race, cruise, fromY: sh.y ?? 0, toY: sh.y ?? 0 });
+        this.ships.set(sh.id, { from, to: [sh.x, sh.z], t0: now, dur: a?.dur ?? 0, heading, colour: sh.colour, race: sh.race, cruise, fromY: sh.y ?? 0, toY: sh.y ?? 0, captain: sh.captain });
         continue;
       }
       was.colour = sh.colour;
       was.race = sh.race;
+      was.captain = sh.captain;
       if (Math.hypot(was.to[0] - sh.x, was.to[1] - sh.z) < 1e-4) continue;
       const at = this.shipAt(was, now);
       was.fromY = this.groundY(was, now);
@@ -587,9 +594,14 @@ export class MapObjects {
       was.to = [sh.x, sh.z];
       was.t0 = now;
       // (From star to star, a lightspeed warp [direction: not flying gently toward the stars]: the same short time
-      // however far; see warpAt.)
-      was.dur = reduce ? 0 : WARP_SECONDS;
-      was.warp = true;
+      // however far; see warpAt. The Captain's ship flies, unless it jumps with its warp drive.)
+      if (sh.fly) {
+        was.dur = reduce ? 0 : FLY_SECONDS;
+        was.warp = false;
+      } else {
+        was.dur = reduce ? 0 : WARP_SECONDS;
+        was.warp = true;
+      }
       if (d > 1e-4) was.heading = Math.atan2(sh.z - at[1], sh.x - at[0]);
     }
   }
@@ -625,6 +637,23 @@ export class MapObjects {
     if (sh.cruise) return sh.toY;
     const t = sh.dur > 0 ? Math.min(1, (now - sh.t0) / sh.dur) : 1;
     return sh.fromY + (sh.toY - sh.fromY) * t * t * (3 - 2 * t);
+  }
+
+  /** The Captain's ship, as fitted, on the GPU (built and uploaded the first time each fit is drawn). */
+  private captainBufs = new Map<string, { buf: WebGLBuffer; count: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[]; smoke: number[][] }>();
+  private captainModel(spec: CaptainShipSpec) {
+    const key = JSON.stringify(spec);
+    let m = this.captainBufs.get(key);
+    if (!m) {
+      const gl = this.gl;
+      const model = captainShip3d(spec);
+      const buf = gl.createBuffer()!;
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, model.mesh, gl.STATIC_DRAW);
+      m = { buf, count: model.mesh.length / SHIP_STRIDE, engines: model.engines, glow: model.glow, suns: model.suns, smoke: model.smoke };
+      this.captainBufs.set(key, m);
+    }
+    return m;
   }
 
   /** A race's model on the GPU (built and uploaded the first time). */
@@ -826,7 +855,7 @@ export class MapObjects {
         off += n * 4;
       });
     };
-    const placed: { m: Float32Array; burn: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }[] = [];
+    const placed: { m: Float32Array; burn: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[]; smoke: number[][] }[] = [];
     const warps: { sh: { from: [number, number]; to: [number, number]; fromY: number; toY: number; colour: [number, number, number] }; k: number; x: number; y: number; z: number; warp: ReturnType<MapObjects['warpAt']> }[] = [];
     for (const sh of this.ships.values()) {
       const [x, z] = this.shipAt(sh, now);
@@ -852,14 +881,14 @@ export class MapObjects {
       const shake = warp?.phase === 'charge' ? 0.003 * Math.sin(time * 90) * (k / WARP_PHASES[0]) : 0;
       const m = new Float32Array([F[0] * L, F[1] * L, F[2] * L, 0, U[0] * W, U[1] * W, U[2] * W, 0, R[0] * W, R[1] * W, R[2] * W, 0, x + Rr[0] * shake, y, z + Rr[2] * shake, 1]);
       if (warp) warps.push({ sh, k, x, y, z, warp });
-      const model = this.shipModel(sh.race);
+      const model = sh.captain ? this.captainModel(sh.captain) : this.shipModel(sh.race);
       bindModel(model.buf);
       gl.uniformMatrix4fv(u('uModel'), false, m);
       gl.uniform3f(u('uColor'), sh.colour[0], sh.colour[1], sh.colour[2]);
       const burn = warp ? warp.burn : moving ? 1 : 0;
       gl.uniform1f(u('uBurn'), burn);
       gl.drawArrays(gl.TRIANGLES, 0, model.count);
-      placed.push({ m, burn, engines: model.engines, glow: model.glow, suns: model.suns });
+      placed.push({ m, burn, engines: model.engines, glow: model.glow, suns: model.suns, smoke: (model as { smoke?: number[][] }).smoke ?? [] });
     }
     for (const l of locs) if (l >= 0) gl.disableVertexAttribArray(l);
     // The engines' glow, over the hull, longer under way.
@@ -874,6 +903,18 @@ export class MapObjects {
         const wz = p.m[2] * e[0] + p.m[6] * e[1] + p.m[10] * e[2] + p.m[14];
         const size = 0.022 * (1 + p.burn * 0.8) * (0.9 + 0.1 * Math.sin(time * 23 + i));
         sprite.draw(wx, wy, wz, size, 0, [0.55 + p.glow[0] * 0.45, 0.55 + p.glow[1] * 0.45, 0.55 + p.glow[2] * 0.45], 0.9);
+      }
+      // A battered engine's smoke: grey puffs rising and drifting astern, swelling as they fade.
+      for (const e of p.smoke) {
+        const wx = p.m[0] * e[0] + p.m[4] * e[1] + p.m[8] * e[2] + p.m[12];
+        const wy = p.m[1] * e[0] + p.m[5] * e[1] + p.m[9] * e[2] + p.m[13];
+        const wz = p.m[2] * e[0] + p.m[6] * e[1] + p.m[10] * e[2] + p.m[14];
+        const len = Math.hypot(p.m[0], p.m[1], p.m[2]) || 1;
+        const bx = -p.m[0] / len, bz = -p.m[2] / len;
+        for (let i = 0; i < 6; i++) {
+          const age = (time * 0.45 + i / 6) % 1;
+          sprite.draw(wx + bx * age * 0.05, wy + age * 0.07, wz + bz * age * 0.05, 0.012 + age * 0.03, 0, [0.42, 0.43, 0.47], 0.32 * (1 - age) * Math.min(1, age * 6));
+        }
       }
       // A captive sun radiates heat round itself (its corona several times its size).
       for (const [i, sun] of p.suns.entries()) {

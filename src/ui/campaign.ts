@@ -85,6 +85,7 @@ import {
   SLAY_LOOT,
 
   captainCard,
+  captainBuild,
   fitPart,
   partSlots,
   SHIP_PARTS,
@@ -128,7 +129,8 @@ import { sound } from './sound';
 import { reducedMotion } from './fx';
 import { voices } from './voice';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
-import { WARP_SECONDS } from './nebula-objects';
+import { FLY_SECONDS, WARP_SECONDS } from './nebula-objects';
+import type { CaptainShipSpec } from './ship3d';
 
 const KEY = 'blue-loop:campaign:v6';
 
@@ -420,6 +422,8 @@ export class CampaignView {
   private capPick: string | null = null;
   private hangarOpen = false;
   private hangarPick: string | null = null;
+  /** The move under way is a warp-drive jump (the Captain's ship warps; otherwise it flies). */
+  private warpMove = false;
   /** The lasting upgrade picked in the shop, shown in the flower's heart. */
   /**
    * Skill points placed on the tree this visit [direction: a tap assigns a point at once; undo and clear, by the back
@@ -697,11 +701,15 @@ export class CampaignView {
     // opens a second later.
     const s0 = this.state!;
     const army0 = armyById(s0, armyId);
-    const battleAhead = !!armyMoves(s0, army0).find((m) => m.toId === toId)?.battle;
+    const move0 = armyMoves(s0, army0).find((m) => m.toId === toId);
+    const battleAhead = !!move0?.battle;
     this.advance = { armyId, toId, land: battleAhead };
-    // (A warp, however far: as long as nebula-objects.ts gives it.)
-    const flight = WARP_SECONDS;
-    sound.warp();
+    // (A warp, however far: as long as nebula-objects.ts gives it. The Captain's ship flies, unless it jumps with its
+    // warp drive.)
+    const flies = !!campaignPlayer(s0).human && !move0?.warp;
+    this.warpMove = !!move0?.warp;
+    const flight = flies ? FLY_SECONDS : WARP_SECONDS;
+    if (!flies) sound.warp();
     this.host.render();
     setTimeout(() => {
       const waiting = this.state?.story.queue.length ?? 0;
@@ -1165,6 +1173,7 @@ export class CampaignView {
             }
             // Into the unknown (who knows what a system holds until you get there): the ship just sets out.
             if (!this.known(arg) && !nodeById(s, arg).owner) return this.setOut(army.id, arg);
+            this.warpMove = !!move.warp;
             if (move.battle) this.sheet = { kind: 'attack', armyId: army.id, toId: arg };
             else if (this.apply({ type: 'move', armyId: army.id, toId: arg })) {
               sound.play();
@@ -1549,6 +1558,16 @@ export class CampaignView {
         </div>
         ${this.renderCapDetail(meta)}
       </div>`;
+  }
+
+  /** The Captain's ship as the map draws it: the parts fitted for this run (and their rarities), and the Captain's level. */
+  private captainSpec(general: string): CaptainShipSpec {
+    const fitted = this.state?.run?.ship?.fitted ?? {};
+    const rarity: Record<string, string> = {};
+    for (const [slot, id] of Object.entries(fitted)) rarity[slot] = shipPart(id)?.rarity ?? 'dwarf';
+    const b = captainBuild(general);
+    const level = b ? b.attack + b.stability + b.cheaper + Math.max(0, b.abilities.length - 1) + (b.lead ? 2 : 0) : 0;
+    return { parts: fitted, rarity, level };
   }
 
   /**
@@ -2387,7 +2406,9 @@ export class CampaignView {
         // (In the opening shot it cruises in from further off, slowly, until the hero has had their say.)
         const arrive = arriving && a.id === mine?.id ? (this.cine === 'start' ? { from: [x - 3.4, z + 2.5] as [number, number], dur: CINE_RIDE_MAX + 4, cruise: true } : { from: [x - 2.6, z + 1.9] as [number, number], dur: ARRIVAL_FLIGHT }) : undefined;
         const y0 = lift.get(a.nodeId) ?? 0, y1 = adv ? lift.get(this.advance!.toId) ?? 0 : y0;
-        return { id: a.id, x: adv ? x + (adv[0] - x) * k : x, z: adv ? z + (adv[1] - z) * k : z, y: y0 + (y1 - y0) * k, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race, arrive };
+        // (The Captain's ship: built from its fitted parts, and flying from star to star unless it warps.)
+        const captain = a.id === mine?.id && campaignPlayer(s).human ? this.captainSpec(a.general) : undefined;
+        return { id: a.id, x: adv ? x + (adv[0] - x) * k : x, z: adv ? z + (adv[1] - z) * k : z, y: y0 + (y1 - y0) * k, colour: hex(this.colourOf(a.owner)), race: a.lost ? -1 : factionById(s, a.owner).race, arrive, ...(captain ? { captain, fly: !this.warpMove } : {}) };
       });
     this.nebula.setShips(ships);
     if (this.cine === 'start') {
