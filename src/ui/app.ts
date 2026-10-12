@@ -1077,6 +1077,8 @@ export class App {
       if (!el || e.pointerType === 'mouse') return;
       // (On a touch screen, nothing on a card explains itself: the inspector does that.)
       if (el.closest(ON_CARD)) return;
+      // (Nor does a button that does something: a press acts. Only one that can't says why.)
+      if (el.matches('[data-act]:not(:disabled)')) return;
       tipFor = el;
       showTip(el);
       window.clearTimeout(tipTimer);
