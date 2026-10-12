@@ -34,15 +34,7 @@ const LAMP: RGB = [1, 0.88, 0.58];
 const CYAN: RGB = [0.5, 0.84, 1];
 const SCREEN: RGB = [0.46, 0.74, 1];
 const HAZARD: RGB = [0.98, 0.74, 0.28];
-const COAT: RGB = [0.2, 0.27, 0.46];
-const COAT_DARK: RGB = [0.15, 0.19, 0.32];
-const BRAID: RGB = [0.98, 0.78, 0.34];
-const SKIN: RGB = [0.98, 0.79, 0.64];
-const SKIN_SHADE: RGB = [0.92, 0.66, 0.52];
-const HAIR: RGB = [0.36, 0.24, 0.16];
 const INK: RGB = [0.12, 0.12, 0.18];
-const BOOT: RGB = [0.22, 0.2, 0.24];
-const GLOVE: RGB = [0.97, 0.97, 0.98];
 const SEAT: RGB = [0.36, 0.42, 0.56];
 const CRATE: RGB = [0.86, 0.66, 0.38];
 const PETAL_GLASS: RGB = [0.66, 0.84, 1];
@@ -119,7 +111,40 @@ function hangar(m: Mesh) {
   });
 }
 
-/** The Captain in a command chair on a round dais: a cartoon captain, big head, white gloves, a smile. */
+/** Builds parts turned `a` (radians) about the world's forward axis, round a point (world): a sideways lean. */
+function tiltZ(m: Mesh, pivot: V3, a: number, build: () => void) {
+  const c = Math.cos(a), s = Math.sin(a);
+  m.with((p) => {
+    const x = p[0] - pivot[0], y = p[1] - pivot[1];
+    return [pivot[0] + x * c - y * s, pivot[1] + x * s + y * c, p[2]];
+  }, build);
+}
+
+/** A point of the box (x along, y toward the eye, z up) as the world has it (for pivots). */
+const W = (x: number, y: number, z: number): V3 => [(x - 20) / 40, z / 40, (y - 12) / 40];
+
+// The Captain's colours, after the art: a long charcoal coat, worn leather, a grey scarf, dark tousled hair.
+const COAT_GREY: RGB = [0.24, 0.24, 0.29];
+const COAT_SHADOW: RGB = [0.17, 0.17, 0.21];
+const LEATHER: RGB = [0.44, 0.31, 0.22];
+const STRAP: RGB = [0.3, 0.21, 0.15];
+const BUCKLE: RGB = [0.72, 0.66, 0.56];
+const SCARF: RGB = [0.52, 0.55, 0.62];
+const TROUSERS: RGB = [0.21, 0.21, 0.25];
+const WORN_BOOT: RGB = [0.3, 0.24, 0.2];
+const TAN: RGB = [0.86, 0.68, 0.55];
+const TAN_SHADE: RGB = [0.76, 0.56, 0.45];
+const DARK_HAIR: RGB = [0.15, 0.12, 0.11];
+const STUBBLE: RGB = [0.3, 0.24, 0.21];
+const BANDAGE: RGB = [0.93, 0.9, 0.84];
+const BLADE: RGB = [0.78, 0.74, 1];
+
+/**
+ * The Captain in a command chair on a round dais, after the art [direction: on his last legs, struggling through
+ * space]: slumped, worn out, head hung a little and to one side; tousled dark hair and stubble, a bandage round his
+ * brow, a scarf, a long tattered coat over a leather jerkin and belt, worn boots; one arm hanging off the chair, the
+ * other on its arm; his sword (its blade glowing violet) leant against the chair.
+ */
 function captain(m: Mesh) {
   at(m, SPOT.captain.x, SPOT.captain.z, () => {
     puck(m, 20, 12, -0.6, 1.8, 30, WHITE, PAPER);
@@ -133,63 +158,94 @@ function captain(m: Mesh) {
       block(m, x - 2, x + 2, -1, 14, 22.5, 26.5, SEAT, 0, 3);
       m.rbox(x, 2, 19.5, 1.2, 1.2, 3.5, STEEL_DARK, 0, 2, 6);
     }
-    // Legs: round thighs along the seat, shins down, big boots.
+    // Legs sprawled: knees apart, one foot pushed out, worn boots with a knee guard.
     for (const s of [-1, 1]) {
-      const x = 20 + s * 3.6;
-      m.tube([[x, 0, 21.5], [x, 12, 21.5]], 2.8, 2.6, COAT_DARK, 0, 16, false);
-      m.ball(x, 12, 21.2, 2.6, COAT_DARK, 0, 16, 10);
-      m.tube([[x, 12.6, 20], [x, 13.6, 8]], 2.3, 2.1, COAT_DARK, 0, 16, false);
-      m.rbox(x, 15.2, 5.6, 2.8, 4.6, 2.6, BOOT, 0, 3, 3);
+      const x = 20 + s * 3.6, kx = 20 + s * 6.2, fx = 20 + s * (s < 0 ? 8.4 : 7);
+      const fy = s < 0 ? 17 : 14.5;
+      m.tube([[x, 0, 21.4], [kx, 12, 21.6]], 2.6, 2.4, TROUSERS, 0, 16, false);
+      m.ball(kx, 12, 21.4, 2.4, TROUSERS, 0, 16, 10);
+      m.rbox(kx, 13.4, 21, 1.6, 1.1, 1.8, WORN_BOOT, 0, 2, 2);
+      m.tube([[kx, 12.4, 20], [fx, fy - 2, 8.5]], 2.2, 2.1, TROUSERS, 0, 16, false);
+      m.tube([[fx, fy - 2, 11], [fx, fy - 1.8, 6]], 2.3, 2.2, WORN_BOOT, 0, 16, false);
+      m.rbox(fx, fy, 5.3, 2.5, 4, 2, WORN_BOOT, 0, 3, 3);
     }
-    // The coat: a round body, its skirt over the seat's front, gold buttons and a belt.
-    m.rbox(20, 0.5, 29, 7, 5, 10.5, COAT, 0, 2.4, 2.6);
-    block(m, 13.5, 26.5, 2, 10, 16, 21, COAT, 0, 3, 3);
-    m.rbox(20, 0.5, 21.6, 7.15, 5.15, 1.1, BOOT, 0, 2.4, 6);
-    m.rbox(20, 5.7, 21.6, 1.2, 0.5, 0.9, BRAID, 0, 4, 4);
-    for (const z of [26, 30, 34]) m.ball(20, 5.3, z, 0.65, BRAID, 0, 10, 6);
-    // Shoulders with golden epaulettes; arms bent to the chair's arms; big white gloves.
-    for (const s of [-1, 1]) {
-      m.rbox(20 + s * 7.2, 0.5, 37.6, 3, 3, 1.3, BRAID, 0, 2, 3);
-      const sx = 20 + s * 7.6;
-      m.tube([[sx, 0.5, 36], [sx + s * 1.4, 2, 29], [sx + s * 1.4, 4, 27]], 2.2, 2, COAT, 0, 16, false);
-      m.ball(sx + s * 1.4, 4, 27, 2, COAT, 0, 14, 8);
-      m.tube([[sx + s * 1.4, 4, 27], [sx + s * 1.4, 11, 27]], 2, 1.9, COAT, 0, 16, false);
-      m.rbox(sx + s * 1.4, 11.4, 27, 2.3, 1.2, 1.3, GLOVE, 0, 2, 2);
-      m.ball(sx + s * 1.4, 13, 27.6, 2.2, GLOVE, 0, 16, 10);
-    }
-    // A high collar, then the head: big and round, hair swept over, a face looking out over the deck.
-    m.rbox(20, 0.8, 40, 4.4, 3.8, 1.8, COAT, 0, 2, 3);
-    const H = { x: 20, y: 1.4, z: 47, rx: 5, ry: 5.2, rz: 5.6 };
-    m.rbox(H.x, H.y, H.z, H.rx, H.ry, H.rz, SKIN, 0, 2, 2, 32, 20);
-    // (Points on the face's surface, for its features.)
-    const face = (dx: number, dz: number, out = 0) => H.y + (H.ry + out) * Math.sqrt(Math.max(0, 1 - (dx / H.rx) ** 2 - (dz / H.rz) ** 2));
-    m.rbox(H.x, H.y - 0.6, H.z + 1.6, 5.3, 5.3, 4.6, HAIR, 0, 2, 2.2, 32, 20);
-    m.rbox(H.x - 1.2, face(-1.2, 3.8) - 0.6, H.z + 4.2, 3.6, 1.6, 1.4, HAIR, 0, 2, 2);
-    for (const s of [-1, 1]) {
-      const ex = H.x + s * 1.75;
-      m.rbox(ex, face(s * 1.75, 0.5) - 0.25, H.z + 0.5, 0.7, 0.45, 1.05, INK, 0, 2, 2, 16, 10);
-      m.ball(ex + 0.25, face(s * 1.75, 0.5) + 0.1, H.z + 0.95, 0.24, [1, 1, 1], 2, 8, 6);
-      m.rbox(ex, face(s * 1.75, 2.1) - 0.15, H.z + 2.1, 1.05, 0.4, 0.28, HAIR, 0, 2, 2, 12, 8);
-      m.rbox(H.x + s * 5, H.y, H.z - 0.2, 0.7, 1.1, 1.4, SKIN, 0, 2, 2, 14, 8);
-    }
-    m.rbox(H.x, face(0, -0.9) - 0.1, H.z - 0.9, 0.75, 0.7, 0.8, SKIN_SHADE, 0, 2, 2, 14, 8);
-    m.tube(
-      [
-        [H.x - 1.4, face(-1.4, -2.3) - 0.05, H.z - 2.2],
-        [H.x - 0.5, face(-0.5, -2.75) - 0.05, H.z - 2.75],
-        [H.x + 0.5, face(0.5, -2.75) - 0.05, H.z - 2.75],
-        [H.x + 1.4, face(1.4, -2.3) - 0.05, H.z - 2.2],
-      ],
-      0.24,
-      0.24,
-      INK,
-      0,
-      8,
+    // The upper body, slumped forward and to one side.
+    tiltX(m, W(20, 1, 20), 0.14, () =>
+      tiltZ(m, W(20, 1, 20), 0.07, () => {
+        // The coat's tattered tails, hanging over the seat's front and down its sides.
+        for (const [x, len] of [[14.5, 5.5], [16.8, 8], [23.4, 6.5], [25.6, 9]] as const) block(m, x - 1.6, x + 1.6, 3, 6.5, 19 - len, 21, COAT_SHADOW, 0, 3, 3);
+        for (const s of [-1, 1]) block(m, 20 + s * 7.6 - 1.4, 20 + s * 7.6 + 1.4, -3, 5, 11, 22, COAT_SHADOW, 0, 3, 3);
+        // The jerkin, belt and strap; the open coat over them.
+        m.rbox(20, 0.8, 29, 5.6, 4.4, 9.5, LEATHER, 0, 2.6, 2.6);
+        m.rbox(20, 0.8, 21.8, 5.8, 4.6, 1, STRAP, 0, 2.6, 6);
+        m.rbox(20, 5.3, 21.8, 1, 0.4, 0.8, BUCKLE, 0, 4, 4);
+        m.tube([[15.2, 4.4, 36.5], [20, 5.4, 29], [24.6, 4.4, 22.6]], 0.55, 0.55, STRAP, 0, 8, false);
+        for (const s of [-1, 1]) m.rbox(20 + s * 5.4, 0.4, 29.5, 2.4, 4.8, 10, COAT_GREY, 0, 2.6, 3);
+        m.rbox(20, -2.4, 30, 7.2, 2.6, 10.5, COAT_GREY, 0, 2.6, 3);
+        // Shoulders under the coat; one arm on the chair's arm, the other hanging over its side.
+        m.rbox(20 - 6.8, 0.2, 37, 3, 3, 2.4, COAT_GREY, 0, 2, 2);
+        m.rbox(20 + 6.8, 0.2, 37, 3, 3, 2.4, COAT_GREY, 0, 2, 2);
+        m.tube([[13, 0.5, 36], [11, 2, 29.5], [10.4, 4, 27.2]], 2.1, 1.9, COAT_GREY, 0, 16, false);
+        m.ball(10.4, 4, 27.2, 1.9, COAT_GREY, 0, 14, 8);
+        m.tube([[10.4, 4, 27.2], [10, 11, 26.8]], 1.9, 1.7, COAT_GREY, 0, 16, false);
+        m.ball(10, 12.4, 27, 1.5, TAN, 0, 14, 8);
+        m.tube([[27, 0.5, 36], [30.6, 2.6, 28], [32.4, 4.4, 20]], 2.1, 1.8, COAT_GREY, 0, 16, false);
+        m.ball(32.6, 5, 18.6, 1.5, TAN, 0, 14, 8);
+        // A bandage round the hanging arm.
+        m.rbox(31.4, 3.5, 24.2, 2, 2, 0.8, BANDAGE, 0, 2, 4);
+        // The scarf, wound round the neck, an end hanging down the chest.
+        m.rbox(20, 1, 40, 4.4, 4, 2, SCARF, 0, 2, 2.6);
+        m.rbox(17.6, 3.8, 35, 1.6, 0.8, 4, SCARF, 0, 3, 3);
+        // The head, hung a little: weathered, unsmiling.
+        tiltX(m, W(20, 1, 41), 0.1, () =>
+          tiltZ(m, W(20, 1, 41), -0.12, () => {
+            const H = { x: 20, y: 1.4, z: 46.2, rx: 4.3, ry: 4.6, rz: 5 };
+            m.rbox(H.x, H.y, H.z, H.rx, H.ry, H.rz, TAN, 0, 2, 2, 32, 20);
+            const face = (dx: number, dz: number) => H.y + H.ry * Math.sqrt(Math.max(0, 1 - (dx / H.rx) ** 2 - (dz / H.rz) ** 2));
+            // Stubble round the jaw and over the lip.
+            m.rbox(H.x, H.y + 0.5, H.z - 2.6, 4.25, 4.45, 2.7, STUBBLE, 0, 2, 2, 28, 14);
+            m.rbox(H.x, face(0, -1.6) - 0.15, H.z - 1.6, 1.6, 0.45, 0.45, STUBBLE, 0, 2, 2, 12, 8);
+            // The mouth: a flat, tired line.
+            m.rbox(H.x, face(0, -2.3) + 0.02, H.z - 2.3, 1.1, 0.25, 0.16, INK, 0, 2, 2, 12, 6);
+            // Eyes half shut under heavy, drawn brows; shadows under them.
+            for (const sd of [-1, 1]) {
+              const ex = H.x + sd * 1.5;
+              m.rbox(ex, face(sd * 1.5, 0.3) - 0.2, H.z + 0.2, 0.6, 0.35, 0.45, INK, 0, 2, 2, 14, 8);
+              m.rbox(ex, face(sd * 1.5, 0.75) - 0.1, H.z + 0.75, 0.85, 0.45, 0.42, TAN_SHADE, 0, 2, 2, 14, 8);
+              m.rbox(ex, face(sd * 1.5, -0.55) - 0.25, H.z - 0.55, 0.7, 0.3, 0.22, TAN_SHADE, 0, 2, 2, 12, 6);
+              m.with(
+                (q) => {
+                  // (The brows drawn down toward the nose: tired, set.)
+                  const piv = W(ex, 0, H.z + 1.5), a = sd * 0.28, c = Math.cos(a), sn = Math.sin(a);
+                  const x = q[0] - piv[0], y = q[1] - piv[1];
+                  return [piv[0] + x * c - y * sn, piv[1] + x * sn + y * c, q[2]];
+                },
+                () => m.rbox(ex, face(sd * 1.5, 1.5) - 0.1, H.z + 1.5, 1.1, 0.45, 0.32, DARK_HAIR, 0, 2, 2, 12, 8),
+              );
+              m.rbox(H.x + sd * 4.3, H.y, H.z - 0.3, 0.6, 1, 1.3, TAN, 0, 2, 2, 14, 8);
+            }
+            m.rbox(H.x, face(0, -0.6) + 0.1, H.z - 0.6, 0.6, 0.75, 1, TAN_SHADE, 0, 2, 2, 14, 8);
+            // A bandage round the brow, its end trailing.
+            m.rbox(H.x, H.y + 0.1, H.z + 3, 4.4, 4.7, 0.55, BANDAGE, 0, 2, 3, 32, 8);
+            m.rbox(H.x - 3.4, H.y - 3.4, H.z + 2, 0.45, 0.8, 1.3, BANDAGE, 0, 2, 2);
+            // Tousled dark hair: a mop, a fringe swept over, locks over the ears and down to the collar, tufts on top.
+            m.rbox(H.x, H.y - 0.9, H.z + 2.7, 4.75, 4.75, 3.3, DARK_HAIR, 0, 2, 2, 28, 16);
+            m.rbox(H.x + 1.1, face(1.1, 3.6) - 1.1, H.z + 3.7, 2.8, 1.3, 1.3, DARK_HAIR, 0, 2, 2, 20, 10);
+            for (const sd of [-1, 1]) m.rbox(H.x + sd * 4.2, H.y - 0.8, H.z + 0.9, 1.1, 2.6, 2.6, DARK_HAIR, 0, 2, 2, 18, 10);
+            m.rbox(H.x, H.y - 3.5, H.z - 0.6, 3.9, 1.7, 3.4, DARK_HAIR, 0, 2, 2, 22, 12);
+            m.rbox(H.x - 1.7, H.y + 0.4, H.z + 5.3, 1.7, 1.9, 1.1, DARK_HAIR, 0, 2, 2, 16, 8);
+            m.rbox(H.x + 1.9, H.y - 1.2, H.z + 5.4, 1.6, 1.8, 1.1, DARK_HAIR, 0, 2, 2, 16, 8);
+          }),
+        );
+      }),
     );
-    // A data slate on its stand at the Captain's side.
-    m.rbox(36, 16, 12, 0.7, 0.7, 10, STEEL_DARK, 0, 2, 8);
-    tiltX(m, [0.4, 22 / 40, 0.1], -0.6, () => block(m, 32, 40, 12, 20, 21.8, 23, STEEL, 0, 6, 3));
-    tiltX(m, [0.4, 22 / 40, 0.1], -0.6, () => block(m, 33, 39, 13, 19, 22.7, 23.2, SCREEN, 2, 6, 3));
+    // His sword, leant against the chair: a dark hilt, its blade glowing violet.
+    tiltZ(m, W(34, 8, 3.6), -0.28, () => {
+      m.rbox(34, 8, 21, 0.5, 0.25, 17, BLADE, 2, 3, 6);
+      m.rbox(34, 8, 39, 2.4, 0.6, 0.5, STEEL_DARK, 0, 3, 3);
+      m.rbox(34, 8, 42, 0.5, 0.5, 2.6, STRAP, 0, 2, 4);
+      m.ball(34, 8, 45, 0.8, STEEL_DARK, 0, 10, 6);
+    });
   });
 }
 
