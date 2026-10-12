@@ -794,13 +794,15 @@ function frame(time: number) {
     requestAnimationFrame(frame);
     return;
   }
-  // About 20 frames a second is plenty for a slow turn and a lazy flicker; a swinging orbit gets every frame.
-  if (time - last > 50) {
+  // About 20 frames a second is plenty for a slow turn and a lazy flicker; a swinging orbit gets every frame. (On a
+  // shared beat, the twentieths of a second, as the planets and the board's star are: what changes together is
+  // composited in one frame, not three.)
+  if (Math.floor(time / 50) !== Math.floor(last / 50)) {
     last = time;
     suns.forEach((cv) => draw(cv, reduce() ? 0 : time));
   }
   // The planets turn slowly: ten frames a second does, unless an orbit is swinging (then every frame).
-  if (orbitsMoving || time - lastDome > 100) {
+  if (orbitsMoving || Math.floor(time / 100) !== Math.floor(lastDome / 100)) {
     lastDome = time;
     orbitsMoving = false;
     document.querySelectorAll<HTMLCanvasElement>('canvas.vit-dome').forEach((cv) => drawDome(cv, reduce() ? 0 : time));

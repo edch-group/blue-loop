@@ -184,7 +184,9 @@ input { font: inherit; }
 .heat-stop { stop-color: var(--heat-colour, #fff); }
 .petals { position: absolute; inset: 0; width: 100%; height: 100%; }
 .petals ellipse, .petals path { fill: var(--petal-fill, rgba(255, 255, 255, 0.26)); stroke: var(--petal-stroke, rgba(255, 255, 255, 0.95)); stroke-width: 1.4; }
-.petals .petal-inner path { stroke-width: 1; }
+.petal-inner path { stroke-width: 1; }
+/* Each ring its own layer, turned whole by the compositor (backdrop.ts): turning it never redraws it. */
+.petal-outer, .petal-inner { will-change: transform; }
 
 /* ---------- Sun orbs: pearl, with a thin silver heat ring ---------- */
 .orb { position: relative; width: var(--size); height: var(--size); flex: none; }
@@ -7189,3 +7191,15 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .gl-steps li::before { content: counter(gl-step); grid-row: span 2; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(95, 143, 196, 0.4); color: #5f8fc4; font-size: 0.76rem; font-weight: 600; }
 .gl-steps b { font-family: var(--display); font-weight: 400; font-size: 0.64rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink); }
 .gl-steps span { font-size: 0.86rem; line-height: 1.55; color: var(--ink-soft); max-width: 72ch; }
+
+/* ---------- On the battle table, nothing loops forever ----------
+   [direction: every process as efficient as possible on the GPU] Each frame of the tilted 3D board is costly to
+   put together, and a loop that never stops makes one every frame even while nothing happens. So what calls for
+   attention (a sun or card running low, the end-day button, a trap set, a global card, an Overlord's intent, a
+   keyword list with more) pulses a few times as it appears, then holds still; and the rarity gems on the small
+   cards of the table and the hand hold still (they still turn and shimmer wherever a card is shown large). */
+.unstable .stability-bar, .stat-stab.stat-low, .jewel.jewel-low i, .round-ring.unstable path, .end-turn-ready,
+.card.card-back.ls-hidden, .ls-chip.ls-hidden, .field, .card.card-intent, .kw-wrap.more .kw-more { animation-iteration-count: 3; }
+.table-view :is(.tableau-row, .hand, .cmd-slot) .gem-anomaly .gem-window::before,
+.table-view :is(.tableau-row, .hand, .cmd-slot) .gem-anomaly .gem-window::after,
+.table-view :is(.tableau-row, .hand, .cmd-slot) :is(.g-en-prism, .g-en-prism2, .g-en-glint, .g-en-spark, .g-dwarf, .g-dwarf-glow, .g-sun-disc, .g-sun-corona, .g-hole-back, .g-disk-spin, .g-ah-swirl) { animation-play-state: paused; }

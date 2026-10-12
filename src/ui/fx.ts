@@ -280,6 +280,16 @@ class Beam {
     const end = Math.max(0.02, progress);
     const [hx, hy] = at(end);
     // The fade-in from the source runs from the start to the head as it stands.
+    // The mask covers only the beam and its glow, so a redraw repaints that much of the screen, not all of it.
+    const pad = 40;
+    const mx = Math.min(x0, cx, x1) - pad, my = Math.min(y0, cy, y1) - pad;
+    const mw = Math.max(x0, cx, x1) + pad - mx, mh = Math.max(y0, cy, y1) + pad - my;
+    for (const el of [this.svg.querySelector('mask')!, this.svg.querySelector('mask rect')!]) {
+      el.setAttribute('x', mx.toFixed(0));
+      el.setAttribute('y', my.toFixed(0));
+      el.setAttribute('width', mw.toFixed(0));
+      el.setAttribute('height', mh.toFixed(0));
+    }
     const fade = this.svg.querySelector('linearGradient')!;
     fade.setAttribute('x1', x0.toFixed(1));
     fade.setAttribute('y1', y0.toFixed(1));
@@ -365,13 +375,17 @@ export function aim(source: () => DOMRect | null, target: () => DOMRect | null, 
   let frame = 0;
   let gone = false;
   let t0 = 0;
+  let last = '';
   const place = (now: number) => {
     if (opts.alive && !opts.alive()) return stop();
     const from = source(), to = target();
     // (The target itself is marked on the board: a ring round the card's or the sun's edge.)
     b.svg.style.visibility = from && to ? '' : 'hidden';
     const k = reducedMotion() ? 1 : Math.min(1, (now - t0) / 420);
-    if (from && to) b.draw(from, to, 1 - (1 - k) ** 3);
+    // (Drawn out and still: nothing to redraw.)
+    const key = from && to ? `${rectKey(from)}|${rectKey(to)}|${k}` : '';
+    if (from && to && key !== last) b.draw(from, to, 1 - (1 - k) ** 3);
+    last = key;
     frame = requestAnimationFrame(place);
   };
   const start = window.setTimeout(() => {
@@ -399,21 +413,22 @@ export function pointerAim(source: () => DOMRect | null, kind: BeamKind = 'attac
   b.mount();
   let at: [number, number] | null = null;
   let frame = 0;
+  let last = '';
   const place = () => {
     const from = source();
     b.svg.style.visibility = from && at ? '' : 'hidden';
-    // (The head's tip on the pointer: the beam ends a hair short of a point there.)
-    if (from && at) b.draw(from, new DOMRect(at[0] - 1, at[1] - 1, 2, 2), 1);
+    // Redrawn only when the pointer or the card has moved.
+    const key = from && at ? `${rectKey(from)}|${at[0].toFixed(1)},${at[1].toFixed(1)}` : '';
+    if (from && at && key !== last) b.draw(from, new DOMRect(at[0] - 1, at[1] - 1, 2, 2), 1);
+    last = key;
     frame = requestAnimationFrame(place);
   };
   frame = requestAnimationFrame(place);
-  return {
-    to: (x, y) => (at = [x, y]),
-    stop: () => {
-      cancelAnimationFrame(frame);
-      b.remove();
-    },
-  };
+  return { to: (x, y) => (at = [x, y]), stop: () => { cancelAnimationFrame(frame); b.remove(); } };
+}
+
+function rectKey(r: DOMRect): string {
+  return `${r.x.toFixed(1)},${r.y.toFixed(1)},${r.width.toFixed(1)},${r.height.toFixed(1)}`;
 }
 
 /**

@@ -22,8 +22,8 @@ const RAGE_OUT_MS = 400;
 
 class Backdrop {
   private el: HTMLElement | null = null;
-  private outer: SVGGElement | null = null;
-  private inner: SVGGElement | null = null;
+  private outer: SVGSVGElement | null = null;
+  private inner: SVGSVGElement | null = null;
   private angle = 0;
   /**
    * Bursts of spin from moves: each turns the star a set amount over a set time, easing in and out,
@@ -36,6 +36,8 @@ class Backdrop {
   private rages: { start: number; hold: number }[] = [];
   private rage = 0;
   private last = 0;
+  /** When the star was last turned (see frame). */
+  private turned = 0;
 
   mount() {
     if (this.el) return;
@@ -43,6 +45,7 @@ class Backdrop {
     this.el.className = 'backdrop';
     this.el.innerHTML = petalBackdrop();
     document.body.prepend(this.el);
+    window.addEventListener('resize', () => (this.centre = null));
     this.outer = this.el.querySelector('.petal-outer');
     this.inner = this.el.querySelector('.petal-inner');
     this.applyTint();
@@ -56,19 +59,41 @@ class Backdrop {
    */
   attach(slot: HTMLElement | null) {
     if (!this.el) return;
-    const svg = this.el.querySelector('svg');
+    const svgs = this.el.querySelectorAll('svg');
+    const frame = (box: string, fit: string) => svgs.forEach((svg) => (svg.setAttribute('viewBox', box), svg.setAttribute('preserveAspectRatio', fit)));
     if (slot) {
       if (this.el.parentElement !== slot) slot.appendChild(this.el);
       this.el.classList.add('backdrop-board');
       // Frame the whole mandala, centred, rather than the screen-filling crop.
-      svg?.setAttribute('viewBox', '110 -220 780 780');
-      svg?.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      frame('110 -220 780 780', 'xMidYMid meet');
     } else {
       if (this.el.parentElement !== document.body) document.body.prepend(this.el);
       this.el.classList.remove('backdrop-board');
-      svg?.setAttribute('viewBox', '0 -300 1000 900');
-      svg?.setAttribute('preserveAspectRatio', 'xMidYMin slice');
+      frame('0 -300 1000 900', 'xMidYMin slice');
     }
+    this.centre = null;
+  }
+
+  /**
+   * Where the mandala's centre (500, 170 in its own units) stands in its layers' boxes, in CSS pixels: the point the
+   * rings turn about (worked out from the framing; again when the board or the screen changes size).
+   */
+  private centre: { x: number; y: number; w: number; h: number } | null = null;
+  private turnOrigin(): string | null {
+    const svg = this.outer;
+    if (!svg) return null;
+    // (Measured only when the framing or the screen has changed: reading a size between redraws costs a layout.)
+    if (!this.centre) {
+      const w = svg.clientWidth, h = svg.clientHeight;
+      if (!w || !h) return null;
+      const [vx, vy, vw, vh] = (svg.getAttribute('viewBox') ?? '0 -300 1000 900').split(' ').map(Number);
+      const fit = svg.getAttribute('preserveAspectRatio') ?? '';
+      const k = fit.includes('slice') ? Math.max(w / vw, h / vh) : Math.min(w / vw, h / vh);
+      const ox = (w - vw * k) / 2;
+      const oy = fit.includes('YMin') ? 0 : (h - vh * k) / 2;
+      this.centre = { x: ox + (500 - vx) * k, y: oy + (170 - vy) * k, w, h };
+    }
+    return `${this.centre.x.toFixed(1)}px ${this.centre.y.toFixed(1)}px`;
   }
 
   /** A move was made: spin faster for a moment. */
@@ -113,8 +138,21 @@ class Backdrop {
       return true;
     });
     const a = this.angle + extra;
-    this.outer?.setAttribute('transform', `rotate(${a.toFixed(3)} 500 170)`);
-    this.inner?.setAttribute('transform', `rotate(${(-a * 0.6).toFixed(3)} 500 170)`);
+    // (Turning it redraws the whole star: at its slow drift, two degrees a second, ten times a second is as smooth as
+    // every frame and a sixth of the drawing; a burst, a heat wave or a change of colour gets every frame. Hidden
+    // (the campaign map), it isn't touched at all.)
+    const visible = !!this.el && (this.el.classList.contains('backdrop-board') || !document.body.classList.contains('screen-campaign'));
+    const lively = this.bursts.length > 0 || this.rages.length > 0 || Math.abs(this.tint - this.tintTarget) > 0.002;
+    // (Each ring is a layer of its own, turned whole by the compositor: a transform, no redraw.)
+    // (On the shared beat, as the suns are; on the board, where the star is small, four times a second is smooth.)
+    const beat = this.el?.classList.contains('backdrop-board') ? 250 : 100;
+    const origin = visible && (lively || Math.floor(now / beat) !== Math.floor(this.turned / beat)) ? this.turnOrigin() : null;
+    if (origin && this.outer && this.inner) {
+      this.turned = now;
+      this.outer.style.transformOrigin = this.inner.style.transformOrigin = origin;
+      this.outer.style.transform = `rotate(${a.toFixed(3)}deg)`;
+      this.inner.style.transform = `rotate(${(-a * 0.6).toFixed(3)}deg)`;
+    }
     let tinted = false;
     if (Math.abs(this.tint - this.tintTarget) > 0.002) {
       this.tint += (this.tintTarget - this.tint) * Math.min(1, dt * 1.5);

@@ -3584,7 +3584,18 @@ export class App {
   }
 
   /** A card being dragged out of the hand: where it was picked up, and (once it moves) its flying copy. */
-  private drag: { uid: string; el: HTMLElement; x: number; y: number; dx: number; dy: number; ghost: HTMLElement | null; aim?: boolean; beam?: ReturnType<typeof pointerAim> } | null = null;
+  private drag: { uid: string; el: HTMLElement; x: number; y: number; dx: number; dy: number; ghost: HTMLElement | null; aim?: boolean; beam?: ReturnType<typeof pointerAim>; choices?: ReturnType<typeof aimChoices> } | null = null;
+  /** The latest hit-test under a dragging pointer, run once a frame (pointers can move faster than frames). */
+  private hitQueued: (() => void) | null = null;
+  private hitSoon(fn: () => void) {
+    const waiting = this.hitQueued;
+    this.hitQueued = fn;
+    if (!waiting) requestAnimationFrame(() => {
+      const run = this.hitQueued;
+      this.hitQueued = null;
+      run?.();
+    });
+  }
 
   /**
    * Whether a card in hand can be dragged straight onto what it heats: a surge whose only choice is where its heat
@@ -3630,7 +3641,8 @@ export class App {
     if (d.beam) {
       const at = toPage(new DOMRect(e.clientX, e.clientY, 0, 0));
       d.beam.to(at.x, at.y);
-      this.markDrop(this.dropEl(e.clientX, e.clientY));
+      const { clientX: x, clientY: y } = e;
+      this.hitSoon(() => this.drag === d && this.markDrop(this.dropEl(x, y)));
       return;
     }
     if (!d.ghost) {
@@ -3652,15 +3664,16 @@ export class App {
     // (The pointer is on screen; the copy is laid on the page, which may be zoomed or turned: in the page's own pixels.)
     const at = toPage(new DOMRect(e.clientX, e.clientY, 0, 0));
     d.ghost.style.transform = `translate(${at.x - d.dx}px, ${at.y - d.dy}px) rotate(-3deg) scale(1.05)`;
-    this.markDrop(this.dropEl(e.clientX, e.clientY));
+    const { clientX: x, clientY: y } = e;
+    this.hitSoon(() => this.drag === d && this.markDrop(this.dropEl(x, y)));
   }
 
   /** What on your tableau is under a dragged card: a slot, your Lightspeed slot, or a card of yours (or, a surge that
    *  heats one target, the rival card or sun it would heat). */
   private dropEl(x: number, y: number): HTMLElement | null {
     if (this.drag?.aim) {
-      const me = activePlayer(this.state!);
-      const { cards, sun } = aimChoices(this.state!, me);
+      // (Worked out once a drag: the board does not change under it.)
+      const { cards, sun } = (this.drag.choices ??= aimChoices(this.state!, activePlayer(this.state!)));
       for (const el of document.elementsFromPoint(x, y)) {
         const card = el.closest<HTMLElement>('.tableau-rival .card[data-uid]');
         if (card && cards.some((c) => c.uid === card.dataset.uid)) return card;
@@ -3776,12 +3789,16 @@ export class App {
     // (The pointer is on screen; the beam is drawn on the page, which may be zoomed or turned.)
     const at = toPage(new DOMRect(e.clientX, e.clientY, 0, 0));
     d.beam.to(at.x, at.y);
-    const over = this.attackTargetAt(e.clientX, e.clientY);
-    if (over !== d.over) {
-      d.over?.classList.remove('aim-over');
-      over?.classList.add('aim-over');
-      d.over = over;
-    }
+    const { clientX: x, clientY: y } = e;
+    this.hitSoon(() => {
+      if (this.attackDrag !== d) return;
+      const over = this.attackTargetAt(x, y);
+      if (over !== d.over) {
+        d.over?.classList.remove('aim-over');
+        over?.classList.add('aim-over');
+        d.over = over;
+      }
+    });
   }
 
   private onAttackDragEnd(e: PointerEvent | null) {

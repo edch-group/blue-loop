@@ -153,8 +153,13 @@ export function petalBackdrop(): string {
     const r = i * 20 + 10;
     return `<path d="M500 170 L526 -30 L500 -90 L474 -30 Z" transform="rotate(${r} 500 170)" />`;
   }).join('');
+  // Three layers, framed alike [direction: as efficient as possible on the GPU]: each ring drawn once and turned
+  // whole by the compositor (see backdrop.ts: a turn is a transform, never a redraw), the glow still beneath them.
+  const svg = (cls: string, body: string) => `<svg class="petals ${cls}" viewBox="0 -300 1000 900" preserveAspectRatio="xMidYMin slice" aria-hidden="true">${body}</svg>`;
   return `
-    <svg class="petals" viewBox="0 -300 1000 900" preserveAspectRatio="xMidYMin slice" aria-hidden="true">
+    ${svg('petal-outer', `<g>${petals}</g>`)}
+    ${svg('petal-inner', `<g>${inner}</g>`)}
+    ${svg('petal-glow', `
       <defs>
         <radialGradient id="glow" cx="50%" cy="0%" r="70%">
           <stop offset="0%" stop-color="#fff" stop-opacity="1" />
@@ -167,11 +172,8 @@ export function petalBackdrop(): string {
           <stop offset="100%" class="heat-stop" stop-opacity="0" />
         </radialGradient>
       </defs>
-      <g class="petal-outer">${petals}</g>
-      <g class="petal-inner">${inner}</g>
       <circle cx="500" cy="170" r="520" fill="url(#glow)" />
-      <circle class="heat-core" cx="500" cy="170" r="300" fill="url(#heat-core)" />
-    </svg>`;
+      <circle class="heat-core" cx="500" cy="170" r="300" fill="url(#heat-core)" />`)}`;
 }
 
 const ROMAN: [number, string][] = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];

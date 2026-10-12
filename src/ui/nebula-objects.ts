@@ -741,6 +741,13 @@ export class MapObjects {
   }
 
   /** Whether any ship is under way (cruising in, or flying a route): its boosters are heard while it is. */
+  /** Whether any ship is moving at all (a warp, a cruise, a glide in): the scene is then drawn every frame. */
+  get shipsUnderway(): boolean {
+    const now = performance.now() / 1000;
+    for (const sh of this.ships.values()) if (sh.cruise || (sh.dur > 0 && now - sh.t0 < sh.dur)) return true;
+    return false;
+  }
+
   get shipsMoving(): boolean {
     const now = performance.now() / 1000;
     // (The boosters are for flying in, the opening's cruise and its glide home; a warp has its own sound.)

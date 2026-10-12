@@ -467,7 +467,9 @@ class Layer {
     // The pulsar's sweep: round once every 9 seconds.
     const beam = time * ((Math.PI * 2) / 9);
     const gl = this.gl, c = this.canvas;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // (At most 1.5 device pixels a CSS pixel: a soft scene of gas and light, its full-screen shading the GPU's
+    // biggest job; at 2, it shaded 78% more pixels for no difference that shows.)
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
     const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr);
     if (!w || !h) return;
     if (c.width !== w || c.height !== h) {
@@ -583,6 +585,8 @@ export class Nebula {
   private seed = -1;
   private raf = 0;
   private last = 0;
+  /** When the scene was last drawn (its gas alone drifting, it is drawn at most 30 times a second). */
+  private drawn = 0;
   private time = 0;
   private reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   /** Where the camera is, and where it is easing to after a reset. */
@@ -884,7 +888,10 @@ export class Nebula {
     for (const l of this.layers) l.lose();
   }
 
+  /** Something on the map changed: the next frame is drawn, whatever the frame rate the drifting gas keeps. */
+  private forceDraw = false;
   private wake() {
+    this.forceDraw = true;
     if (!this.raf) this.raf = requestAnimationFrame((t) => this.frame(t));
   }
 
@@ -940,7 +947,16 @@ export class Nebula {
       if (!this.camera || this.camera.width !== cam.width || this.camera.height !== cam.height) this.moved = true;
       this.camera = cam;
       const fade = this.fade * this.fade * (3 - 2 * this.fade);
-      if (!document.hidden) for (const l of this.layers) l.draw(cam, this.time, fade, this.gone, this.crack, this.look, this.dark);
+      // Only the gas drifting (nothing moving that the eye follows: no camera glide, opening shot, fade, ships under
+      // way, hover swelling, land falling away): at most 30 frames a second, not every one the screen can show.
+      const objects = this.layers[this.layers.length - 1].objects;
+      const busy = this.moved || !!this.glide || !!this.cine || this.fade < 1 || this.gone !== this.goneTarget || !!objects?.shipsUnderway || !!objects?.hoverMoving || this.forceDraw;
+      const due = busy || t - this.drawn >= 33;
+      if (due && !document.hidden) {
+        this.drawn = t;
+        this.forceDraw = false;
+        for (const l of this.layers) l.draw(cam, this.time, fade, this.gone, this.crack, this.look, this.dark);
+      }
       if (this.moved) {
         this.moved = false;
         this.onCamera?.(cam);
