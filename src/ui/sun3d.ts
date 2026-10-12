@@ -9,6 +9,7 @@
  */
 
 import { BALANCE } from '../engine';
+import { uiZoom } from './viewport';
 const TW = 512;
 /** Directions round the rim the corona's flames are worked out for each frame. */
 const FLAMES = 360;
@@ -109,7 +110,7 @@ function coronaGrid(size: number, c: number, R: number) {
 const RADIUS = 0.27 / 0.88;
 
 function draw(canvas: HTMLCanvasElement, time: number) {
-  const size = Math.round(Math.min(220, canvas.clientWidth * Math.min(2, window.devicePixelRatio || 1)));
+  const size = Math.round(Math.min(220 * uiZoom(), canvas.clientWidth * Math.min(2, window.devicePixelRatio || 1) * uiZoom()));
   if (size < 8) return;
   if (canvas.width !== size) {
     canvas.width = size;
@@ -511,7 +512,7 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
   if (vs < 8) return;
   const span = vs * (1 + 2 * DOME_PAD);
   // A little finer than the screen's own pixels, so edges stay smooth however the board scales it.
-  const size = Math.round(Math.min(760, span * Math.min(2, window.devicePixelRatio || 1) * 1.15));
+  const size = Math.round(Math.min(760 * uiZoom(), span * Math.min(2, window.devicePixelRatio || 1) * uiZoom() * 1.15));
   if (canvas.width !== size) {
     canvas.width = size;
     canvas.height = size;

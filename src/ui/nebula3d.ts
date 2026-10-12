@@ -19,6 +19,7 @@
 
 import { buildNebula, GROUND_STRIDE, type Geometry, type Strip } from './nebula-geometry';
 import { MapObjects, type GalaxyLook, type MapObject, type MapRoute, type MapShip } from './nebula-objects';
+import { uiZoom } from './viewport';
 
 export type { Strip, MapObject, MapRoute, MapShip, GalaxyLook };
 
@@ -469,8 +470,14 @@ class Layer {
     const gl = this.gl, c = this.canvas;
     // (At most 1.5 device pixels a CSS pixel: a soft scene of gas and light, its full-screen shading the GPU's
     // biggest job; at 2, it shaded 78% more pixels for no difference that shows.)
-    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
-    const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr);
+    // The page may be drawn bigger than it is laid out (body zoom, on a big screen): the canvas is drawn at the
+    // screen's own pixels, not stretched up from its layout size (which left every edge in the scene jagged).
+    // (Kept within about a 1440p screen's pixels at 1.5, so a huge screen doesn't swamp the GPU.)
+    const lw = c.clientWidth, lh = c.clientHeight;
+    let dpr = Math.min(1.5, window.devicePixelRatio || 1) * uiZoom();
+    const most = 4.6e6;
+    if (lw * lh * dpr * dpr > most) dpr = Math.sqrt(most / (lw * lh));
+    const w = Math.round(lw * dpr), h = Math.round(lh * dpr);
     if (!w || !h) return;
     if (c.width !== w || c.height !== h) {
       c.width = w;

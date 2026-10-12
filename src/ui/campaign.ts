@@ -2779,7 +2779,10 @@ export class CampaignView {
     if (own?.startsWith('sys-')) return own.slice(4);
     if (top?.closest('.cmp-pop, .cmp-orbits, button, [data-act]:not(.cmp-stage):not(.cmp-ring)')) return null;
     const box = canvas.getBoundingClientRect();
-    const id = this.nebula!.pickStar(cx - box.left, cy - box.top);
+    // (The scene measures in the canvas's layout pixels; the page may be zoomed (body zoom), so the pointer's screen
+    // pixels are scaled back first, or the reach falls further from each star the further it is from the corner.)
+    const z = box.width / (canvas.clientWidth || box.width) || 1;
+    const id = this.nebula!.pickStar((cx - box.left) / z, (cy - box.top) / z);
     return id && this.state.nodes.some((n) => n.id === id && !n.challenge?.hidden) ? id : null;
   }
 

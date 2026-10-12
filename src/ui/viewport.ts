@@ -140,6 +140,11 @@ function lockLandscape() {
   window.addEventListener('pointerup', tryLock, { once: true });
 }
 
+/** How much bigger the page is drawn than it is laid out (body zoom; 1 when turned or unzoomed). */
+export function uiZoom(): number {
+  return zoom;
+}
+
 /** The page's own size, as laid out (landscape). */
 export function appSize(): { w: number; h: number } {
   return size;
