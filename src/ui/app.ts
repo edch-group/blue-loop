@@ -1316,7 +1316,7 @@ export class App {
     } catch {
       // Not available.
     }
-    if (!after && resume && RESUMABLE.has(resume) && signedIn()) this.menuPage = resume as MenuPage;
+    if (!after && resume && RESUMABLE.has(resume) && signedIn()) this.menuPage = resume === 'shop' && isOffline() ? 'hub' : (resume as MenuPage);
     if (after && !signedIn()) this.authMode = 'name';
     // What sign-ins the server offers (Apple, Google, password reset).
     void serverConfig().then((c) => {
@@ -4067,6 +4067,8 @@ export class App {
         this.state = null;
         return this.findRanked();
       case 'buy-booster': {
+        // (Bought from the server, which keeps the collection: never without a connection.)
+        if (isOffline()) return this.showToast('Offline.', 'info');
         const kind: BoosterKind = arg === 'general' ? 'general' : (Number(arg) as BoosterKind);
         // The server opens it (it keeps your collection); the pack tears open once it answers.
         void buyBooster(kind).then((res) => {
