@@ -90,6 +90,8 @@ import {
   NYX_MARKS,
   RIFTS,
   spinGalaxy,
+  nextTurningRing,
+  turnRing,
   struggleLine,
 } from '../engine';
 import { account, markDirty } from './account';
@@ -664,8 +666,8 @@ export class CampaignView {
         this.encountering = false;
         return this.host.render();
       }
-      // (Through a rift the galaxy is a new one, and the system flown to is gone: nothing to select or open.)
-      if (!this.state.nodes.some((n) => n.id === toId)) {
+      // (Through a rift the galaxy is a new one (its systems' ids used afresh): nothing to select or open.)
+      if (this.state.rift?.kind !== s0.rift?.kind || !this.state.nodes.some((n) => n.id === toId)) {
         this.advance = null;
         this.encountering = false;
         this.selected = null;
@@ -2247,23 +2249,29 @@ export class CampaignView {
   }
 
   private spinStep() {
+    // (A scene with nothing to show is passed over, never left holding the galaxy still.)
+    if (this.state?.story.queue.length) this.skipSilentScenes();
     const s = this.state;
     const stage = this.stageEl;
     if (!s || s.rift?.kind !== 'time' || !stage?.isConnected) return this.keepSpinning();
     if (this.spinning || this.advance || s.battle || s.phase !== 'player' || this.sheet || s.loot || s.cardRewards.length || s.prophet || s.emblemChoice || s.story.queue.length) return;
-    const from = s.spin ?? 0;
+    // (One ring a step, never the flagship's: see nextTurningRing.)
+    const ring = nextTurningRing(s);
+    if (ring === null) return;
     const root = stage.closest<HTMLElement>('.cmp');
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     sound.boomTick();
     this.spinning = true;
     const t0 = performance.now(), dur = reduce ? 0 : 420;
+    let done = 0;
     const frame = () => {
       const k = dur ? Math.min(1, (performance.now() - t0) / dur) : 1;
       const e = 1 - Math.pow(1 - k, 3);
       if (!this.state || this.state !== s) return void (this.spinning = false);
-      spinGalaxy(s, from + e);
+      turnRing(s, ring, e - done);
+      done = e;
       for (const n of s.nodes) {
-        if (n.spinRing === undefined) continue;
+        if (n.spinRing !== ring) continue;
         const el = stage.querySelector<HTMLElement>(`[data-key="sys-${n.id}"]`);
         if (el) {
           el.style.left = `${n.x}px`;
@@ -2272,7 +2280,10 @@ export class CampaignView {
       }
       if (root && k < 1) this.showNebula(root);
       if (k < 1) return void requestAnimationFrame(frame);
-      spinGalaxy(s, from + 1);
+      // (Landed on a whole step, free of the glide's rounding.)
+      s.ringSpins = { ...s.ringSpins, [ring]: Math.round(s.ringSpins?.[ring] ?? 0) };
+      spinGalaxy(s);
+      s.spin = (s.spin ?? 0) + 1;
       this.spinning = false;
       this.host.render();
     };

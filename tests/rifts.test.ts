@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyCampaignAction, armiesOf, armyMoves, campaignPlayer, createCampaign, flagship, nodeById, spinGalaxy, visibleNodes, type CampaignNode, type CampaignState } from '../src/engine/campaign';
+import { applyCampaignAction, armiesOf, armyMoves, campaignPlayer, createCampaign, flagship, nextTurningRing, nodeById, turnRing, visibleNodes, type CampaignNode, type CampaignState } from '../src/engine/campaign';
 import { cardDef } from '../src/engine/cards';
 import { markedId, marksFor } from '../src/engine/rifts';
 
@@ -58,8 +58,15 @@ describe('Rifts', () => {
     expect(s.rift?.kind).toBe('time');
     expect(s.nodes.find((n) => n.heart)?.name).toMatch(/Aster/);
     const seen = new Set<string>();
-    for (let spin = 0; spin < 12; spin++) {
-      spinGalaxy(s, spin);
+    const here = () => nodeById(s, ship(s).nodeId);
+    const at = { x: here().x, y: here().y };
+    for (let step = 0; step < 12; step++) {
+      // One ring a step, never the flagship's [direction: the node the ship is on never moves].
+      const ring = nextTurningRing(s)!;
+      expect(ring).not.toBe(here().spinRing);
+      turnRing(s, ring, 1);
+      s.spin = (s.spin ?? 0) + 1;
+      expect({ x: here().x, y: here().y }).toEqual(at);
       const moves = armyMoves(s, ship(s)).map((m) => m.toId);
       expect(moves.length).toBeGreaterThan(0);
       for (const id of moves) expect(nodeById(s, id).spinRing).toBe(4);
@@ -67,6 +74,16 @@ describe('Rifts', () => {
     }
     // (Over a few seconds, more than one star comes into reach.)
     expect(seen.size).toBeGreaterThan(1);
+    // On a ring that turns, the flagship's ring is the one that never does.
+    ship(s).nodeId = s.nodes.find((n) => n.spinRing === 2)!.id;
+    const still = { x: here().x, y: here().y };
+    for (let step = 0; step < 12; step++) {
+      const ring = nextTurningRing(s)!;
+      expect(ring).not.toBe(2);
+      turnRing(s, ring, 1);
+      s.spin = (s.spin ?? 0) + 1;
+    }
+    expect({ x: here().x, y: here().y }).toEqual(still);
   });
 
   it("lets a Dark Prophet mark one of the flagship's cards with a Nyxari keyword, for good", () => {

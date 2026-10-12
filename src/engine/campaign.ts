@@ -675,8 +675,10 @@ export interface CampaignState {
   terrain?: MapTerrain;
   /** In a Lost Race's galaxy, through a rift (rifts.ts): which. Unset in the run's ordinary galaxies. */
   rift?: { kind: RiftKind };
-  /** Time Dense Space: how many times its rings have turned (a step a second, on the player's screen). */
+  /** Time Dense Space: how many steps it has taken (a step a second, on the player's screen; one ring turns a step). */
   spin?: number;
+  /** Time Dense Space: how far each ring has turned (by ring, 1 the innermost). */
+  ringSpins?: Record<number, number>;
   /** A Dark Prophet's offer waiting on the player: three of their cards, each with the mark it would take. */
   prophet?: { nodeId: string; offers: { card: string; mark: NyxMark }[] };
   /** Aster's gift waiting on the player: three Seren emblems, one to take. */
@@ -1672,17 +1674,38 @@ function spunAt(ring: number, slot: number, spin: number): { x: number; y: numbe
 }
 
 /**
- * Time Dense Space turns [direction: a circular galaxy rotating anticlockwise, the stars in reach changing every
- * second]: each star moves to where its ring now stands, and each star's routes inward go to the star (or two) of
- * the next ring in now lying across its way. The heart (Aster) is in reach of every star of the innermost ring.
- * Mutates the state it is given (the player's screen turns it, a step a second; a move made is made as it stands).
+ * The ring of Time Dense Space that turns next [direction: the node the ship is on never moves; the map moves in
+ * segments, one part of it each second]: the rings take turns, innermost first, and the ring the flagship stands on
+ * never turns.
  */
-export function spinGalaxy(s: CampaignState, spin: number) {
+export function nextTurningRing(s: CampaignState): number | null {
+  if (s.rift?.kind !== 'time') return null;
+  const ship = flagship(s, s.playerId);
+  const on = ship ? s.nodes.find((n) => n.id === ship.nodeId)?.spinRing : undefined;
+  const rings = TIME_RINGS.map((_, i) => i + 1).filter((r) => r !== on);
+  return rings.length ? rings[(s.spin ?? 0) % rings.length] : null;
+}
+
+/** Turn one ring of Time Dense Space by `by` steps (a fraction, mid-glide), its routes redrawn. */
+export function turnRing(s: CampaignState, ring: number, by: number) {
   if (s.rift?.kind !== 'time') return;
-  s.spin = spin;
+  s.ringSpins = { ...s.ringSpins, [ring]: (s.ringSpins?.[ring] ?? 0) + by };
+  spinGalaxy(s);
+}
+
+/**
+ * Time Dense Space as it now stands [direction: a circular galaxy rotating anticlockwise, the stars in reach
+ * changing every second]: each star where its ring has turned to, and each star's routes inward to the star (or two)
+ * of the next ring in now lying across its way. The heart (Aster) is in reach of every star of the innermost ring.
+ * Mutates the state it is given (the player's screen turns it a ring at a time; a move made is made as it stands).
+ */
+export function spinGalaxy(s: CampaignState) {
+  if (s.rift?.kind !== 'time') return;
+  // (A run saved while the whole galaxy turned as one: every ring stands where that left it.)
+  s.ringSpins ??= Object.fromEntries(TIME_RINGS.map((_, i) => [i + 1, s.spin ?? 0]));
   const ringed = s.nodes.filter((n) => n.spinRing !== undefined);
   for (const n of ringed) {
-    const p = spunAt(n.spinRing!, n.spinSlot ?? 0, spin);
+    const p = spunAt(n.spinRing!, n.spinSlot ?? 0, s.ringSpins?.[n.spinRing!] ?? 0);
     n.x = p.x;
     n.y = p.y;
   }
@@ -1746,6 +1769,7 @@ function buildRift(s: CampaignState, kind: RiftKind) {
   s.galaxy = undefined;
   s.terrain = 'flat';
   s.spin = 0;
+  s.ringSpins = {};
   const used = new Set<string>();
   // (Past anything the run's own galaxy holds at its far end.)
   const tier = 2 * (s.universe - 1) + 3;
@@ -1817,7 +1841,7 @@ function buildRift(s: CampaignState, kind: RiftKind) {
   const mid = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 1 && (n.col ?? 0) <= RIFT_JUMPS - 2));
   if (mid[0]) mid[0].station = { kind: 'armory', cards: armoryStock(s, mid[0]) };
   if (mid[1]) mid[1].station = { kind: 'research', options: pickResearch(s, mid[1], new Set(me.research?.done ?? [])) };
-  spinGalaxy(s, 0);
+  spinGalaxy(s);
   clog(s, `${me.name} comes through the rift into ${RIFTS[kind].name}. ${RIFTS[kind].text}`);
 }
 
@@ -3200,6 +3224,7 @@ function crossWormhole(s: CampaignState, f: Faction) {
   // (Out of a rift's galaxy, on into the run's next.)
   s.rift = undefined;
   s.spin = undefined;
+  s.ringSpins = undefined;
   buildUniverse(s, s.universe + 1);
 }
 
