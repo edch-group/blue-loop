@@ -82,6 +82,7 @@ import {
   spinGalaxy,
   timePreview,
   struggleLine,
+  SLAY_LOOT,
 
   captainCard,
   captainMeta,
@@ -702,7 +703,7 @@ export class CampaignView {
         this.advance = null;
         this.encountering = false;
         // A station: straight in, its screen open on arrival (after a Power Struggle, if one waits).
-        if (this.state.struggle || this.state.dream) this.afterStruggle = toId;
+        if (this.state.struggle || this.state.beaten || this.state.dream) this.afterStruggle = toId;
         else this.enterStation(toId);
         return this.host.render();
       }
@@ -723,7 +724,7 @@ export class CampaignView {
   /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */
   private moveSpent(): boolean {
     const s = this.state;
-    if (!s || s.phase !== 'player' || s.battle || s.struggle || s.dream || s.conquest || s.loot || s.cardRewards.length || s.boon || s.winner) return false;
+    if (!s || s.phase !== 'player' || s.battle || s.struggle || s.beaten || s.dream || s.conquest || s.loot || s.cardRewards.length || s.boon || s.winner) return false;
     const a = flagship(s, s.playerId);
     // (Moved, or with nowhere to go at all: there is no waiting, so time moves on by itself.)
     return !!a && armyMoves(s, a).length === 0;
@@ -808,7 +809,7 @@ export class CampaignView {
       this.sheet = null;
       return true;
     }
-    if (this.sheet || s.battle || s.loot || s.cardRewards.length || s.dream || s.struggle || s.conquest || s.prophet || s.boon || s.emblemChoice?.length || s.winner || s.story.queue.length) return false;
+    if (this.sheet || s.battle || s.loot || s.cardRewards.length || s.dream || s.struggle || s.beaten || s.conquest || s.prophet || s.boon || s.emblemChoice?.length || s.winner || s.story.queue.length) return false;
     this.sheet = { kind: 'settings' };
     return true;
   }
@@ -1152,6 +1153,10 @@ export class CampaignView {
         const { armyId, toId } = this.sheet;
         return this.setOut(armyId, toId);
       }
+      case 'cmp-recruit':
+      case 'cmp-slay':
+        if (this.apply({ type: 'struggleChoice', recruit: act === 'cmp-recruit' })) act === 'cmp-recruit' ? sound.upgrade() : sound.buy();
+        break;
       case 'cmp-struggle':
         if (this.apply({ type: 'struggle' })) sound.encounter();
         break;
@@ -2209,6 +2214,8 @@ export class CampaignView {
         id: n.id,
         // (Its station, so it can be found: a space station circling it, a research station's test tube over it.)
         ...(n.station ? { prop: n.station.kind === 'armory' ? ('station' as const) : ('lab' as const) } : {}),
+        // (A rival hero waiting there: their race's ship over the star.)
+        ...(n.rival ? { rival: cardDef(n.rival).race ?? 0 } : {}),
       };
     });
     this.nebula.setObjects(objects);
@@ -2339,7 +2346,7 @@ export class CampaignView {
   private afterStruggle: string | null = null;
   private openAfterStruggle() {
     const s = this.state;
-    if (!this.afterStruggle || !s || s.struggle || s.dream || s.battle || s.loot || s.cardRewards.length || this.sheet) return;
+    if (!this.afterStruggle || !s || s.struggle || s.beaten || s.dream || s.battle || s.loot || s.cardRewards.length || this.sheet) return;
     const id = this.afterStruggle;
     this.afterStruggle = null;
     if (flagship(s, s.playerId)?.nodeId !== id) return;
@@ -2674,18 +2681,32 @@ export class CampaignView {
     // A Power Struggle: a hero of your own race, come for your command while your sun runs overheated.
     if (s.struggle && !s.battle) {
       const hero = s.struggle.hero;
+      const human = !!campaignPlayer(s).human;
       return `<div class="overlay overlay-soft struggle">
         <div class="struggle-face">${portrait(hero)}</div>
         <small class="struggle-kicker">power struggle</small>
         <h2>${lower(cardDef(hero).name)}</h2>
-        <p class="struggle-line">“${esc(struggleLine(hero))}”</p>
-        <button class="btn-primary" data-act="cmp-struggle">fight for your command</button>
+        <p class="struggle-line">“${esc(struggleLine(hero, human))}”</p>
+        <button class="btn-primary" data-act="cmp-struggle">${human ? 'fight for your ship' : 'fight for your command'}</button>
+      </div>`;
+    }
+    // A rival beaten (the Captain's runs): recruit them, or slay them for their hoard.
+    if (s.beaten && !s.battle) {
+      const hero = s.beaten.hero;
+      return `<div class="overlay overlay-soft struggle struggle-beaten">
+        <div class="struggle-face">${portrait(hero)}</div>
+        <small class="struggle-kicker">beaten</small>
+        <h2>${lower(cardDef(hero).name)}</h2>
+        <div class="struggle-choice">
+          <button class="btn-primary" data-act="cmp-recruit">recruit<small>joins your deck</small></button>
+          <button class="btn" data-act="cmp-slay">slay<small>${MATERIALS}${SLAY_LOOT.materials + SLAY_LOOT.perGalaxy * (s.universe - 1)} · ${PETAL}${SLAY_LOOT.petals} · ${SLAY_LOOT.cards} rare cards</small></button>
+        </div>
       </div>`;
     }
     // A Dream of the Lost: the screen drifts, wavering, into dark, with a line; then the dream begins by itself.
     // (Only once the battle's spoils are seen to: its loot opened and its card chosen, a conquest decided.)
     const spoilsWaiting = (x: CampaignState) => !!x.loot || x.cardRewards.length > 0 || !!x.conquest;
-    if (s.dream && !s.battle && !s.struggle && !spoilsWaiting(s)) {
+    if (s.dream && !s.battle && !s.struggle && !s.beaten && !spoilsWaiting(s)) {
       if (!this.dreamStarting) {
         this.dreamStarting = true;
         window.setTimeout(() => {

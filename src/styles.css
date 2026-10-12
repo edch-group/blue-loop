@@ -7271,3 +7271,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .hp-marks { gap: 2px; font-size: 0.7rem; transform: none; }
 .hp-marks .kw-ico { width: 13px; height: 13px; }
 .hp-marks b { font-size: 0.66rem; }
+
+/* A rival beaten (the Captain's runs): recruit, or slay for their hoard. */
+.struggle-choice { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.struggle-choice button { display: grid; justify-items: center; gap: 3px; min-width: 150px; }
+.struggle-choice small { display: inline-flex; align-items: center; gap: 3px; font-family: var(--body, inherit); font-size: 0.66rem; letter-spacing: 0; text-transform: none; opacity: 0.8; }
+.struggle-choice small .cur { width: 1em; height: 1em; margin: 0; }
+.struggle-choice .btn, .struggle-choice .btn-primary { padding: 12px 24px; margin: 0; }

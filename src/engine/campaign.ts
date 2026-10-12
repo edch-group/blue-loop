@@ -305,6 +305,8 @@ export interface CampaignNode {
   prophet?: boolean;
   /** A Dream of the Lost waits here, unseen: the flagship drifts into it once it stands here. */
   dream?: boolean;
+  /** A rival hero waits here (the Captain's runs): flown into, they come for the Captain's ship (a Power Struggle). */
+  rival?: string;
   /** Time Dense Space: the ring it turns on (1 innermost; the arrival the outermost) and its place round it. */
   spinRing?: number;
   spinSlot?: number;
@@ -696,6 +698,10 @@ export interface CampaignState {
   emblemChoice?: Relic[];
   /** A Power Struggle waiting to be fought: where, and which of the player's race's heroes has come for their command. */
   struggle?: { nodeId: string; hero: string };
+  /** A rival hero beaten in a Power Struggle (the Captain's runs), waiting on the Captain: recruit them, or slay them. */
+  beaten?: { nodeId: string; hero: string };
+  /** Heroes slain in this run (the Captain's): they come for no one again. */
+  slain?: string[];
   /** A Dream of the Lost waiting to be dreamt: where, and which (its puzzle's id). */
   dream?: { nodeId: string; id: string };
   /** A battle the player is fighting (or can auto-resolve). */
@@ -799,6 +805,7 @@ export type CampaignAction =
   | { type: 'chooseEmblem'; index: number }
   /** Face the Power Struggle waiting (the battle begins). */
   | { type: 'struggle' }
+  | { type: 'struggleChoice'; recruit: boolean }
   /** Drift into the Dream of the Lost waiting (its puzzle begins). */
   | { type: 'dream' };
 
@@ -1667,6 +1674,7 @@ export function buildUniverse(s: CampaignState, universe: number, layout?: MapLa
     n.cache = { kind, amount: kind === 'cards' ? 3 : 4 + 2 * n.tier };
   }
   placeChallenges(s);
+  placeRivals(s);
   // Dreams of the Lost, unseen, in a few systems of any kind.
   for (const n of shuffleInPlace(s, s.nodes.filter((x) => !x.home && !x.heart && !x.challenge)).slice(0, DREAM_NODES)) n.dream = true;
   // Relic caches: now and then a neutral system's battlefield holds a sealed Reliquary Obelisk (one relic, now and
@@ -1997,12 +2005,48 @@ export function flagshipOverheated(s: CampaignState, army: Army): boolean {
 /** A hero of the player's race who could come for the command: not the one leading, nor one already aboard. */
 export function struggleRival(s: CampaignState, army: Army): string | null {
   const f = factionById(s, army.owner);
-  const free = (GENERALS[f.race] ?? []).filter((h) => h !== army.general && !army.deck.includes(h) && !f.reserve.includes(h));
+  // (The Captain's rivals: any core race's heroes, not aboard, not slain, not already waiting on the map.)
+  const waiting = new Set(s.nodes.map((n) => n.rival).filter(Boolean));
+  const pool = f.human ? CORE_RACES.flatMap((r) => GENERALS[r]) : (GENERALS[f.race] ?? []);
+  const free = pool.filter((h) => h !== army.general && !army.deck.includes(h) && !f.reserve.includes(h) && !s.slain?.includes(h) && !waiting.has(h) && s.beaten?.hero !== h);
   return free.length ? free[randomInt(s, free.length)] : null;
 }
 
+/** Rival heroes waiting on each galaxy's map (the Captain's runs), and the chance of one ambushing a jump. */
+export const RIVAL_NODES = 2;
+export const AMBUSH_CHANCE = 0.05;
+
+/** A rival hero waiting where the flagship has come: their Power Struggle begins. */
+function rivalHere(s: CampaignState, army: Army) {
+  if (army.owner !== s.playerId || army.lost || s.struggle || s.beaten) return;
+  const n = nodeById(s, army.nodeId);
+  if (!n.rival) return;
+  s.struggle = { nodeId: n.id, hero: n.rival };
+  n.rival = undefined;
+}
+
+/** Rival heroes set on a galaxy's map for the Captain (none in a Lost Race's galaxy: its own ruler waits there). */
+function placeRivals(s: CampaignState) {
+  const me = campaignPlayer(s);
+  const army = flagship(s, me.id);
+  if (!me.human || !army || s.rift) return;
+  const open = s.nodes.filter((n) => !n.home && !n.heart && !n.challenge && !n.station && !n.prophet && (n.col ?? 0) >= 2);
+  for (const n of shuffleInPlace(s, open).slice(0, RIVAL_NODES)) {
+    const hero = struggleRival(s, army);
+    if (hero) n.rival = hero;
+  }
+}
+
 /** The hero's words, coming for the command. */
-export const struggleLine = (hero: string) => STRUGGLE_LINES[hero] ?? 'Your star is failing, and so are you. You are not fit to lead.';
+export const struggleLine = (hero: string, human = false) =>
+  human ? (CAPTAIN_TAUNTS[GENERALS.findIndex((g) => g.includes(hero))] ?? 'That ship is wasted on a human. I am taking it.') : (STRUGGLE_LINES[hero] ?? 'Your star is failing, and so are you. You are not fit to lead.');
+/** What a rival hero says, coming for the Captain's ship, by race. */
+const CAPTAIN_TAUNTS = [
+  'A human, flying a ship like that, this close to the Heart? The light deserves better. I am taking her.',
+  'Your ship runs hot and stupid, human. In my hands she will burn true. Stand aside, or burn with her.',
+  'The tide has carried you far enough, little human. Your ship is mine now.',
+  'Such a fine hull, and only one of you to fill it. We will take it, and grow.',
+];
 
 /** A Power Struggle faced: the rival hero's side, its hero in play from the start, fought where the flagship stands. */
 function startStruggle(s: CampaignState) {
@@ -2044,11 +2088,43 @@ function resolveStruggle(s: CampaignState, game: GameState) {
     playerFalls(s);
     return;
   }
-  if (army) {
-    army.damage = Math.max(BALANCE.minHeat, game.players[0].heat);
-    army.deck.push(hero);
-  } else f.reserve.push(hero);
+  if (army) army.damage = Math.max(BALANCE.minHeat, game.players[0].heat);
+  // The Captain decides their fate [direction: after winning one the player can choose to recruit the hero, or slay
+  // them for a significant amount of loot].
+  if (f.human) {
+    s.beaten = { nodeId: b.nodeId, hero };
+    clog(s, `${cardDef(hero).name} is beaten, and kneels before the Captain.`, b.nodeId, f.id);
+    return;
+  }
+  if (army) army.deck.push(hero);
+  else f.reserve.push(hero);
   clog(s, `${cardDef(hero).name} is beaten, and bends the knee: they join ${f.name}'s flagship.`, b.nodeId, f.id);
+}
+
+/** What slaying a beaten hero pays: materials, petals and a pick of their race's rare cards (an emblem now and then). */
+export const SLAY_LOOT = { materials: 10, perGalaxy: 4, petals: 2, cards: 3 };
+
+/** The Captain decides a beaten hero's fate: recruited, they join the deck; slain, their spoils are the Captain's. */
+function decideBeaten(s: CampaignState, recruit: boolean) {
+  const p = s.beaten!;
+  s.beaten = undefined;
+  const f = campaignPlayer(s);
+  const army = flagship(s, f.id);
+  const name = cardDef(p.hero).name;
+  if (recruit) {
+    if (army) army.deck.push(p.hero);
+    else f.reserve.push(p.hero);
+    clog(s, `${name} joins the Captain's ship.`, p.nodeId, f.id);
+    return;
+  }
+  (s.slain ??= []).push(p.hero);
+  const materials = SLAY_LOOT.materials + SLAY_LOOT.perGalaxy * (s.universe - 1);
+  f.materials += materials;
+  s.petals += SLAY_LOOT.petals;
+  const race = cardDef(p.hero).race;
+  const rares = shuffleInPlace(s, CARDS.filter((c) => c.race === race && c.kind !== 'command' && (c.rarity === 'stellar' || c.rarity === 'anomaly') && !c.fusion && legalIn(s.mode, c.id)).map((c) => c.id)).slice(0, SLAY_LOOT.cards);
+  if (rares.length) s.cardRewards.push({ source: `${name}'s hoard`, options: rares, ...(army ? { toDeck: army.id } : {}) });
+  clog(s, `${name} is slain. The Captain takes their hoard: ${materials} materials and ${SLAY_LOOT.petals} petals.`, p.nodeId, f.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -2606,8 +2682,11 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     // (A hero who marches fast may go on, but not after a battle.)
     if (army.steps >= 1 + armyBonus(s, army).march) army.moved = true;
     clog(s, `${armyLeader(army)}'s army marches to ${target.name}.`, [here.id, toId], f.id);
-    // Overheated: a hero of the player's own race may come for the command (a station's use waits on it).
-    if (f.id === s.playerId && !army.lost && !s.prophet && flagshipOverheated(s, army) && nextRandom(s) < STRUGGLE_CHANCE) {
+    // A rival waiting here comes for the ship. (The Captain's runs: now and then one ambushes a jump. Others': overheated,
+    // a hero of the player's own race may come for the command.) A station's use waits on it.
+    rivalHere(s, army);
+    const ambush = f.human ? nextRandom(s) < AMBUSH_CHANCE : flagshipOverheated(s, army) && nextRandom(s) < STRUGGLE_CHANCE;
+    if (f.id === s.playerId && !army.lost && !s.prophet && !s.struggle && !s.beaten && ambush) {
       const hero = struggleRival(s, army);
       if (hero) s.struggle = { nodeId: toId, hero };
     }
@@ -3013,6 +3092,7 @@ function conquer(s: CampaignState, f: Faction, n: CampaignNode, army?: Army) {
   revealChallenges(s, f, n);
   // The victors march in.
   if (army && s.armies.includes(army) && !armyAt(s, n.id)) army.nodeId = n.id;
+  if (army && s.armies.includes(army)) rivalHere(s, army);
   if (army && s.armies.includes(army)) dreamHere(s, army);
 }
 
@@ -3520,6 +3600,14 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       if (!s.struggle) throw new GameError('No one has come for your command.');
       startStruggle(s);
       break;
+    case 'struggleChoice': {
+      if (!s.beaten) throw new GameError('There is no one to decide on.');
+      const before = lootMark(s);
+      decideBeaten(s, action.recruit);
+      const loot = lootSince(s, before, true);
+      if (!action.recruit && (loot.materials || loot.petals)) s.loot = loot;
+      break;
+    }
     case 'dream':
       if (!s.dream) throw new GameError('There is no dream.');
       if (s.struggle) throw new GameError('Your command is contested first.');

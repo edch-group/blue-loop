@@ -38,6 +38,8 @@ export interface MapObject {
   seed: number;
   /** What stands at it: a space station circling it, or a research station's test tube hovering over it. */
   prop?: 'station' | 'lab';
+  /** A rival hero waits here (the Captain's runs): their race's ship hovers over the star, glowing amber. */
+  rival?: number;
   /** Which system it is (for the pointer hovering it). */
   id?: string;
   /** A black star (the Dark Galaxy's): drawn near black, ringed in a faint violet light. */
@@ -640,14 +642,14 @@ export class MapObjects {
     return m;
   }
 
-  /** Each station's model, uploaded the first time it is drawn. */
-  private propBufs = new Map<PropKind, { buf: WebGLBuffer; count: number }>();
+  /** Each station's model (and each rival race's ship), uploaded the first time it is drawn. */
+  private propBufs = new Map<PropKind | `rival${number}`, { buf: WebGLBuffer; count: number }>();
 
-  private propModel(kind: PropKind) {
+  private propModel(kind: PropKind | `rival${number}`) {
     let m = this.propBufs.get(kind);
     if (!m) {
       const gl = this.gl;
-      const mesh = propModel3d(kind);
+      const mesh = kind.startsWith('rival') ? shipModel3d(Number(kind.slice(5))).mesh : propModel3d(kind as PropKind);
       const buf = gl.createBuffer()!;
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, mesh, gl.STATIC_DRAW);
@@ -663,7 +665,7 @@ export class MapObjects {
    */
   private drawProps(cam: Camera, time: number, fade: number) {
     const gl = this.gl;
-    const list = this.list.filter((o) => o.prop && !o.dead);
+    const list = this.list.filter((o) => (o.prop || o.rival !== undefined) && !o.dead);
     if (!list.length) return;
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
@@ -680,7 +682,7 @@ export class MapObjects {
     const locs = attrs.map(([name]) => gl.getAttribLocation(this.shipProg, name));
     const glows: { x: number; y: number; z: number; r: number; c: [number, number, number]; a: number }[] = [];
     for (const o of list) {
-      const kind = o.prop!;
+      const kind: PropKind | `rival${number}` = o.prop ?? `rival${o.rival ?? 0}`;
       const model = this.propModel(kind);
       gl.bindBuffer(gl.ARRAY_BUFFER, model.buf);
       let off = 0;
@@ -694,7 +696,15 @@ export class MapObjects {
       const y0 = o.y ?? 0;
       let x: number, y: number, z: number, yaw: number, S: number, tilt = 0;
       // (The lab draws itself, upright, and goes on; the station is set on its course below.)
-      if (kind === 'lab') {
+      if (kind.startsWith('rival')) {
+        // A rival hero's ship, hovering over the star, swinging slowly to and fro, an amber glow under it.
+        S = 0.075;
+        x = o.x;
+        z = o.z;
+        y = y0 + 0.085 + 0.01 * Math.sin(time * 1.1 + o.seed);
+        yaw = Math.PI * 0.75 + 0.5 * Math.sin(time * 0.35 + o.seed);
+        glows.push({ x, y: y - 0.02, z, r: 0.13, c: [1, 0.62, 0.25], a: 0.5 });
+      } else if (kind === 'lab') {
         // Hovering upright over its star (its length standing up), turning slowly, bobbing, its brew's light round it.
         S = 0.12;
         x = o.x;
