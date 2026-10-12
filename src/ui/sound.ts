@@ -595,6 +595,25 @@ class SoundBoard {
     this.clip(SFX.riftTick, 0.35, 1, true);
   }
 
+  /**
+   * Time Dense Space's routes [direction: before turning, the routes about to break retract, with a sound; turned, the
+   * new ones extend out with a noise, then another confirming they are linked]. All low and soft: a route drawn back
+   * in is a falling, closing hiss over a low slide down; one reaching out, a rising hiss over a slide up; linked, a
+   * low two-note chime.
+   */
+  linkRetract() {
+    this.breath({ dur: 0.42, freq: 1400, to: 260, type: 'bandpass', q: 1.4, gain: 0.05, attack: 0.03 });
+    this.voice(196, { dur: 0.42, attack: 0.02, gain: 0.028, to: 98, type: 'triangle', cutoff: 900 });
+  }
+  linkExtend() {
+    this.breath({ dur: 0.5, freq: 240, to: 1300, type: 'bandpass', q: 1.4, gain: 0.045, attack: 0.3 });
+    this.voice(110, { dur: 0.5, attack: 0.25, gain: 0.026, to: 196, type: 'triangle', cutoff: 900 });
+  }
+  linkConfirm() {
+    this.voice(196, { dur: 0.9, attack: 0.008, gain: 0.03, cutoff: 1600 });
+    this.voice(293.66, { dur: 0.8, attack: 0.008, gain: 0.022, cutoff: 1800, delay: 0.07 });
+  }
+
 
   /**
    * Time running backwards (Time Dense Space) [direction: music plays in reverse, as do all sounds in combat; each

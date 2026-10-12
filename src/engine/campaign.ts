@@ -1721,11 +1721,14 @@ export function sectorMovers(s: CampaignState, sector: number): string[] {
   return [...movers];
 }
 
-/** Move stars of Time Dense Space on by `by` half-steps (a fraction, mid-glide), its routes redrawn. */
-export function advanceStars(s: CampaignState, ids: string[], by: number) {
+/**
+ * Move stars of Time Dense Space on by `by` half-steps (a fraction, mid-glide), its routes redrawn (or, `relink`
+ * false, left as they were: the screen draws them out and in round the turn).
+ */
+export function advanceStars(s: CampaignState, ids: string[], by: number, relink = true) {
   if (s.rift?.kind !== 'time') return;
   for (const n of s.nodes) if (ids.includes(n.id)) n.spinStep = (n.spinStep ?? 0) + by;
-  spinGalaxy(s);
+  spinGalaxy(s, relink);
 }
 
 /**
@@ -1735,7 +1738,7 @@ export function advanceStars(s: CampaignState, ids: string[], by: number) {
  * innermost ring. Mutates the state it is given (the player's screen turns it a wedge a second; a move made is made
  * as it stands).
  */
-export function spinGalaxy(s: CampaignState) {
+export function spinGalaxy(s: CampaignState, relink = true) {
   if (s.rift?.kind !== 'time') return;
   const ringed = s.nodes.filter((n) => n.spinRing !== undefined);
   // (A run saved while whole rings turned: each star stands where its ring had taken it.)
@@ -1748,6 +1751,7 @@ export function spinGalaxy(s: CampaignState) {
     n.x = p.x;
     n.y = p.y;
   }
+  if (!relink) return;
   const heart = s.nodes.find((n) => n.heart);
   for (const n of s.nodes) n.links = [];
   const link = (a: CampaignNode, b: CampaignNode) => {

@@ -53,6 +53,8 @@ export interface MapRoute {
   /** Its ends' heights (world y). */
   ya?: number;
   yb?: number;
+  /** Lit up, 0 to 1 (a route just linked, flaring briefly). */
+  glow?: number;
 }
 
 /** A ship on the map: where it is bound (world x, z, over a star), and its holder's colour. */
@@ -250,13 +252,15 @@ void main() {
   }
   // Neon: a soft halo falling away either side, a bright tube, a white-hot thread down its middle, humming.
   float hum = 0.9 + 0.1 * sin(uTime * 2.3 + vAlong * 3.0) * sin(uTime * 0.7);
-  float halo = exp(-x * x * 6.0) * 0.42 * hum;
+  // (Lit up, just linked: the halo wider and brighter, the tube whiter.)
+  float lit = vColor.a - 1.0;
+  float halo = exp(-x * x * (6.0 - 3.0 * lit)) * (0.42 + 0.5 * lit) * hum;
   float tube = exp(-x * x * 45.0);
   float core = exp(-x * x * 300.0);
   vec3 tint = vColor.rgb;
   // The halo is a soft shade (so white light shows on the paper); the tube is the light itself.
   vec3 c = mix(tint * 0.62, tint, tube);
-  c = mix(c, vec3(1.0), core);
+  c = mix(c, vec3(1.0), min(1.0, core + 0.6 * lit * tube));
   float a = max(halo, tube * 0.95) * uAlpha;
   gl_FragColor = vec4(c * a, a);
 }`;
@@ -858,7 +862,7 @@ export class MapObjects {
     for (const r of routes) {
       const A = [r.a[0], r.ya ?? 0, r.a[1]], B = [r.b[0], r.yb ?? 0, r.b[1]];
       const c = r.colour ?? [1, 1, 1];
-      const corner = (side: number, t: number) => out.push(...A, ...B, side, t, c[0], c[1], c[2], r.gone ? 0 : 1);
+      const corner = (side: number, t: number) => out.push(...A, ...B, side, t, c[0], c[1], c[2], r.gone ? 0 : 1 + (r.glow ?? 0));
       corner(-1, 0); corner(1, 0); corner(1, 1);
       corner(-1, 0); corner(1, 1); corner(-1, 1);
     }
