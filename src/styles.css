@@ -6181,11 +6181,11 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-buy-big { margin-top: 4px; }
 
 /* The petals: the purse, and the way to the upgrades. */
-.cs-petals { justify-self: end; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px 6px 10px; border: 0; border-radius: 999px; cursor: pointer; font-family: var(--display); color: var(--ink); background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.23), 0 4px 12px rgba(70, 76, 100, 0.12); }
-.cs-petals .cur { width: 1.3em; height: 1.3em; }
-.cs-petals b { font-size: 0.95rem; }
+.cs-petals { justify-self: end; display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; border: 0; cursor: pointer; font-family: var(--display); color: var(--ink); background: none; }
+.cs-petals .cur { width: 1em; height: 1em; }
+.cs-petals b { font-size: 0.78rem; font-weight: 500; }
 .cs-petals span { margin-left: 4px; font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); }
-.cs-petals:hover { box-shadow: 0 0 0 1.5px #3a4256, 0 6px 16px rgba(58, 66, 86, 0.12); }
+.cs-petals:hover b, .cs-petals:hover span { color: var(--ink); }
 
 /* A short screen (a phone on its side): each hero's portrait fills its card, its words over a white fade at the
    foot; the scroll is the page's own (with room for the picked card's glow). */
@@ -6360,7 +6360,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 
 /* The setup's two purses, top right: petals (the starting deck) and experience (the skills). */
 .cs-purses { justify-self: end; display: flex; gap: 8px; }
-.cs-petals .cur-xp { width: 1.3em; height: 1.3em; }
+.cs-petals .cur-xp { width: 1em; height: 1em; }
 @media (max-height: 560px) { .cs-petals span { display: none; } }
 
 /* ---------- A race's starting deck, bought with petals (campaign.ts renderStarterDeck) ---------- */
