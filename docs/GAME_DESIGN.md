@@ -1219,10 +1219,12 @@ The check now reports none.
 
 [direction: the recycle and fuse menus couldn't scroll; only half cut off cards showed at the top]. The station's card shelf fills the space between its tabs and its action, and a deck too big for it scrolls from its first card (centred only when it fits, its top and bottom edges fading).
 
-## Time Dense Space turns a ring at a time
+## Time Dense Space turns a wedge at a time
 
 [direction: the whole map turning at once is a mess; the node the ship is on should never move; move it in segments, every second one part of the map]. Each second one ring turns a step (campaign.ts nextTurningRing, turnRing): the rings take turns, innermost first, and the ring the flagship stands on never turns, so its star holds still and what it can reach changes as the rings inside it come round. Each ring keeps how far it has turned (CampaignState.ringSpins; a run saved before this starts every ring where the whole galaxy stood). A scene with nothing to show is passed over rather than holding the galaxy still, and arriving through a rift no longer opens a station of the new galaxy that happens to share the rift's id.
 
 ## A rift fields its own race, in any mode
 
 [direction: an enemy in a rift had no cards: no deck, no hand]. A Core run's rift filtered the Lost Race's cards out as not Core, leaving its defenders with an empty deck (and its stations and rewards with nothing). A rift is that race's own galaxy: within it, the race's cards are fielded by its defenders, stocked by its stations and given as its rewards, whatever the run's mode (campaign.ts riftLegal). Its defenders never field an Enigma.
+
+Later [direction: the whole galaxy still seemed to spin at once; split it into 4-5 sections and go round them in a circle, turning each one by one; the connecting lines needed work]: the galaxy is cut into five wedges (campaign.ts TIME_SECTORS), and each second the stars of one wedge glide half a star's width on round their rings (sectorMovers, advanceStars; each star keeps its own count, CampaignNode.spinStep), the wedges taking turns round the circle (a wedge with nothing free to move is passed). The flagship's star never moves, and a star never closes on a star holding still to under half a star's width (it waits a turn), so nothing bunches. Each star now has one route inward, to the nearest star of the next ring, so the routes read as a clean tree into Aster.

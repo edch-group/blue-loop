@@ -89,9 +89,10 @@ import {
   markedId,
   NYX_MARKS,
   RIFTS,
-  spinGalaxy,
-  nextTurningRing,
-  turnRing,
+  nextSector,
+  sectorMovers,
+  TIME_SECTORS,
+  advanceStars,
   struggleLine,
 } from '../engine';
 import { account, markDirty } from './account';
@@ -2262,34 +2263,39 @@ export class CampaignView {
     const stage = this.stageEl;
     if (!s || s.rift?.kind !== 'time' || !stage?.isConnected) return this.keepSpinning();
     if (this.spinning || this.advance || s.battle || s.phase !== 'player' || this.sheet || s.loot || s.cardRewards.length || s.prophet || s.emblemChoice || s.story.queue.length) return;
-    // (One ring a step, never the flagship's: see nextTurningRing.)
-    const ring = nextTurningRing(s);
-    if (ring === null) return;
+    // (One wedge a step, round the circle; the flagship's star never moves: see sectorMovers.)
+    // (A wedge with nothing free to move is passed: every second something turns.)
+    let movers: string[] = [];
+    for (let i = 0; i < TIME_SECTORS && !movers.length; i++) {
+      movers = sectorMovers(s, nextSector(s));
+      if (!movers.length) s.spin = (s.spin ?? 0) + 1;
+    }
+    if (!movers.length) return;
     const root = stage.closest<HTMLElement>('.cmp');
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     sound.boomTick();
     this.spinning = true;
-    const t0 = performance.now(), dur = reduce ? 0 : 420;
+    const t0 = performance.now(), dur = reduce ? 0 : 520;
     let done = 0;
     const frame = () => {
       const k = dur ? Math.min(1, (performance.now() - t0) / dur) : 1;
-      const e = 1 - Math.pow(1 - k, 3);
+      const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
       if (!this.state || this.state !== s) return void (this.spinning = false);
-      turnRing(s, ring, e - done);
+      advanceStars(s, movers, e - done);
       done = e;
-      for (const n of s.nodes) {
-        if (n.spinRing !== ring) continue;
-        const el = stage.querySelector<HTMLElement>(`[data-key="sys-${n.id}"]`);
-        if (el) {
+      for (const id of movers) {
+        const n = s.nodes.find((x) => x.id === id);
+        const el = n && stage.querySelector<HTMLElement>(`[data-key="sys-${n.id}"]`);
+        if (n && el) {
           el.style.left = `${n.x}px`;
           el.style.top = `${n.y}px`;
         }
       }
       if (root && k < 1) this.showNebula(root);
       if (k < 1) return void requestAnimationFrame(frame);
-      // (Landed on a whole step, free of the glide's rounding.)
-      s.ringSpins = { ...s.ringSpins, [ring]: Math.round(s.ringSpins?.[ring] ?? 0) };
-      spinGalaxy(s);
+      // (Landed on a whole half-step, free of the glide's rounding.)
+      for (const n of s.nodes) if (movers.includes(n.id)) n.spinStep = Math.round(n.spinStep ?? 0);
+      advanceStars(s, [], 0);
       s.spin = (s.spin ?? 0) + 1;
       this.spinning = false;
       this.host.render();

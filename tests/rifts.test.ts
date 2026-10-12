@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyCampaignAction, armiesOf, armyMoves, campaignPlayer, createCampaign, flagship, nextTurningRing, nodeById, turnRing, visibleNodes, type CampaignNode, type CampaignState } from '../src/engine/campaign';
+import { applyCampaignAction, armiesOf, armyMoves, campaignPlayer, createCampaign, flagship, advanceStars, nextSector, nodeById, sectorMovers, TIME_SECTORS, visibleNodes, type CampaignNode, type CampaignState } from '../src/engine/campaign';
 import { cardDef } from '../src/engine/cards';
 import { markedId, marksFor } from '../src/engine/rifts';
 
@@ -85,29 +85,40 @@ describe('Rifts', () => {
     expect(s.nodes.find((n) => n.heart)?.name).toMatch(/Aster/);
     const seen = new Set<string>();
     const here = () => nodeById(s, ship(s).nodeId);
-    const at = { x: here().x, y: here().y };
-    for (let step = 0; step < 12; step++) {
-      // One ring a step, never the flagship's [direction: the node the ship is on never moves].
-      const ring = nextTurningRing(s)!;
-      expect(ring).not.toBe(here().spinRing);
-      turnRing(s, ring, 1);
+    // A wedge a step, round the circle [direction: not the whole galaxy at once; the ship's node never moves].
+    const step = () => {
+      const movers = sectorMovers(s, nextSector(s));
+      const ringed = s.nodes.filter((n) => n.spinRing !== undefined);
+      // (Never the whole galaxy: far fewer than all its stars move at once.)
+      expect(movers.length).toBeLessThan(ringed.length / 2);
+      advanceStars(s, movers, 1);
       s.spin = (s.spin ?? 0) + 1;
+      return movers;
+    };
+    const at = { x: here().x, y: here().y };
+    for (let i = 0; i < TIME_SECTORS * 4; i++) {
+      step();
       expect({ x: here().x, y: here().y }).toEqual(at);
       const moves = armyMoves(s, ship(s)).map((m) => m.toId);
       expect(moves.length).toBeGreaterThan(0);
       for (const id of moves) expect(nodeById(s, id).spinRing).toBe(4);
       moves.forEach((id) => seen.add(id));
+      // No two stars of a ring ever closer than half a star's width (nothing bunches or overlaps).
+      for (const ring of [1, 2, 3, 4]) {
+        const stars = s.nodes.filter((n) => n.spinRing === ring);
+        for (const a of stars) for (const b of stars) if (a !== b) expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(150);
+      }
     }
-    // (Over a few seconds, more than one star comes into reach.)
+    // (Over a few laps, more than one star comes into reach.)
     expect(seen.size).toBeGreaterThan(1);
-    // On a ring that turns, the flagship's ring is the one that never does.
+    // On a ring that turns, the flagship's star still never moves.
     ship(s).nodeId = s.nodes.find((n) => n.spinRing === 2)!.id;
     const still = { x: here().x, y: here().y };
-    for (let step = 0; step < 12; step++) {
-      const ring = nextTurningRing(s)!;
-      expect(ring).not.toBe(2);
-      turnRing(s, ring, 1);
-      s.spin = (s.spin ?? 0) + 1;
+    // (And it never jams: every lap, for many laps, stars still move.)
+    for (let lap = 0; lap < 30; lap++) {
+      let moved = 0;
+      for (let i = 0; i < TIME_SECTORS; i++) moved += step().length;
+      expect(moved).toBeGreaterThan(3);
     }
     expect({ x: here().x, y: here().y }).toEqual(still);
   });

@@ -306,6 +306,8 @@ export interface CampaignNode {
   /** Time Dense Space: the ring it turns on (1 innermost; the arrival the outermost) and its place round it. */
   spinRing?: number;
   spinSlot?: number;
+  /** Time Dense Space: how many half-steps this star has moved on round its ring. */
+  spinStep?: number;
   /** Routes from here to the Heart (0 at the Heart): the core is richer and better defended. */
   ring?: number;
   /** A Finite Stellari bloom: the turns of plenty it has left (0: wilted). */
@@ -677,7 +679,7 @@ export interface CampaignState {
   rift?: { kind: RiftKind };
   /** Time Dense Space: how many steps it has taken (a step a second, on the player's screen; one ring turns a step). */
   spin?: number;
-  /** Time Dense Space: how far each ring has turned (by ring, 1 the innermost). */
+  /** Time Dense Space, as saved before it turned a wedge at a time: how far each ring had turned (read once, then dropped). */
   ringSpins?: Record<number, number>;
   /** A Dark Prophet's offer waiting on the player: three of their cards, each with the mark it would take. */
   prophet?: { nodeId: string; offers: { card: string; mark: NyxMark }[] };
@@ -1672,47 +1674,77 @@ const TIME_RINGS = [
 /** The arrival's ring, outermost (one star). */
 const TIME_ARRIVAL = { n: 1, r: 1500 };
 
-/** Where a star of Time Dense Space stands at a spin: each ring turns anticlockwise, half a star's width a step. */
+/** Where a star of Time Dense Space stands, `spin` half-steps on: anticlockwise, half a star's width a step. */
 function spunAt(ring: number, slot: number, spin: number): { x: number; y: number; a: number } {
   const R = ring > TIME_RINGS.length ? TIME_ARRIVAL : TIME_RINGS[ring - 1];
-  // (Inner rings turn faster, as a galaxy's do: each its own step, so what lines up changes every second.)
   const a = (2 * Math.PI * slot) / R.n + ring * 0.9 - spin * (Math.PI / R.n);
   return { x: CAMPAIGN.mapWidth / 2 + Math.cos(a) * R.r, y: CAMPAIGN.mapHeight / 2 + Math.sin(a) * R.r, a };
 }
 
-/**
- * The ring of Time Dense Space that turns next [direction: the node the ship is on never moves; the map moves in
- * segments, one part of it each second]: the rings take turns, innermost first, and the ring the flagship stands on
- * never turns.
- */
-export function nextTurningRing(s: CampaignState): number | null {
-  if (s.rift?.kind !== 'time') return null;
-  const ship = flagship(s, s.playerId);
-  const on = ship ? s.nodes.find((n) => n.id === ship.nodeId)?.spinRing : undefined;
-  const rings = TIME_RINGS.map((_, i) => i + 1).filter((r) => r !== on);
-  return rings.length ? rings[(s.spin ?? 0) % rings.length] : null;
+/** The wedges Time Dense Space turns in, one after another round the circle. */
+export const TIME_SECTORS = 5;
+
+const centreAngle = (n: CampaignNode) => Math.atan2(n.y - CAMPAIGN.mapHeight / 2, n.x - CAMPAIGN.mapWidth / 2);
+const wrap = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+
+/** The wedge that turns next: round the circle, a wedge a step. */
+export function nextSector(s: CampaignState): number {
+  return (s.spin ?? 0) % TIME_SECTORS;
 }
 
-/** Turn one ring of Time Dense Space by `by` steps (a fraction, mid-glide), its routes redrawn. */
-export function turnRing(s: CampaignState, ring: number, by: number) {
+/**
+ * The stars that move when a wedge turns [direction: not the whole galaxy at once; split it into 4-5 sections and
+ * go round them in a circle, turning each one by one; the node the ship is on never moves]: the turning stars in
+ * that wedge, but the flagship's, and any that would close on a star holding still to under half a star's width
+ * (it waits for a later turn).
+ */
+export function sectorMovers(s: CampaignState, sector: number): string[] {
+  if (s.rift?.kind !== 'time') return [];
+  const ship = flagship(s, s.playerId);
+  const ringed = s.nodes.filter((n) => n.spinRing !== undefined && n.spinRing <= TIME_RINGS.length);
+  const width = (2 * Math.PI) / TIME_SECTORS;
+  const movers = new Set(ringed.filter((n) => n.id !== ship?.nodeId && Math.floor(wrap(centreAngle(n)) / width) === sector).map((n) => n.id));
+  // (Each ring: a mover may not come within half a star's width of the still star ahead of it; held back, it is still too.)
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const n of ringed) {
+      if (!movers.has(n.id)) continue;
+      const half = Math.PI / TIME_RINGS[n.spinRing! - 1].n;
+      const after = centreAngle(n) - half;
+      const blocked = ringed.some((m) => m.spinRing === n.spinRing && m.id !== n.id && !movers.has(m.id) && wrap(after - centreAngle(m)) < half * 0.98);
+      if (blocked) {
+        movers.delete(n.id);
+        changed = true;
+      }
+    }
+  }
+  return [...movers];
+}
+
+/** Move stars of Time Dense Space on by `by` half-steps (a fraction, mid-glide), its routes redrawn. */
+export function advanceStars(s: CampaignState, ids: string[], by: number) {
   if (s.rift?.kind !== 'time') return;
-  s.ringSpins = { ...s.ringSpins, [ring]: (s.ringSpins?.[ring] ?? 0) + by };
+  for (const n of s.nodes) if (ids.includes(n.id)) n.spinStep = (n.spinStep ?? 0) + by;
   spinGalaxy(s);
 }
 
 /**
  * Time Dense Space as it now stands [direction: a circular galaxy rotating anticlockwise, the stars in reach
- * changing every second]: each star where its ring has turned to, and each star's routes inward to the star (or two)
- * of the next ring in now lying across its way. The heart (Aster) is in reach of every star of the innermost ring.
- * Mutates the state it is given (the player's screen turns it a ring at a time; a move made is made as it stands).
+ * changing every second; the connecting lines cleaner]: each star where its turns have taken it, and one route
+ * inward from each, to the nearest star of the next ring in. The heart (Aster) is in reach of every star of the
+ * innermost ring. Mutates the state it is given (the player's screen turns it a wedge a second; a move made is made
+ * as it stands).
  */
 export function spinGalaxy(s: CampaignState) {
   if (s.rift?.kind !== 'time') return;
-  // (A run saved while the whole galaxy turned as one: every ring stands where that left it.)
-  s.ringSpins ??= Object.fromEntries(TIME_RINGS.map((_, i) => [i + 1, s.spin ?? 0]));
   const ringed = s.nodes.filter((n) => n.spinRing !== undefined);
+  // (A run saved while whole rings turned: each star stands where its ring had taken it.)
+  if (s.ringSpins) {
+    for (const n of ringed) n.spinStep ??= s.ringSpins[n.spinRing!] ?? 0;
+    s.ringSpins = undefined;
+  }
   for (const n of ringed) {
-    const p = spunAt(n.spinRing!, n.spinSlot ?? 0, s.ringSpins?.[n.spinRing!] ?? 0);
+    const p = spunAt(n.spinRing!, n.spinSlot ?? 0, n.spinStep ?? 0);
     n.x = p.x;
     n.y = p.y;
   }
@@ -1722,7 +1754,6 @@ export function spinGalaxy(s: CampaignState) {
     if (!a.links.includes(b.id)) a.links.push(b.id);
     if (!b.links.includes(a.id)) b.links.push(a.id);
   };
-  const angle = (n: CampaignNode) => Math.atan2(n.y - CAMPAIGN.mapHeight / 2, n.x - CAMPAIGN.mapWidth / 2);
   const gap = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
   for (const n of ringed) {
     const inner = n.spinRing! - 1;
@@ -1731,8 +1762,8 @@ export function spinGalaxy(s: CampaignState) {
       continue;
     }
     const ring = ringed.filter((m) => m.spinRing === inner);
-    const width = Math.PI / TIME_RINGS[inner - 1].n;
-    for (const m of ring) if (gap(angle(n), angle(m)) <= width * 1.1) link(n, m);
+    const near = ring.reduce<CampaignNode | null>((best, m) => (!best || gap(centreAngle(n), centreAngle(m)) < gap(centreAngle(n), centreAngle(best)) ? m : best), null);
+    if (near) link(n, near);
   }
 }
 
@@ -1776,7 +1807,6 @@ function buildRift(s: CampaignState, kind: RiftKind) {
   s.galaxy = undefined;
   s.terrain = 'flat';
   s.spin = 0;
-  s.ringSpins = {};
   const used = new Set<string>();
   // (Past anything the run's own galaxy holds at its far end.)
   const tier = 2 * (s.universe - 1) + 3;
