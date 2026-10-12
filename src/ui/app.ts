@@ -4495,9 +4495,10 @@ export class App {
     // A match in play gets the battle theme, the campaign map the ambient score; everywhere else, the voyage.
     // (A match against an Overlord, or a challenge, gets the boss track.)
     const inPlay = this.screen === 'game' && this.state && !isGameOver(this.state);
-    sound.setScene(inPlay ? (this.state!.players.some((p) => p.boss) ? 'boss' : 'battle') : this.screen === 'campaign' && this.campaign.state ? 'ambient' : 'voyage');
-    // (Time Dense Space: the map's score and its battles run backwards.)
+    // (Time Dense Space: the map's score and its battles' run backwards, and its map's is the home menu's [direction:
+    // the map's music the home menu's in reverse, not the campaign map's].)
     const rift = this.campaign.state?.rift?.kind === 'time';
+    sound.setScene(inPlay ? (this.state!.players.some((p) => p.boss) ? 'boss' : 'battle') : this.screen === 'campaign' && this.campaign.state && !rift ? 'ambient' : 'voyage');
     sound.setReverse(rift && (this.screen === 'campaign' || (this.screen === 'game' && !!this.campaign.state?.battle)));
     this.root.querySelector('.log-list')?.scrollTo({ top: 1e9 });
     this.root.querySelector('.log-feed')?.scrollTo({ top: 1e9 });

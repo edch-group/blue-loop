@@ -192,19 +192,6 @@ const BOSS_PHRASES: [number, string][][] = [
 ];
 
 /**
- * The effects that play backwards in reversed time: all of them but the boosters (which run for as long as a ship
- * flies, with no end to turn round) and the galaxy's own turning tick (which keeps time with the turning).
- */
-const REVERSIBLE = [
-  'hover', 'clockTick', 'encounter', 'heatWave', 'earthquake', 'cacheOpen', 'lootChime', 'xpFill', 'levelUp',
-  'starHover', 'rustle', 'handLift', 'repair', 'click', 'draw', 'shuffle', 'play', 'buy', 'flare', 'launch', 'whoosh',
-  'thermo', 'impact', 'hurt', 'strike', 'block', 'swing', 'clash', 'crack', 'shield', 'hero', 'charge', 'upgrade',
-  'objective', 'turn', 'endTurn', 'supernova', 'blocked', 'error', 'clip',
-] as const;
-/** How long a reversed effect is rendered for (long enough for its hall to die away), and for the longest ones. */
-const REVERSE_SFX_SECONDS = 6;
-const REVERSE_SFX_LONG: Record<string, number> = { earthquake: 9, supernova: 10, hero: 9, objective: 8, encounter: 9 };
-/**
  * A reversed score's loop, in seconds: one whole pass of its form (the battle theme's three times round, where the
  * arpeggio rests once; the voyage's four; the boss track's thirty-two bars); the ambient score has none, so two minutes.
  */
@@ -276,12 +263,8 @@ class SoundBoard {
       this.offline = true;
       return;
     }
-    // In reversed time, every effect is rendered and played backwards instead (see reverseEffect).
-    const self = this as unknown as Record<string, (...a: unknown[]) => void>;
-    for (const name of REVERSIBLE) {
-      const forwards = self[name].bind(this);
-      self[name] = (...args: unknown[]) => (this.reversed ? void this.reverseEffect(name, args) : forwards(...args));
-    }
+    // (In reversed time only the score runs backwards: every effect plays as it is [direction: all audio but the
+    // background music back to playing normally in the Seren rift].)
     try {
       this.muted = localStorage.getItem(PREFS_KEY) === 'muted';
       this.musicOn = localStorage.getItem(MUSIC_KEY) !== 'off';
@@ -377,7 +360,6 @@ class SoundBoard {
       this.reverseBus.gain.value = 0.0001;
       this.reverseBus.connect(master);
     }
-    this.master = master;
 
     this.reverb = ctx.createConvolver();
     // (A hall is only shared at the same rate: a convolver will not take another's.)
@@ -616,20 +598,15 @@ class SoundBoard {
 
 
   /**
-   * Time running backwards (Time Dense Space) [direction: music plays in reverse, as do all sounds in combat; each
-   * the exact track or sound reversed, not chopped up]: each effect is rendered whole, offline, and played
-   * backwards, swelling in from its hall's tail to the moment it struck; the score is rendered offline a whole loop
-   * at a time and that loop played backwards.
+   * Time running backwards (Time Dense Space) [direction: music plays in reverse, the exact track reversed, not
+   * chopped up; every other sound plays normally]: the score is rendered offline a whole loop at a time and that loop
+   * played backwards.
    */
-  private master: GainNode | null = null;
   /** Where reversed sound plays in (straight to the master: the renders carry their own hall). */
   private reverseBus: GainNode | null = null;
   private reversed = false;
-  /** The offline boards: one rendering effects (kept, so the throttles on hovers and rustles hold), one the score. */
-  private renderer: SoundBoard | null = null;
-  /** The reversed scores rendered so far (each kept to loop again), and the reversed effects (most recent last). */
+  /** The reversed scores rendered so far (each kept to loop again). */
   private reversedLoops = new Map<MusicScene, Promise<AudioBuffer | null>>();
-  private reversedEffects = new Map<string, AudioBuffer>();
   /** Bumped whenever the score starts or stops, so a reversed render that finishes late is not played. */
   private musicRun = 0;
 
@@ -640,46 +617,8 @@ class SoundBoard {
     this.reversed = on;
     if (!on) {
       this.reversedLoops.clear();
-      this.reversedEffects.clear();
     }
     if (playing) this.startMusic();
-  }
-
-  /** Render one effect offline on the effects board, then play it backwards. */
-  private async reverseEffect(name: string, args: unknown[]) {
-    const ctx = this.ready();
-    if (!ctx || !this.reverb) return;
-    // The same effect called the same way is the same sound: render it once.
-    const key = `${name} ${JSON.stringify(args)} ${name === 'starHover' ? this.tones.join() : ''}`;
-    const cached = this.reversedEffects.get(key);
-    if (cached) return this.playBackwards(cached);
-    // Recordings must be decoded before the render (it schedules them as it goes).
-    if (name === 'clip') await this.load(args[0] as string);
-    await Promise.all(Object.values(SFX).map((url) => this.load(url)));
-    const seconds = REVERSE_SFX_LONG[name] ?? REVERSE_SFX_SECONDS;
-    const offline = new OfflineAudioContext(2, Math.ceil(ctx.sampleRate * seconds), ctx.sampleRate);
-    const r = (this.renderer ??= new SoundBoard(true));
-    r.ctx = offline as unknown as AudioContext;
-    r.decoded = this.decoded;
-    r.playing = this.playing;
-    r.tones = this.tones;
-    r.build(r.ctx, this);
-    (r as unknown as Record<string, (...a: unknown[]) => void>)[name](...args);
-    const rendered = await offline.startRendering();
-    const reversed = reverseBuffer(ctx, rendered, rendered.length, true);
-    if (!reversed || !this.reversed) return;
-    this.reversedEffects.set(key, reversed);
-    if (this.reversedEffects.size > 48) this.reversedEffects.delete(this.reversedEffects.keys().next().value!);
-    this.playBackwards(reversed);
-  }
-
-  private playBackwards(buffer: AudioBuffer) {
-    const ctx = this.ready();
-    if (!ctx || !this.reversed) return;
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    src.connect(this.master!);
-    src.start();
   }
 
   /**
