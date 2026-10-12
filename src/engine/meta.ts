@@ -126,18 +126,11 @@ export function stowParts(meta: MetaState, ids: readonly string[]): MetaState {
   return { ...meta, hangar };
 }
 
-/**
- * How far Kinship leans rewards, added to a race's weight (1 to start): its first three levels the favoured race's
- * (5× at the third), its last two the second race's (2× at the most).
- */
+/** How far Kinship and Fellowship lean rewards, by level, added to a race's weight (1 to start: 5× at Kinship's most, 2× at Fellowship's). */
 export const KINSHIP_BOOST = [0, 1, 2, 4];
 export const FELLOWSHIP_BOOST = [0, 0.5, 1];
-/** Kinship's levels past which the second race is leaned to. */
-export const KINSHIP_PRIMARY_LEVELS = 3;
-export const kinshipBoosts = (level: number) => ({
-  primaryBoost: KINSHIP_BOOST[Math.min(level, KINSHIP_PRIMARY_LEVELS)] ?? 0,
-  secondaryBoost: FELLOWSHIP_BOOST[Math.max(0, level - KINSHIP_PRIMARY_LEVELS)] ?? 0,
-});
+/** The skill that leans to each of the two races. */
+export const AFFINITY_SKILL = { primary: 'kinship', secondary: 'fellowship' } as const;
 
 /** Set the favoured race (Kinship) or the second one (Fellowship); the other is moved off it if they would match. */
 export function setAffinity(meta: MetaState, which: 'primary' | 'secondary', race: number | undefined): MetaState {
@@ -241,7 +234,7 @@ export function setCaptainLead(meta: MetaState, id: string | undefined): MetaSta
   return { ...meta, captain: { ...c, lead: id } };
 }
 
-export const emptyMeta = (): MetaState => ({ petals: 0, xp: 0, upgrades: {}, deck: {}, best: 0, runs: 0, v: 3 });
+export const emptyMeta = (): MetaState => ({ petals: 0, xp: 0, upgrades: {}, deck: {}, best: 0, runs: 0, v: 4 });
 
 const flat = (n: number) => () => n;
 const rising = (base: number, step: number) => (level: number) => base + step * level;
@@ -276,13 +269,14 @@ export const META_UPGRADES: MetaUpgrade[] = [
   { id: 'coldworld', group: 'command', tier: 2, requires: [['abundance', 2]], name: 'Cold world', text: 'The dead planet cools your sun by 2 each dawn it faces it.', max: 1, cost: flat(90) },
   { id: 'aligned', group: 'command', tier: 3, requires: [['foundry', 1], ['coldworld', 1]], name: 'Aligned worlds', text: 'Every planet gives more again: +1 card, +1 energy, 2 more cooling.', max: 1, cost: flat(200) },
   // Spoils of war: what a battle won leaves you.
+  // (Kinship leans rewards a long way to one race; Fellowship a little to another: each race picked as its first point is taken.)
+  { id: 'kinship', group: 'spoils', tier: 1, name: 'Kinship', text: "Your favoured race's cards come up more often among rewards.", max: 3, cost: rising(20, 15) },
   { id: 'scouts', group: 'spoils', tier: 1, name: 'Salvage crews', text: 'More chance of finding an emblem after a battle won.', max: 3, cost: rising(20, 15) },
+  { id: 'fellowship', group: 'spoils', tier: 1, name: 'Fellowship', text: "A second race's cards come up a little more often among rewards.", max: 2, cost: rising(20, 15) },
   { id: 'salvage', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Scavengers', text: 'One more card to choose from when salvaging.', max: 1, cost: flat(60) },
   { id: 'choice', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Wide offers', text: 'One more card to choose from in every card reward.', max: 1, cost: flat(70) },
   { id: 'plunder', group: 'spoils', tier: 2, requires: [['scouts', 2]], name: 'Plunder', text: '+2 materials for every battle won.', max: 2, cost: rising(45, 35) },
   // [direction: bias rewards towards certain races; the most, a big increase to one race's chance and a smaller one to another's]
-  // (Three levels lean to the favoured race, two more to a second race, a little.)
-  { id: 'kinship', group: 'spoils', tier: 1, name: 'Kinship', text: "Your favoured race's cards come up more often among rewards; then a second race's, a little.", max: 5, cost: rising(20, 15) },
   { id: 'vault', group: 'spoils', tier: 3, requires: [['salvage', 1], ['plunder', 1]], name: "Overlord's vault", text: "Every Overlord's hoard offers 2 more cards to choose from.", max: 1, cost: flat(170) },
   // Lasting wisdom: what carries over to every run after.
   { id: 'study', group: 'lore', tier: 1, name: 'Study', text: '+10% experience from everything.', max: 3, cost: rising(25, 20) },
@@ -332,6 +326,13 @@ export function migrateMeta(meta: MetaState): MetaState {
       for (const l of c.leads ?? []) back += OLD_LEAD[l] ?? 0;
     }
     meta = { ...meta, petals: meta.petals + back, v: 3, ...(c ? { captain: plainCaptain() } : {}) };
+  }
+  // Kinship split in two: its levels past the third (the second race's) are Fellowship's now.
+  if ((meta.v ?? 1) < 4) {
+    const k = meta.upgrades.kinship ?? 0;
+    const upgrades = { ...meta.upgrades };
+    if (k > 3) Object.assign(upgrades, { kinship: 3, fellowship: Math.min(2, k - 3) });
+    meta = { ...meta, upgrades, v: 4 };
   }
   return meta;
 }
@@ -586,6 +587,8 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
     tithe: 2 * l('tithe'),
     vault: 2 * l('vault'),
     ...(meta?.hangar?.length ? { ship: shipFit(meta.fitted), hangar: [...meta.hangar] } : {}),
-    ...(l('kinship') ? { affinity: { primary: meta?.affinity?.primary, secondary: meta?.affinity?.secondary, ...kinshipBoosts(l('kinship')) } } : {}),
+    ...(l('kinship') || l('fellowship')
+      ? { affinity: { primary: meta?.affinity?.primary, primaryBoost: KINSHIP_BOOST[l('kinship')] ?? 0, secondary: meta?.affinity?.secondary, secondaryBoost: FELLOWSHIP_BOOST[l('fellowship')] ?? 0 } }
+      : {}),
   };
 }

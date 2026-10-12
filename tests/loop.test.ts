@@ -196,7 +196,7 @@ describe('commander levels', () => {
   it('brings an older save over: the XP it spent counts again, and it keeps every skill it bought', () => {
     const old = { ...emptyMeta(), v: 1, xp: 10, upgrades: { cryo: 2, plating: 1 } };
     const now = migrateMeta(old);
-    expect(now.v).toBe(3);
+    expect(now.v).toBe(4);
     // (Cryo 20 + 35, Stellar plating 45: spent, and earned all the same.)
     expect(now.xp).toBeGreaterThanOrEqual(10 + 20 + 35 + 45);
     expect(pointsLeft(now)).toBeGreaterThanOrEqual(0);

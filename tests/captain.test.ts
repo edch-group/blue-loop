@@ -163,10 +163,10 @@ describe("Power Struggles on the Captain's runs", () => {
   });
 });
 
-describe('Kinship', () => {
+describe('Kinship and Fellowship', () => {
   it("lean the Captain's rewards: a big lean to the favoured race, a smaller one to the second", () => {
     let meta = { ...emptyMeta(), petals: 999 };
-    for (let i = 0; i < 5; i++) meta = buyUpgrade(meta, 'kinship');
+    for (const id of ['kinship', 'kinship', 'kinship', 'fellowship', 'fellowship']) meta = buyUpgrade(meta, id);
     meta = setAffinity(setAffinity(meta, 'primary', 2), 'secondary', 0);
     const s = createCampaign({ seed: 3, captain: CAPTAIN, run: runBonuses(meta) });
     const me = s.factions.find((f) => f.id === s.playerId)!;
@@ -247,7 +247,7 @@ describe('skill points for the Captain, petals for the skill tree', () => {
     expect(now.petals).toBe(1 + 5 + 6 + 5);
     expect(now.captain).toMatchObject({ attack: 0, slots: 0, abilities: ['brace'] });
     expect(now.upgrades).toEqual({ cryo: 2 });
-    expect(now.v).toBe(3);
+    expect(now.v).toBe(4);
   });
 
   it("resets the Captain for 5 petals, every skill point back", () => {
@@ -275,6 +275,13 @@ describe('a part swapped at a space station', () => {
     expect(armyBonus(t, myArmy(t)).mods.maxHealthDelta).toBe(4);
     const st = t.nodes.find((n) => n.id === station.id)!;
     expect(swapPartProblem(t, t.factions.find((f) => f.id === t.playerId)!, st, 'armour', 'scrap_plating')).toMatch(/One part swap/);
+  });
+});
+
+describe('Kinship split in two', () => {
+  it("brings an older save over: Kinship's levels past the third become Fellowship's", () => {
+    const now = migrateMeta({ ...emptyMeta(), v: 3, upgrades: { kinship: 5 } });
+    expect(now.upgrades).toMatchObject({ kinship: 3, fellowship: 2 });
   });
 });
 

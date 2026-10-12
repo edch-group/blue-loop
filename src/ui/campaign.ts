@@ -99,8 +99,10 @@ import {
   shipPart,
   setAffinity,
   CORE_RACES,
-  kinshipBoosts,
-  KINSHIP_PRIMARY_LEVELS,
+  KINSHIP_BOOST,
+  FELLOWSHIP_BOOST,
+  AFFINITY_SKILL,
+  priceOf,
   captainMeta,
   captainPrice,
   captainBuyProblem,
@@ -258,14 +260,8 @@ const UPGRADE_LOOK: Record<string, { icon: string; say: (level: number) => strin
   abundance: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM5 10c3 1 5 0 7-2M9 19c0-3 2-5 6-5'), say: (l) => `The abundant planet draws ${l} more card${l === 1 ? '' : 's'}.`, value: (l) => `+${l}` },
   foundry: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM4.5 9.5h15M4.5 14.5h15M10 4.5v15'), say: (l) => `The industrial planet gives ${l} more energy.`, value: (l) => `+${l}` },
   coldworld: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM12 8.5v7M9 10l6 4M15 10l-6 4'), say: (l) => `The dead planet cools your sun ${2 * l} each dawn.`, value: (l) => `${2 * l}` },
-  kinship: {
-    icon: glyph('M8 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM16 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 19.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5M11 19.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5'),
-    say: (l) => {
-      const b = kinshipBoosts(l);
-      return `Your favoured race's cards come up ${1 + b.primaryBoost}× as often${b.secondaryBoost ? `; a second race's ${1 + b.secondaryBoost}×` : ''}.`;
-    },
-    value: (l) => `${1 + kinshipBoosts(l).primaryBoost}×`,
-  },
+  kinship: { icon: glyph('M12 3.5a3 3 0 1 1 0 6 3 3 0 0 1 0-6ZM6 20.5c0-3.6 2.7-6.5 6-6.5s6 2.9 6 6.5'), say: (l) => `Your favoured race's cards come up ${1 + (KINSHIP_BOOST[l] ?? 0)}× as often.`, value: (l) => `${1 + (KINSHIP_BOOST[l] ?? 0)}×` },
+  fellowship: { icon: glyph('M8 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM16 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 19.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5M11 19.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5'), say: (l) => `A second race's cards come up ${1 + (FELLOWSHIP_BOOST[l] ?? 0)}× as often.`, value: (l) => `${1 + (FELLOWSHIP_BOOST[l] ?? 0)}×` },
   scouts: { icon: glyph('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM15.5 15.5l5 5'), say: (l) => `${10 * l}% more chance of emblems.`, value: (l) => `+${10 * l}%` },
   plunder: { icon: glyph('M4.5 9.5h15l-1.5 10h-12ZM8 9.5a4 4 0 0 1 8 0M10 13.5h4'), say: (l) => `${2 * l} materials for every battle won.`, value: (l) => `+${2 * l}` },
   study: { icon: glyph('M3 8.5 12 4.5l9 4-9 4ZM6.5 10.5v4.5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-4.5M21 8.5v5'), say: (l) => `${10 * l}% more experience.`, value: (l) => `+${10 * l}%` },
@@ -442,6 +438,8 @@ export class CampaignView {
   private upPlaced: string[] = [];
   /** The reset tapped once: a second tap pays and resets. */
   private upResetArmed = false;
+  /** Kinship's or Fellowship's first point, its race being picked. */
+  private affPick: { skill: string; race: number | null } | null = null;
   /** The hero panel's reset tapped once. */
   private capResetArmed = false;
   /** The skill a point was just placed on (its new ring segment draws itself in). */
@@ -888,6 +886,12 @@ export class CampaignView {
       case 'cmp-up-pick': {
         // A point placed: learnt at once (undo or clear takes it back, while the tree is open).
         const meta = loadMeta();
+        // (Kinship's or Fellowship's first point: its race picked first, in a popover.)
+        if ((arg === AFFINITY_SKILL.primary || arg === AFFINITY_SKILL.secondary) && !levelOf(meta, arg) && !buyUpgradeProblem(meta, arg)) {
+          this.affPick = { skill: arg, race: null };
+          sound.hover();
+          break;
+        }
         const why = buyUpgradeProblem(meta, arg);
         if (why) {
           this.host.toast(why);
@@ -1004,12 +1008,32 @@ export class CampaignView {
         sound.upgrade();
         break;
       }
-      case 'cmp-aff': {
-        const [which, r] = arg.split(':');
-        const meta = loadMeta();
-        const now = meta.affinity?.[which as 'primary' | 'secondary'];
-        saveMeta(setAffinity(meta, which as 'primary' | 'secondary', now === Number(r) ? undefined : Number(r)));
+      case 'cmp-aff':
+        if (this.affPick) this.affPick = { ...this.affPick, race: Number(arg) };
         sound.hover();
+        break;
+      case 'cmp-aff-stay':
+        break;
+      case 'cmp-aff-cancel':
+        // (Only the backdrop or the button: a tap inside the popover lands on its own buttons.)
+        this.affPick = null;
+        break;
+      case 'cmp-aff-confirm': {
+        const pop = this.affPick;
+        if (!pop || pop.race === null) break;
+        let meta = loadMeta();
+        const why = buyUpgradeProblem(meta, pop.skill);
+        if (why) {
+          this.host.toast(why);
+          sound.error();
+          break;
+        }
+        meta = setAffinity(buyUpgrade(meta, pop.skill), pop.skill === AFFINITY_SKILL.primary ? 'primary' : 'secondary', pop.race);
+        saveMeta(meta);
+        this.upPlaced.push(pop.skill);
+        this.upJust = pop.skill;
+        this.affPick = null;
+        sound.charge(0);
         break;
       }
       case 'cmp-cap-reset': {
@@ -1922,17 +1946,37 @@ export class CampaignView {
       </div>`;
   }
 
-  /** The races Kinship and Fellowship lean rewards to, picked under the tree (once either is learnt). */
+  /**
+   * Kinship's or Fellowship's first point [direction: as players take each one's point, a popover of race icons and
+   * titles; pick one before confirming; the same race can't be in both]: the four core races, the other skill's
+   * race not to be had, and confirm (which buys the point and leans to the race picked).
+   */
   private renderAffinity(meta: MetaState): string {
-    const k = levelOf(meta, 'kinship');
-    if (!k) return '';
-    const a = meta.affinity ?? {};
-    const row = (which: 'primary' | 'secondary', label: string, open: boolean) =>
-      open
-        ? `<div class="up-aff-row"><small>${label}</small>${CORE_RACES.map((r) => `<button class="up-aff ${a[which] === r ? 'on' : ''}" data-act="cmp-aff" data-arg="${which}:${r}" style="--rc:${FACTION_COLOUR[`f${r + 1}`] ?? '#8a93a6'}" aria-label="${esc(RACE_NAMES[r])}" aria-pressed="${a[which] === r}">${factionAvatar(`f${r + 1}`, 'up-aff-emblem')}</button>`).join('')}</div>`
-        : '';
-    return `<div class="up-affinity">${row('primary', 'favoured', true)}${row('secondary', 'second', k > KINSHIP_PRIMARY_LEVELS)}</div>`;
+    const pop = this.affPick;
+    if (!pop) return '';
+    const which = pop.skill === AFFINITY_SKILL.primary ? 'primary' : 'secondary';
+    const other = meta.affinity?.[which === 'primary' ? 'secondary' : 'primary'];
+    const u = META_UPGRADES.find((x) => x.id === pop.skill)!;
+    const races = CORE_RACES.map((r) => {
+      const taken = other === r;
+      return `<button class="aff-race ${pop.race === r ? 'on' : ''}" data-act="cmp-aff" data-arg="${r}" ${taken ? 'disabled' : ''} style="--rc:${FACTION_COLOUR[`f${r + 1}`] ?? '#8a93a6'}" aria-pressed="${pop.race === r}">
+        <span class="aff-emblem">${factionAvatar(`f${r + 1}`, 'aff-emblem-img')}</span><b>${lower(RACE_NAMES[r])}</b>${taken ? `<small>${which === 'primary' ? 'fellowship' : 'kinship'}</small>` : ''}
+      </button>`;
+    }).join('');
+    const why = buyUpgradeProblem(meta, pop.skill);
+    return `<div class="aff-pop-wrap" data-act="cmp-aff-cancel">
+      <div class="aff-pop" data-act="cmp-aff-stay" role="dialog" aria-label="${esc(u.name)}">
+        <h4>${esc(u.name.toLowerCase())}</h4>
+        <p>${which === 'primary' ? 'Which race do you favour?' : 'And which race besides?'}</p>
+        <div class="aff-races">${races}</div>
+        <div class="aff-acts">
+          <button class="btn" data-act="cmp-aff-cancel">cancel</button>
+          <button class="btn-primary" data-act="cmp-aff-confirm" ${pop.race === null || why ? 'disabled' : ''}>confirm · ${PETAL}${priceOf(u, 0)}</button>
+        </div>
+      </div>
+    </div>`;
   }
+
 
   /**
    * A race's starting deck offers: the six cards (two of each rarity) that can be bought into it with petals, kept
