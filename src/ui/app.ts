@@ -2415,7 +2415,8 @@ export class App {
     this.screen = 'campaign';
     this.sheet = null;
     this.pending = null;
-    this.campaign.finishBattle(this.state!, auto, salvage);
+    // (A battle the run no longer holds, its result already taken: back to the map, nothing to hand over.)
+    if (this.campaign.inBattle) this.campaign.finishBattle(this.state!, auto, salvage);
     this.render();
   }
 

@@ -1192,6 +1192,13 @@ export class CampaignView {
     // (Cards show, and battles play, under the run's rules: Core for a core race, else Lost Races.)
     setRulesMode(this.state ? this.state.mode : this.setup.race < 4 ? 'core' : 'lost');
     if (!this.state) return this.renderSetup();
+    // (What the map has picked, or waits to open, must still be there: a rift's new galaxy reuses no id it can trust.)
+    const st = this.state;
+    if (this.selected && !st.nodes.some((n) => n.id === this.selected)) this.selected = null;
+    if (this.lastFocus && !st.nodes.some((n) => n.id === this.lastFocus)) this.lastFocus = null;
+    if (this.army && !st.armies.some((a) => a.id === this.army)) this.army = null;
+    if (this.afterStruggle && !st.nodes.some((n) => n.id === this.afterStruggle)) this.afterStruggle = null;
+    if (this.advance && !st.nodes.some((n) => n.id === this.advance!.toId)) this.advance = null;
     const html = this.renderCampaign();
     this.lastFocus = this.selected;
     return html;
