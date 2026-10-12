@@ -107,6 +107,7 @@ import { sound } from './sound';
 import { reducedMotion } from './fx';
 import { voices } from './voice';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
+import { WARP_SECONDS } from './nebula-objects';
 
 const KEY = 'blue-loop:campaign:v6';
 
@@ -654,10 +655,9 @@ export class CampaignView {
     const army0 = armyById(s0, armyId);
     const battleAhead = !!armyMoves(s0, army0).find((m) => m.toId === toId)?.battle;
     this.advance = { armyId, toId, land: battleAhead };
-    // (The 3D ship's flight takes as long as nebula-objects.ts setShips gives it, by distance.)
-    const from = nodeById(s0, army0.nodeId), to = nodeById(s0, toId);
-    const flight = Math.max(0.7, Math.min(1.8, Math.hypot(to.x - from.x, to.y - from.y) * MAP_K * 2.4));
-    sound.flare();
+    // (A warp, however far: as long as nebula-objects.ts gives it.)
+    const flight = WARP_SECONDS;
+    sound.warp();
     this.host.render();
     setTimeout(() => {
       const waiting = this.state?.story.queue.length ?? 0;
@@ -698,7 +698,7 @@ export class CampaignView {
         this.readWaiting(waiting);
         this.host.playBattle(now.battle.game);
       }, reduce ? 0 : ENCOUNTER_PAUSE + 60);
-    }, reduce ? 0 : battleAhead ? flight * 1000 + 80 : 1150);
+    }, reduce ? 0 : flight * 1000 + 80);
     return true;
   }
 

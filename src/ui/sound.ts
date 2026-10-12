@@ -940,6 +940,23 @@ class SoundBoard {
     this.bell(1318.5, 0.14, 0.035);
     this.bell(1760, 0.28, 0.02);
   }
+  /**
+   * A warp from star to star [direction: the ship's travel a lightspeed warp, with a new sound]: the drive charging
+   * (a low hum and a hiss climbing together), the jump (a hard rush of air falling away over a deep thud), and the
+   * arrival (a soft, low ring). Timed to the map's warp (nebula-objects.ts WARP_SECONDS: charge, jump, arrive).
+   */
+  warp() {
+    // Charging.
+    this.breath({ dur: 0.5, freq: 140, to: 1100, type: 'bandpass', q: 2.2, gain: 0.07, attack: 0.42 });
+    this.voice(46, { dur: 0.55, attack: 0.4, gain: 0.09, to: 92, type: 'triangle', cutoff: 500 });
+    this.voice(92, { dur: 0.5, attack: 0.38, gain: 0.025, to: 184, type: 'sawtooth', cutoff: 700 });
+    // The jump.
+    this.breath({ dur: 0.42, freq: 2400, to: 160, type: 'bandpass', q: 1.1, gain: 0.13, attack: 0.012, delay: 0.47 });
+    this.voice(78, { dur: 0.5, attack: 0.006, gain: 0.14, to: 32, type: 'sine', cutoff: 300, delay: 0.47 });
+    // Arrived.
+    this.voice(146.83, { dur: 1.1, attack: 0.02, gain: 0.022, cutoff: 1400, delay: 0.66 });
+    this.voice(220, { dur: 0.9, attack: 0.02, gain: 0.014, cutoff: 1600, delay: 0.7 });
+  }
   flare() {
     // A solar-wind roar that swells, with a deep rising undertone.
     this.breath({ dur: 1.8, freq: 180, to: 1400, type: 'lowpass', q: 2, gain: 0.16, attack: 0.55 });

@@ -1238,3 +1238,7 @@ Then [direction: the stars turn at about a quarter the speed; before turning, th
 ## Time Dense Space's sound
 
 [direction: all audio but the background music back to playing normally in the Seren rift; the map's music the home menu's in reverse, not the campaign map's]. In Time Dense Space only the music runs backwards: on its map the home menu's score (the voyage) reversed, in its battles the battle themes reversed. Every effect (cards, hits, the map's chimes, the routes' sounds) plays as it is; the machinery that rendered effects backwards is gone.
+
+## The flagship warps
+
+[direction: the ship's travel a lightspeed warp, not flying gently toward the stars, with a new sound; the campaign's opening keeps its fly-in and engine sound]. From star to star a ship now warps, the same 1.1 seconds however far (nebula-objects.ts WARP_SECONDS, warpAt): it charges at its star (holding, creeping back a little, shuddering, its engines burning ever brighter), jumps (an instant's streak, the ship drawn out along its course up to eight times its length, a trail of light behind it and a tear of light at the star it left), and arrives (a flash at the star, a small overshoot that settles, the trail fading). Its sound (sound.warp): the drive charging (a low hum and a hiss climbing together), the jump (a hard rush of air falling away over a deep thud), arrival (a soft, low ring). The boosters' hum is now only the opening's: the flagship cruising in beside its hero, and its glide in as the camera pulls back.

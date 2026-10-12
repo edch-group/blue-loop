@@ -57,6 +57,10 @@ export interface MapRoute {
   glow?: number;
 }
 
+/** A warp from star to star: how long it takes, and where its charge ends and its jump does (fractions of it). */
+export const WARP_SECONDS = 1.1;
+const WARP_PHASES = [0.42, 0.58] as const;
+
 /** A ship on the map: where it is bound (world x, z, over a star), and its holder's colour. */
 export interface MapShip {
   id: string;
@@ -464,7 +468,7 @@ export class MapObjects {
   /** Each race's model, uploaded the first time a ship of it is drawn. */
   private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }>();
   /** Each ship as it flies: where it set out from and is bound, since when, and which way it faces. */
-  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number; fromY: number; toY: number }>();
+  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number; fromY: number; toY: number; warp?: boolean }>();
   private routeProg: WebGLProgram;
   private routeBuf: WebGLBuffer;
   private routeCount = 0;
@@ -580,7 +584,10 @@ export class MapObjects {
       was.from = at;
       was.to = [sh.x, sh.z];
       was.t0 = now;
-      was.dur = reduce ? 0 : Math.max(0.7, Math.min(1.8, d * 2.4));
+      // (From star to star, a lightspeed warp [direction: not flying gently toward the stars]: the same short time
+      // however far; see warpAt.)
+      was.dur = reduce ? 0 : WARP_SECONDS;
+      was.warp = true;
       if (d > 1e-4) was.heading = Math.atan2(sh.z - at[1], sh.x - at[0]);
     }
   }
@@ -736,8 +743,29 @@ export class MapObjects {
   /** Whether any ship is under way (cruising in, or flying a route): its boosters are heard while it is. */
   get shipsMoving(): boolean {
     const now = performance.now() / 1000;
-    for (const sh of this.ships.values()) if (sh.cruise || (sh.dur > 0 && now - sh.t0 < sh.dur)) return true;
+    // (The boosters are for flying in, the opening's cruise and its glide home; a warp has its own sound.)
+    for (const sh of this.ships.values()) if (sh.cruise || (!sh.warp && sh.dur > 0 && now - sh.t0 < sh.dur)) return true;
     return false;
+  }
+
+  /**
+   * A warp, at a moment: how far it has come (0 at the star it left, 1 at the one it is bound for; a little past,
+   * settling, as it arrives), how long the ship is drawn (stretched along its course in the jump), and how hard its
+   * engines burn. Charging (holding at its star, creeping back, burning ever brighter), the jump (an instant's
+   * streak), the arrival (a flash, an overshoot that settles).
+   */
+  private warpAt(k: number): { along: number; stretch: number; burn: number; phase: 'charge' | 'jump' | 'arrive' } {
+    const [c, j] = WARP_PHASES;
+    if (k < c) {
+      const t = k / c;
+      return { along: -0.035 * Math.sin((Math.PI / 2) * t), stretch: 1 - 0.12 * t, burn: 1 + 2.5 * t * t, phase: 'charge' };
+    }
+    if (k < j) {
+      const t = (k - c) / (j - c);
+      return { along: -0.035 + 1.035 * t * t, stretch: 1 + 7 * Math.sin(Math.PI * Math.min(1, t * 1.15)), burn: 3.5, phase: 'jump' };
+    }
+    const t = (k - j) / (1 - j);
+    return { along: 1 + 0.06 * Math.exp(-5 * t) * Math.sin(Math.PI * 2.2 * t), stretch: 1 + 0.5 * Math.sin(Math.PI * Math.min(1, t * 3)) * (1 - t), burn: 1 + 2 * (1 - t), phase: 'arrive' };
   }
 
   /** Where a ship is at a moment (world x, z). */
@@ -748,7 +776,7 @@ export class MapObjects {
       return [sh.from[0] + ((sh.to[0] - sh.from[0]) * d) / len, sh.from[1] + ((sh.to[1] - sh.from[1]) * d) / len];
     }
     const t = sh.dur > 0 ? Math.min(1, (now - sh.t0) / sh.dur) : 1;
-    const e = t * t * (3 - 2 * t);
+    const e = (sh as { warp?: boolean }).warp && t < 1 ? this.warpAt(t).along : t * t * (3 - 2 * t);
     return [sh.from[0] + (sh.to[0] - sh.from[0]) * e, sh.from[1] + (sh.to[1] - sh.from[1]) * e];
   }
 
@@ -782,6 +810,7 @@ export class MapObjects {
       });
     };
     const placed: { m: Float32Array; burn: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }[] = [];
+    const warps: { sh: { from: [number, number]; to: [number, number]; fromY: number; toY: number; colour: [number, number, number] }; k: number; x: number; y: number; z: number; warp: ReturnType<MapObjects['warpAt']> }[] = [];
     for (const sh of this.ships.values()) {
       const [x, z] = this.shipAt(sh, now);
       const cruising = !!sh.cruise;
@@ -790,8 +819,9 @@ export class MapObjects {
       // Hovering over its star, bobbing; under way it rises a little and banks into its course (cruising, it rolls
       // gently, steady on its course).
       const y = this.shipLift(sh, now, time);
-      const bank = cruising ? Math.sin(time * 0.7) * 0.07 : moving ? Math.sin(Math.PI * k) * 0.25 : Math.sin(time * 0.9) * 0.04;
-      const pitch = moving && !cruising ? Math.cos(Math.PI * k) * 0.12 : 0;
+      const warp = sh.warp && moving && !cruising ? this.warpAt(k) : null;
+      const bank = warp ? 0 : cruising ? Math.sin(time * 0.7) * 0.07 : moving ? Math.sin(Math.PI * k) * 0.25 : Math.sin(time * 0.9) * 0.04;
+      const pitch = warp ? 0 : moving && !cruising ? Math.cos(Math.PI * k) * 0.12 : 0;
       const fx = Math.cos(sh.heading), fz = Math.sin(sh.heading);
       // Forward (pitched), up (banked), and starboard, scaled.
       const F = [fx * Math.cos(pitch), Math.sin(pitch), fz * Math.cos(pitch)];
@@ -800,14 +830,19 @@ export class MapObjects {
       const cb = Math.cos(bank), sb = Math.sin(bank);
       const U = [0, 1, 2].map((i) => U0[i] * cb + Rr[i] * sb);
       const R = [0, 1, 2].map((i) => Rr[i] * cb - U0[i] * sb);
-      const m = new Float32Array([F[0] * S, F[1] * S, F[2] * S, 0, U[0] * S, U[1] * S, U[2] * S, 0, R[0] * S, R[1] * S, R[2] * S, 0, x, y, z, 1]);
+      // (Warping, stretched along its course, and thinner as it stretches; charging, a faint shudder.)
+      const L = S * (warp?.stretch ?? 1), W = S / Math.sqrt(warp?.stretch ?? 1);
+      const shake = warp?.phase === 'charge' ? 0.003 * Math.sin(time * 90) * (k / WARP_PHASES[0]) : 0;
+      const m = new Float32Array([F[0] * L, F[1] * L, F[2] * L, 0, U[0] * W, U[1] * W, U[2] * W, 0, R[0] * W, R[1] * W, R[2] * W, 0, x + Rr[0] * shake, y, z + Rr[2] * shake, 1]);
+      if (warp) warps.push({ sh, k, x, y, z, warp });
       const model = this.shipModel(sh.race);
       bindModel(model.buf);
       gl.uniformMatrix4fv(u('uModel'), false, m);
       gl.uniform3f(u('uColor'), sh.colour[0], sh.colour[1], sh.colour[2]);
-      gl.uniform1f(u('uBurn'), moving ? 1 : 0);
+      const burn = warp ? warp.burn : moving ? 1 : 0;
+      gl.uniform1f(u('uBurn'), burn);
       gl.drawArrays(gl.TRIANGLES, 0, model.count);
-      placed.push({ m, burn: moving ? 1 : 0, engines: model.engines, glow: model.glow, suns: model.suns });
+      placed.push({ m, burn, engines: model.engines, glow: model.glow, suns: model.suns });
     }
     for (const l of locs) if (l >= 0) gl.disableVertexAttribArray(l);
     // The engines' glow, over the hull, longer under way.
@@ -848,6 +883,28 @@ export class MapObjects {
           gl.bindTexture(gl.TEXTURE_2D, this.sunDisc.tex);
           sprite.draw(sx, sy, sz, size, 5, [1, 1, 1], 1, -((time + i * 7) * 2 * Math.PI) / 48);
         }
+      }
+    }
+    // Warps: a streak of light from where the ship leapt to where it is (fading after it lands), and a flash where it
+    // arrives.
+    for (const w of warps) {
+      const [c, j] = WARP_PHASES;
+      const tint: [number, number, number] = [0.75 + w.sh.colour[0] * 0.25, 0.85 + w.sh.colour[1] * 0.15, 1];
+      if (w.k >= c) {
+        const fadeOut = w.k < j ? 1 : Math.max(0, 1 - (w.k - j) / ((1 - j) * 0.7));
+        const y0 = w.sh.fromY + 0.13;
+        const n = 18;
+        for (let i = 0; i <= n; i++) {
+          const t = i / n;
+          const px = w.sh.from[0] + (w.x - w.sh.from[0]) * t, pz = w.sh.from[1] + (w.z - w.sh.from[1]) * t, py = y0 + (w.y - y0) * t;
+          sprite.draw(px, py, pz, 0.035 + 0.035 * t, 0, tint, 0.55 * fadeOut * (0.35 + 0.65 * t));
+        }
+        // A brief tear of light at the star it left, as it goes.
+        if (w.k < j + 0.08) sprite.draw(w.sh.from[0], y0, w.sh.from[1], 0.16, 0, tint, 0.6 * (1 - Math.abs((w.k - (c + j) / 2) / (j - c + 0.08))));
+      }
+      if (w.warp.phase === 'arrive') {
+        const t = (w.k - j) / (1 - j);
+        sprite.draw(w.sh.to[0], w.sh.toY + 0.13, w.sh.to[1], 0.12 + 0.35 * t, 0, tint, 0.9 * (1 - t) * (1 - t));
       }
     }
     sprite.done();
