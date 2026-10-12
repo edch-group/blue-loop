@@ -89,10 +89,8 @@ import {
   markedId,
   NYX_MARKS,
   RIFTS,
-  nextSector,
-  sectorMovers,
-  TIME_SECTORS,
-  advanceStars,
+  spinGalaxy,
+  timePreview,
   struggleLine,
 } from '../engine';
 import { account, markDirty } from './account';
@@ -606,6 +604,8 @@ export class CampaignView {
   private apply(action: CampaignAction): boolean {
     if (!this.state) return false;
     const universe = this.state.universe;
+    // (Time Dense Space before the move: its rings and routes, to turn from.)
+    const was = this.state.rift?.kind === 'time' ? { turns: { ...(this.state.ringSpins ?? {}) }, edges: new Set(this.state.nodes.flatMap((n) => n.links.filter((m) => n.id < m).map((m) => `${n.id}|${m}`))) } : null;
     try {
       this.state = applyCampaignAction(this.state, action);
     } catch (err) {
@@ -617,6 +617,7 @@ export class CampaignView {
     this.skipSilentScenes();
     this.bankPetals();
     saveCampaign(this.state);
+    if (was && this.state.rift?.kind === 'time') this.animateTurn(was);
     // Through the wormhole: a new strip, framed afresh.
     if (this.state && this.state.universe !== universe && !this.state.winner) {
       this.view = null;
@@ -1943,7 +1944,6 @@ export class CampaignView {
   afterRender(root: HTMLElement) {
     // (In development, reachable from the console.)
     if (import.meta.env.DEV) (window as unknown as { campaignView?: CampaignView }).campaignView = this;
-    this.keepSpinning();
     if (this.afterStruggle) window.setTimeout(() => this.openAfterStruggle(), 0);
     const stage = root.querySelector<HTMLElement>('.cmp-stage');
     this.stageEl = stage;
@@ -2161,6 +2161,10 @@ export class CampaignView {
       ...(anim?.phase === 'retract' ? anim.breaking.flatMap((e) => partial(e.from, e.to, 1 - anim.t)) : []),
       ...(anim?.phase === 'extend' ? anim.making.flatMap((e) => partial(e.from, e.to, anim.t)) : []),
       ...(anim?.phase === 'link' ? anim.making.flatMap((e) => partial(e.from, e.to, 1, Math.sin(Math.PI * Math.min(1, anim.t * 1.2)) + 0.0001)) : []),
+      ...(anim ? [] : this.timeAhead(s).flatMap(({ from, to, x, y }) => {
+        const p = at.get(from);
+        return p ? [{ a: p, b: world(x, y), gone: true, ya: lift.get(from), yb: lift.get(to) }] : [];
+      })),
     ]);
     this.nebula.setGalaxy(s.galaxy ?? null);
     this.nebula.setDark(s.rift?.kind === 'dark');
@@ -2238,12 +2242,23 @@ export class CampaignView {
   }
 
   /**
-   * Time Dense Space turns, a step a second, with a booming tick [direction: the galaxy rotates anticlockwise, the stars
-   * in reach changing every second, a booming tick each time]: each step glides round over a little under half a
-   * second; it holds still while the ship is under way, a battle is on, or anything waits on the player.
+   * Time Dense Space turns a notch as each of the player's turns ends (see turnTime): seen here as a short sequence
+   * (animateTurn), the routes it breaks drawn back in, the rings turning, the new routes reaching out and linking.
    */
-  private spinTimer = 0;
-  private spinning = false;
+  private turning = 0;
+  /**
+   * Time Dense Space's next notch, shown [direction: the next notch is shown, so a move can be planned]: from each star
+   * the flagship can reach, dashed, the routes inward it would have once the rings have turned (kept per state).
+   */
+  private ahead: { state: CampaignState; routes: { from: string; to: string; x: number; y: number }[] } | null = null;
+  private timeAhead(s: CampaignState): { from: string; to: string; x: number; y: number }[] {
+    if (s.rift?.kind !== 'time' || s.battle) return [];
+    if (this.ahead?.state === s) return this.ahead.routes;
+    const ship = flagship(s, s.playerId);
+    const routes = ship ? armyMoves(s, ship).flatMap((m) => timePreview(s, m.toId).map((p) => ({ from: m.toId, to: p.id, x: p.x, y: p.y }))) : [];
+    this.ahead = { state: s, routes };
+    return routes;
+  }
   /** Time Dense Space's routes mid-turn: those breaking (drawn back in), those making (reaching out, then linking). */
   private linkAnim: { phase: 'retract' | 'turn' | 'extend' | 'link'; t: number; breaking: { from: string; to: string }[]; making: { from: string; to: string }[] } | null = null;
   /** On the way into a dream (so the map, drawn meanwhile, begins it only once). */
@@ -2261,86 +2276,60 @@ export class CampaignView {
     this.host.render();
   }
 
-  private keepSpinning() {
-    const on = this.state?.rift?.kind === 'time';
-    if (!on) {
-      window.clearInterval(this.spinTimer);
-      this.spinTimer = 0;
-      return;
-    }
-    if (this.spinTimer) return;
-    this.spinTimer = window.setInterval(() => this.spinStep(), 1000);
-  }
-
-  private spinStep() {
-    // (A scene with nothing to show is passed over, never left holding the galaxy still.)
-    if (this.state?.story.queue.length) this.skipSilentScenes();
+  /**
+   * A turn of Time Dense Space, as seen [direction: slow; before turning, the routes it breaks away from retract (with
+   * a sound); it turns; the new routes extend out (a noise as they extend, another as they link), lighting up once
+   * fully connected]: from the rings and routes before (`from`) to the state's own.
+   */
+  private animateTurn(from: { turns: Record<number, number>; edges: Set<string> }) {
     const s = this.state;
-    const stage = this.stageEl;
-    if (!s || s.rift?.kind !== 'time' || !stage?.isConnected) return this.keepSpinning();
-    if (this.spinning || this.advance || s.battle || s.phase !== 'player' || this.sheet || s.loot || s.cardRewards.length || s.prophet || s.emblemChoice || s.story.queue.length) return;
-    // (One wedge a step, round the circle; the flagship's star never moves: see sectorMovers.)
-    // (A wedge with nothing free to move is passed: every second something turns.)
-    let movers: string[] = [];
-    for (let i = 0; i < TIME_SECTORS && !movers.length; i++) {
-      movers = sectorMovers(s, nextSector(s));
-      if (!movers.length) s.spin = (s.spin ?? 0) + 1;
-    }
-    if (!movers.length) return;
-    const root = stage.closest<HTMLElement>('.cmp');
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    // [direction: about a quarter the speed; before turning, the routes it will break away from retract (with a
-    // sound); it turns; then the new routes extend out (a noise as they extend, another as they link), lighting up
-    // briefly once fully connected]
-    const edges = (st: CampaignState) => new Set(st.nodes.flatMap((n) => n.links.filter((m) => n.id < m).map((m) => `${n.id}|${m}`)));
-    const before = edges(s);
-    const ahead = structuredClone(s);
-    advanceStars(ahead, movers, 1);
-    const after = edges(ahead);
-    // (Each drawn from its end that moves.)
+    const root = this.stageEl?.closest<HTMLElement>('.cmp');
+    if (!s || s.rift?.kind !== 'time' || !root) return;
+    const to = { ...(s.ringSpins ?? {}) };
+    const edges = new Set(s.nodes.flatMap((n) => n.links.filter((m) => n.id < m).map((m) => `${n.id}|${m}`)));
+    const turned = new Set(Object.keys(to).map(Number).filter((r) => (to[r] ?? 0) !== (from.turns[r] ?? 0)));
+    if (!turned.size) return;
+    const moves = (id: string) => turned.has(s.nodes.find((n) => n.id === id)?.spinRing ?? -1);
+    // (Each route drawn from its end that turns.)
     const ends = (e: string) => {
       const [a, b] = e.split('|');
-      return movers.includes(a) ? { from: a, to: b } : { from: b, to: a };
+      return moves(a) || !moves(b) ? { from: a, to: b } : { from: b, to: a };
     };
-    const breaking = [...before].filter((e) => !after.has(e)).map(ends);
-    const making = [...after].filter((e) => !before.has(e)).map(ends);
-    const T = reduce
-      ? { retract: 0, turn: 0, extend: 0, link: 0 }
-      : { retract: breaking.length ? 450 : 0, turn: 2000, extend: making.length ? 520 : 0, link: making.length ? 520 : 0 };
+    const breaking = [...from.edges].filter((e) => !edges.has(e) && s.nodes.some((n) => n.id === e.split('|')[0]) && s.nodes.some((n) => n.id === e.split('|')[1])).map(ends);
+    const making = [...edges].filter((e) => !from.edges.has(e)).map(ends);
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
+    const T = { retract: breaking.length ? 450 : 0, turn: 2000, extend: making.length ? 520 : 0, link: making.length ? 520 : 0 };
     const total = T.retract + T.turn + T.extend + T.link;
-    const start = new Map(s.nodes.filter((n) => movers.includes(n.id)).map((n) => [n.id, Math.round(n.spinStep ?? 0)]));
-    this.spinning = true;
+    const run = ++this.turning;
     this.linkAnim = { phase: 'retract', t: 0, breaking, making };
     if (breaking.length) sound.linkRetract();
     const t0 = performance.now();
-    let done = 0;
-    let heard: string = 'retract';
+    let heard = 'retract';
     const ease = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
-    const place = () => {
-      for (const id of movers) {
-        const n = s.nodes.find((x) => x.id === id);
-        const el = n && stage.querySelector<HTMLElement>(`[data-key="sys-${n.id}"]`);
-        if (n && el) {
+    const lay = (k: number) => {
+      const mid: Record<number, number> = {};
+      for (const r of new Set([...Object.keys(to), ...Object.keys(from.turns)].map(Number))) mid[r] = (from.turns[r] ?? 0) + ((to[r] ?? 0) - (from.turns[r] ?? 0)) * k;
+      spinGalaxy(s, false, mid);
+      const stage = this.stageEl;
+      for (const n of s.nodes) {
+        if (!turned.has(n.spinRing ?? -1)) continue;
+        const el = stage?.querySelector<HTMLElement>(`[data-key="sys-${n.id}"]`);
+        if (el) {
           el.style.left = `${n.x}px`;
           el.style.top = `${n.y}px`;
         }
       }
     };
+    lay(0);
     const frame = () => {
-      if (!this.state || this.state !== s) {
-        // (A move made mid-turn: the turn completes at once in the state that move left, routed afresh.)
-        const now = this.state;
-        if (now?.rift?.kind === 'time') {
-          const shipAt = flagship(now, now.playerId)?.nodeId;
-          for (const n of now.nodes) if (movers.includes(n.id)) n.spinStep = (start.get(n.id) ?? 0) + (n.id === shipAt ? 0 : 1);
-          advanceStars(now, [], 0);
-          now.spin = (now.spin ?? 0) + 1;
-        }
-        this.linkAnim = null;
-        this.spinning = false;
-        return void this.host.render();
+      // (Another move, or another screen: the turn is simply where it ends.)
+      if (run !== this.turning || this.state !== s) {
+        if (this.state === s) spinGalaxy(s);
+        if (run === this.turning) this.linkAnim = null;
+        return;
       }
-      const at = total ? performance.now() - t0 : Infinity;
+      const at = performance.now() - t0;
       const anim = this.linkAnim!;
       if (at < T.retract) {
         anim.phase = 'retract';
@@ -2351,16 +2340,9 @@ export class CampaignView {
           heard = 'turn';
           sound.boomTick();
         }
-        const e = ease((at - T.retract) / T.turn);
-        advanceStars(s, movers, e - done, false);
-        done = e;
-        place();
+        lay(ease((at - T.retract) / T.turn));
       } else if (at < T.retract + T.turn + T.extend) {
-        if (done < 1) {
-          advanceStars(s, movers, 1 - done, false);
-          done = 1;
-          place();
-        }
+        if (heard === 'turn' || heard === 'retract') lay(1);
         anim.phase = 'extend';
         anim.t = (at - T.retract - T.turn) / T.extend;
         if (heard !== 'extend') {
@@ -2375,16 +2357,11 @@ export class CampaignView {
           sound.linkConfirm();
         }
       } else {
-        // (Landed on a whole half-step, free of the glide's rounding, and routed afresh.)
-        if (done < 1) advanceStars(s, movers, 1 - done, false);
-        for (const n of s.nodes) if (movers.includes(n.id)) n.spinStep = Math.round(n.spinStep ?? 0);
-        advanceStars(s, [], 0);
-        s.spin = (s.spin ?? 0) + 1;
+        spinGalaxy(s);
         this.linkAnim = null;
-        this.spinning = false;
         return void this.host.render();
       }
-      if (root) this.showNebula(root);
+      this.showNebula(root);
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);

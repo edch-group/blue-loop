@@ -18,7 +18,7 @@ export type RiftKind = 'dark' | 'time';
 
 export const RIFTS: Record<RiftKind, { race: number; name: string; ruler: string; text: string }> = {
   dark: { race: 4, name: 'The Dark Galaxy', ruler: 'nyx_hero_nyxara', text: 'Overrun by the Nyxari. Only the next star can be seen, and the stars behind vanish into the dark.' },
-  time: { race: 6, name: 'Time Dense Space', ruler: 'ser_hero_aster', text: 'Ruled by the Seren. The galaxy turns, and the stars in reach change every second.' },
+  time: { race: 6, name: 'Time Dense Space', ruler: 'ser_hero_aster', text: 'Ruled by the Seren. Its rings turn a notch with every jump you make.' },
 };
 
 /** The rifts there are so far (the other two Lost Races' are still to come). */
