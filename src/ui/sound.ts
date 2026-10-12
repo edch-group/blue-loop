@@ -241,6 +241,9 @@ class SoundBoard {
   private bossLush: GainNode | null = null;
   /** The campaign map's fader (its own, so a crossfade from a battle never cuts the battle's tails short). */
   private campaignBus: GainNode | null = null;
+  /** The mix before the limiter, and (live) the gate after it. */
+  private master: GainNode | null = null;
+  private gate: GainNode | null = null;
   private reverb: ConvolverNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private lastHover = 0;
@@ -293,11 +296,31 @@ class SoundBoard {
   private sleep() {
     this.stopMusic(true);
     this.releasePlayback();
-    if (this.ctx && this.ctx.state === 'running') void this.ctx.suspend().catch(() => undefined);
+    const ctx = this.ctx;
+    if (!ctx) return;
+    // The score's leftovers unplugged (new faders for the next), so coming back never plays the old under the new.
+    this.musicBuses(ctx, true);
+    // Everything faded out in a moment, then suspended (not cut off, which left the hall ringing a low buzz).
+    const now = ctx.currentTime;
+    if (this.gate) {
+      this.gate.gain.cancelScheduledValues(now);
+      this.gate.gain.setValueAtTime(this.gate.gain.value, now);
+      this.gate.gain.linearRampToValueAtTime(0, now + 0.06);
+    }
+    window.setTimeout(() => {
+      if (document.visibilityState === 'hidden' && ctx.state === 'running') void ctx.suspend().catch(() => undefined);
+    }, 80);
   }
 
   private wake() {
     if (document.visibilityState !== 'visible' || !this.ctx) return;
+    // (The gate opened again, gently.)
+    if (this.gate) {
+      const now = this.ctx.currentTime;
+      this.gate.gain.cancelScheduledValues(now);
+      this.gate.gain.setValueAtTime(this.gate.gain.value, now);
+      this.gate.gain.linearRampToValueAtTime(1, now + 0.15);
+    }
     // Resuming may need a fresh tap on iOS; the gesture listeners above retry until it runs.
     this.unlock();
   }
@@ -355,10 +378,9 @@ class SoundBoard {
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -14;
       comp.ratio.value = 3;
-      master.connect(comp).connect(ctx.destination);
-      this.reverseBus = ctx.createGain();
-      this.reverseBus.gain.value = 0.0001;
-      this.reverseBus.connect(master);
+      // (The last stage: closed, briefly, before the audio is suspended, so nothing is cut off mid-sound.)
+      this.gate = ctx.createGain();
+      master.connect(comp).connect(this.gate).connect(ctx.destination);
     }
 
     this.reverb = ctx.createConvolver();
@@ -383,35 +405,8 @@ class SoundBoard {
     roomSend.gain.value = 0.5;
     this.sfxRoom.connect(roomSend).connect(this.reverb);
 
-    this.musicBus = ctx.createGain();
-    this.musicBus.gain.value = 0.0001;
-    this.musicBus.connect(master);
-    this.musicBus.connect(this.reverb);
-
-    this.battleBus = ctx.createGain();
-    this.battleBus.gain.value = 0.0001;
-    this.battleBus.connect(master);
-    const battleSend = ctx.createGain();
-    battleSend.gain.value = 0.25;
-    this.battleBus.connect(battleSend).connect(this.reverb);
-    this.battleLush = ctx.createGain();
-    this.battleLush.gain.value = 0.0001;
-    this.battleLush.connect(master);
-    this.battleLush.connect(this.reverb);
-    this.bossBus = ctx.createGain();
-    this.bossBus.gain.value = 0.0001;
-    this.bossBus.connect(master);
-    const bossSend = ctx.createGain();
-    bossSend.gain.value = 0.3;
-    this.bossBus.connect(bossSend).connect(this.reverb);
-    this.bossLush = ctx.createGain();
-    this.bossLush.gain.value = 0.0001;
-    this.bossLush.connect(master);
-    this.bossLush.connect(this.reverb);
-    this.campaignBus = ctx.createGain();
-    this.campaignBus.gain.value = 0.0001;
-    this.campaignBus.connect(master);
-    this.campaignBus.connect(this.reverb);
+    this.master = master;
+    this.musicBuses(ctx, !from);
 
     if (from?.noiseBuf) this.noiseBuf = from.noiseBuf;
     else {
@@ -420,6 +415,49 @@ class SoundBoard {
       const data = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
     }
+  }
+
+  /**
+   * Every score's faders, new (and the old ones unplugged): whatever an old score left sounding or scheduled on them
+   * (a pad's long tail, a drone not yet stopped) goes with them, so a score started afresh never doubles up.
+   */
+  private musicBuses(ctx: AudioContext, live: boolean) {
+    const master = this.master!;
+    for (const bus of [this.musicBus, this.battleBus, this.battleLush, this.bossBus, this.bossLush, this.campaignBus, this.reverseBus]) bus?.disconnect();
+    if (live) {
+      this.reverseBus = ctx.createGain();
+      this.reverseBus.gain.value = 0.0001;
+      this.reverseBus.connect(master);
+    }
+    this.musicBus = ctx.createGain();
+    this.musicBus.gain.value = 0.0001;
+    this.musicBus.connect(master);
+    this.musicBus.connect(this.reverb!);
+
+    this.battleBus = ctx.createGain();
+    this.battleBus.gain.value = 0.0001;
+    this.battleBus.connect(master);
+    const battleSend = ctx.createGain();
+    battleSend.gain.value = 0.25;
+    this.battleBus.connect(battleSend).connect(this.reverb!);
+    this.battleLush = ctx.createGain();
+    this.battleLush.gain.value = 0.0001;
+    this.battleLush.connect(master);
+    this.battleLush.connect(this.reverb!);
+    this.bossBus = ctx.createGain();
+    this.bossBus.gain.value = 0.0001;
+    this.bossBus.connect(master);
+    const bossSend = ctx.createGain();
+    bossSend.gain.value = 0.3;
+    this.bossBus.connect(bossSend).connect(this.reverb!);
+    this.bossLush = ctx.createGain();
+    this.bossLush.gain.value = 0.0001;
+    this.bossLush.connect(master);
+    this.bossLush.connect(this.reverb!);
+    this.campaignBus = ctx.createGain();
+    this.campaignBus.gain.value = 0.0001;
+    this.campaignBus.connect(master);
+    this.campaignBus.connect(this.reverb!);
   }
 
   /** Browsers only allow audio after a user gesture; call from input handlers. */
