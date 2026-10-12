@@ -178,7 +178,7 @@ input { font: inherit; }
 }
 
 /* ---------- Backdrop ---------- */
-.backdrop { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.backdrop { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
 /* Glow at the heart of the mandala: red as the viewer's sun overheats, blue as it cools below 0. */
 .heat-core { opacity: var(--heat-glow, 0); }
 .heat-stop { stop-color: var(--heat-colour, #fff); }
@@ -186,7 +186,8 @@ input { font: inherit; }
 .petals ellipse, .petals path { fill: var(--petal-fill, rgba(255, 255, 255, 0.26)); stroke: var(--petal-stroke, rgba(255, 255, 255, 0.95)); stroke-width: 1.4; }
 .petal-inner path { stroke-width: 1; }
 /* Each ring its own layer, turned whole by the compositor (backdrop.ts): turning it never redraws it. */
-.petal-outer, .petal-inner { will-change: transform; }
+/* (Each ring turns whole: it draws past its own box, so no cut edge turns with it; the backdrop, still, crops.) */
+.petal-outer, .petal-inner { will-change: transform; overflow: visible; }
 
 /* ---------- Sun orbs: pearl, with a thin silver heat ring ---------- */
 .orb { position: relative; width: var(--size); height: var(--size); flex: none; }
