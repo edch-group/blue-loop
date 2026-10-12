@@ -1,6 +1,7 @@
 import { BALANCE } from './balance';
 import { cardDef } from './cards';
 import {
+  cloneGame,
   reactCost,
   baseHealth,
   activePlayer,
@@ -582,7 +583,7 @@ export function chooseAIAction(state: GameState): Action {
 
   // The AI cannot see its rivals' face-down traps (or their hands), so it plans as if no answer
   // would come: no reaction windows in its look-ahead.
-  const view = structuredClone(state);
+  const view = cloneGame(state);
   view.noReactions = true;
   for (const p of view.players) if (p.id !== me.id) p.lightspeed = null;
   const baseline = evaluate(view, me.id);
@@ -662,17 +663,46 @@ export function chooseAIAction(state: GameState): Action {
  * The first move of a line of attacks and Hero abilities that wins this day, if there is one (searched depth first,
  * sun attacks tried first, to a cap of positions).
  */
-function lethalLine(s: GameState, meId: string, depth: number, seen: { n: number }): Action | null {
-  if (depth > 6 || seen.n > 1500) return null;
+function lethalLine(s: GameState, meId: string, depth: number, seen: { n: number }, from = 0): Action | null {
+  if (depth > 6 || seen.n > 400) return null;
   const me = s.players.find((p) => p.id === meId)!;
   if (activePlayer(s).id !== meId) return null;
+  // (Out of reach whatever the order: every ready attack, and a generous allowance for its Hero's abilities, can't
+  // bring the rival's sun down. Most days: no search at all.)
+  if (depth === 0) {
+    const rival = targetOf(s, me);
+    if (!rival) return null;
+    // (An Overlord falls by its body, not its sun: searched as ever.)
+    if (!rival.boss) {
+      const attacks = me.tableau.reduce((n, c) => n + (c.dimmed || c.frozen ? 0 : Math.max(0, cardAttack(s, me, c))), 0);
+      const abilities = abilityMoves(s, me).length ? 12 : 0;
+      if (rival.heat + attacks * 2 + abilities + 3 < supernovaThreshold(rival)) return null;
+    }
+    // The plain way first: every ready card at the sun, one after another.
+    let g = s;
+    let first: Action | null = null;
+    for (const c of me.tableau) {
+      if (c.dimmed || c.frozen || cardAttack(g, g.players.find((p) => p.id === meId)!, c) <= 0 || !aimChoices(g, g.players.find((p) => p.id === meId)!, true).sun) continue;
+      const a: Action = { type: 'attack', attackerUid: c.uid, targetUid: null };
+      try {
+        g = applyAction(g, a);
+      } catch {
+        continue;
+      }
+      seen.n++;
+      first ??= a;
+      if (g.winnerId === meId) return first;
+      if (g.winnerId || activePlayer(g).id !== meId) break;
+    }
+  }
   const targets = aimChoices(s, me, true);
+  // (Which cards attack, not in what order: each line takes its attackers left to right, so no order is tried twice.)
   const moves: Action[] = [];
-  for (const c of me.tableau) {
-    if (c.dimmed || c.frozen || cardAttack(s, me, c) <= 0) continue;
+  me.tableau.forEach((c, i) => {
+    if (i < from || c.dimmed || c.frozen || cardAttack(s, me, c) <= 0) return;
     if (targets.sun) moves.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
     for (const t of targets.cards) moves.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
-  }
+  });
   moves.push(...abilityMoves(s, me));
   for (const a of moves) {
     seen.n++;
@@ -684,7 +714,8 @@ function lethalLine(s: GameState, meId: string, depth: number, seen: { n: number
     }
     if (next.winnerId === meId) return a;
     if (next.winnerId) continue;
-    if (lethalLine(next, meId, depth + 1, seen)) return a;
+    const at = a.type === 'attack' ? me.tableau.findIndex((c) => c.uid === a.attackerUid) + 1 : from;
+    if (lethalLine(next, meId, depth + 1, seen, at)) return a;
   }
   return null;
 }

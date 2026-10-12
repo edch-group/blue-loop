@@ -2,7 +2,7 @@
  * Set positions as puzzles (dreams, lessons, challenges): a full search of what the player can do in their day, and
  * whether a line of play solves the puzzle (a win before the day ends, or the rival's next day lived through).
  */
-import { activePlayer, applyAction, createDream, isGameOver, type DreamSpec } from './game';
+import { activePlayer, applyAction, cloneGame, createDream, isGameOver, type DreamSpec } from './game';
 import { chooseAIAction, movesNow } from './ai';
 import type { Action, GameState } from './types';
 
@@ -150,7 +150,7 @@ export function mostHeatWithin(start: GameState, days: number, cap = 3000, seen 
  * say why); a move that wins passes.
  */
 export function keepsWinnable(spec: DreamSpec, state: GameState, action: Action): boolean {
-  const s: GameState = structuredClone(state);
+  const s: GameState = cloneGame(state);
   const n = step(s, action);
   if (!n) return true;
   if (won(n)) return true;

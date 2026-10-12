@@ -598,21 +598,37 @@ function placeResult(root: HTMLElement) {
  * Piles on the tilted board: how far their stacked edges must lean sideways (per pixel down the board) to stand
  * upright on screen. Moving down the board, a pile drifts outwards as the perspective widens: measured, then undone.
  */
+/** Each pile's lean, by the screen's size and the board's view: the geometry alone sets it, not the game. */
+const pileLeans = new Map<string, string[]>();
 function leanPiles(root: HTMLElement) {
-  for (const face of root.querySelectorAll<HTMLElement>('.tpile-stacked')) {
-    face.style.setProperty('--lean', '0');
-    face.style.translate = 'none';
-    const r0 = face.getBoundingClientRect();
-    face.style.translate = '0 20px';
-    const r1 = face.getBoundingClientRect();
-    face.style.translate = '';
-    const perX = r0.width / (face.offsetWidth || 1);
-    // (The pile climbs to the right: its top card up and right of its foot, the edges stepping down to the left.
-    // The perspective's drift is undone first, then a lean of its own is added.)
-    const drift = perX ? (r1.left + r1.width / 2 - (r0.left + r0.width / 2)) / 20 / perX : 0;
-    const lean = -drift - 0.45;
-    face.style.setProperty('--lean', lean.toFixed(3));
+  const faces = [...root.querySelectorAll<HTMLElement>('.tpile-stacked')];
+  if (!faces.length) return;
+  // (Measured once for a screen and a view, then simply set: measuring forces the page's layout, twice a pile, and
+  // with a full board that was half of every redraw.)
+  const view = root.querySelector<HTMLElement>('.table-view')?.className ?? '';
+  const key = `${innerWidth}x${innerHeight}:${view}:${faces.length}`;
+  let leans = pileLeans.get(key);
+  if (!leans) {
+    // (All the piles at once: their resting places read together, then their places 20px down, then put back.)
+    for (const face of faces) {
+      face.style.setProperty('--lean', '0');
+      face.style.translate = 'none';
+    }
+    const r0 = faces.map((f) => f.getBoundingClientRect());
+    for (const face of faces) face.style.translate = '0 20px';
+    const r1 = faces.map((f) => f.getBoundingClientRect());
+    leans = faces.map((face, i) => {
+      face.style.translate = '';
+      const perX = r0[i].width / (face.offsetWidth || 1);
+      // (The pile climbs to the right: its top card up and right of its foot, the edges stepping down to the left.
+      // The perspective's drift is undone first, then a lean of its own is added.)
+      const drift = perX ? (r1[i].left + r1[i].width / 2 - (r0[i].left + r0[i].width / 2)) / 20 / perX : 0;
+      return (-drift - 0.45).toFixed(3);
+    });
+    if (pileLeans.size > 24) pileLeans.clear();
+    pileLeans.set(key, leans);
   }
+  faces.forEach((face, i) => face.style.setProperty('--lean', leans![i]));
 }
 
 function frameTableaus(root: HTMLElement) {

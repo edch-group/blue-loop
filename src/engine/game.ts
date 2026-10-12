@@ -17,6 +17,18 @@ function newCard(state: GameState, defId: string): CardInstance {
   return { uid: `c${state.uidCounter}`, defId: cardDef(defId).id };
 }
 
+/**
+ * A game state copied for a move, or a look ahead: everything deep but the log's entries, which are only ever
+ * added, never changed, so the copy shares them (the log is most of a long game's state, and copying it for every
+ * move the AI weighs made full boards slow).
+ */
+export function cloneGame(state: GameState): GameState {
+  const { log: entries, ...rest } = state;
+  const copy = structuredClone(rest) as GameState;
+  copy.log = entries.slice();
+  return copy;
+}
+
 function log(state: GameState, text: string) {
   const seq = (state.log[state.log.length - 1]?.seq ?? 0) + 1;
   state.log.push({ seq, turn: state.turnNumber, text });
@@ -2467,7 +2479,7 @@ function resume(state: GameState, r: Reaction) {
     if (r.redirect && aimable.some((c) => c.uid === r.redirect)) action.aimUid = r.redirect;
     else if (!aimable.some((c) => c.uid === action.aimUid)) delete action.aimUid;
   }
-  const trial = structuredClone(state);
+  const trial = cloneGame(state);
   try {
     playCard(trial, playerById(trial, enemy.id), action, true);
     Object.assign(state, trial);
@@ -2499,7 +2511,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     const aimed = asTrap ? undefined : action.enemyUid ?? action.aimUid;
     if (aimed) events.push({ on: 'targeted', defId: def.id, mineUid: aimed });
     if (wouldAnswer(state, p, events)) {
-      const trial = structuredClone(state);
+      const trial = cloneGame(state);
       playCard(trial, activePlayer(trial), action, true);
       if (openReaction(state, p, events, { kind: 'play', action })) return;
     }
@@ -2678,7 +2690,7 @@ export function choiceLabel(id: string): string {
 export function applyAction(prev: GameState, action: Action): GameState {
   if (prev.winnerId) throw new GameError('The game is over.');
   setRulesMode(prev.mode);
-  const state = structuredClone(prev);
+  const state = cloneGame(prev);
   // Only the state a day starts in carries that start's pulses (and only this move's state, what sprang).
   delete state.turnPulses;
   delete state.sprung;
