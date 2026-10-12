@@ -5,7 +5,7 @@
  * of the game (not cel shaded)].
  *
  * The ship drifts on through the dust of space, rising and rolling a little, its engines burning and (while it is
- * still a wreck) smoke trailing from its wounds. The Captain stands on its foredeck, sword raised, the coat and scarf
+ * still a wreck) smoke trailing from its wounds. The Captain stands at its foredeck's rail facing ahead, a boot up on it, the coat and scarf
  * streaming back in the slipstream. Three places on it are the menu's sections: the Captain (the hero panel), the ship
  * (its fitting), and its sensor array (research: the skill tree). Each has a camera that frames it beside its page.
  *
@@ -116,7 +116,7 @@ function hullAt(k: number, x: number) {
 }
 
 /** Where the Captain stands on the foredeck (box units), and the deck's height there. */
-const STAND = { x: 27.5, y: 12 };
+const STAND = { x: 32, y: 12 };
 
 /**
  * The Captain's ship, in detail: a battered corvette, lofted and plated, a flat foredeck, a bridge tower with its
@@ -154,6 +154,9 @@ function shipModel(spec: CaptainShipSpec): { mesh: Float32Array; smoke: V3[]; en
   for (let x = 21.5; x <= 33.5; x += 1.5)
     for (const sd of [-1, 1]) m.cyl([x, 12 + sd * dk.w * 0.68, deck], [x, 12 + sd * dk.w * 0.68, deck + 1.1], 0.09, 0.09, HULL_DEEP, 0, 6);
   for (const sd of [-1, 1]) m.tube([[21.5, 12 + sd * dk.w * 0.68, deck + 1.1], [33.5, 12 + sd * dk.w * 0.68, deck + 1.1]], 0.1, 0.1, HULL_DEEP, 0, 6);
+  // (And across its fore end, where the Captain sets his boot.)
+  m.tube([[33.5, 12 - dk.w * 0.68, deck + 1.1], [33.5, 12 + dk.w * 0.68, deck + 1.1]], 0.1, 0.1, HULL_DEEP, 0, 6);
+  for (const y of [-1, 1]) m.cyl([33.5, 12 + y * dk.w * 0.25, deck], [33.5, 12 + y * dk.w * 0.25, deck + 1.1], 0.09, 0.09, HULL_DEEP, 0, 6);
   // A hatch and a bollard on it.
   m.cyl([23.4, 12 - 1.6, deck], [23.4, 12 - 1.6, deck + 0.25], 1, 1, HULL, 0, 18);
   m.ring(23.4, 12 - 1.6, deck + 0.27, 0.8, 0.1, 0, HULL_DEEP, 0);
@@ -339,7 +342,6 @@ const STUBBLE: RGB = [0.3, 0.24, 0.21];
 const BANDAGE: RGB = [0.92, 0.89, 0.83];
 const PLATE: RGB = [0.62, 0.66, 0.74];
 const INK: RGB = [0.1, 0.09, 0.1];
-const BLADE: RGB = [0.8, 0.76, 1];
 // (Cloth, leather, skin and hair are soft, matt: the "living" material; metal is plated; the blade glows.)
 const SOFT = 3;
 
@@ -362,27 +364,29 @@ function turned(m: Mesh, at: V3, axis: 'x' | 'y' | 'z', a: number, build: () => 
 }
 
 /**
- * The Captain, standing, after the art: feet apart on the deck, the forward knee bent, the sword raised high in the
- * right hand, the left at his side; a long coat open over a fitted tunic, a leather harness and belt, a steel plate
- * on the sword shoulder, a scarf, worn boots; weathered: stubble, tousled dark hair, a bandaged brow, his face set and
- * tired, turned up toward the blade. Built facing +y (box), feet at z 0, 40 tall; the coat's tails and the scarf's
+ * The Captain, standing at the rail, facing ahead with the ship [direction: facing forwards with the ship, one leg up on
+ * the railing, no sword]: the right boot up on the rail, that forearm across its knee, the left fist on his hip;
+ * after the art otherwise: a long coat open over a fitted tunic, a leather harness and belt, a steel plate on the
+ * right shoulder, a scarf, worn boots; weathered: stubble, tousled dark hair, a bandaged brow, his face set and tired,
+ * looking out ahead. Built facing +y (box), feet at z 0, 40 tall; the coat's tails and the scarf's
  * end are a part of their own (they stream in the wind).
  */
 function captainModel(): Float32Array {
   const m = new Mesh();
-  // Legs: the forward one bent, its boot ahead; the back one straight, its boot behind.
-  limb(m, [[18, 12.4, 21], [17.6, 15.6, 12.2], [17.6, 15, 3]], 1.75, 1.3, TROUSERS);
-  limb(m, [[22, 11.6, 21], [22.6, 10, 11.4], [23.2, 7.4, 2.6]], 1.75, 1.3, TROUSERS);
-  for (const [x, y, z, fwd, tilt] of [[17.6, 15, 3, 1, 0], [23.2, 7.4, 2.6, 1, 0.35]] as const) {
-    m.tube([[x, y, z + 5.5], [x, y, z]], 1.5, 1.45, BOOT, SOFT, 18);
-    m.ring(x, y, z + 5.4, 1.5, 0.22, 0, STRAP, SOFT);
-    turned(m, [x, y, 0], 'x', tilt * fwd, () => {
-      m.rbox(x, y + 1.6, 1.15, 1.45, 3, 1.15, BOOT, SOFT, 3, 3);
-      m.rbox(x, y + 1.6, 0.25, 1.5, 3.1, 0.3, HULL_DEEP, SOFT, 4, 4);
-    });
+  // Legs: the right raised, its boot up on the rail ahead; the left straight, planted on the deck.
+  limb(m, [[22, 12.6, 21], [22, 18.5, 18.5], [22, 20.4, 10]], 1.75, 1.3, TROUSERS);
+  limb(m, [[18, 11.8, 21], [17.8, 11.6, 11.6], [17.6, 11.4, 2.6]], 1.75, 1.3, TROUSERS);
+  // Boots: a shaft up the shin, a strap at its top, the foot and its sole (the right's on the rail).
+  for (const [ax, ay, az, kx, ky, kz] of [[22, 20.4, 10, 22, 18.5, 18.5], [17.6, 11.4, 2.6, 17.8, 11.6, 11.6]] as const) {
+    const d = norm3([kx - ax, ky - ay, kz - az]);
+    const top: V3 = [ax + d[0] * 5.5, ay + d[1] * 5.5, az + d[2] * 5.5];
+    m.tube([top, [ax, ay, az - 1.2]], 1.5, 1.45, BOOT, SOFT, 18);
+    m.ball(top[0], top[1], top[2], 1.55, STRAP, SOFT, 14, 6);
+    m.rbox(ax, ay + 1.4, az - 1.45, 1.45, 3, 1.15, BOOT, SOFT, 3, 3);
+    m.rbox(ax, ay + 1.4, az - 2.35, 1.5, 3.1, 0.3, HULL_DEEP, SOFT, 4, 4);
   }
-  // A guard strapped over the forward knee.
-  m.rbox(17.6, 17.1, 12.3, 1.3, 0.7, 1.6, PLATE, 0, 2, 2.4);
+  // A guard strapped over the raised knee.
+  m.rbox(22, 19.9, 19.2, 1.3, 0.8, 1.6, PLATE, 0, 2, 2.4);
   // Hips, belt (buckle, pouches), the tunic, the harness crossed over it.
   m.rbox(20, 12, 21.3, 3.5, 2.3, 2.3, TROUSERS, SOFT, 2.4, 2.4);
   m.rbox(20, 12, 23.2, 3.6, 2.45, 0.75, STRAP, SOFT, 2.6, 6);
@@ -399,34 +403,25 @@ function captainModel(): Float32Array {
     turned(m, [20 + sd * 2.6, 14.6, 31], 'y', sd * 0.32, () => m.rbox(20 + sd * 2.6, 14.55, 30.6, 0.65, 0.3, 3.2, LINING, SOFT, 3, 3));
   }
   m.rbox(20, 11, 34.4, 3.3, 1.6, 1.9, COAT, SOFT, 2, 3);
-  // Shoulders: the left under the coat; the right, the sword's, under a steel plate two lames deep.
+  // Shoulders: the left under the coat; the right under a steel plate two lames deep.
   m.ball(16.1, 12, 32.6, 1.75, COAT, SOFT, 16, 10);
   m.ball(23.9, 12, 32.6, 1.75, COAT, SOFT, 16, 10);
   turned(m, [24.4, 12, 33.2], 'y', -0.35, () => {
     m.rbox(24.4, 12, 33.6, 2.2, 2.2, 0.85, PLATE, 0, 2, 3);
     m.rbox(25.1, 12, 32.4, 1.9, 2, 0.7, PLATE, 0, 2, 3);
   });
-  // The sword arm, raised high and forward; the left arm down at his side, the fist clenched.
-  limb(m, [[24.2, 12, 32.4], [26.6, 13.4, 36.6], [27.8, 14.4, 41.6]], 1.25, 1.0, COAT_SHADE);
-  m.rbox(27.7, 14.3, 40.8, 1.15, 1.15, 0.7, LINING, SOFT, 2, 3);
-  m.ball(27.9, 14.5, 42.4, 1.05, GLOVE, SOFT, 14, 8);
-  limb(m, [[15.8, 12, 32.4], [14.8, 12.6, 27.2], [14.6, 13.6, 22.6]], 1.25, 1.0, COAT_SHADE);
-  m.rbox(14.6, 13.5, 23.6, 1.15, 1.15, 0.7, LINING, SOFT, 2, 3);
-  m.ball(14.6, 13.8, 21.9, 1.05, GLOVE, SOFT, 14, 8);
-  // The sword: up and forward from his fist, a dark hilt, a guard, the blade glowing violet.
-  {
-    const hand: V3 = [27.9, 14.5, 42.4], dir = norm3([0.32, 0.18, 1]);
-    const at = (d: number): V3 => [hand[0] + dir[0] * d, hand[1] + dir[1] * d, hand[2] + dir[2] * d];
-    m.tube([at(-1.6), at(1.2)], 0.32, 0.3, STRAP, SOFT, 10);
-    m.ball(...at(-1.9), 0.5, HULL_DEEP, 0, 10, 6);
-    m.tube([sub3(at(1.4), [1.8, 0, -0.6]), [at(1.4)[0] + 1.8, at(1.4)[1], at(1.4)[2] + 0.6]], 0.26, 0.26, HULL_DEEP, 0, 10);
-    m.tube([at(1.6), at(17), at(19.5)], 0.42, 0.06, BLADE, 2, 10);
-  }
-  // Neck, scarf wound round it; the head, turned up to the blade.
+  // The right forearm laid across the raised knee, the hand hanging over it; the left fist on his hip.
+  limb(m, [[24.2, 12, 32.4], [24.4, 15.6, 24.6], [22.6, 19.6, 21.2]], 1.25, 1.0, COAT_SHADE);
+  m.rbox(23, 18.8, 21.8, 1.1, 0.75, 1.1, LINING, SOFT, 2, 3);
+  m.ball(22.4, 20.6, 20.8, 1.05, GLOVE, SOFT, 14, 8);
+  limb(m, [[15.8, 12, 32.4], [12.8, 11.4, 27.6], [15.2, 12.8, 23.8]], 1.25, 1.0, COAT_SHADE);
+  m.rbox(14.6, 12.4, 24.6, 1.1, 1.1, 0.75, LINING, SOFT, 2, 3);
+  m.ball(15.6, 13, 23.4, 1.05, GLOVE, SOFT, 14, 8);
+  // Neck, scarf wound round it; the head, looking out ahead, chin up a little.
   m.cyl([20, 12.2, 33.6], [20, 12.4, 35.6], 0.9, 0.85, SKIN, SOFT, 14);
   m.rbox(20, 12.1, 34.6, 2.2, 2.1, 1.1, SCARF, SOFT, 2, 2.6);
-  turned(m, [20, 12.3, 35.4], 'x', -0.22, () =>
-    turned(m, [20, 12.3, 35.4], 'z', 0.25, () => {
+  turned(m, [20, 12.3, 35.4], 'x', -0.08, () =>
+    turned(m, [20, 12.3, 35.4], 'z', 0, () => {
       const H = { x: 20, y: 12.5, z: 37.6, rx: 1.9, ry: 2.15, rz: 2.45 };
       m.rbox(H.x, H.y, H.z, H.rx, H.ry, H.rz, SKIN, SOFT, 2, 2, 32, 20);
       const face = (dx: number, dz: number) => H.y + H.ry * Math.sqrt(Math.max(0, 1 - (dx / H.rx) ** 2 - (dz / H.rz) ** 2));
@@ -680,7 +675,7 @@ export class Base3d {
   private goal(aspect: number, half: number): Pose {
     const z = this.focused;
     const narrow = Math.min(1, aspect / 1.6);
-    if (z === 'captain') return { target: sub3(this.spot('captain'), [0, -0.05, 0]), yaw: -0.75, pitch: 0.02, dist: 1.55 / narrow, off: -0.24 };
+    if (z === 'captain') return { target: sub3(this.spot('captain'), [0, -0.05, 0]), yaw: 1.0, pitch: 0.02, dist: 1.55 / narrow, off: -0.24 };
     if (z === 'hangar') return { target: this.spot('hangar'), yaw: -0.45, pitch: 0.48, dist: 9 / narrow, off: -0.3 };
     if (z === 'research') return { target: sub3(this.spot('research'), [-0.6, -0.9, 0]), yaw: 0.55, pitch: -0.12, dist: 3.4 / narrow, off: -0.12 };
     // The whole ship, side on and a little from ahead and below (as the art has it), all of it in view.
@@ -705,7 +700,7 @@ export class Base3d {
     this.shipM = mul(translate(0, 0.05 * Math.sin(t * 0.7), 0), mul(rotX(0.035 * Math.sin(t * 0.5)), mul(rotZ(0.025 * Math.sin(t * 0.6 + 1)), scale(S))));
     // The Captain on the foredeck, facing ahead and a little toward us.
     const at = B(STAND.x, STAND.y, this.deck);
-    this.capM = mul(this.shipM, mul(translate(at[0], at[1], at[2]), mul(rotY(-1.0), mul(scale(0.7 / S), translate(-B(20, 12, 0)[0], 0, -B(20, 12, 0)[2])))));
+    this.capM = mul(this.shipM, mul(translate(at[0], at[1], at[2]), mul(rotY(1.3), mul(scale(0.7 / S), translate(-B(20, 12, 0)[0], 0, -B(20, 12, 0)[2])))));
     // The tails and scarf streaming: swung from the waist, a gust now and then.
     const gust = 0.08 * Math.sin(t * 2.3) + 0.04 * Math.sin(t * 5.1 + 1);
     const pivot = B(20, 11, 23);
@@ -793,12 +788,6 @@ export class Base3d {
         const age = (t * 0.45 + i / 10) % 1;
         quad([from[0] - age * 1.6, from[1] + age * 0.5, from[2] + Math.sin(i * 3.1) * age * 0.15], 0.06 + age * 0.22, [0.35, 0.34, 0.36, 0.42 * (1 - age) * Math.min(1, age * 8)]);
       }
-    }
-    // The blade's light: a soft violet glow along it.
-    for (let i = 0; i < 6; i++) {
-      const d = 2.5 + i * 3;
-      const dir = norm3([0.32, 0.18, 1]);
-      quad(apply(this.capM, B(27.9 + dir[0] * d, 14.5 + dir[1] * d, 42.4 + dir[2] * d)), 0.06, [0.72, 0.66, 1, 0.35]);
     }
     const data = new Float32Array(out);
     const sp = this.spriteProg;
