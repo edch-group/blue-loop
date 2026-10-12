@@ -124,9 +124,12 @@ function tiltZ(m: Mesh, pivot: V3, a: number, build: () => void) {
 const W = (x: number, y: number, z: number): V3 => [(x - 20) / 40, z / 40, (y - 12) / 40];
 
 // The Captain's colours, after the art: a long charcoal coat, worn leather, a grey scarf, dark tousled hair.
-const COAT_GREY: RGB = [0.24, 0.24, 0.29];
-const COAT_SHADOW: RGB = [0.17, 0.17, 0.21];
-const LEATHER: RGB = [0.44, 0.31, 0.22];
+const COAT_GREY: RGB = [0.25, 0.26, 0.31];
+const COAT_SHADE: RGB = [0.2, 0.21, 0.26];
+const LEATHER: RGB = [0.48, 0.34, 0.24];
+const TUNIC: RGB = [0.34, 0.37, 0.44];
+const LINING: RGB = [0.24, 0.36, 0.4];
+const PLATE: RGB = [0.64, 0.68, 0.76];
 const STRAP: RGB = [0.3, 0.21, 0.15];
 const BUCKLE: RGB = [0.72, 0.66, 0.56];
 const SCARF: RGB = [0.52, 0.55, 0.62];
@@ -172,27 +175,40 @@ function captain(m: Mesh) {
     // The upper body, slumped forward and to one side.
     tiltX(m, W(20, 1, 20), 0.14, () =>
       tiltZ(m, W(20, 1, 20), 0.07, () => {
-        // The coat's tattered tails, hanging over the seat's front and down its sides.
-        for (const [x, len] of [[14.5, 5.5], [16.8, 8], [23.4, 6.5], [25.6, 9]] as const) block(m, x - 1.6, x + 1.6, 3, 6.5, 19 - len, 21, COAT_SHADOW, 0, 3, 3);
-        for (const s of [-1, 1]) block(m, 20 + s * 7.6 - 1.4, 20 + s * 7.6 + 1.4, -3, 5, 11, 22, COAT_SHADOW, 0, 3, 3);
-        // The jerkin, belt and strap; the open coat over them.
-        m.rbox(20, 0.8, 29, 5.6, 4.4, 9.5, LEATHER, 0, 2.6, 2.6);
-        m.rbox(20, 0.8, 21.8, 5.8, 4.6, 1, STRAP, 0, 2.6, 6);
-        m.rbox(20, 5.3, 21.8, 1, 0.4, 0.8, BUCKLE, 0, 4, 4);
-        m.tube([[15.2, 4.4, 36.5], [20, 5.4, 29], [24.6, 4.4, 22.6]], 0.55, 0.55, STRAP, 0, 8, false);
-        for (const s of [-1, 1]) m.rbox(20 + s * 5.4, 0.4, 29.5, 2.4, 4.8, 10, COAT_GREY, 0, 2.6, 3);
-        m.rbox(20, -2.4, 30, 7.2, 2.6, 10.5, COAT_GREY, 0, 2.6, 3);
-        // Shoulders under the coat; one arm on the chair's arm, the other hanging over its side.
-        m.rbox(20 - 6.8, 0.2, 37, 3, 3, 2.4, COAT_GREY, 0, 2, 2);
-        m.rbox(20 + 6.8, 0.2, 37, 3, 3, 2.4, COAT_GREY, 0, 2, 2);
-        m.tube([[13, 0.5, 36], [11, 2, 29.5], [10.4, 4, 27.2]], 2.1, 1.9, COAT_GREY, 0, 16, false);
-        m.ball(10.4, 4, 27.2, 1.9, COAT_GREY, 0, 14, 8);
-        m.tube([[10.4, 4, 27.2], [10, 11, 26.8]], 1.9, 1.7, COAT_GREY, 0, 16, false);
-        m.ball(10, 12.4, 27, 1.5, TAN, 0, 14, 8);
-        m.tube([[27, 0.5, 36], [30.6, 2.6, 28], [32.4, 4.4, 20]], 2.1, 1.8, COAT_GREY, 0, 16, false);
-        m.ball(32.6, 5, 18.6, 1.5, TAN, 0, 14, 8);
+        // The coat's long tails, hanging under the chair's arms, their hems ragged; its skirts draped over the lap.
+        for (const sd of [-1, 1]) {
+          const x = 20 + sd * 9.6;
+          block(m, x - 1, x + 1, -5, 3, 9, 22, COAT_GREY, 0, 3, 4);
+          for (const [dy, low] of [[-3.4, 6.4], [-0.4, 7.6], [2, 6]] as const) block(m, x - 0.9, x + 0.9, dy - 1.4, dy + 1.4, low, 10, COAT_GREY, 0, 3, 3);
+          m.rbox(20 + sd * 6.3, 6.4, 23.6, 2.5, 6.4, 0.85, COAT_GREY, 0, 3, 3);
+          m.rbox(20 + sd * 6.6, 12.6, 22.6, 1.6, 1.2, 1.2, COAT_GREY, 0, 2, 2);
+        }
+        // The long coat round him, open down the front: the tunic showing there, a leather harness crossed over it,
+        // the belt; lapels turned back along the opening, showing the lining.
+        m.rbox(20, 0.4, 30, 6.6, 4.8, 9.9, COAT_GREY, 0, 2.4, 2.8);
+        m.rbox(20, 4.6, 30, 3, 0.9, 8.8, TUNIC, 0, 3, 3);
+        for (const sd of [-1, 1]) tiltZ(m, W(20, 5.5, 30.5), sd * 0.5, () => m.rbox(20, 5.55, 30.5, 0.6, 0.3, 6.6, LEATHER, 0, 3, 4));
+        m.ball(20, 5.75, 30.5, 0.7, BUCKLE, 0, 12, 8);
+        m.rbox(20, 5.1, 22.2, 3.1, 0.75, 1.05, STRAP, 0, 4, 4);
+        m.rbox(20, 5.85, 22.2, 0.9, 0.3, 0.75, BUCKLE, 0, 4, 4);
+        for (const sd of [-1, 1]) tiltZ(m, W(20 + sd * 3.3, 5.3, 34), sd * 0.3, () => m.rbox(20 + sd * 3.3, 5.35, 33.4, 0.95, 0.45, 5.2, LINING, 0, 3, 3));
+        m.rbox(20, -1.4, 40.6, 5.3, 2.2, 3.1, COAT_GREY, 0, 2, 3);
+        // Shoulders: the left under the coat, the right under a worn steel plate, two lames deep.
+        m.rbox(13.2, 0.2, 37, 3, 3, 2.4, COAT_GREY, 0, 2, 2);
+        m.rbox(26.8, 0.2, 37, 3, 3, 2.4, COAT_GREY, 0, 2, 2);
+        m.rbox(27.4, 0.4, 38.6, 3.5, 3.5, 1.5, PLATE, 0, 2, 3);
+        m.rbox(28.4, 0.6, 36.6, 3.1, 3.2, 1.15, PLATE, 0, 2, 3);
+        // One arm on the chair's arm, the other hanging over its side; the coat's cuffs turned back.
+        m.tube([[13.4, 0.5, 36.4], [10.2, 0.8, 31], [9.6, 2.6, 27.6]], 1.75, 1.5, COAT_SHADE, 0, 16, false);
+        m.ball(9.6, 2.6, 27.6, 1.5, COAT_SHADE, 0, 14, 8);
+        m.tube([[9.6, 2.6, 27.6], [9.5, 9.4, 26.9]], 1.5, 1.35, COAT_SHADE, 0, 16, false);
+        m.rbox(9.5, 9.4, 26.9, 1.75, 0.9, 1.75, LINING, 0, 2, 3);
+        m.ball(9.5, 11.2, 27, 1.35, TAN, 0, 14, 8);
+        m.tube([[26.6, 0.5, 36.4], [31, 1.4, 29.5], [32.8, 3.2, 22]], 1.75, 1.45, COAT_SHADE, 0, 16, false);
+        m.rbox(32.8, 3.2, 22.4, 1.7, 1.7, 0.95, LINING, 0, 2, 3);
+        m.ball(33, 3.6, 20.2, 1.35, TAN, 0, 14, 8);
         // A bandage round the hanging arm.
-        m.rbox(31.4, 3.5, 24.2, 2, 2, 0.8, BANDAGE, 0, 2, 4);
+        m.rbox(32.1, 2.5, 25.6, 1.65, 1.65, 0.6, BANDAGE, 0, 2, 4);
         // The scarf, wound round the neck, an end hanging down the chest.
         m.rbox(20, 1, 40, 4.4, 4, 2, SCARF, 0, 2, 2.6);
         m.rbox(17.6, 3.8, 35, 1.6, 0.8, 4, SCARF, 0, 3, 3);
