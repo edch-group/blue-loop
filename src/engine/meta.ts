@@ -13,6 +13,7 @@
  */
 
 import { GENERALS } from './story';
+import { CAPTAIN_SLOT_PRICES, CAPTAIN_START_ABILITY, CAPTAIN_STAT_PRICES, captainAbility, captainId, captainLead, captainSlots, type CaptainStat } from './captain';
 import type { BattleModifiers } from './types';
 
 export type MetaGroup = 'sun' | 'command' | 'flagship' | 'perk' | 'start' | 'spoils' | 'lore' | 'unlock';
@@ -85,6 +86,89 @@ export interface MetaState {
   /** The most universes crossed in one run, and runs begun. */
   best: number;
   runs: number;
+  /** What petals have made of the Captain (captain.ts): kept for every run. */
+  captain?: CaptainMeta;
+}
+
+/**
+ * The Captain, as petals have made them [direction: petals are for upgrading the hero, "how strong is this card in
+ * battle and what abilities does it have"]: each stat's levels, the ability slots bought, the abilities learnt and
+ * those carried into battle, and the ways of leading learnt and the one chosen.
+ */
+export interface CaptainMeta {
+  attack: number;
+  stability: number;
+  cheaper: number;
+  /** Ability slots bought (past the first). */
+  slots: number;
+  abilities: string[];
+  equipped: string[];
+  leads: string[];
+  lead?: string;
+}
+
+export const plainCaptain = (): CaptainMeta => ({ attack: 0, stability: 0, cheaper: 0, slots: 0, abilities: [CAPTAIN_START_ABILITY], equipped: [CAPTAIN_START_ABILITY], leads: [] });
+export const captainMeta = (meta: MetaState): CaptainMeta => ({ ...plainCaptain(), ...(meta.captain ?? {}) });
+
+/** The Captain's card for the next run (its id carries the build: captain.ts). */
+export function captainCard(meta: MetaState): string {
+  const c = captainMeta(meta);
+  return captainId({ attack: c.attack, stability: c.stability, cheaper: c.cheaper, abilities: c.equipped.slice(0, captainSlots(c.slots)), ...(c.lead ? { lead: c.lead } : {}) });
+}
+
+/** Something petals can buy for the Captain. */
+export type CaptainBuy = { kind: 'stat'; stat: CaptainStat } | { kind: 'slot' } | { kind: 'ability'; id: string } | { kind: 'lead'; id: string };
+
+/** Its price in petals (null: bought already, or at its most). */
+export function captainPrice(meta: MetaState, buy: CaptainBuy): number | null {
+  const c = captainMeta(meta);
+  if (buy.kind === 'stat') return CAPTAIN_STAT_PRICES[buy.stat][c[buy.stat]] ?? null;
+  if (buy.kind === 'slot') return CAPTAIN_SLOT_PRICES[c.slots] ?? null;
+  if (buy.kind === 'ability') return c.abilities.includes(buy.id) ? null : (captainAbility(buy.id)?.price ?? null);
+  return c.leads.includes(buy.id) ? null : (captainLead(buy.id)?.price ?? null);
+}
+
+/** Why it can't be bought now (null if it can). */
+export function captainBuyProblem(meta: MetaState, buy: CaptainBuy): string | null {
+  const price = captainPrice(meta, buy);
+  if (price === null) return buy.kind === 'stat' || buy.kind === 'slot' ? 'At its most.' : 'Learnt.';
+  if (meta.petals < price) return `Needs ${price} petals.`;
+  return null;
+}
+
+/** Buy it (a new state; throws if it can't be bought). A new ability is carried at once if a slot is free; a new lead is taken up. */
+export function buyCaptain(meta: MetaState, buy: CaptainBuy): MetaState {
+  const why = captainBuyProblem(meta, buy);
+  if (why) throw new Error(why);
+  const c = captainMeta(meta);
+  const price = captainPrice(meta, buy)!;
+  const next: CaptainMeta = { ...c, abilities: [...c.abilities], equipped: [...c.equipped], leads: [...c.leads] };
+  if (buy.kind === 'stat') next[buy.stat]++;
+  else if (buy.kind === 'slot') next.slots++;
+  else if (buy.kind === 'ability') {
+    next.abilities.push(buy.id);
+    if (next.equipped.length < captainSlots(next.slots)) next.equipped.push(buy.id);
+  } else {
+    next.leads.push(buy.id);
+    next.lead = buy.id;
+  }
+  return { ...meta, petals: meta.petals - price, captain: next };
+}
+
+/** Carry a learnt ability into battle, or leave it behind (carried only while a slot is free). */
+export function equipCaptainAbility(meta: MetaState, id: string): MetaState {
+  const c = captainMeta(meta);
+  if (!c.abilities.includes(id)) return meta;
+  const on = c.equipped.includes(id);
+  if (!on && c.equipped.length >= captainSlots(c.slots)) return meta;
+  return { ...meta, captain: { ...c, equipped: on ? c.equipped.filter((x) => x !== id) : [...c.equipped, id] } };
+}
+
+/** Lead in a learnt way (or in none). */
+export function setCaptainLead(meta: MetaState, id: string | undefined): MetaState {
+  const c = captainMeta(meta);
+  if (id !== undefined && !c.leads.includes(id)) return meta;
+  return { ...meta, captain: { ...c, lead: id } };
 }
 
 export const emptyMeta = (): MetaState => ({ petals: 0, xp: 0, upgrades: {}, deck: {}, best: 0, runs: 0, v: 2 });
@@ -98,7 +182,7 @@ export const STARTING_RACES = [0, 1, 2, 3];
 export const META_UPGRADES: MetaUpgrade[] = [
   // A stronger start: what every run begins with.
   { id: 'materials', group: 'start', tier: 1, name: 'Stockpile', text: '+3 materials to start each run.', max: 3, cost: rising(20, 15) },
-  { id: 'cards', group: 'start', tier: 2, requires: [['materials', 1]], name: 'Veterans', text: "One more of your race's cards in the starting deck.", max: 2, cost: rising(45, 35) },
+  { id: 'cards', group: 'start', tier: 2, requires: [['materials', 1]], name: 'Veterans', text: 'One more plain card in the starting deck.', max: 2, cost: rising(45, 35) },
   { id: 'pick', group: 'start', tier: 2, requires: [['materials', 2]], name: 'Requisition', text: 'Choose a card to add to the starting deck.', max: 2, cost: rising(50, 40) },
   { id: 'heirloom', group: 'start', tier: 3, requires: [['cards', 1], ['pick', 1]], name: 'Heirloom', text: 'Start each run with a random Stellar emblem.', max: 1, cost: flat(160) },
   // Stronger defences: your shields and walls in battle.

@@ -293,6 +293,8 @@ export interface FuseBonus {
 }
 
 export interface CardDef {
+  /** Draw this card with another's picture (a built card: the Captain's every build shows the Captain). */
+  artOf?: string;
   id: string;
   name: string;
   kind: CardKind;

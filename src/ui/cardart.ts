@@ -251,6 +251,33 @@ interface AurelineOpts {
   sash?: string;
 }
 
+/** The Captain: a nameless human pilot, helmet under one arm, a smoking wreck of a ship behind. */
+function captainFigure(S: Scene): string {
+  let out = S.ground(94, '#14181f', 6);
+  // The hulk behind: a dark wedge, a broken fin, smoke trailing up from its engine.
+  out += `<path d="M96 58 L150 50 L156 58 L150 66 L100 68 Z" fill="${S.linear([[0, '#59616e'], [1, '#2a2f38']])}"/>`;
+  out += `<path d="M118 51 L126 38 L131 40 L126 52 Z" fill="#3c434e"/><path d="M104 60 L148 56" stroke="#8b95a5" stroke-width="0.8" opacity="0.6"/>`;
+  out += S.glow(152, 58, 6, '#ffb070', 0.7);
+  for (let i = 0; i < 6; i++) out += `<circle cx="${f(150 - i * 4 + Math.sin(i) * 2)}" cy="${f(52 - i * 6)}" r="${f(3 + i * 1.6)}" fill="#6c7280" opacity="${f(0.45 - i * 0.06)}"/>`;
+  // The pilot: legs, a flight suit with a harness, a scarf, the head bare, the helmet held at the hip.
+  const x = 64, y = 30;
+  out += `<path d="M${x - 9} 94 L${x - 6} 68 L${x + 6} 68 L${x + 9} 94 Z" fill="#3f4a5c"/>`;
+  out += `<path d="M${x - 13} ${y + 14} Q${x} ${y + 9} ${x + 13} ${y + 14} L${x + 11} ${y + 40} L${x - 11} ${y + 40} Z" fill="${S.linear([[0, '#7d8aa0'], [1, '#4a5568']])}"/>`;
+  out += `<path d="M${x - 11} ${y + 16} L${x + 9} ${y + 38} M${x + 11} ${y + 16} L${x - 9} ${y + 38}" stroke="#2c333f" stroke-width="2"/>`;
+  out += `<circle cx="${x}" cy="${y + 27}" r="2.4" fill="#c9a24a"/>`;
+  out += `<path d="M${x - 8} ${y + 12} Q${x} ${y + 17} ${x + 8} ${y + 12} L${x + 16} ${y + 24} L${x + 10} ${y + 22} Z" fill="#b5503c"/>`;
+  // Arms: one down to the helmet at the hip, one hanging loose.
+  out += `<path d="M${x + 12} ${y + 16} Q${x + 18} ${y + 28} ${x + 17} ${y + 36}" stroke="#5d687c" stroke-width="5.5" stroke-linecap="round" fill="none"/>`;
+  out += `<path d="M${x - 12} ${y + 16} Q${x - 17} ${y + 28} ${x - 15} ${y + 38}" stroke="#5d687c" stroke-width="5.5" stroke-linecap="round" fill="none"/>`;
+  out += `<circle cx="${x + 20}" cy="${y + 40}" r="7.5" fill="${S.radial([[0, '#dfe5ee'], [0.7, '#8d97a8'], [1, '#4c5462']], 0.35, 0.3, 0.7)}"/>`;
+  out += `<path d="M${x + 14} ${y + 39} Q${x + 20} ${y + 34} ${x + 26} ${y + 39}" stroke="#2a3a52" stroke-width="3" fill="none"/>`;
+  // The head: short hair, a plain face turned a little away.
+  out += `<rect x="${x - 3}" y="${y + 6}" width="6" height="7" fill="#c99a7c"/>`;
+  out += `<ellipse cx="${x}" cy="${y}" rx="7.5" ry="8.5" fill="${S.radial([[0, '#f0c9a8'], [1, '#b98463']], 0.4, 0.35, 0.7)}"/>`;
+  out += `<path d="M${x - 7.6} ${y - 1} Q${x - 6} ${y - 10} ${x + 1} ${y - 9} Q${x + 8} ${y - 8} ${x + 7.6} ${y - 1} Q${x + 4} ${y - 6} ${x - 7.6} ${y - 1} Z" fill="#3a2a22"/>`;
+  return out;
+}
+
 /** An Aureline: one great eye in a sphere of light, tilted plasma halos, a cloak of flame that trails away. */
 function aureline(S: Scene, x: number, y: number, s: number, o: AurelineOpts = {}): string {
   const cloak = o.cloak ?? S.p.glow;
@@ -1080,6 +1107,8 @@ const ART: Record<string, Draw> = {
     S.motes(80, 50, 10, 30, '#fff6d8'),
   phase_shift: (S) => S.card(52, 52, -10, '#9cd2a0', 26) + S.card(108, 52, 10, '#fff3b0', 26) + `<path d="M64 30 Q80 18 96 30" fill="none" stroke="#fff" stroke-width="1.8"/><polygon points="96,30 90,26 91,33" fill="#fff"/><path d="M96 76 Q80 88 64 76" fill="none" stroke="#fff" stroke-width="1.8"/><polygon points="64,76 70,80 69,73" fill="#fff"/>` + S.motes(80, 52, 14, 20, '#fff'),
   standing_orders: (S) => S.panel(52, 16, 56, 72, 4) + [28, 40, 52, 64].map((y, i) => `<rect x="60" y="${y}" width="${i === 3 ? 26 : 40}" height="4" rx="2" fill="#fff" opacity="0.85"/>`).join('') + S.sun(104, 78, 6, '#ffd98a', 8),
+  // The Captain: a human in a scuffed flight suit and an open helmet, a battered hulk smoking behind.
+  human_captain: (S) => captainFigure(S),
   chain_of_command: (S) => [36, 62, 88, 114].map((x, i) => `<rect x="${x}" y="${i % 2 ? 42 : 46}" width="26" height="${i % 2 ? 20 : 12}" rx="${i % 2 ? 10 : 6}" fill="none" stroke="${S.linear([[0, '#fff'], [1, '#8d98ab']])}" stroke-width="4"/>`).join('') + S.glow(80, 52, 40, '#bfe6ff', 0.4) + S.motes(80, 52, 12, 50, '#dff2ff'),
   chrono_anchor: (S) => S.rings(80, 50, 30, 1, 1, '#fff3b0', 0.9) + `<line x1="80" y1="50" x2="80" y2="26" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><line x1="80" y1="50" x2="96" y2="58" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M60 72 Q80 90 100 72 M80 20 v60" fill="none" stroke="#c8ffd0" stroke-width="3"/>` + S.glow(80, 50, 16, '#fff', 0.8) + [-1, 1].map((k) => S.card(80 + k * 54, 52, 0, '#9cd2a0', 16)).join(''),
   stasis_field: (S) => S.card(80, 52, 0, '#9cd2a0', 28) + `<rect x="54" y="18" width="52" height="68" rx="8" fill="${S.linear([[0, '#dff2ff', 0.45], [1, '#dff2ff', 0.1]])}" stroke="#fff" stroke-width="1.2"/>` + S.motes(80, 52, 20, 36, '#fff', 1.1),
@@ -1917,15 +1946,17 @@ export function renderedArt(id: string): string | undefined {
 /** The window a card's picture sits in: a sky in its palette, with stars and the picture. */
 export function cardScene(def: CardDef): string {
   if (def.fusedFrom) return fusedScene(def);
-  const painted = RENDERED[def.id];
+  // (A built card, the Captain's, shows its base card's picture.)
+  const key = def.artOf ?? def.id;
+  const painted = RENDERED[key];
   if (painted) return `<svg class="art" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><image href="${painted}" width="160" height="100" preserveAspectRatio="xMidYMid slice"/></svg>`;
   const palette = def.rarity === 'enigma' ? PAL.enigma : def.overlordPart || def.id.startsWith('boss_') ? PAL.overlord : PAL[def.race !== undefined ? RACE_PAL[def.race] : def.kind] ?? PAL.command;
-  const S = new Scene(`a-${def.id}`, palette);
+  const S = new Scene(`a-${key}`, palette);
   const p = S.p;
-  const body = (ART[def.id] ?? ((s: Scene) => s.sun(80, 50, 12)))(S);
+  const body = (ART[key] ?? ((s: Scene) => s.sun(80, 50, 12)))(S);
   // Stars: a few bright, many faint.
   let stars = '';
-  const r = rng(`${def.id}*`);
+  const r = rng(`${key}*`);
   for (let i = 0; i < 26; i++) {
     const x = r() * 160, y = r() * 70, b = r();
     stars += `<circle cx="${f(x)}" cy="${f(y)}" r="${f(b > 0.9 ? 0.9 : 0.4)}" fill="#fff" opacity="${f(0.25 + b * 0.6)}"/>`;

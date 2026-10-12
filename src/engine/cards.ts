@@ -1,3 +1,4 @@
+import { captainDef } from './captain';
 import { isMarked, markedDef } from './rifts';
 import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
@@ -983,7 +984,7 @@ function markedCard(id: string): CardDef | undefined {
 }
 
 function lostDef(defId: string): CardDef {
-  const def = BY_ID.get(defId) ?? fusedDef(defId) ?? markedCard(defId);
+  const def = BY_ID.get(defId) ?? fusedDef(defId) ?? markedCard(defId) ?? captainDef(defId);
   if (!def) throw new Error(`Unknown card: ${defId}`);
   return def;
 }

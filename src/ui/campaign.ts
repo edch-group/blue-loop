@@ -1,5 +1,4 @@
 import {
-  HERO_BIOS,
   GALAXIES,
   type GalaxyKind,
   BALANCE,
@@ -26,12 +25,6 @@ import {
   flagship,
   META_UPGRADES,
   upgradeOpen,
-  buyStarterCard,
-  removeStarterCard,
-  starterOwned,
-  starterAddProblem,
-  starterCardPrice,
-  STARTER_OFFERS,
   buyUpgrade,
   refundUpgrade,
   resetSkills,
@@ -43,15 +36,10 @@ import {
   pointCost,
   pointsLeft,
   levelOf,
-  raceUnlocked,
-  heroUnlocked,
-  heroUnlockNeed,
   raceConquests,
   runBonuses,
-  metaUpgrade,
   type MetaGroup,
   battleOdds,
-  GENERALS,
   ORACLE_NAME,
   QUARTERMASTER,
   armyLeader,
@@ -75,8 +63,6 @@ import {
   nodeById,
   ownedNodes,
   RACE_NAMES,
-  RARITY_NAME,
-  SUBRACES,
   type MetaState,
   type CampaignAction,
   type CampaignNode,
@@ -96,6 +82,24 @@ import {
   spinGalaxy,
   timePreview,
   struggleLine,
+
+  captainCard,
+  captainMeta,
+  captainPrice,
+  captainBuyProblem,
+  buyCaptain,
+  equipCaptainAbility,
+  setCaptainLead,
+  captainAbility,
+  captainLead,
+  captainSlots,
+  CAPTAIN_ABILITIES,
+  CAPTAIN_LEADS,
+  CAPTAIN_SLOT_PRICES,
+  CAPTAIN_STAT_PRICES,
+  CAPTAIN_STABILITY_STEP,
+  type CaptainBuy,
+  type CaptainStat,
 } from '../engine';
 import { account, markDirty } from './account';
 import { profile } from './profile';
@@ -106,7 +110,7 @@ import { stellariaFlower } from './art';
 import { choiceRow, setLink, settingsPanel } from './settings';
 import { MENU_ICON } from './menu-icon';
 import { renderedArt } from './cardart';
-import { playerAvatar, raceRow, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { playerAvatar, raceRow, cardArtLite, cardStock, cardBodyHtml, cardTextHtml, effectMark, mechanicMark, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { reducedMotion } from './fx';
 import { voices } from './voice';
@@ -176,6 +180,13 @@ const XP_MARK =
   '<svg class="cur cur-xp" viewBox="0 0 20 20" aria-label="experience"><path d="M4.6 10.2 10 5l5.4 5.2M4.6 15.2 10 10l5.4 5.2" fill="none" stroke="#b8953f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** A Stellari petal: what a wormhole gives, banked for every run after. Symmetrical both ways: a pale blue almond. */
+/** Each of the Captain's abilities and leads at a glance, for the hero panel's discs: its mark and its amount. */
+const CAP_MARKS: Record<string, [string, string]> = {
+  brace: ['shield', '1'], patch: ['cool', '1'], scout: ['draw', '1'], volley: ['heat', '2'], bulwark: ['shield', '3'], vent: ['cool', '2'],
+  strafe: ['heat', '3'], overdrive: ['energy', '1'], rally: ['chosen', '+2'], mend: ['renew', '1'],
+  steady: ['cool', '1'], iron: ['shield', '1'], salvo: ['heat', '3'], gunnery: ['heat', '+1'],
+};
+
 const PETAL =
   '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.8C15.6 6 15.6 14 10 18.2 4.4 14 4.4 6 10 1.8Z" fill="#d8e4f6" stroke="#97a2ba" stroke-width=".9" stroke-linejoin="round"/><path d="M10 4.6v10.8" stroke="#97a2ba" stroke-width=".7" stroke-linecap="round" opacity=".7"/></svg>';
 
@@ -317,8 +328,6 @@ function seedOf(id: string): string {
   return ((h % 1000) / 1000).toFixed(3);
 }
 const TRACK_TINT: Record<string, string> = { weapons: '#e2a494', defences: '#a3c3df', economy: '#e0cd94', resources: '#abd2b5' };
-/** Each race in a few words, under its name on the run's setup. */
-const RACE_EPITHET = ['the keepers', 'the rememberers', 'the tide', 'the hive', 'the unseen', 'the forgers', 'the star-readers', 'the flame'];
 
 /** What the campaign screen needs from the app that hosts it. */
 export interface CampaignHost {
@@ -381,7 +390,10 @@ export class CampaignView {
   private setup = { rivals: 3, race: 0, hero: 0 };
   private shopOpen = false;
   /** The starting-deck panel (cards bought into the picked race's starting deck with petals) is open. */
-  private deckOpen = false;
+  /** The hero panel open, and the node picked on it; the ship's hangar open. */
+  private heroOpen = false;
+  private capPick: string | null = null;
+  private hangarOpen = false;
   /** The lasting upgrade picked in the shop, shown in the flower's heart. */
   /**
    * Skill points placed on the tree this visit [direction: a tap assigns a point at once; undo and clear, by the back
@@ -896,40 +908,47 @@ export class CampaignView {
         sound.upgrade();
         break;
       }
-      case 'cmp-deck': {
-        this.deckOpen = !this.deckOpen;
+      case 'cmp-hero':
+        this.heroOpen = !this.heroOpen;
+        this.capPick = null;
         break;
-      }
-      case 'cmp-deck-add': {
+      case 'cmp-hangar':
+        this.hangarOpen = !this.hangarOpen;
+        break;
+      case 'cmp-cap-pick':
+        this.capPick = this.capPick === arg ? null : arg;
+        sound.hover();
+        break;
+      case 'cmp-cap-buy': {
         const meta = loadMeta();
-        const why = starterAddProblem(meta, this.setup.race, arg, cardDef(arg).rarity);
+        const [kind, id] = arg.split(':');
+        const buy: CaptainBuy = kind === 'stat' ? { kind: 'stat', stat: id as CaptainStat } : kind === 'slot' ? { kind: 'slot' } : kind === 'ability' ? { kind: 'ability', id } : { kind: 'lead', id };
+        const why = captainBuyProblem(meta, buy);
         if (why) {
           this.host.toast(why);
           sound.error();
           break;
         }
-        // (A card bought before goes back in for nothing: no purchase sound.)
-        const owned = starterOwned(meta, this.setup.race, arg);
-        saveMeta(buyStarterCard(meta, this.setup.race, arg, cardDef(arg).rarity));
-        if (owned) sound.hover();
-        else sound.buy();
+        saveMeta(buyCaptain(meta, buy));
+        sound.upgrade();
         break;
       }
-      case 'cmp-deck-remove': {
-        saveMeta(removeStarterCard(loadMeta(), this.setup.race, n()));
+      case 'cmp-cap-equip':
+        saveMeta(equipCaptainAbility(loadMeta(), arg));
+        sound.hover();
+        break;
+      case 'cmp-cap-lead': {
+        const meta = loadMeta();
+        saveMeta(setCaptainLead(meta, captainMeta(meta).lead === arg ? undefined : arg));
         sound.hover();
         break;
       }
       case 'cmp-start': {
         const meta = loadMeta();
-        const hero = GENERALS[this.setup.race][this.setup.hero];
-        if (!raceUnlocked(meta, this.setup.race) || !heroUnlocked(meta, hero)) {
-          this.host.toast('Locked');
-          sound.error();
-          break;
-        }
+        // (Every run is the Captain's, as petals have made them.)
+        const hero = captainCard(meta);
         saveMeta({ ...meta, runs: meta.runs + 1 });
-        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, race: this.setup.race, hero, run: runBonuses(meta, this.setup.race) });
+        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, captain: hero, run: runBonuses(meta) });
         this.arriving = true;
         this.introFlight = true;
         // (In 3D and with motion: the opening shot, alongside the flagship as its hero speaks; see showNebula.)
@@ -1384,76 +1403,132 @@ export class CampaignView {
 
   private renderSetup(): string {
     const meta = loadMeta();
-    const buy = (id: string, label: string, cls = '') => {
-      const why = buyUpgradeProblem(meta, id);
-      const cost = metaUpgrade(id)!.cost(levelOf(meta, id));
-      return `<button class="cs-buy ${cls}" data-act="cmp-meta-buy" data-arg="${esc(id)}" ${why ? `disabled data-tip="${esc(why)}"` : ''}><span>${label}</span><i>${PETAL}${cost}</i></button>`;
-    };
-    const r = this.setup.race;
-    const colour = (race: number) => FACTION_COLOUR[`f${race + 1}`];
-    // Across the top: every race as its emblem, the core four, then the Lost Races (unlocked with petals, priced on them).
-    const orb = (i: number) => {
-      const open = raceUnlocked(meta, i);
-      return `<button class="cs-orb ${r === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-race" data-arg="${i}" style="--rc:${colour(i)}" aria-label="${esc(RACE_NAMES[i])}">
-        <span class="cs-orb-mark">${factionAvatar(`f${i + 1}`, 'cs-orb-emblem')}</span><b>${lower(RACE_NAMES[i])}</b>${open ? '' : `<i class="cs-orb-price">${PETAL}${metaUpgrade(`race:${i}`)!.cost(0)}</i>`}
-      </button>`;
-    };
-    const races = `<nav class="cs-races"><div class="cs-race-set">${[0, 1, 2, 3, 4, 5, 6, 7].map(orb).join('')}</div></nav>`;
-    // The picked race: its name large, its creed, its trait, its sub-races.
-    const raceOpen = raceUnlocked(meta, r);
-    const race = `<section class="cs-race">
-      <span class="cs-race-ghost">${factionAvatar(`f${r + 1}`)}</span>
-      <h3>${lower(RACE_NAMES[r])}</h3>
-      <p>${esc(RACE_EPITHET[r] ?? '')}</p>
-    </section>`;
-    // Its heroes: portraits, their power in the game's own marks, the one leading the run lifted.
-    const heroes = GENERALS[r]
-      .map((g, i) => {
-        const def = cardDef(g);
-        const open = heroUnlocked(meta, g);
-        const sub = def.sub && SUBRACES[def.sub] ? SUBRACES[def.sub].name : '';
-        const rarity = def.rarity ?? 'dwarf';
-        return `<div class="cs-hero rarity-${rarity} ${this.setup.hero === i ? 'on' : ''} ${open ? '' : 'locked'}" data-act="cmp-hero-pick" data-arg="${i}" role="button" aria-label="${esc(def.name)}">
-          <span class="cs-hero-art">${cardArtLite(def)}</span>
-          <span class="cs-hero-rarity"><i></i>${esc(RARITY_NAME[rarity] ?? '')}${sub ? ` · ${esc(lower(sub))}` : ''}</span>
-          <div class="cs-hero-body">
-            <b>${lower(def.name)}</b>
-            <p class="cs-hero-bio">${esc(HERO_BIOS[g] ?? '')}</p>
-          </div>
-          ${
-            open
-              ? ''
-              : (() => {
-                  // (Not bought: earned, by the stars the race has conquered.)
-                  const need = heroUnlockNeed(g)!;
-                  const had = Math.min(need.stars, raceConquests(meta, need.race));
-                  return `<div class="cs-hero-lock cs-hero-earn"><div><b>${had}<small>/${need.stars}</small></b><span>stars conquered as ${esc(RACE_NAMES[need.race])}</span><i style="--k:${(had / need.stars).toFixed(3)}"></i></div></div>`;
-                })()
-          }
-        </div>`;
-      })
-      .join('');
-    const pickedHero = GENERALS[r][this.setup.hero];
-    const ready = raceOpen && heroUnlocked(meta, pickedHero);
+    const captain = captainCard(meta);
+    // [direction: every run begins with the Captain, a nameless human with very few abilities; petals make the
+    // Captain, experience buys the skill tree, found parts fit out the ship]
+    const tile = (act: string, title: string, sub: string, icon: string) =>
+      `<button class="cs-tab" data-act="${act}"><span class="cs-tab-icon">${icon}</span><b>${title}</b><small>${sub}</small></button>`;
     return `
-      <main class="cmp-setup setup-page cs-page" style="--rc:${colour(r)}">
+      <main class="cmp-setup setup-page cs-page cs-captain-page">
         <header class="setup-top">
           <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
           <h2 class="menu-heading">a dying universe</h2>
           <div class="cs-purses">
-            <button class="cs-petals" data-act="cmp-deck">${PETAL}<b>${meta.petals}</b><span>starting deck</span></button>
+            <button class="cs-petals" data-act="cmp-hero">${PETAL}<b>${meta.petals}</b><span>petals</span></button>
             <button class="cs-petals cs-xp" data-act="cmp-shop">${XP_MARK}<b>${pointsLeft(meta)}</b><span>skill points</span></button>
           </div>
         </header>
-        <div class="cs-body">
-          ${races}
-          ${race}
-          <div class="cs-heroes">${heroes}</div>
+        <div class="cs-body cs-captain-body">
+          <div class="cs-captain-card" data-act="inspect" data-card="${esc(captain)}">${cardHtml(captain)}</div>
+          <section class="cs-captain-text">
+            <h3>the captain</h3>
+            <p>No name. No race. A battered hulk and a hold of salvage.</p>
+            <div class="cs-tabs">
+              ${tile('cmp-hero', 'hero', 'spend petals', PETAL)}
+              ${tile('cmp-shop', 'skills', 'spend skill points', XP_MARK)}
+            </div>
+          </section>
         </div>
-        <footer class="setup-foot">${raceOpen ? `<button class="btn-primary" data-act="cmp-start" ${ready ? '' : 'disabled'}>begin run</button>` : buy(`race:${r}`, `unlock the ${lower(RACE_NAMES[r])}`, 'cs-buy-big')}</footer>
+        <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start">begin run</button></footer>
         ${this.shopOpen ? this.renderShop(meta) : ''}
-        ${this.deckOpen ? this.renderStarterDeck(meta) : ''}
+        ${this.heroOpen ? this.renderHeroPanel(meta) : ''}
       </main>`;
+  }
+
+  /**
+   * The hero panel [direction: a full page hero panel, with an upgrade tree where players spend petals: abilities for
+   * the hero in battle, and its stats, attack, stability and cost, each a separate upgrade path]: the Captain's card as
+   * it stands on the left, and on the right the tree: three stat paths, the ability slots, the abilities (learnt ones
+   * carried into battle or left behind with a tap), and the ways to lead. Picking a node shows it below, with its price.
+   */
+  private renderHeroPanel(meta: MetaState): string {
+    const c = captainMeta(meta);
+    const card = captainCard(meta);
+    const pick = this.capPick;
+    const node = (key: string, label: string, state: 'owned' | 'open' | 'locked' | 'on', inner = '', named = true) =>
+      `<button class="hp-node hp-${state} ${pick === key ? 'hp-picked' : ''}" data-act="cmp-cap-pick" data-arg="${key}" aria-label="${esc(label)}"><span class="hp-disc">${inner}</span>${named ? `<small>${esc(label)}</small>` : ''}</button>`;
+    // (An ability's or a lead's disc shows what it does, in the card's own marks: one mark and its amount.)
+    const marks = (id: string) => {
+      const [k, n] = CAP_MARKS[id] ?? ['star', ''];
+      return `<span class="hp-marks">${k === 'chosen' || k === 'renew' ? mechanicMark(k) : effectMark(k)}<b>${n}</b></span>`;
+    };
+    const statPath = (stat: CaptainStat, name: string, step: (n: number) => string) => {
+      const prices = CAPTAIN_STAT_PRICES[stat];
+      const nodes = prices.map((_, i) => node(`stat:${stat}:${i}`, step(i + 1), i < c[stat] ? 'owned' : i === c[stat] ? 'open' : 'locked', `<b>${step(i + 1)}</b>`, false)).join('<i class="hp-link"></i>');
+      return `<div class="hp-path"><h4>${name}</h4><div class="hp-track">${nodes}</div></div>`;
+    };
+    const slots = CAPTAIN_SLOT_PRICES.map((_, i) => node(`slot:${i}`, `slot ${i + 2}`, i < c.slots ? 'owned' : i === c.slots ? 'open' : 'locked', `<b>${i + 2}</b>`, false)).join('<i class="hp-link"></i>');
+    const abilities = CAPTAIN_ABILITIES.map((a) => {
+      const learnt = c.abilities.includes(a.id);
+      return node(`ability:${a.id}`, a.ability.name.toLowerCase(), learnt ? (c.equipped.includes(a.id) ? 'on' : 'owned') : 'open', marks(a.id));
+    }).join('');
+    const leads = CAPTAIN_LEADS.map((l) => node(`lead:${l.id}`, l.name.toLowerCase(), c.leads.includes(l.id) ? (c.lead === l.id ? 'on' : 'owned') : 'open', marks(l.id))).join('');
+    return `
+      <div class="up-shop hero-panel">
+        <header class="up-head up-head-tree">
+          <div class="up-left"><button class="up-back" data-act="cmp-hero" aria-label="Back">‹ back</button></div>
+          <div class="up-title-big"><h3>the captain</h3><span class="up-xp">${PETAL}<b>${meta.petals}</b><small>petals</small></span></div>
+          <span></span>
+        </header>
+        <div class="hp-body">
+          <div class="hp-card" data-act="inspect" data-card="${esc(card)}">${cardHtml(card)}</div>
+          <div class="hp-tree">
+            <section class="hp-stats">
+              ${statPath('attack', 'attack', (n) => `+${n}`)}
+              ${statPath('stability', 'stability', (n) => `+${n * CAPTAIN_STABILITY_STEP}`)}
+              ${statPath('cheaper', 'cost', (n) => `−${n}`)}
+              <div class="hp-path"><h4>ability slots</h4><div class="hp-track">${node('slot:base', 'slot 1', 'owned', '<b>1</b>', false)}<i class="hp-link"></i>${slots}</div></div>
+            </section>
+            <section class="hp-set"><h4>abilities <small>${c.equipped.length} of ${captainSlots(c.slots)} carried</small></h4><div class="hp-grid">${abilities}</div></section>
+            <section class="hp-set"><h4>leads <small>one at a time</small></h4><div class="hp-grid">${leads}</div></section>
+          </div>
+        </div>
+        ${this.renderCapDetail(meta)}
+      </div>`;
+  }
+
+  /** The picked node of the hero panel: what it gives, and buying it (or carrying it, or leading with it). */
+  private renderCapDetail(meta: MetaState): string {
+    const key = this.capPick;
+    if (!key) return `<footer class="hp-detail hp-hint">Tap a node to see it.</footer>`;
+    const c = captainMeta(meta);
+    const [kind, id] = key.split(':');
+    const buyBtn = (buy: CaptainBuy, label = 'learn') => {
+      const price = captainPrice(meta, buy);
+      if (price === null) return '';
+      const why = captainBuyProblem(meta, buy);
+      return `<button class="btn-primary hp-buy" data-act="cmp-cap-buy" data-arg="${esc(key)}" ${why ? 'disabled' : ''}>${label} · ${PETAL}${price}</button>`;
+    };
+    let title = '', text = '', act = '';
+    if (kind === 'stat') {
+      const stat = id as CaptainStat;
+      const level = Number(key.split(':')[2]) + 1;
+      const name = { attack: 'attack', stability: 'stability', cheaper: 'cost' }[stat];
+      title = `${name} ${level}`;
+      text = esc(stat === 'attack' ? `+${level} attack.` : stat === 'stability' ? `+${level * CAPTAIN_STABILITY_STEP} stability.` : `Costs ${level} less to play.`);
+      act = c[stat] === level - 1 ? buyBtn({ kind: 'stat', stat }, 'upgrade') : c[stat] >= level ? '<span class="hp-have">learnt</span>' : '<span class="hp-have">the one before first</span>';
+    } else if (kind === 'slot') {
+      const n = id === 'base' ? 1 : Number(id) + 2;
+      title = `ability slot ${n}`;
+      text = esc(`Carry ${n} abilities into battle.`);
+      act = id === 'base' ? '<span class="hp-have">learnt</span>' : c.slots === Number(id) ? buyBtn({ kind: 'slot' }, 'unlock') : c.slots > Number(id) ? '<span class="hp-have">learnt</span>' : '<span class="hp-have">the one before first</span>';
+    } else if (kind === 'ability') {
+      const a = captainAbility(id)!;
+      title = a.ability.name.toLowerCase();
+      const pay = [a.ability.cost ? `${a.ability.cost} energy` : '', a.ability.pay?.stability ? `−${a.ability.pay.stability} stability` : '', a.ability.pay?.selfHeat ? `{heat:${a.ability.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ');
+      text = `${cardTextHtml(`${pay ? `${pay}: ` : ''}${a.ability.text}`, undefined, true)} <small>once a day</small>`;
+      act = !c.abilities.includes(id)
+        ? buyBtn({ kind: 'ability', id })
+        : !c.equipped.includes(id) && c.equipped.length >= captainSlots(c.slots)
+          ? '<span class="hp-have">slots full</span>'
+          : `<button class="btn hp-buy" data-act="cmp-cap-equip" data-arg="${esc(id)}">${c.equipped.includes(id) ? 'leave behind' : 'carry'}</button>`;
+    } else {
+      const l = captainLead(id)!;
+      title = l.name.toLowerCase();
+      text = cardTextHtml(l.text, undefined, true);
+      act = !c.leads.includes(id) ? buyBtn({ kind: 'lead', id }) : `<button class="btn hp-buy" data-act="cmp-cap-lead" data-arg="${esc(id)}">${c.lead === id ? 'stop leading' : 'lead'}</button>`;
+    }
+    return `<footer class="hp-detail"><div><b>${esc(title)}</b><p>${text}</p></div>${act}</footer>`;
   }
 
   /**
@@ -1627,40 +1702,6 @@ export class CampaignView {
    * A race's starting deck offers: the six cards (two of each rarity) that can be bought into it with petals, kept
    * for every run as that race. A bought card is owned for good: taken out, it goes back in for nothing.
    */
-  private renderStarterDeck(meta: MetaState): string {
-    const r = this.setup.race;
-    const have = meta.deck?.[r] ?? [];
-    const offers = STARTER_OFFERS[r] ?? [];
-    const cards = offers
-      .map((id) => {
-        const def = cardDef(id);
-        const at = have.indexOf(id);
-        const foot =
-          at >= 0
-            ? `<button class="sd-remove" data-act="cmp-deck-remove" data-arg="${at}" aria-label="Take it out">in deck ×</button>`
-            : starterOwned(meta, r, id)
-              ? `<button class="sd-buy sd-owned" data-act="cmp-deck-add" data-arg="${esc(id)}" aria-label="Put it back in, free (bought already)">owned · add</button>`
-              : `<button class="sd-buy" data-act="cmp-deck-add" data-arg="${esc(id)}" ${starterAddProblem(meta, r, id, def.rarity) ? 'disabled' : ''}>${PETAL}${starterCardPrice(def.rarity)}</button>`;
-        return `<div class="sd-card rarity-${def.rarity ?? 'dwarf'} ${at >= 0 ? 'owned' : ''}" data-act="inspect" data-card="${esc(id)}">
-          <span class="sd-art">${cardArtLite(def)}</span>
-          <span class="sd-name"><i></i>${esc(def.name.toLowerCase())}</span>
-          ${foot}
-        </div>`;
-      })
-      .join('');
-    return `
-      <div class="up-shop sd-shop">
-        <header class="up-head">
-          <div class="up-title"><h3>starting deck · ${lower(RACE_NAMES[r])}</h3><small>cards bought here start every run as the ${lower(RACE_NAMES[r])}</small></div>
-          <span class="up-purse">${PETAL}<b>${meta.petals}</b></span>
-          <button class="icon-btn" data-act="cmp-deck" aria-label="Close">×</button>
-        </header>
-        <div class="sd-body">
-          <section class="sd-pool"><h4>${have.length} of ${offers.length} in deck <small>white dwarf ${starterCardPrice('dwarf')} · stellar ${starterCardPrice('stellar')} · anomaly ${starterCardPrice('anomaly')}</small></h4><div class="sd-grid sd-offers">${cards}</div></section>
-        </div>
-      </div>`;
-  }
-
   /**
    * The map is a tilted plane in perspective (CSS 3D). Stars stand upright on
    * it as billboards; links and territory lie flat on the surface. Selecting a

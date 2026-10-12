@@ -221,6 +221,23 @@ export function introScene(race: number, faction: string, hero = GENERALS[race][
   };
 }
 
+/** The Captain's opening: a nameless human with a stolen hulk, and no race to call their own. */
+export function captainIntroScene(faction: string, captain: string): StoryScene {
+  return {
+    id: 'intro',
+    title: 'A dying universe',
+    lines: [
+      oracle(`I am ${ORACLE_NAME}. I have walked between the stars since before they began to go out. Now I walk among the ashes.`),
+      oracle('The universe is dying. Star by star, the light is failing, and every race left alive is fighting over the last warm worlds.'),
+      oracle(`But there is a legend. At the centre of all things burns ${HEART_NAME}, the oldest star, and in its light grows the ${STELLARIA_NAME}: a white flower whose bloom gives energy without end.`),
+      oracle('And you? You are no one. A human, with a battered hulk, an engine that coughs smoke, and a hold of salvage. No race calls you its own. No hero would follow you. Not yet.'),
+      oracle("The great heroes of the four peoples are out there. Some will come for your ship. Beat them, and they are yours: to take aboard, or to strip of everything they carry."),
+      general(captain, faction, 'She still flies. Mostly. Set a course for the Heart.'),
+      oracle(`Jump one route at a time. Take systems for their materials, and press on towards ${HEART_NAME}.`),
+    ],
+  };
+}
+
 /** A new general takes command of an army. */
 export function recruitScene(card: string, faction: string): StoryScene {
   return { id: `recruit:${card}`, title: 'A new general', lines: [general(card, faction, GENERAL_LINES[card]?.join ?? 'I am ready.')] };
@@ -246,7 +263,7 @@ export function contactScene(rivalRace: number, rivalGeneral: string, rivalFacti
     lines: [
       oracle(`The ${RACE_NAMES[rivalRace]}. ${MOTIVE[rivalRace]}`),
       general(rivalGeneral, rivalFaction, GENERAL_LINES[rivalGeneral]?.taunt ?? 'Turn back.'),
-      general(myGeneral, myFaction, GENERAL_LINES[myGeneral]?.join.split('.')[0] + '. We do not turn back.'),
+      general(myGeneral, myFaction, (GENERAL_LINES[myGeneral]?.join.split('.')[0] ?? 'Out of my way') + '. We do not turn back.'),
     ],
   };
 }

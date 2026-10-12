@@ -23,3 +23,4 @@ export * from './races';
 export * from './cards-bosses';
 export * from './rifts';
 export * from './dreams-data';
+export * from './captain';

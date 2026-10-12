@@ -28,6 +28,7 @@ import type { RelicInPlay } from './relics';
 import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
 import { RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, supersededResearch, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
+import { isCaptain } from './captain';
 import { RIFT_JUMPS, RIFT_KINDS, RIFTS, markedId, marksFor, NYX_MARKS, type NyxMark, type RiftKind } from './rifts';
 const NYX_MARK_NAME = (Object.fromEntries(Object.entries(NYX_MARKS).map(([k, v]) => [k, v.name])) as Record<NyxMark, string>);
 import { RELIC_POWERS, SEREN_POWERS } from './relics';
@@ -38,6 +39,7 @@ import {
   GENERALS,
   heartSightedScene,
   introScene,
+  captainIntroScene,
   collapseScene,
   instabilityScene,
   lostSightedScene,
@@ -505,8 +507,15 @@ export interface Faction {
   id: string;
   name: string;
   isAI: boolean;
-  /** Which of the alien races this faction is (an index into RACE_NAMES, 0–7). */
+  /** Which of the alien races this faction is (an index into RACE_NAMES, 0–7). (The Captain's: a placeholder, see human.) */
   race: number;
+  /**
+   * Led by the Captain, a human [direction: players start as a no-name human hero]: no race of its own, so its rewards
+   * are any core race's cards (and neutral ones), and any hero beaten in a Power Struggle may come aboard.
+   */
+  human?: boolean;
+  /** The Captain's Affinities (the skill tree): the races its rewards lean to, and how far. */
+  affinity?: { primary?: number; primaryBoost: number; secondary?: number; secondaryBoost: number };
   materials: number;
   /** The flagship's upgrades. */
   ship: Ship;
@@ -730,6 +739,8 @@ export interface CampaignSetup {
   hero?: string;
   /** What the run starts with and is played under (bought with petals between runs). */
   run?: RunBonuses;
+  /** The Captain's card (captain.ts: what petals have made of them). Set: the run is the Captain's, a human's. */
+  captain?: string;
 }
 
 export interface Cache {
@@ -1310,6 +1321,12 @@ export function armyDeck(race: number, general: string, mode: GameMode = 'lost')
   return deck.slice(0, CAMPAIGN.armySize);
 }
 
+/** The Captain's starting deck: the Captain and nine plain neutral cards [direction: all cards in the deck neutral to start]. */
+export const CAPTAIN_DECK = ['coronal_lance', 'coronal_lance', 'thermal_exchange', 'thermal_exchange', 'plasma_relay', 'cryo_vault', 'heat_sink', 'p_barrier_drone', 'deep_scanners'];
+export function captainDeck(captain: string): string[] {
+  return [captain, ...CAPTAIN_DECK];
+}
+
 /**
  * Why a flagship's deck is not ready to fight (empty if it is): its hero (the one Hero in it), at most 2 of any
  * card (1 of an Anomaly).
@@ -1326,7 +1343,9 @@ export function armyDeckProblems(deck: string[], general: string): string[] {
   if (!deck.includes(general)) out.push(`${cardDef(general).name} leads this flagship: their card must be in its deck.`);
   // (Heroes of the leader's own race may come aboard too: won in a Power Struggle, they serve under the leader.)
   const race = cardDef(general).race;
-  const heroes = deck.filter((id) => cardDef(id).kind === 'command' && id !== general && !(race !== undefined && GENERALS[race]?.includes(id)));
+  // (The Captain's: any hero won in a Power Struggle.)
+  const aboard = (id: string) => (isCaptain(general) ? GENERALS.some((g) => g.includes(id)) : race !== undefined && GENERALS[race]?.includes(id));
+  const heroes = deck.filter((id) => cardDef(id).kind === 'command' && id !== general && !aboard(id));
   if (heroes.length) out.push(`A flagship has one hero: ${cardDef(heroes[0]).name} can't come aboard.`);
   const counts = new Map<string, number>();
   for (const id of deck) counts.set(id, (counts.get(id) ?? 0) + 1);
@@ -1403,10 +1422,12 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     winner: null,
     log: [],
   };
-  const race = (((setup.race ?? 0) % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
-  // A core race's run is played in Core; a Lost Race's (unlocked with petals) in Lost Races.
-  if (CORE_RACES.includes(race)) s.mode = 'core';
-  const hero = setup.hero && GENERALS[race].includes(setup.hero) ? setup.hero : GENERALS[race][0];
+  // (The Captain's run: no race of its own; a placeholder race for what is drawn by race, its rewards any core race's.)
+  const human = !!setup.captain && isCaptain(setup.captain);
+  const race = human ? 0 : (((setup.race ?? 0) % RACE_NAMES.length) + RACE_NAMES.length) % RACE_NAMES.length;
+  // A core race's run is played in Core; a Lost Race's (unlocked with petals) in Lost Races. The Captain's, in Core.
+  if (human || CORE_RACES.includes(race)) s.mode = 'core';
+  const hero = human ? setup.captain! : setup.hero && GENERALS[race].includes(setup.hero) ? setup.hero : GENERALS[race][0];
   const ship = newShip();
   ship.hull = Math.min(CAMPAIGN.shipMax.hull, run.hull);
   ship.shields = Math.min(CAMPAIGN.shipMax.shields, run.shields);
@@ -1416,6 +1437,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     name: setup.playerName || 'Commander',
     isAI: false,
     race,
+    ...(human ? { human: true } : {}),
     materials: CAMPAIGN.startMaterials + run.materials,
     ship,
     hero,
@@ -1436,15 +1458,15 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   s.factions.push({ id: 'lost', name: 'Raiders', isAI: true, race: 0, materials: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
   buildUniverse(s, 1);
   const army = flagship(s, me.id)!;
-  // Veterans: more of the race's own cards in the starting deck; Requisition: cards picked to start with.
-  const own = CARDS.filter((c) => c.race === race && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll && legalIn(s.mode, c.id) && !army.deck.includes(c.id));
+  // Veterans: more of the race's own cards in the starting deck (the Captain's: more neutral ones); Requisition: cards picked to start with.
+  const own = CARDS.filter((c) => (human ? c.race === undefined && !c.rarity : c.race === race) && c.kind !== 'command' && c.rarity !== 'anomaly' && !c.fusion && !c.spendAll && legalIn(s.mode, c.id) && !army.deck.includes(c.id));
   army.deck.push(...own.slice(0, run.cards).map((c) => c.id));
-  // Cards bought into this race's starting deck with petals (as many copies as a deck may hold).
-  for (const id of run.deck ?? []) if (CARDS.some((c) => c.id === id) && army.deck.filter((x) => x === id).length < campaignCopies(id)) army.deck.push(id);
+  // Cards bought into this race's starting deck with petals (as many copies as a deck may hold). (Not the Captain's: petals make the Captain.)
+  if (!human) for (const id of run.deck ?? []) if (CARDS.some((c) => c.id === id) && army.deck.filter((x) => x === id).length < campaignCopies(id)) army.deck.push(id);
   // (Each Requisition: a pick of cards, the one chosen going straight into the deck.)
   for (let k = 0; k < run.picks; k++) s.cardRewards.push({ source: 'Requisition', options: randomCardChoices(s, me), toDeck: army.id });
   army.refit = false;
-  tell(s, introScene(me.race, me.id, army.general));
+  tell(s, human ? captainIntroScene(me.id, army.general) : introScene(me.race, me.id, army.general));
   noticeStory(s);
   return s;
 }
@@ -2110,7 +2132,7 @@ function startDream(s: CampaignState) {
 /** The cards a solved dream offers: rare or better, an Anomaly by the galaxy's chance (an Enigma, rarely: likelier from a deep dream). */
 function dreamCards(s: CampaignState, tier = 1): string[] {
   const f = campaignPlayer(s);
-  const of = (r: string) => shuffleInPlace(s, CARDS.filter((c) => (c.rarity ?? 'dwarf') === r && c.kind !== 'command' && c.kind !== 'global' && !c.fusion && (c.race === undefined || c.race === f.race) && legalIn(s.mode, c.id)).map((c) => c.id));
+  const of = (r: string) => shuffleInPlace(s, CARDS.filter((c) => (c.rarity ?? 'dwarf') === r && c.kind !== 'command' && c.kind !== 'global' && !c.fusion && rewardRace(f, c.race) && legalIn(s.mode, c.id)).map((c) => c.id));
   const stellar = of('stellar'), anomaly = of('anomaly');
   const out: string[] = [];
   while (out.length < CAMPAIGN.cardChoices + (s.run?.choices ?? 0)) {
@@ -2146,7 +2168,7 @@ function resolveDream(s: CampaignState, game: GameState) {
 /** A new army, led by `general`, standing in `nodeId`. */
 function raiseArmy(s: CampaignState, f: Faction, general: string, nodeId: string): Army {
   // A new army can be refitted on the turn it is raised, but marches from the next.
-  const army: Army = { id: `army${++s.uidCounter}`, owner: f.id, general, nodeId, deck: armyDeck(f.race, general, s.mode), damage: 0, moved: false };
+  const army: Army = { id: `army${++s.uidCounter}`, owner: f.id, general, nodeId, deck: f.human ? captainDeck(general) : armyDeck(f.race, general, s.mode), damage: 0, moved: false };
   s.armies.push(army);
   return army;
 }
@@ -2212,11 +2234,30 @@ function riftPool(s: CampaignState): string[] | null {
   return CARDS.filter((c) => c.race === race && c.kind !== 'command' && riftLegal(s, c.id)).flatMap((c) => Array(offerWeight(c.rarity ?? 'dwarf', s.universe + 2)).fill(c.id) as string[]);
 }
 
+/** Whether a card is one a faction's rewards may hold: its own race's or a neutral one (the Captain's: any core race's). */
+export function rewardRace(f: Faction, race: number | undefined): boolean {
+  if (race === undefined) return true;
+  return f.human ? CORE_RACES.includes(race) : race === f.race;
+}
+
+/**
+ * How much more often a race's cards come up among a faction's rewards: its own race twice as often; the Captain's,
+ * as its Affinities lean them (the skill tree: a big lean to one race, a smaller one to another).
+ */
+export function raceWeight(f: Faction, race: number | undefined): number {
+  if (race === undefined) return 1;
+  if (!f.human) return race === f.race ? 2 : 1;
+  const a = f.affinity;
+  return 1 + (a && race === a.primary ? a.primaryBoost : 0) + (a && race === a.secondary ? a.secondaryBoost : 0);
+}
+
 function offerPool(f: Faction, mode?: GameMode, universe = 1): string[] {
-  // (Generals are recruited, not bought: no Hero cards of the race's own.)
-  return CARDS.filter((c) => !(c.kind === 'command' && GENERALS[f.race]?.includes(c.id)) && (c.race === undefined || c.race === f.race) && legalIn(mode, c.id)).flatMap((c) =>
-    Array(offerWeight(c.rarity ?? 'dwarf', universe) * (c.race === f.race ? 2 : 1)).fill(c.id) as string[],
-  );
+  // (Generals are recruited, not bought: no Hero cards of the race's own; the Captain's heroes come only from Power Struggles.)
+  const hero = (c: (typeof CARDS)[number]) => c.kind === 'command' && (f.human || GENERALS[f.race]?.includes(c.id));
+  return CARDS.filter((c) => !hero(c) && rewardRace(f, c.race) && legalIn(mode, c.id)).flatMap((c) => {
+    const n = offerWeight(c.rarity ?? 'dwarf', universe) * raceWeight(f, c.race);
+    return Array(Math.max(1, Math.round(n))).fill(c.id) as string[];
+  });
 }
 
 /**
@@ -2473,7 +2514,8 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
   const ruler = target.heart && !owner && !guard && s.rift ? RIFTS[s.rift.kind].ruler : null;
   const lord = target.heart && !owner && !guard && !ruler ? overlordById(s.overlord ?? OVERLORDS[0].id) : null;
   const defenderName = guard ? (guard.lost ? armyLeader(guard) : `${armyLeader(guard)}'s flagship`) : owner ? `${target.name} Station` : lord ? lord.name : ruler ? cardDef(ruler).name : `${target.name} Sentinels`;
-  const defenderDeck = guard ? guard.deck : stationDeck(s, target, owner?.race);
+  // (The Captain's systems are kept by neutral sentinels: there is no race of theirs to guard them.)
+  const defenderDeck = guard ? guard.deck : stationDeck(s, target, owner?.human ? undefined : owner?.race);
   const { hull: atkHull, ...atkShip } = flagshipSetup(s, army);
   const defShip = guard ? flagshipSetup(s, guard) : null;
   return [
@@ -2649,7 +2691,9 @@ export function salvageKind(s: CampaignState, game: GameState): 'defectors' | 'p
     if (r !== undefined) counts.set(r, (counts.get(r) ?? 0) + 1);
   }
   const race = [...counts.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
-  return race !== undefined && race === factionById(s, s.playerId).race ? 'defectors' : 'prisoners';
+  // (The Captain has no race to defect to: freed prisoners, any core race's.)
+  const me = factionById(s, s.playerId);
+  return !me.human && race !== undefined && race === me.race ? 'defectors' : 'prisoners';
 }
 
 /**
@@ -2674,7 +2718,9 @@ export function salvageOptions(s: CampaignState, game: GameState): string[] {
   // (Only cards the flagship's deck could still take: none it already holds as many of as a deck may.)
   const flag = flagship(s, s.playerId);
   const room = (id: string) => !flag || flag.deck.filter((x) => x === id).length < campaignCopies(id);
-  const fits = (id: string) => room(id) && (kind === 'defectors' ? cardDef(id).race === myRace || cardDef(id).race === undefined : cardDef(id).race === undefined);
+  const me = factionById(s, s.playerId);
+  // (The Captain's prisoners: any core race's cards, or neutral ones.)
+  const fits = (id: string) => room(id) && (me.human ? rewardRace(me, cardDef(id).race) : kind === 'defectors' ? cardDef(id).race === myRace || cardDef(id).race === undefined : cardDef(id).race === undefined);
   const ids = [...new Set(cards.flatMap((c) => [c.defId, ...(c.fused ?? []).map((f) => f.defId)]))].filter((id) => usable(id) && fits(id)).sort();
   // (A fixed shuffle, from the battle's own seed and place.)
   const next = spoilsRng(game, b.nodeId);

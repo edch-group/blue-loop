@@ -209,7 +209,7 @@ const sceneImages = new Map<string, string>();
 function sceneImage(def: CardDef): string {
   let img = sceneImages.get(def.id);
   if (!img) {
-    const painted = !def.fusedFrom && renderedArt(def.id);
+    const painted = !def.fusedFrom && renderedArt(def.artOf ?? def.id);
     // A rendered picture is an image already (fetched and decoded ahead of time: cardart.ts preloadArt, so not
     // lazy); a fused card made from one draws inline (an SVG used as an
     // image can't load the pictures inside it).
@@ -338,7 +338,7 @@ export function playerAvatar(cardId: string | undefined, cls = ''): string {
  * a card without one, which keeps the plain stock.
  */
 export function cardStock(def: CardDef): string {
-  const url = def.fusedFrom ? undefined : renderedArt(def.id);
+  const url = def.fusedFrom ? undefined : renderedArt(def.artOf ?? def.id);
   // (Every card also has its dark corner sections, where its attack and stability sit: styles.css, "corners".)
   return `<span class="card-corners" aria-hidden="true"></span>` + (url ? `<span class="card-stock" style="--art:url('${url}')" aria-hidden="true"></span>` : '');
 }
