@@ -123,7 +123,7 @@ import { symbolIcon, cardJewels, cardBackFace, cardBodyHtml, effectMark, mechani
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
-import { account, buyBooster, checkIn, flush, confirmReset, deleteAccount, finishAiGame, logIn, logInWith, logOut, markDirty, onProgressReplaced, refreshEconomy, requestReset, sendGameStats, serverConfig, setSharingStats, sharingStats, signUp, startAiGame, type AuthResult, type Payout, type ServerConfig } from './account';
+import { account, isOffline, buyBooster, checkIn, flush, confirmReset, deleteAccount, finishAiGame, logIn, logInWith, logOut, markDirty, onProgressReplaced, refreshEconomy, requestReset, sendGameStats, serverConfig, setSharingStats, sharingStats, signUp, startAiGame, type AuthResult, type Payout, type ServerConfig } from './account';
 import { sound } from './sound';
 import { clearSave, loadSave, save } from './storage';
 import { cleanCode, hasSeat, inviteLink, LadderClient, newRoomCode, OnlineClient, type LastMove, type LobbySeat } from './online';
@@ -1171,6 +1171,14 @@ export class App {
       this.onDragStart(e);
       if (this.handRaised && !(e.target as HTMLElement).closest?.('.dock .hand-zone')) this.raiseHand(false);
     });
+    // The connection lost or back: the menus show what needs it (online play, the shop) as offline, or not.
+    const connection = () => {
+      if (this.screen !== 'menu') return;
+      if (isOffline() && this.menuPage === 'shop') this.menuPage = 'hub';
+      this.render();
+    };
+    window.addEventListener('online', connection);
+    window.addEventListener('offline', connection);
     window.addEventListener('pointermove', (e) => this.onDragMove(e));
     window.addEventListener('pointerup', (e) => this.onDragEnd(e));
     window.addEventListener('pointercancel', () => this.onDragEnd(null));
@@ -4154,6 +4162,8 @@ export class App {
           this.menuPage = 'signin';
           return this.render();
         }
+        // (Online play and the shop need the server: not without a connection.)
+        if ((arg === 'online' || arg === 'shop') && isOffline()) return this.showToast('Offline.', 'info');
         if (this.menuPage === 'online' && arg !== 'online') this.leaveOnline();
         this.menuPage = arg as MenuPage;
         this.sheet = null;
@@ -4706,20 +4716,21 @@ export class App {
   private renderHub(): string {
     const hasCampaign = loadCampaign() !== null;
     const hasGame = loadSave() !== null;
-    const tile = (act: string, arg: string, icon: string, name: string, extra = '') => `
+    const offline = isOffline();
+    const tile = (act: string, arg: string, icon: string, name: string, extra = '', online = false) => `
       <div class="hub-col">
-        <button class="hub-card" data-act="${act}" ${arg ? `data-arg="${arg}"` : ''}>
+        <button class="hub-card ${online && offline ? 'hub-offline' : ''}" data-act="${act}" ${arg ? `data-arg="${arg}"` : ''} ${online && offline ? 'disabled' : ''}>
           <span class="hub-icon">${icon}</span>
-          <span class="hub-name">${name}</span>
+          <span class="hub-name">${online && offline ? 'offline' : name}</span>
         </button>
         ${extra}
       </div>`;
     // Shop and collection sit top left as plain header links; options top right, beside you.
-    const link = (act: string, arg: string, icon: string, name: string) =>
-      `<button class="hub-link" data-act="${act}" ${arg ? `data-arg="${arg}"` : ''}><span class="hub-link-icon">${icon}</span>${name}</button>`;
+    const link = (act: string, arg: string, icon: string, name: string, online = false) =>
+      `<button class="hub-link ${online && offline ? 'hub-offline' : ''}" data-act="${act}" ${arg ? `data-arg="${arg}"` : ''} ${online && offline ? 'disabled' : ''}><span class="hub-link-icon">${icon}</span>${name}</button>`;
     return `
       <nav class="hub-links">
-        ${link('menu-page', 'shop', HUB_ICONS.shop, 'shop')}
+        ${link('menu-page', 'shop', HUB_ICONS.shop, 'shop', true)}
         ${link('open-decks', '', HUB_ICONS.collection, 'collection')}
         ${link('menu-page', 'glossary', HUB_ICONS.glossary, 'glossary')}
       </nav>
@@ -4732,7 +4743,7 @@ export class App {
       <div class="hub">
         ${tile('campaign-new', '', HUB_ICONS.campaign, 'a dying universe', hasCampaign ? '<button class="btn btn-small hub-continue" data-act="campaign-continue">continue</button>' : '')}
         ${tile('menu-page', 'quickplay', HUB_ICONS.quickplay, 'quickplay', hasGame ? '<button class="btn btn-small hub-continue" data-act="continue">continue</button>' : '')}
-        ${tile('menu-page', 'online', HUB_ICONS.online, 'online')}
+        ${tile('menu-page', 'online', HUB_ICONS.online, 'online', '', true)}
         ${tile('menu-page', 'tutorial', HUB_ICONS.tutorial, 'tutorial')}
         ${tile('menu-page', 'challenges', HUB_ICONS.challenges, 'challenges')}
       </div>`;
@@ -4973,6 +4984,7 @@ export class App {
         ${this.titleBlock(true)}
         <h2 class="menu-heading">${heading}</h2>
         ${this.pendingOAuth ? `<small class="auth-note">One last thing before your account is made:</small>` : social}
+        ${isOffline() ? '<small class="auth-note">Offline. Connect once to sign in; after that, play offline.</small>' : ''}
         ${email}
         ${password}
         ${agree}

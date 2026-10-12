@@ -4,7 +4,7 @@ import { FACTION_COLOUR, factionAvatar } from './factions';
 import { raceRow, raceTraitTags, cardArtLite, cardStock, cardBodyHtml, KIND_COLOUR, stabilityBadge, typeLine, typeWords, modeArt } from './glyphs';
 import { fitCardText } from './fittext';
 import { owned, profile } from './profile';
-import { breakCard, communityDecks, countDeckSave, craftCard, shareDeck, unshareDeck, type CommunityDeck } from './account';
+import { breakCard, isOffline, communityDecks, countDeckSave, craftCard, shareDeck, unshareDeck, type CommunityDeck } from './account';
 
 interface BuilderHost {
   render(): void;
@@ -323,6 +323,7 @@ export class DeckBuilder {
         return true;
       }
       case 'db-community':
+        if (isOffline()) return this.host.toast('Offline.'), true;
         this.community = { sort: 'popular', q: '', decks: null };
         this.texts.cq = '';
         void this.loadCommunity();
@@ -485,6 +486,7 @@ export class DeckBuilder {
       // Crafting and breaking down are the server's to do (it keeps the collection); the page updates once it answers.
       case 'db-craft':
       case 'db-break':
+        if (isOffline()) return this.host.toast('Offline.'), true;
         void (act === 'db-craft' ? craftCard(arg) : breakCard(arg)).then((why) => {
           if (why) this.host.toast(why);
           // Only the pool's tiles (owned counts, locks) and the craft panel change.

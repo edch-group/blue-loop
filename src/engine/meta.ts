@@ -207,6 +207,24 @@ export function refundUpgrade(meta: MetaState, id: string): MetaState {
   return { ...meta, ...back, upgrades };
 }
 
+/** The petals it costs to take back every skill point placed, to place them all again. */
+export const SKILL_RESET_PETALS = 5;
+
+/** Why the skill tree can't be reset now (null if it can). */
+export function resetSkillsProblem(meta: MetaState): string | null {
+  if (!pointsSpent(meta)) return 'No skills to reset.';
+  if (meta.petals < SKILL_RESET_PETALS) return `Needs ${SKILL_RESET_PETALS} petals.`;
+  return null;
+}
+
+/** Every skill on the tree taken back, all its points free to place again, for SKILL_RESET_PETALS (unlocks kept). */
+export function resetSkills(meta: MetaState): MetaState {
+  const why = resetSkillsProblem(meta);
+  if (why) throw new Error(why);
+  const upgrades = Object.fromEntries(Object.entries(meta.upgrades).filter(([id]) => { const u = metaUpgrade(id); return !u || currencyOf(u) !== 'points'; }));
+  return { ...meta, petals: meta.petals - SKILL_RESET_PETALS, upgrades };
+}
+
 export function raceUnlocked(meta: MetaState, race: number): boolean {
   return STARTING_RACES.includes(race) || levelOf(meta, `race:${race}`) > 0;
 }

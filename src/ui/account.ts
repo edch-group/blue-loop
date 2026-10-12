@@ -48,6 +48,15 @@ function write(key: string, value: unknown) {
   }
 }
 
+/**
+ * No connection: the game plays on from this device (campaign, quickplay, decks, tutorial, challenges), its progress
+ * kept here and sent to the account once back online; what needs the server (online play, the shop, crafting, the
+ * community's decks, signing in) waits.
+ */
+export function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
 /** The native app (its pages aren't served from the game's own server). */
 function isNative(): boolean {
   return location.protocol === 'capacitor:' || location.protocol === 'ionic:' || !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
@@ -459,8 +468,11 @@ export async function checkIn(): Promise<boolean> {
   }
 }
 
-// Changes are pushed before the page goes away (as far as the browser allows).
+// Changes are pushed before the page goes away (as far as the browser allows), and as soon as the connection is back.
 if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    if (timer !== null) schedulePush(0);
+  });
   window.addEventListener('pagehide', () => void flush());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') void flush();

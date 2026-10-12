@@ -23,6 +23,9 @@ import {
   armyBonus,
   migrateMeta,
   refundUpgrade,
+  resetSkills,
+  resetSkillsProblem,
+  SKILL_RESET_PETALS,
   starterAddProblem,
   legalIn,
   cardDef,
@@ -162,6 +165,25 @@ describe('a point taken back', () => {
     expect(after.upgrades.cryo).toBe(1);
     expect(pointsLeft(after)).toBe(points - 1);
     expect(refundUpgrade(after, 'cryo')).toMatchObject({ xp: 100, upgrades: {} });
+  });
+});
+
+describe('the skill tree reset', () => {
+  it('takes back every skill point for 5 petals, keeping unlocks and experience', () => {
+    let meta = { ...emptyMeta(), xp: 999, petals: 20 };
+    const points = pointsLeft(meta);
+    meta = buyUpgrade(buyUpgrade(buyUpgrade(meta, 'cryo'), 'cryo'), 'race:4');
+    const reset = resetSkills(meta);
+    expect(SKILL_RESET_PETALS).toBe(5);
+    expect(reset.petals).toBe(meta.petals - 5);
+    expect(reset.upgrades).toEqual({ 'race:4': 1 });
+    expect(reset.xp).toBe(999);
+    expect(pointsLeft(reset)).toBe(points);
+  });
+  it('needs the petals, and a skill to reset', () => {
+    expect(resetSkillsProblem({ ...emptyMeta(), xp: 999, petals: 20 })).toBeTruthy();
+    expect(resetSkillsProblem(buyUpgrade({ ...emptyMeta(), xp: 999, petals: 4 }, 'cryo'))).toBeTruthy();
+    expect(resetSkillsProblem(buyUpgrade({ ...emptyMeta(), xp: 999, petals: 5 }, 'cryo'))).toBeNull();
   });
 });
 

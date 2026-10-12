@@ -7203,3 +7203,12 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .table-view :is(.tableau-row, .hand, .cmd-slot) .gem-anomaly .gem-window::before,
 .table-view :is(.tableau-row, .hand, .cmd-slot) .gem-anomaly .gem-window::after,
 .table-view :is(.tableau-row, .hand, .cmd-slot) :is(.g-en-prism, .g-en-prism2, .g-en-glint, .g-en-spark, .g-dwarf, .g-dwarf-glow, .g-sun-disc, .g-sun-corona, .g-hole-back, .g-disk-spin, .g-ah-swirl) { animation-play-state: paused; }
+
+/* The skill tree's reset: a few petals to place every point again (armed on a first tap). */
+.up-reset { display: inline-flex; align-items: center; gap: 6px; }
+.up-reset i { display: inline-flex; align-items: center; gap: 2px; font-style: normal; letter-spacing: 0.04em; }
+.up-reset i .cur { width: 1.1em; height: 1.1em; }
+.up-reset.armed { color: var(--ink); }
+
+/* What needs a connection, without one: dimmed, and not to be pressed. */
+.hub-card.hub-offline, .hub-link.hub-offline { opacity: 0.45; pointer-events: none; }

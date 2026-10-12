@@ -1,8 +1,18 @@
-// Offline support for the web app. Built assets have hashed names, so they are
-// served cache-first; the page itself is network-first so updates arrive.
-const CACHE = 'blue-loop-v4';
+// Offline support for the web app. Every file the game is made of is cached on install (the build fills in the
+// list and the version: vite.config.ts), so after a first visit the whole game runs offline. Built assets have
+// hashed names, so they are served cache-first; the page itself is network-first so updates arrive.
+self.__PRECACHE = [];
+const CACHE = 'blue-loop-dev';
 
-self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      // (One by one: a file that fails to come is fetched again when it is next asked for.)
+      .then((c) => Promise.all(self.__PRECACHE.map((url) => c.add(url).catch(() => undefined))))
+      .then(() => self.skipWaiting()),
+  );
+});
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
@@ -26,7 +36,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE).then((c) => c.put(req, copy));
           return res;
         })
-        .catch(() => caches.match(req).then((hit) => hit || caches.match('./'))),
+        .catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match('./'))),
     );
     return;
   }

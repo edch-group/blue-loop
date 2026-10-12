@@ -1275,3 +1275,10 @@ Then [direction: the stars turn at about a quarter the speed; before turning, th
 
 **Experience is halved** (see Experience and the skill tree): a short run that once gave three or four levels gives one or two. The levelling curve is unchanged, so no save loses levels or points it already has.
 
+## Offline
+
+[direction: the campaign, the deckbuilder and the rest available offline; online play gated]. Everything but online play runs from the device: the campaign, quickplay against the AI, decks, the tutorial and challenges, all saved on the device (and sent to the account a moment after each change, or as soon as the connection is back). The native apps (iOS, the desktop build) carry the whole game with them. The web app's service worker (public/sw.js) caches every file the game is made of on its first visit (the build gives it the list and a version from their contents: vite.config.ts), so after that it opens and plays with no connection. Without one, what needs the server waits: online play and the shop are dimmed on the hub (online's tile reads "offline"), crafting and the community's decks say "Offline."; a game against the AI simply pays no reward from the server. Signing in needs a connection once; after that, the account stays signed in on the device offline.
+
+## The skill tree reset
+
+[direction: a reset on the skill tree for 5 petals, every skill point back to place again; to try a vanilla run]. Top left of the skill tree, beside back: "reset · 5 petals" (shown once any skill is learnt). A first tap arms it ("confirm reset"); a second pays and takes back every skill on the tree, all its points free again (meta.ts resetSkills; unlocks bought with petals, experience and levels are kept). A run already under way keeps the skills it began with; the next starts without them.

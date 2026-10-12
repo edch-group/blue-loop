@@ -34,6 +34,10 @@ import {
   STARTER_OFFERS,
   buyUpgrade,
   refundUpgrade,
+  resetSkills,
+  resetSkillsProblem,
+  SKILL_RESET_PETALS,
+  pointsSpent,
   buyUpgradeProblem,
   levelFor,
   pointCost,
@@ -384,6 +388,8 @@ export class CampaignView {
    * button, take points back (their XP refunded), so none is spent by accident]: each a level of a skill, in order.
    */
   private upPlaced: string[] = [];
+  /** The reset tapped once: a second tap pays and resets. */
+  private upResetArmed = false;
   /** The skill a point was just placed on (its new ring segment draws itself in). */
   private upJust: string | null = null;
   /**
@@ -803,6 +809,7 @@ export class CampaignView {
   onClick(act: string, arg: string, el: HTMLElement): boolean {
     const s = this.state;
     const n = () => Number(arg);
+    if (act !== 'cmp-up-reset') this.upResetArmed = false;
     switch (act) {
       case 'cmp-rivals':
         this.setup.rivals = n();
@@ -833,6 +840,28 @@ export class CampaignView {
         this.upJust = arg;
         // (The tree is drawn afresh: its tip goes back beside it.)
         requestAnimationFrame(() => this.showUpTip());
+        break;
+      }
+      case 'cmp-up-reset': {
+        // Every point taken back, to place again, for a few petals (tapped twice: once to arm it, once to pay).
+        const meta = loadMeta();
+        const why = resetSkillsProblem(meta);
+        if (why) {
+          this.upResetArmed = false;
+          this.host.toast(why);
+          sound.error();
+          break;
+        }
+        if (!this.upResetArmed) {
+          this.upResetArmed = true;
+          sound.hover();
+          break;
+        }
+        this.upResetArmed = false;
+        saveMeta(resetSkills(meta));
+        this.upPlaced = [];
+        this.upJust = null;
+        sound.upgrade();
         break;
       }
       case 'cmp-up-undo':
@@ -1562,6 +1591,7 @@ export class CampaignView {
           <div class="up-left">
             <button class="up-back" data-act="cmp-shop" aria-label="Back">‹ back</button>
             ${this.upPlaced.length ? '<button class="up-plan-undo" data-act="cmp-up-undo">undo</button><button class="up-plan-undo" data-act="cmp-up-clear">clear</button>' : ''}
+            ${pointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.upResetArmed ? 'armed' : ''}" data-act="cmp-up-reset" ${resetSkillsProblem(meta) ? `data-tip="${esc(resetSkillsProblem(meta)!)}"` : ''}>${this.upResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}
           </div>
           <div class="up-title-big">
             <h3>skills</h3>
