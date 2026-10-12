@@ -278,7 +278,7 @@ void main() {
 }`;
 
 /** The ship: a mesh in the scene (ship3d.ts), its look worked out here. */
-const SHIP_VERT = `
+export const SHIP_VERT = `
 attribute vec3 aPos; attribute vec3 aNorm; attribute vec3 aCol; attribute float aMat;
 uniform mat4 uView; uniform mat4 uProj; uniform mat4 uModel;
 varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vMat; varying vec3 vCol;
@@ -298,7 +298,7 @@ void main() {
  * each face), wear and grime, a stripe in its holder's colour down the spine, lit by a key light with a sharp
  * highlight and the paper's light caught at its edges. The canopy is dark glass, glossy; the engines burn.
  */
-const SHIP_FRAG = `
+export const SHIP_FRAG = `
 #extension GL_OES_standard_derivatives : enable
 precision highp float;
 varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec3 vLN; varying float vMat; varying vec3 vCol;

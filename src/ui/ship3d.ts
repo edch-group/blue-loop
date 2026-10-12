@@ -19,8 +19,8 @@
 
 export const SHIP_STRIDE = 10;
 
-type V3 = [number, number, number];
-type RGB = [number, number, number];
+export type V3 = [number, number, number];
+export type RGB = [number, number, number];
 type Xf = (p: V3) => V3;
 
 const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -81,7 +81,7 @@ interface Chord {
   z: number;
 }
 
-class Mesh {
+export class Mesh {
   out: number[] = [];
   private xfs: Xf[] = [];
 

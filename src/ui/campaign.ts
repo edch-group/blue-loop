@@ -137,6 +137,7 @@ import { voices } from './voice';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
 import { FLY_SECONDS, WARP_SECONDS } from './nebula-objects';
 import type { CaptainShipSpec } from './ship3d';
+import { Base3d, type BaseZone } from './base3d';
 
 const KEY = 'blue-loop:campaign:v6';
 
@@ -424,6 +425,8 @@ export class CampaignView {
   private heroOpen = false;
   private capPick: string | null = null;
   private hangarOpen = false;
+  /** The base on the setup page (3D), while it is shown. */
+  private base: Base3d | null = null;
   private hangarPick: string | null = null;
   /** The move under way is a warp-drive jump (the Captain's ship warps; otherwise it flies). */
   private warpMove = false;
@@ -1548,17 +1551,18 @@ export class CampaignView {
     // Captain, experience buys the skill tree, found parts fit out the ship]
     const tile = (act: string, title: string, sub: string, icon: string) =>
       `<button class="cs-tab" data-act="${act}"><span class="cs-tab-icon">${icon}</span><b>${title}</b><small>${sub}</small></button>`;
-    return `
-      <main class="cmp-setup setup-page cs-page cs-captain-page">
-        <header class="setup-top">
-          <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
-          <h2 class="menu-heading">a dying universe</h2>
-          <div class="cs-purses">
-            <button class="cs-petals" data-act="cmp-shop">${PETAL}<b>${meta.petals}</b><span>petals</span></button>
-            <button class="cs-petals cs-xp" data-act="cmp-hero">${XP_MARK}<b>${pointsLeft(meta)}</b><span>skill points</span></button>
-          </div>
-        </header>
-        <div class="cs-body cs-captain-body">
+    // [direction: the campaign's sections spread out like a base, all 3D: a hangar holding the ship, the hero sitting,
+    // and a research panel where the general upgrades are taken] (Without WebGL, the tiles as they were.)
+    const label = (zone: BaseZone, act: string, title: string, sub: string) =>
+      `<button class="cs-base-label" data-zone="${zone}" data-act="${act}"><b>${title}</b><small>${sub}</small></button>`;
+    const body = canNebula()
+      ? `<div class="cs-base">
+          <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
+          ${label('hangar', 'cmp-hangar', 'hangar', 'fit parts')}
+          ${label('captain', 'cmp-hero', 'the captain', `${XP_MARK}${pointsLeft(meta)} skill points`)}
+          ${label('research', 'cmp-shop', 'research', `${PETAL}${meta.petals} petals`)}
+        </div>`
+      : `<div class="cs-body cs-captain-body">
           <div class="cs-captain-card" data-act="inspect" data-card="${esc(captain)}">${cardHtml(captain)}</div>
           <section class="cs-captain-text">
             <h3>the captain</h3>
@@ -1569,7 +1573,18 @@ export class CampaignView {
               ${tile('cmp-shop', 'skills', 'spend petals', PETAL)}
             </div>
           </section>
-        </div>
+        </div>`;
+    return `
+      <main class="cmp-setup setup-page cs-page cs-captain-page">
+        <header class="setup-top">
+          <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
+          <h2 class="menu-heading">a dying universe</h2>
+          <div class="cs-purses">
+            <button class="cs-petals" data-act="cmp-shop">${PETAL}<b>${meta.petals}</b><span>petals</span></button>
+            <button class="cs-petals cs-xp" data-act="cmp-hero">${XP_MARK}<b>${pointsLeft(meta)}</b><span>skill points</span></button>
+          </div>
+        </header>
+        ${body}
         <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start">begin run</button></footer>
         ${this.shopOpen ? this.renderShop(meta) : ''}
         ${this.heroOpen ? this.renderHeroPanel(meta) : ''}
@@ -2292,9 +2307,75 @@ export class CampaignView {
   }
 
   /** Fit the map to its stage and move the camera (called after every render and on resize). */
+  /** The base on the setup page, drawn (and its labels laid by their stations), or put away. */
+  private showBase(root: HTMLElement) {
+    const canvas = root.querySelector<HTMLCanvasElement>('canvas.cs-base-canvas');
+    if (!canvas) {
+      this.base?.destroy();
+      this.base = null;
+      return;
+    }
+    const meta = loadMeta();
+    if (this.base?.canvas !== canvas) {
+      this.base?.destroy();
+      this.base = Base3d.mount(canvas, this.metaShipSpec(meta));
+      const base = this.base;
+      if (!base) return;
+      const box = canvas.parentElement!;
+      const zoneAt = (e: PointerEvent) => {
+        const r = canvas.getBoundingClientRect();
+        const z = r.width / (canvas.clientWidth || r.width) || 1;
+        return base.zoneAt((e.clientX - r.left) / z, (e.clientY - r.top) / z);
+      };
+      let over: BaseZone | null = null;
+      const hover = (zone: BaseZone | null, pointer: string) => {
+        if (zone === over) return;
+        over = zone;
+        base.hover(zone);
+        box.querySelectorAll<HTMLElement>('.cs-base-label').forEach((l) => l.classList.toggle('on', l.dataset.zone === zone));
+        canvas.style.cursor = zone ? 'pointer' : '';
+        if (zone && pointer !== 'touch') sound.hover();
+      };
+      canvas.addEventListener('pointermove', (e) => hover(zoneAt(e), e.pointerType));
+      canvas.addEventListener('pointerleave', (e) => hover(null, e.pointerType));
+      canvas.addEventListener('click', (e) => {
+        const zone = zoneAt(e as PointerEvent);
+        if (zone) box.querySelector<HTMLElement>(`.cs-base-label[data-zone="${zone}"]`)?.click();
+      });
+      // (A label under the pointer lights its station too.)
+      box.addEventListener('pointerover', (e) => {
+        const l = (e.target as Element).closest<HTMLElement>('.cs-base-label');
+        if (l) hover(l.dataset.zone as BaseZone, (e as PointerEvent).pointerType);
+      });
+      base.onFrame = () => {
+        for (const l of box.querySelectorAll<HTMLElement>('.cs-base-label')) {
+          const at = base.labelAt(l.dataset.zone as BaseZone);
+          if (!at) continue;
+          l.style.left = `${at.x.toFixed(1)}px`;
+          l.style.top = `${at.y.toFixed(1)}px`;
+        }
+      };
+    }
+    if (!this.base) return;
+    this.base.setShip(this.metaShipSpec(meta));
+    this.base.paused = this.shopOpen || this.heroOpen || this.hangarOpen;
+    this.base.onFrame?.();
+  }
+
+  /** The Captain's ship as the base shows it: the parts fitted in the hangar, and the Captain's level. */
+  private metaShipSpec(meta: MetaState): CaptainShipSpec {
+    const fitted = meta.fitted ?? {};
+    const rarity: Record<string, string> = {};
+    for (const [slot, id] of Object.entries(fitted)) if (id) rarity[slot] = shipPart(id)?.rarity ?? 'dwarf';
+    const b = captainBuild(captainCard(meta));
+    const level = b ? b.attack + b.stability + b.cheaper + Math.max(0, b.abilities.length - 1) + (b.lead ? 2 : 0) : 0;
+    return { parts: fitted, rarity, level };
+  }
+
   afterRender(root: HTMLElement) {
     // (In development, reachable from the console.)
     if (import.meta.env.DEV) (window as unknown as { campaignView?: CampaignView }).campaignView = this;
+    this.showBase(root);
     if (this.afterStruggle) window.setTimeout(() => this.openAfterStruggle(), 0);
     const stage = root.querySelector<HTMLElement>('.cmp-stage');
     this.stageEl = stage;
