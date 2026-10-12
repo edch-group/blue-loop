@@ -7213,3 +7213,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 
 /* What needs a connection, without one: dimmed, and not to be pressed. */
 .hub-card.hub-offline, .hub-link.hub-offline { opacity: 0.45; pointer-events: none; }
+
+/* The round badges (petals, experience): centred in their pills (their gap spaces them, not a margin), and never cropped. */
+.cur-petal, .cur-xp { margin: 0; vertical-align: middle; overflow: visible; }
