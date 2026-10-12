@@ -24,6 +24,12 @@ import {
   runBonuses,
   setAffinity,
   buyUpgrade,
+  shipFit,
+  fitPart,
+  stowParts,
+  armyBonus,
+  warpReach,
+  SHIP_PARTS,
   type CampaignState,
 } from '../src/engine';
 
@@ -168,6 +174,63 @@ describe('Kinship', () => {
   it('never favours one race twice', () => {
     const meta = setAffinity(setAffinity(emptyMeta(), 'primary', 1), 'secondary', 1);
     expect(meta.affinity).toEqual({ primary: undefined, secondary: 1 });
+  });
+});
+
+describe('the ship and its parts', () => {
+  it('adds up what is fitted: armour, shields, a weapon on its own side, boosters, the warp drive', () => {
+    const fit = shipFit({ armour: 'ceramic_armour', shield: 'halo_generator', port: 'nova_lance', starboard: 'pulse_cannon', booster: 'afterburners', warp: 'fold_drive' });
+    expect(fit).toMatchObject({ health: 4, shields: 2, shieldPerTurn: 1, guns: [2, 2, 0, 1, 1], cool: 1, march: 1, warp: 2.3 });
+  });
+
+  it('fits only a part in the hangar, only in a slot of its kind, and only in one slot at once', () => {
+    let meta = stowParts({ ...emptyMeta() }, ['pulse_cannon', 'pulse_cannon', 'scrap_plating']);
+    expect(meta.hangar).toEqual(['pulse_cannon', 'scrap_plating']);
+    expect(fitPart(meta, 'armour', 'pulse_cannon').fitted).toBeUndefined();
+    expect(fitPart(meta, 'armour', 'aegis_hull').fitted).toBeUndefined();
+    meta = fitPart(meta, 'port', 'pulse_cannon');
+    meta = fitPart(meta, 'starboard', 'pulse_cannon');
+    expect(meta.fitted).toEqual({ starboard: 'pulse_cannon' });
+    expect(fitPart(meta, 'starboard', null).fitted).toEqual({});
+  });
+
+  it("goes with the Captain's battles: more health, guns on a side, shields up", () => {
+    let meta = stowParts(emptyMeta(), ['ceramic_armour', 'nova_lance', 'aegis_projector']);
+    meta = fitPart(fitPart(fitPart(meta, 'armour', 'ceramic_armour'), 'port', 'nova_lance'), 'shield', 'aegis_projector');
+    const s = createCampaign({ seed: 4, captain: CAPTAIN, run: runBonuses(meta) });
+    const b = armyBonus(s, myArmy(s));
+    expect(b.mods.maxHealthDelta).toBe(4);
+    expect(b.slotGuns).toEqual([2, 2, 0, 0, 0]);
+    expect(b.openShields).toBe(2);
+  });
+
+  it('with a warp drive, jumps to systems near by that no route links', () => {
+    const plain = createCampaign({ seed: 9, captain: CAPTAIN });
+    expect(warpReach(plain, myArmy(plain))).toEqual([]);
+    const meta = fitPart(stowParts(emptyMeta(), ['fold_drive']), 'warp', 'fold_drive');
+    const s = createCampaign({ seed: 9, captain: CAPTAIN, run: runBonuses(meta) });
+    // (From the middle of the strip, where some systems near by have no route to it.)
+    myArmy(s).nodeId = s.nodes.find((n) => n.col === 3 && n.lane === 1)!.id;
+    const reach = warpReach(s, myArmy(s));
+    expect(reach.length).toBeGreaterThan(0);
+    const here = s.nodes.find((n) => n.id === myArmy(s).nodeId)!;
+    for (const id of reach) expect(here.links).not.toContain(id);
+    expect(armyMoves(s, myArmy(s)).some((m) => m.warp)).toBe(true);
+  });
+
+  it('every boss leaves a part, one not already in the hangar', () => {
+    const have = SHIP_PARTS.slice(0, 5).map((p) => p.id);
+    const s = createCampaign({ seed: 6, captain: CAPTAIN, run: runBonuses(stowParts(emptyMeta(), have)) });
+    for (const n of s.nodes) delete n.cache;
+    const heart = s.nodes.find((n) => n.heart)!;
+    const army = myArmy(s);
+    army.nodeId = heart.links[0];
+    let t = applyCampaignAction(s, { type: 'move', armyId: army.id, toId: heart.id });
+    const game = structuredClone(t.battle!.game);
+    game.winnerId = game.players[0].id;
+    t = applyCampaignAction(t, { type: 'finishBattle', game });
+    expect(t.partsFound).toHaveLength(1);
+    expect(have).not.toContain(t.partsFound![0]);
   });
 });
 

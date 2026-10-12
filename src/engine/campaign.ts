@@ -29,6 +29,7 @@ import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type H
 import { RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, supersededResearch, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
 import { isCaptain } from './captain';
+import { newPart, partRarity, shipPart } from './parts';
 import { RIFT_JUMPS, RIFT_KINDS, RIFTS, markedId, marksFor, NYX_MARKS, type NyxMark, type RiftKind } from './rifts';
 const NYX_MARK_NAME = (Object.fromEntries(Object.entries(NYX_MARKS).map(([k, v]) => [k, v.name])) as Record<NyxMark, string>);
 import { RELIC_POWERS, SEREN_POWERS } from './relics';
@@ -598,7 +599,15 @@ export function armyBonus(s: CampaignState, a: Army) {
     bonus.mend += run.mend ?? 0;
     bonus.loot += run.loot ?? 0;
   }
-  return { ...bonus, relics };
+  // The Captain's ship, as fitted with parts (parts.ts): its armour, shield module, weapons and boosters.
+  const ship = a.owner === s.playerId && !a.lost && f?.human ? s.run?.ship : undefined;
+  if (ship) {
+    bonus.mods = mergeModifiers(bonus.mods, { ...(ship.health ? { maxHealthDelta: ship.health } : {}), ...(ship.shieldPerTurn ? { shieldPerTurn: ship.shieldPerTurn } : {}) });
+    bonus.foeHeat += ship.opening;
+    bonus.march += ship.march;
+    relics.walls += ship.walls;
+  }
+  return { ...bonus, relics, slotGuns: ship?.guns ?? [0, 0, 0, 0, 0], openShields: ship?.shields ?? 0, jumpCool: ship?.cool ?? 0, warp: ship?.warp ?? 0 };
 }
 
 /** Who leads an army, as it is named: its general, or (a lost army) the last of its people. */
@@ -642,6 +651,8 @@ export interface Loot {
   petals: number;
   relics: Relic[];
   cards: string[];
+  /** Ship parts found (the Captain's runs). */
+  parts?: string[];
 }
 
 export interface CampaignState {
@@ -702,6 +713,9 @@ export interface CampaignState {
   beaten?: { nodeId: string; hero: string };
   /** Heroes slain in this run (the Captain's): they come for no one again. */
   slain?: string[];
+  /** Ship parts found this run (parts.ts), and those already put in the hangar for good (see partsBanked). */
+  partsFound?: string[];
+  partsBanked?: number;
   /** A Dream of the Lost waiting to be dreamt: where, and which (its puzzle's id). */
   dream?: { nodeId: string; id: string };
   /** A battle the player is fighting (or can auto-resolve). */
@@ -975,11 +989,14 @@ export function fuseProblem(s: CampaignState, f: Faction, n: CampaignNode, a: st
 }
 
 /** Where an army can go this turn: each linked system, and whether going there is a battle. */
-export function armyMoves(s: CampaignState, army: Army): { toId: string; battle: boolean; surrender?: boolean }[] {
+export function armyMoves(s: CampaignState, army: Army): { toId: string; battle: boolean; surrender?: boolean; warp?: boolean }[] {
   if (army.moved || army.refit || (army.steps ?? 0) >= 1 + armyBonus(s, army).march) return [];
   const here = nodeById(s, army.nodeId);
-  const out: { toId: string; battle: boolean; surrender?: boolean }[] = [];
-  for (const id of here.links) {
+  const out: { toId: string; battle: boolean; surrender?: boolean; warp?: boolean }[] = [];
+  // (The Captain's warp drive: systems close by, linked or not.)
+  const reach = warpReach(s, army);
+  const linked = [...here.links, ...reach];
+  for (const id of linked) {
     const n = nodeById(s, id);
     if (n.collapsed || n.vanished) continue;
     // (Time Dense Space: inward, or round the ring, never outward.)
@@ -1000,7 +1017,20 @@ export function armyMoves(s: CampaignState, army: Army): { toId: string; battle:
     if (hazardBlocks(n, army.owner)) continue;
     out.push(surrenders(s, army, n) ? { toId: id, battle: false, surrender: true } : { toId: id, battle: true });
   }
+  // (Marked as warp jumps: the ship folds space to get there.)
+  for (const m of out) if (reach.includes(m.toId)) m.warp = true;
   return out;
+}
+
+/** Systems the Captain's warp drive reaches from where the flagship stands, not linked to it (none without a drive). */
+export function warpReach(s: CampaignState, army: Army): string[] {
+  const range = army.owner === s.playerId ? armyBonus(s, army).warp : 0;
+  if (!range || s.rift) return [];
+  const here = nodeById(s, army.nodeId);
+  const most = range * CAMPAIGN.colGap;
+  return s.nodes
+    .filter((n) => n.id !== here.id && !here.links.includes(n.id) && !n.heart && !n.challenge && !n.collapsed && !n.vanished && Math.hypot(n.x - here.x, n.y - here.y) <= most)
+    .map((n) => n.id);
 }
 
 /**
@@ -1074,7 +1104,7 @@ export function recycleValue(defId: string): number {
 function lootMark(s: CampaignState) {
   const f = factionById(s, s.playerId);
   const cards = [...s.armies.filter((a) => a.owner === f.id).flatMap((a) => a.deck), ...f.reserve];
-  return { materials: f.materials, xp: s.xp ?? 0, petals: s.petals, relics: new Set((f.relics ?? []).map((r) => r.id)), cards };
+  return { materials: f.materials, xp: s.xp ?? 0, petals: s.petals, relics: new Set((f.relics ?? []).map((r) => r.id)), cards, parts: s.partsFound?.length ?? 0 };
 }
 
 /** What the player gained since the mark: materials, experience, petals, relics, and cards put in a deck or the reserve. */
@@ -1096,6 +1126,7 @@ function lootSince(s: CampaignState, before: ReturnType<typeof lootMark>, won: b
     petals: Math.max(0, now.petals - before.petals),
     relics: (f.relics ?? []).filter((r) => !before.relics.has(r.id)),
     cards,
+    parts: (s.partsFound ?? []).slice(before.parts),
   };
 }
 
@@ -2102,6 +2133,20 @@ function resolveStruggle(s: CampaignState, game: GameState) {
   clog(s, `${cardDef(hero).name} is beaten, and bends the knee: they join ${f.name}'s flagship.`, b.nodeId, f.id);
 }
 
+/** The chance of a ship part from each kind of event (the Captain's runs); a boss always gives one. */
+export const PART_CHANCE = { slay: 0.5, dream: 0.35, vault: 0.3 };
+
+/** Maybe a ship part found (the Captain's runs only): a new one, into the run's finds, banked to the hangar for good. */
+function findPart(s: CampaignState, chance: number, boss = false): string | null {
+  const f = campaignPlayer(s);
+  if (!f.human || nextRandom(s) >= chance) return null;
+  const id = newPart([...(s.run?.hangar ?? []), ...(s.partsFound ?? [])], partRarity(s.universe, nextRandom(s), boss), nextRandom(s));
+  if (!id) return null;
+  (s.partsFound ??= []).push(id);
+  clog(s, `${f.name} salvages a ship part: ${shipPart(id)!.name}.`, undefined, f.id);
+  return id;
+}
+
 /** What slaying a beaten hero pays: materials, petals and a pick of their race's rare cards (an emblem now and then). */
 export const SLAY_LOOT = { materials: 10, perGalaxy: 4, petals: 2, cards: 3 };
 
@@ -2125,6 +2170,7 @@ function decideBeaten(s: CampaignState, recruit: boolean) {
   const race = cardDef(p.hero).race;
   const rares = shuffleInPlace(s, CARDS.filter((c) => c.race === race && c.kind !== 'command' && (c.rarity === 'stellar' || c.rarity === 'anomaly') && !c.fusion && legalIn(s.mode, c.id)).map((c) => c.id)).slice(0, SLAY_LOOT.cards);
   if (rares.length) s.cardRewards.push({ source: `${name}'s hoard`, options: rares, ...(army ? { toDeck: army.id } : {}) });
+  findPart(s, PART_CHANCE.slay);
   clog(s, `${name} is slain. The Captain takes their hoard: ${materials} materials and ${SLAY_LOOT.petals} petals.`, p.nodeId, f.id);
 }
 
@@ -2238,6 +2284,7 @@ function resolveDream(s: CampaignState, game: GameState) {
   s.petals += petals;
   gainXp(s, CAMPAIGN.xpChallenge);
   clog(s, `${f.name} wakes from the dream with ${petals} Stellari petals.`, b.nodeId, f.id);
+  findPart(s, PART_CHANCE.dream);
   const options = dreamCards(s, tier);
   if (options.length) s.cardRewards.push({ source: 'The Dreams of the Lost', options, ...(army ? { toDeck: army.id } : {}), take: 'dreams up' });
 }
@@ -2448,13 +2495,14 @@ function flagshipSetup(s: CampaignState, army: Army): Pick<PlayerSetup, 'hero' |
   const bonus = armyBonus(s, army);
   // (Relics: walls on every slot, guns for every armed card.)
   const { walls, guns } = bonus.relics;
-  const rooms = { ...ship.rooms, defence: ship.rooms.defence.map((d) => d + walls), attack: ship.rooms.attack.map((d) => d + guns) };
+  const rooms = { ...ship.rooms, defence: ship.rooms.defence.map((d) => d + walls), attack: ship.rooms.attack.map((d, i) => d + guns + (bonus.slotGuns[i] ?? 0)) };
+  const shields = ship.shields + bonus.openShields;
   return {
     hero: army.general,
     tableau: bonus.start ? [army.general] : [],
     heroStats: heroStats(f, army.general),
     rooms: ship.modules?.some(Boolean) ? { ...rooms, boons: [0, 1, 2, 3, 4].map((r) => ship.modules?.[r]?.boons ?? []) } : rooms,
-    ...(ship.shields ? { opening: { shields: ship.shields } } : {}),
+    ...(shields ? { opening: { shields } } : {}),
     hull: ship.hull || f.sunBonus ? { maxHealthDelta: (ship.hull ?? 0) * CAMPAIGN.hullHealth + (f.sunBonus ?? 0) } : {},
   };
 }
@@ -2653,12 +2701,15 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   if (army.refit) throw new GameError(`${armyLeader(army)}'s army is refitting this turn: it can march next turn.`);
   const here = nodeById(s, army.nodeId);
   const target = nodeById(s, toId);
-  if (!here.links.includes(toId)) throw new GameError('There is no route between those systems.');
+  if (!here.links.includes(toId) && !warpReach(s, army).includes(toId)) throw new GameError('There is no route between those systems.');
   if (target.vanished) throw new GameError(`${target.name} is gone into the dark.`);
   if (s.rift?.kind === 'time' && (target.spinRing ?? 0) > (here.spinRing ?? 99) && !target.heart) throw new GameError('Never outward here');
   if (target.collapsed) throw new GameError(`${target.name} has collapsed. There is nothing left there.`);
   const doom = doomProblem(s, army, toId);
   if (doom) throw new GameError(doom);
+  // (The Captain's boosters: the sun cools on every jump.)
+  const cool = armyBonus(s, army).jumpCool;
+  if (cool && army.damage > BALANCE.minHeat) army.damage = Math.max(BALANCE.minHeat, army.damage - cool);
   if (target.challenge) {
     if (target.challenge.hidden || target.challenge.done || f.id !== s.playerId) throw new GameError('There is nothing there to try.');
     if (target.challenge.kind === 'rift') enterRift(s, army, target);
@@ -2897,6 +2948,7 @@ function takeFinds(s: CampaignState, game: GameState) {
     s.uidCounter += 10 + vault.length;
     nodeById(s, b.nodeId).vault = undefined;
     clog(s, `${me.name} breaks open the emblem cache: ${vault.map((r) => r.name).join(' and ')}.`, b.nodeId, me.id);
+    findPart(s, PART_CHANCE.vault);
   }
   const { items, modules } = battleFinds(s, game);
   if (!items.length && !modules.length) return;
@@ -2948,6 +3000,8 @@ function overlordBounty(s: CampaignState, f: Faction, army?: Army) {
   s.petals += petals;
   gainXp(s, CAMPAIGN.xpBoss);
   clog(s, `${lord.name} falls: ${f.name} gathers ${petals} Stellari petal${petals === 1 ? '' : 's'} from its remains.`, undefined, f.id);
+  // (Every boss leaves a ship part in its wreck.)
+  if (f.id === s.playerId) findPart(s, 1, true);
   const fits = (id: string) => rarityOf(id) !== 'dwarf' && cardDef(id).kind !== 'command' && (!army || deckAddProblem({ ...f, reserve: [id] }, army, id) === null);
   const hoard = [...new Set(shuffleInPlace(s, riftPool(s) ?? offerPool(f, s.mode, s.universe)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices + (s.run?.vault ?? 0));
   // (An Overlord's hoard is a hard event's: an Enigma a little likelier.)
@@ -3475,6 +3529,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     s.petalsBanked = s.petals;
     s.xpBanked = s.xp ?? 0;
     s.starsBanked = s.starsTaken ?? 0;
+    s.partsBanked = s.partsFound?.length ?? 0;
     return s;
   }
   const f = campaignPlayer(s);
@@ -3562,7 +3617,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       resolveBattle(s, game, action.salvage);
       const loot = lootSince(s, before, !!mine && game.winnerId === mine.id);
       // (Shown on the map only if it brought something.)
-      if (loot.materials || loot.xp || loot.petals || loot.relics.length || loot.cards.length) s.loot = loot;
+      if (loot.materials || loot.xp || loot.petals || loot.relics.length || loot.cards.length || loot.parts?.length) s.loot = loot;
       else delete s.loot;
       break;
     }
@@ -3606,7 +3661,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       const before = lootMark(s);
       decideBeaten(s, action.recruit);
       const loot = lootSince(s, before, true);
-      if (!action.recruit && (loot.materials || loot.petals)) s.loot = loot;
+      if (!action.recruit && (loot.materials || loot.petals || loot.parts?.length)) s.loot = loot;
       break;
     }
     case 'dream':

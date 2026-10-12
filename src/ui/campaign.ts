@@ -85,6 +85,13 @@ import {
   SLAY_LOOT,
 
   captainCard,
+  fitPart,
+  partSlots,
+  SHIP_PARTS,
+  SHIP_SLOTS,
+  type PartSlot,
+  stowParts,
+  shipPart,
   setAffinity,
   CORE_RACES,
   kinshipBoosts,
@@ -111,6 +118,7 @@ import { profile } from './profile';
 import { loadMeta, saveMeta } from './meta';
 import { DeckBuilder } from './builder';
 import { shipModel } from './ships';
+import { partShape, schematic } from './hangar';
 import { stellariaFlower } from './art';
 import { choiceRow, setLink, settingsPanel } from './settings';
 import { MENU_ICON } from './menu-icon';
@@ -185,6 +193,10 @@ const XP_MARK =
   '<svg class="cur cur-xp" viewBox="0 0 20 20" aria-label="experience"><path d="M4.6 10.2 10 5l5.4 5.2M4.6 15.2 10 10l5.4 5.2" fill="none" stroke="#b8953f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** A Stellari petal: what a wormhole gives, banked for every run after. Symmetrical both ways: a pale blue almond. */
+/** The ship: a hull from above, nose to the right (the setup page's ship tab). */
+const SHIP_ICON =
+  '<svg class="cur cur-ship" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10c0-1.6 1.6-2.6 3.6-2.7L13 7c2.4 0 4 1.3 4.6 3-.6 1.7-2.2 3-4.6 3l-6.9-.3C4.1 12.6 2.5 11.6 2.5 10Z" fill="#dfe8f6" stroke="#6b7590" stroke-width=".9" stroke-linejoin="round"/><path d="M7 7.2 9.5 4.5h2L10.4 7M7 12.8l2.5 2.7h2l-1.1-2.5" fill="none" stroke="#6b7590" stroke-width=".9" stroke-linejoin="round"/><circle cx="12.6" cy="10" r="1.2" fill="#6b7590"/></svg>';
+
 /** Each of the Captain's abilities and leads at a glance, for the hero panel's discs: its mark and its amount. */
 const CAP_MARKS: Record<string, [string, string]> = {
   brace: ['shield', '1'], patch: ['cool', '1'], scout: ['draw', '1'], volley: ['heat', '2'], bulwark: ['shield', '3'], vent: ['cool', '2'],
@@ -407,6 +419,7 @@ export class CampaignView {
   private heroOpen = false;
   private capPick: string | null = null;
   private hangarOpen = false;
+  private hangarPick: string | null = null;
   /** The lasting upgrade picked in the shop, shown in the flower's heart. */
   /**
    * Skill points placed on the tree this visit [direction: a tap assigns a point at once; undo and clear, by the back
@@ -772,8 +785,10 @@ export class CampaignView {
     const xp = (s?.xp ?? 0) - (s?.xpBanked ?? 0);
     // (Stars conquered too, to the run's race: what unlocks its later heroes.)
     const stars = (s?.starsTaken ?? 0) - (s?.starsBanked ?? 0);
-    if (!s || (s.petals <= s.petalsBanked && xp <= 0 && stars <= 0)) return;
-    const meta = loadMeta();
+    // (Ship parts found too: into the hangar for good.)
+    const parts = (s?.partsFound ?? []).slice(s?.partsBanked ?? 0);
+    if (!s || (s.petals <= s.petalsBanked && xp <= 0 && stars <= 0 && !parts.length)) return;
+    const meta = stowParts(loadMeta(), parts);
     const race = campaignPlayer(s)?.race;
     const conquests = race !== undefined && stars > 0 ? { ...meta.conquests, [race]: raceConquests(meta, race) + stars } : meta.conquests;
     saveMeta({ ...meta, petals: meta.petals + (s.petals - s.petalsBanked), xp: (meta.xp ?? 0) + Math.max(0, xp), best: Math.max(meta.best, s.universe - 1), ...(conquests ? { conquests } : {}) });
@@ -927,6 +942,28 @@ export class CampaignView {
         break;
       case 'cmp-hangar':
         this.hangarOpen = !this.hangarOpen;
+        this.hangarPick = null;
+        break;
+      case 'cmp-part-pick':
+        this.hangarPick = this.hangarPick === arg ? null : arg;
+        sound.hover();
+        break;
+      case 'cmp-slot': {
+        // A part in hand that fits: fitted there. Nothing in hand: the part fitted there picked up, to see or remove.
+        const meta = loadMeta();
+        const slot = arg as PartSlot;
+        if (this.hangarPick && partSlots(this.hangarPick).includes(slot)) {
+          saveMeta(fitPart(meta, slot, this.hangarPick));
+          sound.upgrade();
+        } else if (meta.fitted?.[slot]) {
+          this.hangarPick = meta.fitted[slot]!;
+          sound.hover();
+        }
+        break;
+      }
+      case 'cmp-slot-clear':
+        saveMeta(fitPart(loadMeta(), arg as PartSlot, null));
+        sound.hover();
         break;
       case 'cmp-cap-pick':
         this.capPick = this.capPick === arg ? null : arg;
@@ -1450,6 +1487,7 @@ export class CampaignView {
             <p>No name. No race. A battered hulk and a hold of salvage.</p>
             <div class="cs-tabs">
               ${tile('cmp-hero', 'hero', 'spend petals', PETAL)}
+              ${tile('cmp-hangar', 'ship', 'fit parts', SHIP_ICON)}
               ${tile('cmp-shop', 'skills', 'spend skill points', XP_MARK)}
             </div>
           </section>
@@ -1457,6 +1495,7 @@ export class CampaignView {
         <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start">begin run</button></footer>
         ${this.shopOpen ? this.renderShop(meta) : ''}
         ${this.heroOpen ? this.renderHeroPanel(meta) : ''}
+        ${this.hangarOpen ? this.renderHangar(meta) : ''}
       </main>`;
   }
 
@@ -1509,6 +1548,43 @@ export class CampaignView {
           </div>
         </div>
         ${this.renderCapDetail(meta)}
+      </div>`;
+  }
+
+  /**
+   * The ship tab [direction: the player's ship upgraded with parts found in the campaign, kept in the hangar for good,
+   * freely fitted; a ship schematic, the parts slotting into and filling part of it]: the schematic above, every part
+   * found below, each the shape of the slot it fills. Pick a part to light where it goes; tap a slot to fit it there
+   * (or, with nothing in hand, to take out what is fitted).
+   */
+  private renderHangar(meta: MetaState): string {
+    const fitted = meta.fitted ?? {};
+    const have = meta.hangar ?? [];
+    const pick = this.hangarPick;
+    const fits = pick ? partSlots(pick) : [];
+    const on = new Set(Object.values(fitted));
+    const tiles = SHIP_PARTS.filter((p) => have.includes(p.id))
+      .map((p) => `<button class="hg-part rarity-${p.rarity} ${pick === p.id ? 'on' : ''} ${on.has(p.id) ? 'fitted' : ''}" data-act="cmp-part-pick" data-arg="${p.id}" aria-label="${esc(p.name)}">${partShape(p.id)}<b>${esc(p.name.toLowerCase())}</b>${on.has(p.id) ? '<small>fitted</small>' : ''}</button>`)
+      .join('');
+    const p = shipPart(pick ?? undefined);
+    const where = p ? SHIP_SLOTS.filter((sl) => sl.kind === p.kind) : [];
+    const detail = p
+      ? `<footer class="hp-detail"><div><b>${esc(p.name.toLowerCase())}</b><p>${esc(p.text)}</p></div><div class="hg-acts">${where
+          .map((sl) => (fitted[sl.id] === p.id ? `<button class="btn hp-buy" data-act="cmp-slot-clear" data-arg="${sl.id}">remove</button>` : `<button class="btn-primary hp-buy" data-act="cmp-slot" data-arg="${sl.id}">${where.length > 1 ? sl.name.replace(' weapon', '') : 'fit'}</button>`))
+          .join('')}</div></footer>`
+      : `<footer class="hp-detail hp-hint">${have.length ? 'Pick a part, then its slot.' : 'Parts are found on runs: every boss leaves one.'}</footer>`;
+    return `
+      <div class="up-shop hangar-panel">
+        <header class="up-head up-head-tree">
+          <div class="up-left"><button class="up-back" data-act="cmp-hangar" aria-label="Back">‹ back</button></div>
+          <div class="up-title-big"><h3>ship</h3><span class="up-xp"><b>${have.length}</b><small>of ${SHIP_PARTS.length} parts found</small></span></div>
+          <span></span>
+        </header>
+        <div class="hg-body">
+          <div class="hg-ship">${schematic(fitted, pick, fits)}</div>
+          <div class="hg-parts">${tiles || '<p class="hg-none">No parts yet.</p>'}</div>
+        </div>
+        ${detail}
       </div>`;
   }
 
@@ -2702,6 +2778,7 @@ export class CampaignView {
         l.petals ? `<div class="loot-tile loot-res" title="Stellari petals"><span class="loot-glow">${PETAL}</span><b>+${l.petals}</b></div>` : '',
         ...l.relics.map((r) => `<div class="loot-tile loot-emblem"><span class="loot-glow"><span class="cmp-relic ${r.cursed ? 'cursed' : ''}">${relicMark(r.name, r.slot)}</span></span><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div>`),
         ...l.cards.map((id) => `<div class="loot-tile loot-card"><span class="loot-glow">${cardHtml(id)}</span></div>`),
+        ...(l.parts ?? []).map((id) => `<div class="loot-tile loot-part" title="Ship part"><span class="loot-glow">${partShape(id)}</span><b>${esc(shipPart(id)?.name.toLowerCase() ?? '')}</b></div>`),
       ].filter(Boolean);
       // (The experience first, top middle; the rewards after it, one at a time.)
       const first = l.xp ? 1 : 0;

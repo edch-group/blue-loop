@@ -13,6 +13,7 @@
  */
 
 import { GENERALS } from './story';
+import { partSlots, shipFit, shipPart, type PartSlot, type ShipFit } from './parts';
 import { CAPTAIN_SLOT_PRICES, CAPTAIN_START_ABILITY, CAPTAIN_STAT_PRICES, captainAbility, captainId, captainLead, captainSlots, type CaptainStat } from './captain';
 import type { BattleModifiers } from './types';
 
@@ -90,6 +91,29 @@ export interface MetaState {
   captain?: CaptainMeta;
   /** The races Kinship and Fellowship lean the Captain's rewards to (indexes into RACE_NAMES, core races only). */
   affinity?: { primary?: number; secondary?: number };
+  /** Ship parts found (parts.ts), kept for good; and which is fitted in each of the ship's slots. */
+  hangar?: string[];
+  fitted?: Partial<Record<PartSlot, string>>;
+}
+
+/** Fit a part from the hangar into a slot of its kind (taking it from any other slot it was in), or empty a slot. */
+export function fitPart(meta: MetaState, slot: PartSlot, id: string | null): MetaState {
+  const fitted = { ...(meta.fitted ?? {}) };
+  if (id === null) {
+    delete fitted[slot];
+    return { ...meta, fitted };
+  }
+  if (!meta.hangar?.includes(id) || !partSlots(id).includes(slot)) return meta;
+  for (const k of Object.keys(fitted) as PartSlot[]) if (fitted[k] === id) delete fitted[k];
+  fitted[slot] = id;
+  return { ...meta, fitted };
+}
+
+/** Parts found on a run, into the hangar for good (each once). */
+export function stowParts(meta: MetaState, ids: readonly string[]): MetaState {
+  const hangar = [...(meta.hangar ?? [])];
+  for (const id of ids) if (shipPart(id) && !hangar.includes(id)) hangar.push(id);
+  return { ...meta, hangar };
 }
 
 /**
@@ -397,6 +421,9 @@ export interface RunBonuses {
   legacy?: number;
   /** More materials for every battle won (Plunder). */
   plunder?: number;
+  /** The Captain's ship as fitted (parts.ts), and the parts already in the hangar (so a find is a new one). */
+  ship?: ShipFit;
+  hangar?: string[];
   /** The races the Captain's rewards lean to (Kinship, Fellowship), and how far. */
   affinity?: { primary?: number; primaryBoost: number; secondary?: number; secondaryBoost: number };
   /** A share more experience (Study), cards more in every card reward (Wide offers), petals more from every Overlord (Overlord's tithe), and cards more in its hoard (Overlord's vault). */
@@ -509,6 +536,7 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
     choices: l('choice'),
     tithe: 2 * l('tithe'),
     vault: 2 * l('vault'),
+    ...(meta?.hangar?.length ? { ship: shipFit(meta.fitted), hangar: [...meta.hangar] } : {}),
     ...(l('kinship') ? { affinity: { primary: meta?.affinity?.primary, secondary: meta?.affinity?.secondary, ...kinshipBoosts(l('kinship')) } } : {}),
   };
 }
