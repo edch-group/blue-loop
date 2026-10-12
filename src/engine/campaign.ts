@@ -146,13 +146,13 @@ export const CAMPAIGN = {
   /** The rare (Stellar) or Anomaly cards offered from a beaten Overlord's hoard: pick one. */
   bossCardChoices: 2,
   /** Experience earned, win or lose: for every battle won, system taken, challenge cleared, galaxy crossed, boss beaten. */
-  xpBattle: 6,
+  xpBattle: 3,
   /** A battle lost or drawn still teaches something. */
-  xpBattleLost: 3,
-  xpConquer: 3,
-  xpChallenge: 12,
-  xpGalaxy: 20,
-  xpBoss: 30,
+  xpBattleLost: 1,
+  xpConquer: 1,
+  xpChallenge: 6,
+  xpGalaxy: 10,
+  xpBoss: 15,
   petalShare: 12,
   /** Systems are never closer than this; routes longer than this are dropped unless needed to connect. */
   minSystemGap: 160,
@@ -2315,8 +2315,10 @@ function stationDeck(s: CampaignState, n: CampaignNode, race?: number): string[]
 
 /** A station's rooms: walls as thick as its tier. */
 function stationRooms(n: CampaignNode): ShipRooms {
-  const d = Math.min(3, Math.max(0, n.heart ? 2 + Math.floor(n.tier / 3) : Math.floor(n.tier / 2)));
-  return { defence: [d, d, d, d, d], attack: [0, 0, 0, 0, 0], command: 0 };
+  const d = Math.min(3, Math.max(0, n.heart ? 2 + Math.floor(n.tier / 3) : Math.floor((n.tier + 1) / 2)));
+  // (Guns too, from the second tier on.)
+  const a = Math.min(2, Math.max(0, Math.floor(n.tier / 2)));
+  return { defence: [d, d, d, d, d], attack: [a, a, a, a, a], command: 0 };
 }
 
 /** What a flagship brings to its side of a battle: its hero in the command room, its rooms, shields and hull. */
@@ -2347,7 +2349,7 @@ const SENTINEL_EXTRAS = ['solar_battery', 'solar_battery', 'frost_bulwark', 'fro
 function neutralDeck(s: CampaignState, tier: number): string[] {
   const deck = starterDeck(s.mode === 'core' ? CORE_RACES[randomInt(s, CORE_RACES.length)] : randomInt(s, RACE_NAMES.length), s.mode);
   // (None of these is in a starting deck already: a deck holds at most two of a card.)
-  SENTINEL_EXTRAS.slice(0, Math.max(0, tier) * 4).forEach((id, i) => (deck[i] = id));
+  SENTINEL_EXTRAS.slice(0, 2 + Math.max(0, tier) * 5).forEach((id, i) => (deck[i] = id));
   return fitMode(s, deck);
 }
 
@@ -2373,8 +2375,8 @@ export function depth(n: CampaignNode): number {
  * the card game's (20). A flagship's sun always starts at the card game's (its own upgrades on top).
  */
 export function sunHealth(n: CampaignNode): number {
-  // (10 at the near end of the first universe, 3 more a tier, up to 20; the wormhole's guardian's the most.)
-  return Math.min(BALANCE.supernovaAt, 10 + 3 * Math.max(0, n.tier) + (n.heart ? 2 : 0));
+  // (14 at the near end of the first universe, 3 more a tier, up to 20; the wormhole's guardian's the most.)
+  return Math.min(BALANCE.supernovaAt, 14 + 3 * Math.max(0, n.tier) + (n.heart ? 2 : 0));
 }
 function sunBase(n: CampaignNode): BattleModifiers {
   return { maxHealthDelta: sunHealth(n) - BALANCE.supernovaAt };
@@ -2496,7 +2498,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       ...(lord ? { boss: true, bossHealth: overlordHealth(s.universe) } : {}),
       // (A system's damage is its own: an army standing there brings its own.)
       heatDelta: (guard ? guard.damage : target.damage) + atk.foeHeat,
-      ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : lord ? {} : ruler ? { hero: ruler, heroStats: { attack: CAMPAIGN.heroAttack + 2, defence: CAMPAIGN.heroDefence + 2 }, rooms: { defence: [3, 3, 3, 3, 3], attack: [1, 1, 1, 1, 1], command: 3 } } : { rooms: stationRooms(target) }),
+      ...(defShip ? { hero: defShip.hero, heroStats: defShip.heroStats, ...(defShip.rooms ? { rooms: defShip.rooms } : {}), ...(defShip.opening ? { opening: defShip.opening } : {}) } : lord ? {} : ruler ? { hero: ruler, heroStats: { attack: CAMPAIGN.heroAttack + 3, defence: CAMPAIGN.heroDefence + 3 }, rooms: { defence: [3, 3, 3, 3, 3], attack: [2, 2, 2, 2, 2], command: 3 } } : { rooms: stationRooms(target) }),
       // (A relic cache on a neutral system's field, for the player to break: after the garrison, in the slots left.)
       tableau: lord ? [lord.hero, ...lord.parts] : ruler ? [ruler] : [...(defShip?.tableau ?? []), ...g.tableau, ...(target.vault && !owner && !guard && army.owner === s.playerId ? [target.vault > 1 ? 'reliquary_obelisk_2' : 'reliquary_obelisk'] : [])],
       lightspeed: g.lightspeed,
@@ -2505,7 +2507,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
         ? [{ maxHealthDelta: overlordHealth(s.universe) - BALANCE.supernovaAt }, starBoth, atk.foeMods].reduce(mergeModifiers, fx?.modifiers ?? {})
         : ruler
           ? // (A Lost Race's ruler: a sun past any system's, a shield every day, and a fuller hand.)
-            [{ maxHealthDelta: 6 + 2 * (s.universe - 1), shieldPerTurn: 1, extraDraw: 1 }, atk.foeMods].reduce(mergeModifiers, {})
+            [{ maxHealthDelta: 10 + 3 * (s.universe - 1), shieldPerTurn: 1, extraDraw: 1 }, atk.foeMods].reduce(mergeModifiers, {})
         : capDefence([fortified, wardens, guard ? {} : core, starBoth, starDef, def?.mods ?? {}, atk.foeMods, defShip?.hull ?? {}].reduce(mergeModifiers, fx?.modifiers ?? {}), fx?.modifiers, !!guard),
       ...(def?.skills.length ? { skills: def.skills } : {}),
       ...(guard && def?.boons.length ? { heroBoons: { hero: guard.general, boons: def.boons } } : {}),

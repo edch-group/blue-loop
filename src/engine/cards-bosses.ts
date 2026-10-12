@@ -210,7 +210,7 @@ export const OVERLORDS: Overlord[] = [
 ];
 
 /** A Lost Overlord's own stability (it has no sun: beat it down to win): 30, and 5 more in every galaxy after the first. */
-export const overlordHealth = (galaxy: number) => 30 + 5 * (galaxy - 1);
+export const overlordHealth = (galaxy: number) => 36 + 6 * (galaxy - 1);
 
 export const overlordById = (id: string): Overlord => OVERLORDS.find((o) => o.id === id) ?? OVERLORDS[0];
 
