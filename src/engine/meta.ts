@@ -88,6 +88,30 @@ export interface MetaState {
   runs: number;
   /** What petals have made of the Captain (captain.ts): kept for every run. */
   captain?: CaptainMeta;
+  /** The races Kinship and Fellowship lean the Captain's rewards to (indexes into RACE_NAMES, core races only). */
+  affinity?: { primary?: number; secondary?: number };
+}
+
+/**
+ * How far Kinship leans rewards, added to a race's weight (1 to start): its first three levels the favoured race's
+ * (5× at the third), its last two the second race's (2× at the most).
+ */
+export const KINSHIP_BOOST = [0, 1, 2, 4];
+export const FELLOWSHIP_BOOST = [0, 0.5, 1];
+/** Kinship's levels past which the second race is leaned to. */
+export const KINSHIP_PRIMARY_LEVELS = 3;
+export const kinshipBoosts = (level: number) => ({
+  primaryBoost: KINSHIP_BOOST[Math.min(level, KINSHIP_PRIMARY_LEVELS)] ?? 0,
+  secondaryBoost: FELLOWSHIP_BOOST[Math.max(0, level - KINSHIP_PRIMARY_LEVELS)] ?? 0,
+});
+
+/** Set the favoured race (Kinship) or the second one (Fellowship); the other is moved off it if they would match. */
+export function setAffinity(meta: MetaState, which: 'primary' | 'secondary', race: number | undefined): MetaState {
+  const a = { ...(meta.affinity ?? {}) };
+  a[which] = race;
+  const other = which === 'primary' ? 'secondary' : 'primary';
+  if (race !== undefined && a[other] === race) a[other] = undefined;
+  return { ...meta, affinity: a };
 }
 
 /**
@@ -210,6 +234,9 @@ export const META_UPGRADES: MetaUpgrade[] = [
   { id: 'salvage', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Scavengers', text: 'One more card to choose from when salvaging.', max: 1, cost: flat(60) },
   { id: 'choice', group: 'spoils', tier: 2, requires: [['scouts', 1]], name: 'Wide offers', text: 'One more card to choose from in every card reward.', max: 1, cost: flat(70) },
   { id: 'plunder', group: 'spoils', tier: 2, requires: [['scouts', 2]], name: 'Plunder', text: '+2 materials for every battle won.', max: 2, cost: rising(45, 35) },
+  // [direction: bias rewards towards certain races; the most, a big increase to one race's chance and a smaller one to another's]
+  // (Three levels lean to the favoured race, two more to a second race, a little.)
+  { id: 'kinship', group: 'spoils', tier: 1, name: 'Kinship', text: "Your favoured race's cards come up more often among rewards; then a second race's, a little.", max: 5, cost: rising(20, 15) },
   { id: 'vault', group: 'spoils', tier: 3, requires: [['salvage', 1], ['plunder', 1]], name: "Overlord's vault", text: "Every Overlord's hoard offers 2 more cards to choose from.", max: 1, cost: flat(170) },
   // Lasting wisdom: what carries over to every run after.
   { id: 'study', group: 'lore', tier: 1, name: 'Study', text: '+10% experience from everything.', max: 3, cost: rising(25, 20) },
@@ -370,6 +397,8 @@ export interface RunBonuses {
   legacy?: number;
   /** More materials for every battle won (Plunder). */
   plunder?: number;
+  /** The races the Captain's rewards lean to (Kinship, Fellowship), and how far. */
+  affinity?: { primary?: number; primaryBoost: number; secondary?: number; secondaryBoost: number };
   /** A share more experience (Study), cards more in every card reward (Wide offers), petals more from every Overlord (Overlord's tithe), and cards more in its hoard (Overlord's vault). */
   xpBonus?: number;
   choices?: number;
@@ -480,5 +509,6 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
     choices: l('choice'),
     tithe: 2 * l('tithe'),
     vault: 2 * l('vault'),
+    ...(l('kinship') ? { affinity: { primary: meta?.affinity?.primary, secondary: meta?.affinity?.secondary, ...kinshipBoosts(l('kinship')) } } : {}),
   };
 }

@@ -85,6 +85,10 @@ import {
   SLAY_LOOT,
 
   captainCard,
+  setAffinity,
+  CORE_RACES,
+  kinshipBoosts,
+  KINSHIP_PRIMARY_LEVELS,
   captainMeta,
   captainPrice,
   captainBuyProblem,
@@ -233,6 +237,14 @@ const UPGRADE_LOOK: Record<string, { icon: string; say: (level: number) => strin
   abundance: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM5 10c3 1 5 0 7-2M9 19c0-3 2-5 6-5'), say: (l) => `The abundant planet draws ${l} more card${l === 1 ? '' : 's'}.`, value: (l) => `+${l}` },
   foundry: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM4.5 9.5h15M4.5 14.5h15M10 4.5v15'), say: (l) => `The industrial planet gives ${l} more energy.`, value: (l) => `+${l}` },
   coldworld: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM12 8.5v7M9 10l6 4M15 10l-6 4'), say: (l) => `The dead planet cools your sun ${2 * l} each dawn.`, value: (l) => `${2 * l}` },
+  kinship: {
+    icon: glyph('M8 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM16 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 19.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5M11 19.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5'),
+    say: (l) => {
+      const b = kinshipBoosts(l);
+      return `Your favoured race's cards come up ${1 + b.primaryBoost}× as often${b.secondaryBoost ? `; a second race's ${1 + b.secondaryBoost}×` : ''}.`;
+    },
+    value: (l) => `${1 + kinshipBoosts(l).primaryBoost}×`,
+  },
   scouts: { icon: glyph('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM15.5 15.5l5 5'), say: (l) => `${10 * l}% more chance of emblems.`, value: (l) => `+${10 * l}%` },
   plunder: { icon: glyph('M4.5 9.5h15l-1.5 10h-12ZM8 9.5a4 4 0 0 1 8 0M10 13.5h4'), say: (l) => `${2 * l} materials for every battle won.`, value: (l) => `+${2 * l}` },
   study: { icon: glyph('M3 8.5 12 4.5l9 4-9 4ZM6.5 10.5v4.5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-4.5M21 8.5v5'), say: (l) => `${10 * l}% more experience.`, value: (l) => `+${10 * l}%` },
@@ -934,6 +946,14 @@ export class CampaignView {
         sound.upgrade();
         break;
       }
+      case 'cmp-aff': {
+        const [which, r] = arg.split(':');
+        const meta = loadMeta();
+        const now = meta.affinity?.[which as 'primary' | 'secondary'];
+        saveMeta(setAffinity(meta, which as 'primary' | 'secondary', now === Number(r) ? undefined : Number(r)));
+        sound.hover();
+        break;
+      }
       case 'cmp-cap-equip':
         saveMeta(equipCaptainAbility(loadMeta(), arg));
         sound.hover();
@@ -1623,7 +1643,23 @@ export class CampaignView {
           <path d="M500 170 L405 170 A95 330 0 0 1 595 170 Z" transform="rotate(${rot} 500 170)" fill="#fff"/>${ell(rot - 30, '#000')}${ell(rot + 30, '#000')}
         </mask>
         <rect x="70" y="-260" width="860" height="860" mask="url(#up-lobe-${br.g})" fill="${br.colour}" fill-opacity="${(0.06 + 0.26 * f).toFixed(3)}"/>`);
-      stems.push(line(place(deg, TIP), pos.get(first.id)!, `${levelOf(meta, first.id) ? 'lit' : ''} ${mobile && br !== shown ? 'up-off' : ''}`, br.colour, br.g));
+      // (A stem to each of the branch's first skills: on a phone, each straight up from the flower beneath it, clear of
+      // the names beside them.)
+      const firsts = own.filter((x) => (x.tier ?? 1) === 1);
+      for (const u of firsts) {
+        const to = pos.get(u.id)!;
+        const cls = `${levelOf(meta, u.id) ? 'lit' : ''} ${mobile && br !== shown ? 'up-off' : ''}`;
+        if (mobile && to.length === 4 && firsts.length > 1) {
+          // (Up from the petal's tip, across beneath the row, and up to the skill: an elbow, clear of the names.)
+          const r = ((270 - br.dir) * Math.PI) / 180;
+          const k = TIP + 0.07;
+          const tip: Pt = [-TIP * Math.sin(r), -TIP * Math.cos(r), 0, 0];
+          const mid: Pt = [-k * Math.sin(r), -k * Math.cos(r), 0, 0];
+          const under: Pt = [-k * Math.sin(r), -k * Math.cos(r), to[2], to[3]];
+          if (u === firsts[0]) stems.push(line(tip, mid, cls, br.colour, br.g));
+          stems.push(line(mid, under, cls, br.colour, br.g), line(under, to, cls, br.colour, br.g));
+        } else stems.push(line(place(deg, TIP), to, cls, br.colour, br.g));
+      }
     }
     // The links: the heart to each first tier, each skill to what it needs.
     const links = skills
@@ -1700,7 +1736,20 @@ export class CampaignView {
               : ''
           }
         </div>
+        ${this.renderAffinity(meta)}
       </div>`;
+  }
+
+  /** The races Kinship and Fellowship lean rewards to, picked under the tree (once either is learnt). */
+  private renderAffinity(meta: MetaState): string {
+    const k = levelOf(meta, 'kinship');
+    if (!k) return '';
+    const a = meta.affinity ?? {};
+    const row = (which: 'primary' | 'secondary', label: string, open: boolean) =>
+      open
+        ? `<div class="up-aff-row"><small>${label}</small>${CORE_RACES.map((r) => `<button class="up-aff ${a[which] === r ? 'on' : ''}" data-act="cmp-aff" data-arg="${which}:${r}" style="--rc:${FACTION_COLOUR[`f${r + 1}`] ?? '#8a93a6'}" aria-label="${esc(RACE_NAMES[r])}" aria-pressed="${a[which] === r}">${factionAvatar(`f${r + 1}`, 'up-aff-emblem')}</button>`).join('')}</div>`
+        : '';
+    return `<div class="up-affinity">${row('primary', 'favoured', true)}${row('secondary', 'second', k > KINSHIP_PRIMARY_LEVELS)}</div>`;
   }
 
   /**

@@ -1445,6 +1445,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     isAI: false,
     race,
     ...(human ? { human: true } : {}),
+    ...(human && run.affinity ? { affinity: run.affinity } : {}),
     materials: CAMPAIGN.startMaterials + run.materials,
     ship,
     hero,

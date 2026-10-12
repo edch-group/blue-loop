@@ -20,6 +20,10 @@ import {
   simulateBattle,
   RIVAL_NODES,
   SLAY_LOOT,
+  raceWeight,
+  runBonuses,
+  setAffinity,
+  buyUpgrade,
   type CampaignState,
 } from '../src/engine';
 
@@ -144,6 +148,26 @@ describe("Power Struggles on the Captain's runs", () => {
     expect(t.cardRewards.at(-1)!.options.every((id) => cardDef(id).race === 2 && cardDef(id).rarity !== undefined)).toBe(true);
     expect(t.slain).toContain(hero);
     expect(myArmy(t).deck).not.toContain(hero);
+  });
+});
+
+describe('Kinship', () => {
+  it("lean the Captain's rewards: a big lean to the favoured race, a smaller one to the second", () => {
+    let meta = { ...emptyMeta(), xp: 9999 };
+    for (let i = 0; i < 5; i++) meta = buyUpgrade(meta, 'kinship');
+    meta = setAffinity(setAffinity(meta, 'primary', 2), 'secondary', 0);
+    const s = createCampaign({ seed: 3, captain: CAPTAIN, run: runBonuses(meta) });
+    const me = s.factions.find((f) => f.id === s.playerId)!;
+    expect(me.affinity).toMatchObject({ primary: 2, secondary: 0 });
+    expect(raceWeight(me, 2)).toBe(5);
+    expect(raceWeight(me, 0)).toBe(2);
+    expect(raceWeight(me, 1)).toBe(1);
+    expect(raceWeight(me, undefined)).toBe(1);
+  });
+
+  it('never favours one race twice', () => {
+    const meta = setAffinity(setAffinity(emptyMeta(), 'primary', 1), 'secondary', 1);
+    expect(meta.affinity).toEqual({ primary: undefined, secondary: 1 });
   });
 });
 
