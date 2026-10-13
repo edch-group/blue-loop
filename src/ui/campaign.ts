@@ -2375,9 +2375,9 @@ export class CampaignView {
       const world = back && front ? nebulaOn(back, front, { clearSky: true }) : null;
       const flower = box.querySelector<HTMLElement>('.cs-stellari');
       const sunrise = box.querySelector<HTMLElement>('.cs-sunrise');
-      // (The Stellari keeps ahead of the flight, to the right on the horizon: the ship always flying toward it.)
-      const AHEAD: [number, number] = [7, -0.2];
-      let stellari: [number, number] = [AHEAD[0] - 3.6, AHEAD[1]];
+      // (The Stellari stands at the land's far end, to the right on the horizon, the land in front of its foot: as the
+      // flight goes on it draws nearer, the ship flying toward it.)
+      const stellari: [number, number] = [6.2, -1.2];
       const LOOP = 150;
       let toward = 0, lastT = 0;
       const flight = (time: number) => {
@@ -2391,7 +2391,6 @@ export class CampaignView {
         world.drive((time) => {
           const f = flight(time);
           world.setCollapse(f.x - 0.5, f.x + 0.1);
-          stellari = [f.x + AHEAD[0], AHEAD[1]];
 
           // (Faded out and back as the flight comes round to its start: the land whole again.)
           const edge = Math.min(f.k, 1 - f.k) * LOOP;
@@ -2428,11 +2427,11 @@ export class CampaignView {
         // The Stellari, white and fully open [direction: the white fully open Stellari, not the campaign map's; cut off
         // by the landscape, just in front of the sunrise]: standing on the horizon behind the land, its size its
         // distance (it grows as the camera glides to it for Enlightenment).
-        const foot = world?.toScreen(stellari[0], PLANE_Y + 0.05, stellari[1]);
+        const foot = world?.toScreen(stellari[0], PLANE_Y - 0.12, stellari[1]);
         if (flower && foot) {
           flower.style.left = `${foot.x.toFixed(1)}px`;
           flower.style.top = `${foot.y.toFixed(1)}px`;
-          flower.style.setProperty('--fs', `${Math.min(900, 1150 / Math.max(0.5, foot.depth)).toFixed(1)}px`);
+          flower.style.setProperty('--fs', `${Math.min(1100, 1700 / Math.max(0.5, foot.depth)).toFixed(1)}px`);
         }
         // Each section's node, off to one side of its place, its stem running to it: down (or up), then across.
         // (In the page's own pixels: the ship's canvas sits in the page, the land's fills it.)
@@ -2443,14 +2442,14 @@ export class CampaignView {
           if (zone === 'research') return at ? { x: at.x, y: at.y } : null;
           return page(base.anchorAt(zone));
         };
-        const OFF: Record<BaseZone, [number, number]> = { captain: [-0.09, -0.2], hangar: [-0.12, 0.17], research: [-0.07, -0.17] };
+        const OFF: Record<BaseZone, [number, number]> = { captain: [-0.09, -0.2], hangar: [-0.12, 0.17], research: [-0.08, 0.2] };
         for (const zone of BASE_ZONES) {
           const p = place(zone);
           const node = box.querySelector<HTMLElement>(`.cs-node[data-zone="${zone}"]`);
           const path = box.querySelector<SVGPathElement>(`.cs-stems path[data-zone="${zone}"]`);
           const dot = box.querySelector<SVGCircleElement>(`.cs-stems circle[data-zone="${zone}"]`);
           if (!p || !node || !path || !dot) continue;
-          const nx = Math.max(90, Math.min(W - 90, p.x + OFF[zone][0] * W)), ny = Math.max(70, Math.min(H - 90, p.y + OFF[zone][1] * H));
+          const nx = Math.max(90, Math.min(W - 160, p.x + OFF[zone][0] * W)), ny = Math.max(110, Math.min(H - 110, p.y + OFF[zone][1] * H));
           node.style.left = `${nx.toFixed(1)}px`;
           node.style.top = `${ny.toFixed(1)}px`;
           path.setAttribute('d', `M${nx.toFixed(1)} ${ny.toFixed(1)}H${p.x.toFixed(1)}V${p.y.toFixed(1)}`);
