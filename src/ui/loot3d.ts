@@ -92,31 +92,29 @@ function part(m: Mesh, kind: PartKind, rarity: string) {
 }
 
 /**
- * The loot cache [direction: futuristic loot, not a treasure chest; more alien, smooth edges, a 3D object]: a smooth
- * pearl-white pod, its upper shell lifted a finger's width off the lower, a ring of cold light in the gap between;
- * three dark ribs curving over it from below, lights set along them; a glowing nub at its crown and a light under it.
+ * The loot cache [direction: futuristic loot, not a treasure chest; more alien, smooth edges, a 3D object; a futuristic
+ * cube]: a pearl-white cube, its edges and corners rounded smooth, split round its middle by a line of cold light (its
+ * upper half lifted a hair off the lower), a ring of light set into the middle of every face, a lens glowing in each.
  */
 function cache(m: Mesh) {
-  const PEARL: RGB = [0.93, 0.94, 0.97], RIB: RGB = [0.3, 0.34, 0.42], LIGHT: RGB = [0.7, 0.9, 1];
-  // The lower body, the core's light in the seam, and the upper shell over it.
-  m.orb(20, 12, -9, 12, 12, 9, PEARL, PEARL_MAT, false, 48, 24);
-  m.ring(20, 12, 0.4, 12.1, 0.45, 0, LIGHT, GLOW);
-  m.orb(20, 12, 0.9, 12.3, 12.3, 7.4, PEARL, PEARL_MAT, true, 48, 14);
-  // Ribs: from under it, up its side and over the shell toward the crown, each set with lights.
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + 0.5;
-    const pts: V3[] = Array.from({ length: 12 }, (_, k) => {
-      const t = k / 11, ph = -1.2 + t * 2.35;
-      const r = 12.6 * Math.cos(ph), z = (ph < 0 ? 9.6 : 8.2) * Math.sin(ph) + 0.4;
-      return [20 + Math.cos(a) * r, 12 + Math.sin(a) * r, z];
+  const PEARL: RGB = [0.93, 0.94, 0.97], RIM: RGB = [0.3, 0.34, 0.42], LIGHT: RGB = [0.7, 0.9, 1];
+  const R = 9;
+  // The two halves, the seam of light between them.
+  m.rbox(20, 12, -R / 2 - 0.15, R, R, R / 2, PEARL, PEARL_MAT, 7, 5, 48, 24);
+  m.rbox(20, 12, R / 2 + 0.15, R, R, R / 2, PEARL, PEARL_MAT, 7, 5, 48, 24);
+  m.rbox(20, 12, 0, R - 0.25, R - 0.25, 0.4, LIGHT, GLOW, 7, 2, 48, 6);
+  // A ring of light on every face, a dark rim round it, a lens in it.
+  const face = (at: V3, dir: V3) =>
+    m.orient(at, dir, () => {
+      m.ring(20.05, 12, 0, 3.6, 0.32, Math.PI / 2, RIM, PEARL_MAT);
+      m.ring(20.15, 12, 0, 2.9, 0.22, Math.PI / 2, LIGHT, GLOW);
+      m.orb(20, 12, 0, 0.6, 1.9, 1.9, LIGHT, GLOW, false, 20, 10);
     });
-    m.tube(pts, 0.9, 0.45, RIB, PEARL_MAT, 12);
-    for (const k of [3, 6]) m.ball(pts[k][0], pts[k][1], pts[k][2], 0.55, LIGHT, GLOW, 8, 5);
-  }
-  // A nub of light at its crown, and a light under it.
-  m.orb(20, 12, 8, 2.4, 2.4, 1.2, RIB, PEARL_MAT, true, 20, 6);
-  m.ball(20, 12, 9.4, 1.3, LIGHT, GLOW, 12, 8);
-  m.ball(20, 12, -9.2, 1.6, LIGHT, GLOW, 12, 8);
+  face([20 + R - 0.35, 12, 0], [1, 0, 0]);
+  face([20 - R + 0.35, 12, 0], [-1, 0, 0]);
+  face([20, 12 + R - 0.35, 0], [0, 1, 0]);
+  face([20, 12 - R + 0.35, 0], [0, -1, 0]);
+  face([20, 12, R - 0.05], [0, 0, 1]);
 }
 
 /** What a tile shows: a petal, the loot cache, or a part (its kind and rarity). */
@@ -194,7 +192,7 @@ class Renderer {
       // Turning slowly, tipped toward the eye, rocking a little. (A petal, thin, only swings to and fro: never seen edge on.)
       const petal = t.key === 'petal', pod = t.key === 'cache';
       const turn = petal ? 0.7 * Math.sin(time * 0.8 + t.phase) : time * (pod ? 0.35 : 0.7) + t.phase;
-      const model: M4 = mul(rotX((petal ? 0.15 : pod ? 0.42 : 0.35) + 0.08 * Math.sin(time * 0.9 + t.phase)), mul(rotY(turn), scale(petal ? 1.55 : pod ? 1.75 : 1.5)));
+      const model: M4 = mul(rotX((petal ? 0.15 : pod ? 0.42 : 0.35) + 0.08 * Math.sin(time * 0.9 + t.phase)), mul(rotY(turn), scale(petal ? 1.55 : pod ? 1.6 : 1.5)));
       gl.uniformMatrix4fv(u('uModel'), false, model);
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       attrs.forEach(([, size, off], i) => {
