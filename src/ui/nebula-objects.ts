@@ -66,8 +66,8 @@ export const WARP_SECONDS = 1.1;
  * A flight from star to star (the Captain's ship, without its warp drive) [direction: the ship first turns towards the
  * node, then a slightly faster bobbing flight]: it turns to face where it is going, then flies there, bobbing.
  */
-export const FLY_TURN = 0.8;
-export const FLY_SECONDS = FLY_TURN + 2.6;
+export const FLY_TURN = 0.4;
+export const FLY_SECONDS = FLY_TURN + 1.3;
 const WARP_PHASES = [0.42, 0.58] as const;
 
 /** A ship on the map: where it is bound (world x, z, over a star), and its holder's colour. */
