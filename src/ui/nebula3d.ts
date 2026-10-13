@@ -406,8 +406,9 @@ class Layer {
   /** The most pixels it draws (the menu's backdrop draws fewer: it sits behind the ship, softly). */
   maxPixels = 4.6e6;
 
-  constructor(readonly canvas: HTMLCanvasElement, readonly front: boolean) {
-    const gl = canvas.getContext('webgl', front ? { antialias: true, alpha: true, premultipliedAlpha: true, depth: true } : { antialias: true, alpha: false, depth: true, stencil: true });
+  constructor(readonly canvas: HTMLCanvasElement, readonly front: boolean, readonly clearSky = false) {
+    // (A clear sky: see-through where no land is, so what lies behind the canvas shows over the horizon, cut off by it.)
+    const gl = canvas.getContext('webgl', front ? { antialias: true, alpha: true, premultipliedAlpha: true, depth: true } : { antialias: true, alpha: clearSky, premultipliedAlpha: true, depth: true, stencil: true });
     if (!gl) throw new Error('no webgl');
     this.gl = gl;
     gl.getExtension('OES_standard_derivatives');
@@ -487,7 +488,7 @@ class Layer {
       c.height = h;
     }
     gl.viewport(0, 0, w, h);
-    if (this.front) gl.clearColor(0, 0, 0, 0);
+    if (this.front || this.clearSky) gl.clearColor(0, 0, 0, 0);
     else gl.clearColor(PAPER[0], PAPER[1], PAPER[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
@@ -621,8 +622,8 @@ export class Nebula {
   private thrusting = false;
   camera: Camera | null = null;
 
-  constructor(readonly back: HTMLCanvasElement, readonly front: HTMLCanvasElement | null) {
-    this.layers = [new Layer(back, false)];
+  constructor(readonly back: HTMLCanvasElement, readonly front: HTMLCanvasElement | null, opts: { clearSky?: boolean } = {}) {
+    this.layers = [new Layer(back, false, !!opts.clearSky)];
     if (front) {
       try {
         this.layers.push(new Layer(front, true));
@@ -1060,11 +1061,11 @@ export function canNebula(): boolean {
 }
 
 /** The nebula on its canvases (made the first time; null where WebGL is unavailable, and the map simply goes without). */
-export function nebulaOn(back: HTMLCanvasElement, front: HTMLCanvasElement | null): Nebula | null {
+export function nebulaOn(back: HTMLCanvasElement, front: HTMLCanvasElement | null, opts: { clearSky?: boolean } = {}): Nebula | null {
   if (!nebulae.has(back)) {
     let n: Nebula | null = null;
     try {
-      n = new Nebula(back, front);
+      n = new Nebula(back, front, opts);
     } catch {
       n = null;
     }

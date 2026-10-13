@@ -1559,8 +1559,9 @@ export class CampaignView {
       `<button class="cs-base-label cs-node" data-zone="${zone}" data-act="${act}"><span class="up-node-disc">${mark}</span><span class="cs-node-text"><b>${title}</b><small>${sub}</small></span></button>`;
     const body = canNebula()
       ? `<div class="cs-base">
-          <canvas class="cs-world cs-world-back" aria-hidden="true"></canvas>
           <div class="cs-sunrise" aria-hidden="true"></div>
+          <div class="cs-stellari" aria-hidden="true">${stellariaFlower()}</div>
+          <canvas class="cs-world cs-world-back" aria-hidden="true"></canvas>
           <canvas class="cs-world cs-world-front" aria-hidden="true"></canvas>
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
           <div class="cs-nodes">
@@ -2371,13 +2372,14 @@ export class CampaignView {
       // behind the ship to reveal a full colour galaxy, as the map's instability does]: the map's own landscape, the
       // camera flying low along a valley toward the Stellari, the land breaking away a little behind it.
       const back = box.querySelector<HTMLCanvasElement>('canvas.cs-world-back'), front = box.querySelector<HTMLCanvasElement>('canvas.cs-world-front');
-      const world = back && front ? nebulaOn(back, front) : null;
+      const world = back && front ? nebulaOn(back, front, { clearSky: true }) : null;
+      const flower = box.querySelector<HTMLElement>('.cs-stellari');
       const sunrise = box.querySelector<HTMLElement>('.cs-sunrise');
       // (The Stellari keeps ahead of the flight, to the right on the horizon: the ship always flying toward it.)
       const AHEAD: [number, number] = [7, -0.2];
       let stellari: [number, number] = [AHEAD[0] - 3.6, AHEAD[1]];
       const LOOP = 150;
-      let toward = 0, lastT = 0, placedAt = -99;
+      let toward = 0, lastT = 0;
       const flight = (time: number) => {
         const k = (time % LOOP) / LOOP;
         return { x: -3.6 + 6 * k, k };
@@ -2390,17 +2392,14 @@ export class CampaignView {
           const f = flight(time);
           world.setCollapse(f.x - 0.5, f.x + 0.1);
           stellari = [f.x + AHEAD[0], AHEAD[1]];
-          // (Moved on only now and then: it drifts slowly, and each move rebuilds the scene's list.)
-          if (Math.abs(stellari[0] - placedAt) > 0.01) {
-            placedAt = stellari[0];
-            world.setObjects([{ x: stellari[0], z: stellari[1], heart: true, seed: 3 }]);
-          }
+
           // (Faded out and back as the flight comes round to its start: the land whole again.)
           const edge = Math.min(f.k, 1 - f.k) * LOOP;
           const shown = Math.min(1, edge / 1.5).toFixed(3);
           if (back) back.style.opacity = shown;
           if (front) front.style.opacity = shown;
           if (sunrise) sunrise.style.opacity = shown;
+          if (flower) flower.style.opacity = shown;
           // Enlightenment open: the camera glides down to the Stellari, set at the foot of the screen, where the
           // skill tree's own Stellari comes in over it.
           const dt = Math.max(0, Math.min(0.1, time - lastT));
@@ -2425,6 +2424,15 @@ export class CampaignView {
         if (sunrise && at) {
           sunrise.style.left = `${at.x.toFixed(1)}px`;
           sunrise.style.top = `${at.y.toFixed(1)}px`;
+        }
+        // The Stellari, white and fully open [direction: the white fully open Stellari, not the campaign map's; cut off
+        // by the landscape, just in front of the sunrise]: standing on the horizon behind the land, its size its
+        // distance (it grows as the camera glides to it for Enlightenment).
+        const foot = world?.toScreen(stellari[0], PLANE_Y + 0.05, stellari[1]);
+        if (flower && foot) {
+          flower.style.left = `${foot.x.toFixed(1)}px`;
+          flower.style.top = `${foot.y.toFixed(1)}px`;
+          flower.style.setProperty('--fs', `${Math.min(900, 1150 / Math.max(0.5, foot.depth)).toFixed(1)}px`);
         }
         // Each section's node, off to one side of its place, its stem running to it: down (or up), then across.
         // (In the page's own pixels: the ship's canvas sits in the page, the land's fills it.)
