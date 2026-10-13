@@ -238,10 +238,13 @@ void main() {
  */
 const MASK_VERT = `
 attribute vec3 aPos; attribute vec4 aShard; attribute float aProg;
-uniform mat4 uView; uniform mat4 uProj; uniform float uGone;
+uniform mat4 uView; uniform mat4 uProj; uniform float uGone; uniform float uSoft;
 void main() {
   float fall = (uGone - aProg) / 1.6 + aShard.w * 0.45;
-  gl_Position = fall > 0.0 ? uProj * uView * vec4(aPos.x, aPos.y - 0.12, aPos.z, 1.0) : vec4(2.0, 2.0, 2.0, 1.0);
+  // (Soft, as on the campaign menu: right where it lay. Its camera rides so low that, set below, the far edge of each
+  // hole showed neither land nor sky beneath, a gap the page showed through, looking like a pale shard that vanished
+  // as the next shard went.)
+  gl_Position = fall > 0.0 ? uProj * uView * vec4(aPos.x, aPos.y - (uSoft > 0.5 ? 0.0 : 0.12), aPos.z, 1.0) : vec4(2.0, 2.0, 2.0, 1.0);
 }`;
 const MASK_FRAG = `
 precision mediump float;
