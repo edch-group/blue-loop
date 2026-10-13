@@ -205,6 +205,13 @@ const GALAXY_GLYPH: Record<GalaxyKind, string> = {
 /** Materials: a bronze-strapped crate on an emblem's dark disc, in its pale rim [direction: the materials icon matching the emblems]. Earned from systems taken, finds and battles; spent on everything (cards, fusing, repairs). */
 const MATERIALS =
   '<svg class="cur cur-materials" viewBox="0 0 40 40" aria-label="materials"><circle cx="20" cy="20" r="19.2" fill="url(#tok-rim)" stroke="#bdbcb5" stroke-width=".6"/><circle cx="20" cy="20" r="15.6" fill="url(#tok-disc)" stroke="#0c0f20" stroke-width=".8"/><circle cx="20" cy="20" r="13" fill="url(#tok-gold-glow)"/><path d="M20 9.5 29.5 14.8 20 20 10.5 14.8Z" fill="url(#crate-top)"/><path d="M10.5 14.8 20 20v10.8L10.5 25.6Z" fill="url(#crate-left)"/><path d="M20 20 29.5 14.8v10.8L20 30.8Z" fill="url(#crate-right)"/><path d="M12.6 16 12.6 26.7M27.4 16v10.7M15.2 12.4 24.8 17.6" stroke="#f3dfb0" stroke-width="1.1" opacity=".85"/><path d="M20 9.5 29.5 14.8v10.8L20 30.8 10.5 25.6V14.8ZM10.5 14.8 20 20 29.5 14.8M20 20v10.8" fill="none" stroke="#2c1a08" stroke-width=".8" stroke-linejoin="round"/><path d="M11.4 14.9 20 10.2 28.6 14.9" fill="none" stroke="#fff6dc" stroke-width=".7" opacity=".9"/></svg>';
+/**
+ * Petals as the loot shows them [direction: in keeping with the size and style of the materials beside it]: a token
+ * as the materials' is (its rim, its dark disc, the gold glow in it), a Stellari petal in it lit as the crate is, pearl
+ * white shading to blue, a vein down it and a light along its edge.
+ */
+const PETAL_TOKEN =
+  '<svg class="cur cur-materials" viewBox="0 0 40 40" aria-label="petals"><defs><linearGradient id="pt-l" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cbd8f0"/></linearGradient><linearGradient id="pt-r" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b9c8e6"/><stop offset="1" stop-color="#8ea2cc"/></linearGradient></defs><circle cx="20" cy="20" r="19.2" fill="url(#tok-rim)" stroke="#bdbcb5" stroke-width=".6"/><circle cx="20" cy="20" r="15.6" fill="url(#tok-disc)" stroke="#0c0f20" stroke-width=".8"/><circle cx="20" cy="20" r="13" fill="url(#tok-gold-glow)"/><path d="M20 8.6C26.6 13 26.6 25.4 20 31.4Z" fill="url(#pt-r)"/><path d="M20 8.6C13.4 13 13.4 25.4 20 31.4Z" fill="url(#pt-l)"/><path d="M20 10.4V29.4" stroke="#8fa6d4" stroke-width=".9" stroke-linecap="round" opacity=".85"/><path d="M20 8.6C26.6 13 26.6 25.4 20 31.4 13.4 25.4 13.4 13 20 8.6Z" fill="none" stroke="#1e2440" stroke-width=".8" stroke-linejoin="round"/><path d="M18.2 11.8C15.6 15 15.4 21 17.4 25.6" fill="none" stroke="#fff" stroke-width=".8" stroke-linecap="round" opacity=".9"/></svg>';
 /** A station on the map: an armoury (a crate) or a research station (a ringed flask). */
 const ARMORY_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7 10 3.5 17 7v7L10 17.5 3 14Z" fill="#c99a52" stroke="#7d5a26" stroke-width=".9" stroke-linejoin="round"/><path d="M3 7 10 10.5 17 7M10 10.5v7" fill="none" stroke="#7d5a26" stroke-width=".9"/></svg>';
@@ -2783,7 +2790,7 @@ export class CampaignView {
       }, 1200);
     };
     this.cineTimer = window.setTimeout(wait, 500);
-    this.host.render();
+    // (No page drawn afresh here: the shots' look is the same through the pull back, and building it again stalled it.)
   }
 
   private static readonly TILT = 0; // (Bird's-eye: straight down on the strip.)
@@ -2883,6 +2890,9 @@ export class CampaignView {
         // options after it, once it has settled.
         if (this.menuIntro === 'loading') {
           const ENTRY = 3.2;
+          // (Held off to the left from its first frame, so it never shows at rest before flying in.)
+          base.arrive(ENTRY, false);
+          world.smooth = true;
           let drawn = 0;
           const ready = () => {
             if (!box.isConnected || this.menuIntro !== 'loading') return;
@@ -2892,6 +2902,7 @@ export class CampaignView {
             box.classList.remove('cs-base-hidden');
             base.arrive(ENTRY);
             window.setTimeout(() => {
+              world.smooth = false;
               if (this.menuIntro !== 'arriving') return;
               this.menuIntro = null;
               box.querySelector('.cs-nodes')?.classList.remove('cs-nodes-wait');
@@ -3732,8 +3743,8 @@ export class CampaignView {
       // an emblem its badge, its name, what it does; a card itself.)
       const items = [
         l.materials ? `<div class="loot-tile loot-res" title="Materials"><span class="loot-glow">${MATERIALS}</span><b>+${l.materials}</b></div>` : '',
-        // (Petals and ship parts as things, turning: loot3d.ts.)
-        l.petals ? `<div class="loot-tile loot-res" title="Stellari petals"><span class="loot-glow">${canNebula() ? '<canvas class="loot-3d" data-loot3d="petal"></canvas>' : PETAL}</span><b>+${l.petals}</b></div>` : '',
+        // (Petals a token as the materials are; ship parts as things, turning: loot3d.ts.)
+        l.petals ? `<div class="loot-tile loot-res" title="Stellari petals"><span class="loot-glow">${PETAL_TOKEN}</span><b>+${l.petals}</b></div>` : '',
         ...l.relics.map((r) => `<div class="loot-tile loot-emblem"><span class="loot-glow"><span class="cmp-relic">${relicMark(r.name, r.slot)}</span></span><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div>`),
         ...l.cards.map((id) => `<div class="loot-tile loot-card"><span class="loot-glow">${cardHtml(id)}</span></div>`),
         ...(l.parts ?? []).map((id) => `<div class="loot-tile loot-part" title="Ship part"><span class="loot-glow">${canNebula() && shipPart(id) ? `<canvas class="loot-3d" data-loot3d="${shipPart(id)!.kind}:${shipPart(id)!.rarity}"></canvas>` : partShape(id)}</span><b>${esc(shipPart(id)?.name.toLowerCase() ?? '')}</b></div>`),

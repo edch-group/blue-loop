@@ -239,9 +239,14 @@ export class Base3d {
    * The ship flying in [direction: on first opening the campaign menu, the ship flying in from the left before
    * settling into its place]: from far off to the left, easing out as it comes to rest, its nose dipping as it slows.
    */
-  private entry: { t0: number; dur: number } | null = null;
-  arrive(dur: number) {
-    this.entry = { t0: this.time(), dur };
+  private entry: { t0: number | null; dur: number } | null = null;
+  /** Held off to the left (`go` false) until the scene is shown, then flown in (`arrive(dur, true)`). */
+  arrive(dur: number, go = true) {
+    this.entry = { t0: go ? this.time() : null, dur };
+  }
+  /** Whether the ship is still flying in (the scene drawn every frame meanwhile). */
+  get entering(): boolean {
+    return !!this.entry;
   }
 
   /** The companions aboard (each drawn where it stands; built once). */
@@ -349,7 +354,7 @@ export class Base3d {
     if (!this.canvas.isConnected) return this.destroy();
     this.raf = requestAnimationFrame(this.loop);
     // (Handing over to the campaign, every frame: its camera moves with the land's, which is drawn every frame too.)
-    if ((now - this.last < 32 && !this.handOver) || this.paused) return;
+    if ((now - this.last < 32 && !this.handOver && !this.entry) || this.paused) return;
     this.last = now;
     this.draw();
     this.onFrame?.();
@@ -393,7 +398,7 @@ export class Base3d {
     // (Flying in: off to the left, easing out to its place.)
     let ex = 0, ey = 0, tip = 0;
     if (this.entry) {
-      const k = Math.min(1, (t - this.entry.t0) / this.entry.dur);
+      const k = this.entry.t0 === null ? 0 : Math.min(1, (t - this.entry.t0) / this.entry.dur);
       const left = Math.pow(1 - k, 3);
       ex = -16 * left;
       ey = 0.6 * left;

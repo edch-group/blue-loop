@@ -1016,7 +1016,40 @@ export class Nebula {
   private driver: ((time: number) => Pose) | null = null;
   /** Draw no more than this many pixels on each layer. */
   setPixelBudget(n: number) {
-    for (const l of this.layers) l.maxPixels = n;
+    this.budget = n;
+    this.applyBudget();
+  }
+  /**
+   * The pixel budget, and how much of it is drawn now: while the camera sweeps (the opening shot, a glide) and frames
+   * come slower than the screen's, fewer pixels are drawn (down to under a third), so the sweep keeps its pace; full
+   * again once it is still.
+   */
+  private budget = 4.6e6;
+  private res = 1;
+  private load = 0;
+  private resAt = 0;
+  private applyBudget() {
+    for (const l of this.layers) l.maxPixels = this.budget * this.res * this.res;
+    this.forceDraw = true;
+  }
+  private adapt(t: number, dt: number) {
+    const sweeping = !!this.cine || !!this.glide;
+    if (!sweeping) {
+      this.load = 0;
+      if (this.res < 1) {
+        this.res = 1;
+        this.applyBudget();
+      }
+      return;
+    }
+    if (dt <= 0) return;
+    this.load = this.load ? this.load * 0.85 + dt * 0.15 : dt;
+    if (this.load > 1 / 48 && this.res > 0.55 && t - this.resAt > 300) {
+      this.res = Math.max(0.55, this.res * 0.85);
+      this.resAt = t;
+      this.load = 0;
+      this.applyBudget();
+    }
   }
   drive(f: ((time: number) => Pose) | null) {
     this.driver = f;
@@ -1116,6 +1149,7 @@ export class Nebula {
       this.cine = null;
       this.homed = true;
     }
+    this.adapt(t, dt);
     const cam = this.makeCamera();
     if (cam) {
       // A new size is a new camera too (the map is laid on the plane from it).
