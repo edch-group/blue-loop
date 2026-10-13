@@ -43,7 +43,7 @@ const CRIMSON_DARK: RGB = [0.36, 0.08, 0.09];
 const LANCE_LIGHT: RGB = [1, 0.8, 0.38];
 const EYE: RGB = [0.1, 0.14, 0.32];
 /** How far Kaelen slouches forward over his lap. */
-const SLOUCH = 0.26;
+const SLOUCH = -0.2;
 
 /**
  * Kaelen, sitting easy on the rail [direction: more relaxed, slouched, spear facing down, one leg on the railing]: his
@@ -81,7 +81,7 @@ function lancerModel(): Float32Array {
   for (const sd of [-1, 1]) plate(m, [20 + sd * 1.8, 13.4, 21.6], [20 + sd * 1.9, 17.2, 21.2], 1.55, 0.45, IVORY, METAL, 0, 4);
   m.rbox(20, 12.4, 23.8, 3.6, 2.55, 0.5, GOLD, METAL, 2.6, 6);
   m.ball(20, 14.95, 23.8, 0.55, LANCE_LIGHT, GLOW, 10, 6);
-  // Slouched: the body above the hips rounded forward over his lap.
+  // Leaning back [direction: Kaelen leaning back a little, at ease, not stiff]: the body above the hips tipped back.
   turned(m, [20, 12.2, 22], 'x', SLOUCH, () => {
     // The cuirass: a narrow waist, the chest swelling over it, sculpted plates, a gold sunburst between.
     m.rbox(20, 12.2, 26, 2.4, 1.8, 2.4, IVORY_SHADE, METAL, 2.6, 2.6);
@@ -107,7 +107,7 @@ function lancerModel(): Float32Array {
     }
     // A long slim grey neck; the head, smooth and long, its crown swept back; one great eye; a narrow lipless face.
     m.cyl([20, 12.2, 33.4], [20, 12.5, 35.6], 0.8, 0.72, ALIEN, SOFT, 14);
-    turned(m, [20, 12.5, 35.8], 'x', 0.28, () => {
+    turned(m, [20, 12.5, 35.8], 'x', 0.5, () => {
       turned(m, [20, 12.3, 37.6], 'x', -0.5, () => m.rbox(20, 11.6, 38.6, 1.75, 2.9, 1.95, ALIEN, SOFT, 2, 2, 30, 18));
       m.rbox(20, 13, 37.2, 1.6, 1.45, 2.1, ALIEN, SOFT, 2, 2, 28, 16);
       m.rbox(20, 13.4, 35.6, 0.95, 1, 1, ALIEN_SHADE, SOFT, 2, 2, 18, 10);
@@ -128,6 +128,10 @@ function lancerModel(): Float32Array {
     tab.push([-1.3, -0.45, 0.45, 1.3].map((dx) => [20 + dx * (1 - t * 0.15), y + Math.abs(dx) * -0.1, z + (t < 0.6 ? 0.15 * (1.3 - Math.abs(dx)) : 0)] as V3));
   }
   cloth(m, tab, CRIMSON, GOLD);
+  const slouch = (p: V3): V3 => {
+    const c = Math.cos(SLOUCH), sn = Math.sin(SLOUCH), dy = p[1] - 12.2, dz = p[2] - 22;
+    return [p[0], 12.2 + dy * c + dz * sn, 22 - dy * sn + dz * c];
+  };
   // The cape: from the shoulders, down his back and over the rail onto the deck behind him.
   const grid: V3[][] = [];
   for (let r = 0; r <= 10; r++) {
@@ -136,17 +140,16 @@ function lancerModel(): Float32Array {
       const t = r / 10, a = Math.PI * (0.15 + 0.7 * (c / 8));
       const fold = 0.35 * Math.sin(c * 1.7 + t * 4) * t;
       const y = 10.6 - Math.sin(a) * 1.6 - (t > 0.45 ? (t - 0.45) * 9 : 0) + fold;
-      row.push([20 - Math.cos(a) * (4 + t * 1.6), y, Math.max(14.3, 32.2 - t * 26)]);
+      const at: V3 = [20 - Math.cos(a) * (4 + t * 1.6), y, Math.max(14.3, 32.2 - t * 26)];
+      // (Its top with his shoulders, leaning back.)
+      row.push(at[2] > 22 ? slouch(at) : at);
     }
     grid.push(row);
   }
   cloth(m, grid, CRIMSON, CRIMSON_DARK);
-  // Arms, from where his shoulders went as he slouched: the right forearm laid over the raised knee, the hand hanging
-  // loose past it; the left down at his side, holding the lance loosely, its blade pointing down over the side.
-  const slouch = (p: V3): V3 => {
-    const c = Math.cos(SLOUCH), sn = Math.sin(SLOUCH), dy = p[1] - 12.2, dz = p[2] - 22;
-    return [p[0], 12.2 + dy * c + dz * sn, 22 - dy * sn + dz * c];
-  };
+  // Arms, from where his shoulders went as he leant back: the right reaching back, its hand braced on the rail behind
+  // him [direction: the arm not holding the spear behind him]; the left down at his side, holding the lance loosely,
+  // its blade pointing down over the side.
   const arm = (sh: V3, el: V3, wr: V3) => {
     lim(m, [sh, el, wr], 0.9, 0.75, UNDERSUIT, SOFT);
     plate(m, lerp(sh, el, 0.15), lerp(sh, el, 0.9), 1.1, 1.05, IVORY, METAL);
@@ -154,9 +157,10 @@ function lancerModel(): Float32Array {
     plate(m, lerp(el, wr, 0.75), lerp(el, wr, 0.9), 1.06, 1.01, GOLD, METAL);
     m.rbox(el[0], el[1] - 0.4, el[2], 0.8, 0.55, 0.9, IVORY, METAL, 2.4, 2.4);
   };
-  const rw: V3 = [23.6, 19.4, 27.2];
-  arm(slouch([23.6, 12.2, 31.6]), [24.6, 15.2, 29.6], rw);
-  m.rbox(rw[0], rw[1] + 0.6, rw[2] - 0.9, 0.65, 0.8, 1, ALIEN, SOFT, 2.4, 2.4);
+  const rw: V3 = [24.4, 7.6, 20.6];
+  arm(slouch([23.6, 12.2, 31.6]), [25.6, 8.6, 26], rw);
+  // (The hand flat on the rail, fingers back.)
+  m.rbox(rw[0], rw[1] - 0.8, rw[2] - 0.5, 0.75, 1.1, 0.45, ALIEN, SOFT, 2.4, 2.4);
   const lw: V3 = [15.2, 15.4, 21.8];
   arm(slouch([16.4, 12.2, 31.6]), [15.2, 12.8, 26.6], lw);
   m.rbox(lw[0], lw[1] + 0.1, lw[2], 0.85, 0.9, 0.95, IVORY_SHADE, METAL, 2.6, 2.6);
