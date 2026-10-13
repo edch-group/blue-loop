@@ -7481,3 +7481,23 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .hg-mark.hg-dim { opacity: 0.35; pointer-events: none; }
 .hg-mark.hg-empty small, .hg-mark.hg-dim small { color: var(--ink-faint); }
 @keyframes hg-mark-pulse { 50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(214, 189, 122, 0.18), 0 2px 8px rgba(40, 50, 70, 0.18); } }
+
+/* ---------- The crew [direction: a near-full page overlay, tabs between each crew member's tree; the one chosen highlighted
+   on the left under their title, everything behind them covered; their tree on the right] ---------- */
+/* (No veil of its own: the 3D scene washes out all but the crew member, base3d.ts spotlight.) */
+.cs-captain-page .up-shop.crew-panel { left: 0; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; grid-template-rows: auto minmax(0, 1fr); }
+.crew-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+.crew-top .up-left { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.crew-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.1), 0 4px 12px rgba(70, 76, 100, 0.06); }
+.crew-tab { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border: 0; border-radius: 999px; background: none; cursor: var(--cur-pointer); font-family: var(--display); font-size: 0.58rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-faint); transition: background 0.15s, color 0.15s, box-shadow 0.15s; }
+.crew-tab:hover { color: var(--ink); }
+.crew-tab.on { background: #fff; color: var(--ink); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.16), 0 3px 8px rgba(70, 76, 100, 0.1); }
+.crew-tab i { display: grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #3a4256; color: #fff; font-style: normal; font-size: 0.52rem; letter-spacing: 0; }
+.crew-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 40%) minmax(0, 1fr); }
+/* (Centred over where the crew member stands, low on the left.) */
+.crew-who { display: grid; justify-items: center; align-content: start; gap: 6px; padding-top: clamp(6px, calc(3 * var(--vh)), 28px); text-align: center; pointer-events: none; }
+.crew-who h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.3rem, calc(5 * var(--vh)), 2.4rem); letter-spacing: 0.45em; text-indent: 0.45em; text-transform: uppercase; color: var(--ink); }
+.crew-learns { margin: 0; max-width: 34ch; font-size: 0.7rem; letter-spacing: 0.06em; color: #7d8496; }
+.crew-tree { min-height: 0; display: grid; }
+.crew-tree .hp-scroll { min-height: 0; }
+@media (max-width: 700px) { .crew-tab { padding: 7px 10px; letter-spacing: 0.16em; } .crew-body { grid-template-columns: minmax(0, 34%) minmax(0, 1fr); } }

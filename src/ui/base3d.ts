@@ -277,6 +277,21 @@ export class Base3d {
     this.focused = zone;
   }
 
+  /**
+   * The crew page's spotlight [direction: the crew member highlighted, a screen overlay covering everything behind
+   * them, so all the user sees is the highlighted crew member left and their skill tree right]: everything washed out
+   * in the page's white but the one figure (null: none).
+   */
+  spotlight(zone: BaseZone | null) {
+    this.lit = zone;
+    if (zone) this.litShown = zone;
+  }
+  private lit: BaseZone | null = null;
+  private litShown: BaseZone | null = null;
+  private veil = 0;
+  private veilProg: WebGLProgram | null = null;
+  private veilBuf: WebGLBuffer | null = null;
+
   private time() {
     return (performance.now() - this.start) / 1000;
   }
@@ -375,9 +390,9 @@ export class Base3d {
     const z = this.focused;
     const narrow = Math.min(1, aspect / 1.6);
     // (The Captain in the middle of the screen, low, his skill tree starting above his head and wrapping round him.)
-    if (z === 'captain') return { target: sub3(this.spot('captain'), [0, -0.14, 0]), yaw: 1.0, pitch: 0.02, dist: 2.0 / narrow, off: 0 };
-    // (A companion as the Captain is: in the middle, low, their tree above and round them.)
-    if (z && z !== 'hangar' && z !== 'research') return { target: sub3(this.spot(z), [0, -0.14, 0]), yaw: 1.0, pitch: 0.02, dist: 2.0 / narrow, off: 0 };
+    // (On the crew page [direction: the camera zooming onto each crew member, so they sit on the left of the screen,
+    // underneath their title]: whoever's tab is open, at the left, a little low, their tree on the right.)
+    if (z === 'captain' || (z && z !== 'hangar' && z !== 'research')) return { target: sub3(this.spot(z), [0, -0.1, 0]), yaw: 1.0, pitch: 0.04, dist: 2.3 / narrow, off: -0.29 };
     // (The ship from above [direction: a birdseye view of the actual ship, where parts are attached to it directly]:
     // its nose to the right, a little from astern and to port, on the left of the screen beside the hangar's page.)
     if (z === 'hangar') return { target: apply(scale(Base3d.SHIP_SCALE), B(20, 12, 5)), yaw: 0, pitch: 1.25, dist: 11.5 / narrow, off: -0.15 * narrow };
@@ -542,6 +557,41 @@ export class Base3d {
     locs.forEach((l) => l >= 0 && gl.disableVertexAttribArray(l));
 
     this.drawSprites(t);
+
+    // The spotlight: the page's white over everything, then the one figure drawn again over it.
+    this.veil += ((this.lit ? 1 : 0) - this.veil) * Math.min(1, dt * 4);
+    if (this.veil > 0.004 && this.litShown) {
+      if (!this.veilProg) {
+        this.veilProg = program(gl, 'attribute vec2 aP; void main() { gl_Position = vec4(aP, 0.0, 1.0); }', 'precision mediump float; uniform vec4 uC; void main() { gl_FragColor = uC; }');
+        this.veilBuf = this.buffer(new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]));
+      }
+      const vp = this.veilProg;
+      gl.useProgram(vp);
+      gl.disable(gl.DEPTH_TEST);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      const a = Math.min(1, this.veil);
+      gl.uniform4f(gl.getUniformLocation(vp, 'uC'), 0.984 * a, 0.984 * a, 0.988 * a, a);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.veilBuf);
+      const l = gl.getAttribLocation(vp, 'aP');
+      gl.enableVertexAttribArray(l);
+      gl.vertexAttribPointer(l, 2, gl.FLOAT, false, 8, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.disableVertexAttribArray(l);
+      gl.disable(gl.BLEND);
+      gl.enable(gl.DEPTH_TEST);
+      gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.useProgram(pr);
+      const z = this.litShown;
+      if (z === 'captain') {
+        drawMesh(this.capBuf, this.capCount, this.capM);
+        drawMesh(this.tailBuf, this.tailCount, tailM);
+      } else {
+        const c = this.crew.find((x) => x.id === z);
+        if (c) drawMesh(c.buf, c.count, c.m);
+      }
+      locs.forEach((l2) => l2 >= 0 && gl.disableVertexAttribArray(l2));
+    } else if (!this.lit) this.litShown = null;
   }
 
   /** The dust going by, the smoke from the ship's wounds, its engines' glow, and the light round the blade. */

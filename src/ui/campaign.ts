@@ -464,6 +464,9 @@ function partIcon(id: string): string {
   return canNebula() && p ? `<canvas class="part-3d" data-loot3d="${p.kind}:${p.rarity}"></canvas>` : partShape(id);
 }
 
+/** A crew member's page on the crew overlay: its tools (undo and the like), name, experience, note and tree. */
+type CrewPage = { tools: string; title: string; xp: string; note?: string; sheet: string };
+
 export class CampaignView {
   state: CampaignState | null = null;
   private selected: string | null = null;
@@ -1040,9 +1043,22 @@ export class CampaignView {
       }
       case 'cmp-hero':
         this.heroOpen = !this.heroOpen;
+        this.compOpen = null;
         this.hpScroll = null;
         this.capPlaced = [];
         this.capHistory = [];
+        this.compPlaced = [];
+        this.compHistory = [];
+        break;
+      case 'cmp-crew-tab':
+        // (Another of the crew: their tree, the camera turning to them.)
+        this.compOpen = arg === 'captain' ? null : (arg as CompanionId);
+        this.hpScroll = null;
+        this.capPlaced = [];
+        this.capHistory = [];
+        this.compPlaced = [];
+        this.compHistory = [];
+        sound.hover();
         break;
       case 'cmp-comp':
         this.compOpen = this.compOpen ? null : (arg as CompanionId);
@@ -1980,9 +1996,9 @@ export class CampaignView {
     const label = (zone: BaseZone, act: string, title: string, sub: string, mark: string, arg = '') =>
       `<button class="cs-base-label cs-node${shut(sectionOf(zone)) ? ' cs-node-shut' : ''}" data-zone="${zone}" data-act="${act}"${arg ? ` data-arg="${arg}"` : ''}${shut(sectionOf(zone)) ? ' disabled aria-disabled="true"' : ''}><span class="up-node-disc">${mark}</span><span class="cs-node-text"><b>${title}</b><small>${sub}</small></span></button>`;
     // (Each companion found has an option of their own, beside the Captain's.)
-    const crew = companionsFound(meta)
-      .map((id) => label(id, 'cmp-comp', esc(companionDef(id).name.toLowerCase()), `${companionPoints(meta, id)} skill point${companionPoints(meta, id) === 1 ? '' : 's'}`, MENU_EMBLEM[id], id))
-      .join('');
+    // (Once the first companion is found, the Captain's option is the crew's: the Captain's tree and each of theirs.)
+    const found = companionsFound(meta).filter((id) => meta.companions?.[id]);
+    const crewPoints = pointsLeft(meta) + found.reduce((n, id) => n + companionPoints(meta, id), 0);
     const body = canNebula()
       ? `<div class="cs-base${this.menuIntro === 'loading' ? ' cs-base-hidden' : ''}">
           <div class="cs-sunrise" aria-hidden="true"></div>
@@ -1990,8 +2006,7 @@ export class CampaignView {
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
           <div class="cs-nodes${this.menuIntro ? ' cs-nodes-wait' : ''}">
             <svg class="cs-arc" aria-hidden="true"><path/></svg>
-            ${label('captain', 'cmp-hero', 'the captain', `${pointsLeft(meta)} skill points`, MENU_EMBLEM.captain)}
-            ${crew}
+            ${found.length ? label('captain', 'cmp-hero', 'the crew', `${crewPoints} skill point${crewPoints === 1 ? '' : 's'}`, MENU_EMBLEM.captain) : label('captain', 'cmp-hero', 'the captain', `${pointsLeft(meta)} skill points`, MENU_EMBLEM.captain)}
             ${label('hangar', 'cmp-hangar', 'the ship', 'fit parts', MENU_EMBLEM.ship)}
             ${label('research', 'cmp-shop', 'the stellari', `${meta.petals} petals`, MENU_EMBLEM.stellari)}
           </div>
@@ -2017,8 +2032,7 @@ export class CampaignView {
         ${body}
         <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start">begin run</button></footer>
         ${this.shopOpen ? this.renderShop(meta) : ''}
-        ${this.heroOpen ? this.renderHeroPanel(meta) : ''}
-        ${this.compOpen && meta.companions?.[this.compOpen] ? this.renderCompanionPanel(meta, this.compOpen) : ''}
+        ${this.heroOpen ? this.renderCrew(meta) : ''}
         ${this.hangarOpen ? this.renderHangar(meta) : ''}
       </main>`;
   }
@@ -2029,7 +2043,7 @@ export class CampaignView {
    * it stands on the left, and on the right the tree: three stat paths, the ability slots, the abilities (learnt ones
    * carried into battle or left behind with a tap), and the ways to lead. Picking a node shows it below, with its price.
    */
-  private renderHeroPanel(meta: MetaState): string {
+  private renderHeroPanel(meta: MetaState): CrewPage {
     const c = captainMeta(meta);
     const placed = new Set(this.capPlaced);
     const left = pointsLeft(meta);
@@ -2112,20 +2126,13 @@ export class CampaignView {
       leads,
       sings,
     ];
-    const sheet = this.treeSheet(branches, placed, 'cmp-cap-pick', MENU_EMBLEM.captain);
-    return `
-      <div class="up-shop hero-panel">
-        <header class="up-head up-head-tree">
-          <div class="up-left">
-            <button class="up-back" data-act="cmp-hero" aria-label="Back">‹ back</button>
-            ${this.capPlaced.length ? '<button class="up-plan-undo" data-act="cmp-cap-undo">undo</button><button class="up-plan-undo" data-act="cmp-cap-clear">clear</button>' : ''}
-            ${captainPointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.capResetArmed ? 'armed' : ''}" data-act="cmp-cap-reset">${this.capResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}
-          </div>
-          <div class="up-title-big"><h3>the captain</h3><span class="up-xp">${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small></span></div>
-          <span></span>
-        </header>
-        ${sheet}
-      </div>`;
+    return {
+      tools: `${this.capPlaced.length ? '<button class="up-plan-undo" data-act="cmp-cap-undo">undo</button><button class="up-plan-undo" data-act="cmp-cap-clear">clear</button>' : ''}
+            ${captainPointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.capResetArmed ? 'armed' : ''}" data-act="cmp-cap-reset">${this.capResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}`,
+      title: 'the captain',
+      xp: `${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small>`,
+      sheet: this.treeSheet(branches, placed, 'cmp-cap-pick', MENU_EMBLEM.captain, true),
+    };
   }
 
   /**
@@ -2133,7 +2140,7 @@ export class CampaignView {
    * in battle]: their stats (attack, cost, stability), each a path, and what they can learn; laid out as the
    * Captain's is, their emblem at the foot. Experience comes only from what they do in battle.
    */
-  private renderCompanionPanel(meta: MetaState, id: CompanionId): string {
+  private renderCompanionPanel(meta: MetaState, id: CompanionId): CrewPage {
     const c = meta.companions![id]!;
     const d = companionDef(id);
     const placed = new Set(this.compPlaced);
@@ -2174,18 +2181,46 @@ export class CampaignView {
     ].filter((b) => b.items.length);
     const lv = companionLevel(c.xp);
     const card = companionCardId(id, c);
+    return {
+      tools: `${this.compPlaced.length ? '<button class="up-plan-undo" data-act="cmp-comp-undo">undo</button><button class="up-plan-undo" data-act="cmp-comp-clear">clear</button>' : ''}
+            <button class="up-plan-undo hp-card-peek" data-act="inspect" data-card="${esc(card)}">card</button>`,
+      title: esc(d.name.toLowerCase()),
+      xp: `${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${lv.level} · ${lv.into}/${lv.need}</small>`,
+      note: esc(d.learnsText.toLowerCase()),
+      sheet: this.treeSheet(branches, placed, 'cmp-comp-pick', MENU_EMBLEM[id], true),
+    };
+  }
+
+  /**
+   * The crew [direction: once the first crew member is found, the captain button becomes "crew", taking the user to a
+   * near-full page overlay where they can tab between each crew member's upgrade trees; the camera on each so they sit
+   * on the left, underneath their title; the crew member highlighted, everything behind them covered, so all that shows
+   * is them on the left and their skill tree on the right]: the Captain and each companion found, a tab each.
+   */
+  private renderCrew(meta: MetaState): string {
+    const crew = companionsFound(meta).filter((id) => meta.companions?.[id]);
+    const tab = this.compOpen && crew.includes(this.compOpen) ? this.compOpen : null;
+    const page = tab ? this.renderCompanionPanel(meta, tab) : this.renderHeroPanel(meta);
+    const tabs = crew.length
+      ? `<nav class="crew-tabs">${[null, ...crew]
+          .map((id) => {
+            const pts = id ? companionPoints(meta, id) : pointsLeft(meta);
+            const name = id ? companionDef(id).name.split(' ')[0].toLowerCase() : 'captain';
+            return `<button class="crew-tab ${id === tab ? 'on' : ''}" data-act="cmp-crew-tab" data-arg="${id ?? 'captain'}">${esc(name)}${pts ? `<i>${pts}</i>` : ''}</button>`;
+          })
+          .join('')}</nav>`
+      : '<span></span>';
     return `
-      <div class="up-shop hero-panel">
-        <header class="up-head up-head-tree">
-          <div class="up-left">
-            <button class="up-back" data-act="cmp-comp" data-arg="${id}" aria-label="Back">‹ back</button>
-            ${this.compPlaced.length ? '<button class="up-plan-undo" data-act="cmp-comp-undo">undo</button><button class="up-plan-undo" data-act="cmp-comp-clear">clear</button>' : ''}
-          </div>
-          <div class="up-title-big"><h3>${esc(d.name.toLowerCase())}</h3><span class="up-xp">${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${lv.level} · ${lv.into}/${lv.need}</small></span></div>
-          <button class="up-plan-undo hp-card-peek" data-act="inspect" data-card="${esc(card)}">card</button>
+      <div class="up-shop crew-panel">
+        <header class="crew-top">
+          <div class="up-left"><button class="up-back" data-act="cmp-hero" aria-label="Back">‹ back</button>${page.tools}</div>
+          ${tabs}
+          <span></span>
         </header>
-        <p class="hp-learns">${esc(d.learnsText.toLowerCase())}</p>
-        ${this.treeSheet(branches, placed, 'cmp-comp-pick', MENU_EMBLEM[id])}
+        <div class="crew-body">
+          <div class="crew-who"><h3>${page.title}</h3><span class="up-xp">${page.xp}</span>${page.note ? `<p class="crew-learns">${page.note}</p>` : ''}</div>
+          <div class="crew-tree">${page.sheet}</div>
+        </div>
       </div>`;
   }
 
@@ -2194,11 +2229,12 @@ export class CampaignView {
    * column of skills (its stem bent at right angles), each skill a mote of light with its name and what it is beside
    * it; the page opens at the foot and scrolls up. `act` is what a tap on a skill does (its key the argument).
    */
-  private treeSheet(branches: TreeBranch[], placed: Set<string>, act: string, emblem: string): string {
+  private treeSheet(branches: TreeBranch[], placed: Set<string>, act: string, emblem: string, half = false): string {
     // Laid out on a sheet 1000 wide: its columns side by side (on a phone, two at a time, each pair a tier further up),
     // a row of 92 a skill, his emblem at the foot.
-    // (Narrower than a desktop's, as a phone held sideways: three a tier, so every name has room.)
-    const narrow = window.innerWidth < 1000;
+    // (Narrower than a desktop's, as a phone held sideways: three a tier, so every name has room. On the crew page
+    // the tree has the right of the screen only.)
+    const narrow = window.innerWidth * (half ? 0.6 : 1) < 1000;
     const tiers = narrow ? [branches.slice(0, 3), branches.slice(3)] : [branches];
     const cols = tiers[0].length;
     const ROW = 92, FOOT = window.innerHeight < 520 ? 104 : 150, GAP = 70, TOP = 70;
@@ -3077,7 +3113,9 @@ export class CampaignView {
     this.base.setShip(this.metaShipSpec(meta));
     this.base.setCrew(companionsFound(meta));
     // (A section's page open: its camera, the ship flying on behind the page.)
-    this.base.focus(this.heroOpen ? 'captain' : this.compOpen ?? (this.hangarOpen ? 'hangar' : this.shopOpen ? 'research' : null));
+    const crewOn = this.heroOpen ? this.compOpen ?? 'captain' : null;
+    this.base.focus(crewOn ?? (this.hangarOpen ? 'hangar' : this.shopOpen ? 'research' : null));
+    this.base.spotlight(crewOn);
     this.base.onFrame?.();
   }
 
