@@ -137,7 +137,7 @@ import { voices } from './voice';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
 import { FLY_SECONDS, WARP_SECONDS } from './nebula-objects';
 import type { CaptainShipSpec } from './ship3d';
-import { Base3d, BASE_ZONES, type BaseZone } from './base3d';
+import { Base3d, type BaseZone } from './base3d';
 
 const KEY = 'blue-loop:campaign:v6';
 
@@ -1564,10 +1564,9 @@ export class CampaignView {
           <canvas class="cs-world cs-world-front" aria-hidden="true"></canvas>
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
           <div class="cs-nodes">
-            <svg class="cs-stems" aria-hidden="true">${(['hangar', 'captain', 'research'] as const).map((z) => `<path data-zone="${z}"/><circle data-zone="${z}" r="3"/>`).join('')}</svg>
-            ${label('hangar', 'cmp-hangar', 'ship', 'fit parts', SHIP_ICON)}
             ${label('captain', 'cmp-hero', 'the captain', `${pointsLeft(meta)} skill points`, XP_MARK)}
-            ${label('research', 'cmp-shop', 'enlightenment', `${meta.petals} petals`, PETAL)}
+            ${label('hangar', 'cmp-hangar', 'the ship', 'fit parts', SHIP_ICON)}
+            ${label('research', 'cmp-shop', 'the stellari', `${meta.petals} petals`, PETAL)}
           </div>
         </div>`
       : `<div class="cs-body cs-captain-body">
@@ -1587,10 +1586,6 @@ export class CampaignView {
         <header class="setup-top">
           <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
           <h2 class="menu-heading">a dying universe</h2>
-          <div class="cs-purses">
-            <button class="cs-petals" data-act="cmp-shop">${PETAL}<b>${meta.petals}</b><span>petals</span></button>
-            <button class="cs-petals cs-xp" data-act="cmp-hero">${XP_MARK}<b>${pointsLeft(meta)}</b><span>skill points</span></button>
-          </div>
         </header>
         ${body}
         <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start">begin run</button></footer>
@@ -2423,29 +2418,6 @@ export class CampaignView {
         if (sunrise && at) {
           sunrise.style.left = `${at.x.toFixed(1)}px`;
           sunrise.style.top = `${at.y.toFixed(1)}px`;
-        }
-        // Each section's node, off to one side of its place, its stem running to it: down (or up), then across.
-        // (In the page's own pixels: the ship's canvas sits in the page, the land's fills it.)
-        const r = canvas.getBoundingClientRect(), zoom = r.width / (canvas.clientWidth || r.width) || 1;
-        const page = (q: { x: number; y: number } | null) => (q ? { x: q.x + r.left / zoom, y: q.y + r.top / zoom } : null);
-        const W = window.innerWidth / zoom, H = window.innerHeight / zoom;
-        const place = (zone: BaseZone) => {
-          if (zone === 'research') return at ? { x: at.x, y: at.y } : null;
-          return page(base.anchorAt(zone));
-        };
-        const OFF: Record<BaseZone, [number, number]> = { captain: [-0.09, -0.2], hangar: [-0.12, 0.17], research: [-0.08, 0.2] };
-        for (const zone of BASE_ZONES) {
-          const p = place(zone);
-          const node = box.querySelector<HTMLElement>(`.cs-node[data-zone="${zone}"]`);
-          const path = box.querySelector<SVGPathElement>(`.cs-stems path[data-zone="${zone}"]`);
-          const dot = box.querySelector<SVGCircleElement>(`.cs-stems circle[data-zone="${zone}"]`);
-          if (!p || !node || !path || !dot) continue;
-          const nx = Math.max(90, Math.min(W - 160, p.x + OFF[zone][0] * W)), ny = Math.max(110, Math.min(H - 110, p.y + OFF[zone][1] * H));
-          node.style.left = `${nx.toFixed(1)}px`;
-          node.style.top = `${ny.toFixed(1)}px`;
-          path.setAttribute('d', `M${nx.toFixed(1)} ${ny.toFixed(1)}H${p.x.toFixed(1)}V${p.y.toFixed(1)}`);
-          dot.setAttribute('cx', p.x.toFixed(1));
-          dot.setAttribute('cy', p.y.toFixed(1));
         }
       };
     }

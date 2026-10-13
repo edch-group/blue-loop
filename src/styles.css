@@ -6194,11 +6194,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-buy-big { margin-top: 4px; }
 
 /* The petals: the purse, and the way to the upgrades. */
-.cs-petals { justify-self: end; display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; border: 0; cursor: var(--cur-pointer); font-family: var(--display); color: var(--ink); background: none; }
-.cs-petals .cur { width: 1em; height: 1em; }
-.cs-petals b { font-size: 0.78rem; font-weight: 500; }
-.cs-petals span { margin-left: 4px; font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); }
-.cs-petals:hover b, .cs-petals:hover span { color: var(--ink); }
 
 /* A short screen (a phone on its side): each hero's portrait fills its card, its words over a white fade at the
    foot; the scroll is the page's own (with room for the picked card's glow). */
@@ -6372,9 +6367,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 }
 
 /* The setup's two purses, top right: petals (the starting deck) and experience (the skills). */
-.cs-purses { justify-self: end; display: flex; gap: 8px; }
-.cs-petals .cur-xp { width: 1em; height: 1em; }
-@media (max-height: 560px) { .cs-petals span { display: none; } }
 
 /* ---------- A race's starting deck, bought with petals (campaign.ts renderStarterDeck) ---------- */
 .sd-body { width: min(1100px, 100%); justify-self: center; min-height: 0; overflow-y: auto; scrollbar-width: thin; display: grid; align-content: start; gap: clamp(10px, calc(2.4 * var(--vh)), 20px); padding: 6px 2px 12px; }
@@ -7390,18 +7382,16 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* The ship menu's sections as the skill tree's nodes [direction: styled as the skill panel's nodes, angular lines
    connecting them to the relevant part of the ship]: a white disc with its mark, its name and what it holds beside it,
    an ink stem bent at a right angle running from it to its place (a dot there). */
-.cs-nodes { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
-.cs-stems { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.cs-stems path { fill: none; stroke: rgba(58, 66, 86, 0.55); stroke-width: 1.2; transition: stroke 0.18s; }
-.cs-stems circle { fill: #3a4256; stroke: #fff; stroke-width: 2; }
-.cs-base-label.cs-node { left: -999px; transform: translate(-15px, -50%); display: flex; align-items: center; gap: 10px; padding: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: auto; text-align: left; }
+/* [direction: the ship, captain and Stellari buttons a column on the left of the screen] */
+.cs-nodes { position: fixed; left: clamp(40px, 4.5vw, 72px); top: 50%; transform: translateY(-50%); z-index: 2; display: grid; gap: 34px; pointer-events: none; }
+.cs-base-label.cs-node { position: relative; left: auto; top: auto; transform: translate(-15px, 0); display: flex; align-items: center; gap: 10px; padding: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: auto; text-align: left; }
 .cs-base-label.cs-node::after { display: none; }
 .cs-node .up-node-disc { width: 30px; height: 30px; flex: none; color: #3a4256; box-shadow: 0 0 0 1.5px #e3e6ec, 0 3px 10px rgba(70, 76, 100, 0.14); }
 .cs-node .up-node-disc .cur { width: 15px; height: 15px; margin: 0; vertical-align: 0; }
 .cs-node-text { display: grid; gap: 2px; }
 .cs-node-text b { font-family: var(--display); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-soft); padding-left: 0; }
 .cs-node-text small { font-size: 0.68rem; color: var(--ink-faint); }
-.cs-base-label.cs-node.on, .cs-base-label.cs-node:hover { transform: translate(-15px, -50%); background: none; box-shadow: none; }
+.cs-base-label.cs-node.on, .cs-base-label.cs-node:hover { transform: translate(-15px, 0); background: none; box-shadow: none; }
 .cs-node.on .up-node-disc, .cs-node:hover .up-node-disc { transform: scale(1.12); box-shadow: 0 0 0 1.5px #3a4256, 0 8px 20px rgba(58, 66, 86, 0.2); }
 .cs-node.on .cs-node-text b, .cs-node:hover .cs-node-text b { color: var(--ink); }
 .cs-captain-page.cs-focus .cs-nodes { opacity: 0; transition: opacity 0.3s; }

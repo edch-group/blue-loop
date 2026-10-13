@@ -164,7 +164,8 @@ void main() {
     float r = vL.x;
     float w = max(fwidth(r), 1e-4);
     float line = 1.0 - smoothstep(w * 0.6, w * 1.8, 1.0 - r);
-    vec3 c = mix(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.56, 0.7), line * 0.85);
+    // (No blue line round them: only the faintest warm shade at each petal's edge, so it reads against the sky.)
+    vec3 c = mix(vec3(1.0), vec3(0.84, 0.82, 0.8), line * 0.7);
     float a = (0.8 + 0.2 * line) * uAlpha;
     gl_FragColor = vec4(c * a, a);
   } else if (uKind > 4.5) {
