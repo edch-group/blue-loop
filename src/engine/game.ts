@@ -301,7 +301,7 @@ export function fusionHosts(p: PlayerState): CardInstance[] {
 // ---- Orbit ------------------------------------------------------------------
 
 const PLANETS: Planet[] = ['dead', 'abundant', 'industrial'];
-/** A whole orbit: three planets, three turns each. */
+/** A whole orbit: three planets, BALANCE.orbitTurns days each. */
 export const ORBIT_LENGTH = PLANETS.length * BALANCE.orbitTurns;
 
 /** The planet facing a sun at an orbit position. */
@@ -332,7 +332,7 @@ function moveOrbit(state: GameState, p: PlayerState, by: number) {
   p.orbit = (((p.orbit + by) % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH;
   charge(state, p, 'orbit', Math.abs(by));
   const now = currentPlanet(p);
-  log(state, `${p.name}'s orbit ${by > 0 ? 'speeds on' : 'slips back'} ${Math.abs(by)}: the ${now} planet${now === before ? '' : ' swings round'} (${planetTurnsLeft(p)} turn${planetTurnsLeft(p) === 1 ? '' : 's'} left).`);
+  log(state, `${p.name}'s orbit ${by > 0 ? 'speeds on' : 'slips back'} ${Math.abs(by)}: the ${now} planet${now === before ? '' : ' swings round'}${BALANCE.orbitTurns > 1 ? ` (${planetTurnsLeft(p)} turn${planetTurnsLeft(p) === 1 ? '' : 's'} left)` : ''}.`);
 }
 
 export function playsAllowed(state: GameState, p: PlayerState): number {

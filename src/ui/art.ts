@@ -88,7 +88,7 @@ function orbitPlanets(orbit: number): string {
   const facing = planetAt(orbit);
   const planets = order
     .map((pl, i) => {
-      const deg = 90 - (i * 3 + 1 - orbit) * 40;
+      const deg = 90 - (i * 3 + 1 - orbitNotch(orbit)) * 40;
       const [x, y] = ringPoint(ORBIT_R, deg);
       return `<i class="vit-planet vp-${pl} ${pl === facing ? 'vp-facing' : ''}" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%" title="${PLANET_LOOK[pl].text}"></i>`;
     })
@@ -96,17 +96,24 @@ function orbitPlanets(orbit: number): string {
   return planets;
 }
 
-/** The tag naming the planet facing the sun, and its days left there. */
+/**
+ * Where an orbit stands on the drawn ring of nine notches (40° each): with a day for each planet, each planet's
+ * middle notch.
+ */
+export function orbitNotch(orbit: number): number {
+  const per = 3 / BALANCE.orbitTurns;
+  return orbit * per + (per - 1) / 2;
+}
+
+/** The tag naming the planet facing the sun (and, while a planet faces it for more than a day, its days left). */
 function planetTag(orbit: number, eaten = false, paradise = false): string {
   const facing = planetAt(orbit);
-  if (facing === 'dead' && paradise && !eaten) {
-    const left = BALANCE.orbitTurns - (((orbit % BALANCE.orbitTurns) + BALANCE.orbitTurns) % BALANCE.orbitTurns);
-    return `<div class="vit-planet-tag vt-paradise" title="Paradise planet: renew.">paradise · ${left}</div>`;
-  }
   const left = BALANCE.orbitTurns - (((orbit % BALANCE.orbitTurns) + BALANCE.orbitTurns) % BALANCE.orbitTurns);
+  const days = BALANCE.orbitTurns > 1 ? ` · ${left}` : '';
+  if (facing === 'dead' && paradise && !eaten) return `<div class="vit-planet-tag vt-paradise" title="Paradise planet: renew.">paradise${days}</div>`;
   // A rival's galaxy eater has its planets: whichever faces the sun counts as dead.
-  if (eaten) return `<div class="vit-planet-tag vt-dead vt-eaten" title="A rival's Orion, Galaxy Eater has eaten this sun's planets: they count as dead, giving no energy or cards.">eaten · ${left}</div>`;
-  return `<div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text} ${left} more day${left === 1 ? '' : 's'} before the next planet comes round.">${PLANET_LOOK[facing].name} · ${left}</div>`;
+  if (eaten) return `<div class="vit-planet-tag vt-dead vt-eaten" title="A rival's Orion, Galaxy Eater has eaten this sun's planets: they count as dead, giving no energy or cards.">eaten${days}</div>`;
+  return `<div class="vit-planet-tag vt-${facing}" title="${PLANET_LOOK[facing].text}">${PLANET_LOOK[facing].name}${days}</div>`;
 }
 
 export function vitals(opts: { heat: number; threshold: number; shields: number; dead?: boolean; id?: string; orbit?: number; eaten?: boolean; paradise?: boolean; shieldsHtml?: string }): string {

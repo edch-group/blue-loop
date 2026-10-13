@@ -28,9 +28,9 @@ was replaced by this design in design review.
 
 ## Attunement
 
-An attuned card gains, at each of its owner's dawns, the bonus of the planet facing its sun [direction: a single bonus per planet, for simplicity] (`src/engine/attunement.ts`): the dead planet 1 shield, the abundant planet 1 card, the industrial planet 1 heat to the rival. Attunement 2 doubles it. (The orbit still runs nine positions, three facing each planet, one a day.)
+An attuned card gains, at each of its owner's dawns, the bonus of the planet facing its sun [direction: a single bonus per planet, for simplicity] (`src/engine/attunement.ts`): the dead planet 1 shield, the abundant planet 1 card, the industrial planet 1 heat to the rival. Attunement 2 doubles it. (The orbit runs three positions, one facing each planet, one a day.)
 
-**Attunement ×2** doubles every number. With its planets eaten (Orion), a sun counts as at the same step of the dead planet. The attuned cards: Orrery (just attunement), Ecliptic Lance (Heat 2), Solstice Choir (Aureline: your Orbit +1), Precession Engine (Xel'Naru: attunement ×2), Moon Warden (Vorthane: Guard, Sturdy 1), Seasonal Bloom (Ixquor: Plant 1), and the Grand Orrery (Anomaly: your Orbit +3, attunement ×2). Steering is the skill: Orbital Slingshots, Gravity Assists and the Solstice Choir bring the industrial planet round; Gravity Wells and Tidal Brakes knock a rival's off theirs.
+**Attunement ×2** doubles every number. With its planets eaten (Orion), a sun counts as at the same step of the dead planet. The attuned cards: Orrery (just attunement), Ecliptic Lance (Heat 2), Solstice Choir (Aureline: your Orbit +1), Precession Engine (Xel'Naru: attunement ×2), Moon Warden (Vorthane: Guard, Sturdy 1), Seasonal Bloom (Ixquor: Plant 1), and the Grand Orrery (Anomaly: your Orbit +1, attunement ×2). Steering is the skill: Orbital Slingshots, Gravity Assists and the Solstice Choir bring the industrial planet round; Gravity Wells and Tidal Brakes knock a rival's off theirs.
 
 ## Turns
 
@@ -81,7 +81,7 @@ An attuned card gains, at each of its owner's dawns, the bonus of the planet fac
 
 ## Orbit
 
-Three planets circle each sun. Each faces it for **3 of its owner's turns**, in turn, and then the next comes round. [design review]
+Three planets circle each sun. Each faces it for **one of its owner's days**, in turn, and then the next comes round: a rhythm of rest, draw, play [direction: 1 turn per planet, giving more meaning to the draw 1 more, play 1 more loop; no text explaining the planet coming round]. [design review]
 
 | Planet | While it faces your sun |
 | --- | --- |
@@ -89,29 +89,31 @@ Three planets circle each sun. Each faces it for **3 of its owner's turns**, in 
 | Abundant | Draw 1 extra card each day. |
 | Industrial | Play 1 extra card each day. |
 
-- Every sun starts at the dead planet. The orbit moves on one step at each of your dawns: three steps per planet, nine for the whole orbit.
-- **Orbit cards** move an orbit on or back, yours or your rival's, and the change counts from your next day. "Orbit +3" swings the next planet round; "your rival's orbit −2" holds their next planet back (and from their dead planet's first day, it wraps round to their industrial planet).
+- Every sun starts at the dead planet. The orbit moves on one step at each of your dawns: a step per planet, three for the whole orbit.
+- **Orbit cards** move an orbit on or back a planet, yours or your rival's, and the change counts from the next day. "Your orbit +1" skips your next planet (played on the industrial day, the dead one is skipped); "your rival's orbit −1" holds them on the planet they are on another day (from their dead planet it wraps round to their industrial one). No card moves an orbit more than one; a dawn effect never moves one (it would change the day's planet after its card was drawn).
 - Some cards are **stronger while a planet faces your sun** (a scaling bonus, so attack bonuses count once).
-- Each sun sits on the board at the left end of its tableau row: the top half of a sphere rising out of the board, slowly turning, its surface mottled with granulation, deep orange where it faces you and white-hot at its outline (as in a photograph of the Sun), with a flickering corona of flames across the board round its base. Round it, flat on the board, lie its orbit ring (three markers for the current planet's three turns: done, now, still to come) and inside that its shield and heat rings. Its planets are half-spheres in the board on the orbit, all the same size, lit from the sun's side, passing behind it. The orbit turns clockwise, and a change (at the start of a day, or from a card) is seen: the planets swing round a notch at a time, and the planet facing the sun lays a trail in its colour along the notches it has passed (the dead planet a grey one, and so on), which fades as it swings away and the next planet comes in. Flat on the board beyond the orbit lie a tag naming the facing planet and its days left, and the sun's shields: under your rival's sun, above yours. (Sun and planets are ray-traced onto a canvas lying on the board: each pixel's line of sight from the viewer's eye, worked out from the table's perspective, either meets a ball or reaches the board, so they look truly solid without making the board itself a 3D scene, which is slow.)
+- Each sun sits on the board at the left end of its tableau row: the top half of a sphere rising out of the board, slowly turning, its surface mottled with granulation, deep orange where it faces you and white-hot at its outline (as in a photograph of the Sun), with a flickering corona of flames across the board round its base. Round it, flat on the board, lie its orbit ring and inside that its shield and heat rings. Its planets are half-spheres in the board on the orbit, all the same size, lit from the sun's side, passing behind it. The orbit turns clockwise, and a change (at the start of a day, or from a card) is seen: the planets swing round a notch at a time, and the planet facing the sun lays a trail in its colour along the notches it has passed (the dead planet a grey one, and so on), which fades as it swings away and the next planet comes in. Flat on the board beyond the orbit lie a tag naming the facing planet and its days left, and the sun's shields: under your rival's sun, above yours. (Sun and planets are ray-traced onto a canvas lying on the board: each pixel's line of sight from the viewer's eye, worked out from the table's perspective, either meets a ball or reaches the board, so they look truly solid without making the board itself a 3D scene, which is slow.)
 - Between the tableaus (beneath your rival's, above yours, centred on each), its owner's next dawn as symbols: ✹ heat to their rival, ⛨ shields, ❄ cooling, ☀ heat to their own sun from their cards and the table, ≋ regional instability, extra cards and extra plays (details in each one's tooltip). Instability is shown as the amount every sun takes when the next round begins.
 
 | Card | Kind | Text |
 | --- | --- | --- |
 | Gravity Assist | Attack | Heat your rival by 2. Your orbit +1. |
-| Orbital Slingshot | Support | Your orbit +3 (the next planet swings round). Draw 1 card. |
-| Tidal Brake | Defence | Gain 2 shields. Your rival's orbit −2. |
+| Orbital Slingshot | Support | Your orbit +1. Draw 1 card. |
+| Tidal Brake | Defence | Gain 2 shields. Your rival's orbit −1. |
 | Dead World Mine | Support | Dawn: cool your sun by 1. While your dead planet faces your sun, also draw 1 card. |
 | Perihelion Forge (Stellar) | Attack | Dawn: heat your rival by 1, or by 3 while your industrial planet faces your sun. |
 | Sunward Lance (Aureline) | Attack | Heat your rival by 1, or by 3 while your industrial planet faces your sun. Your orbit +1. |
 | Comet Shard (Xel'Naru) | Attack | Heat your rival by 3. Your rival's orbit −1. Heat your own sun by 1. |
 | Tide Lock (Vorthane) | Defence | Dawn: gain 1 shield, or 3 while your abundant planet faces your sun. |
-| Orbit Root (Ixquor, Stellar) | Support | Dawn: gain 1 shield. While your dead planet faces your sun, your orbit +2 (it moves on in a day, not three). |
+| Orbit Root (Ixquor, Stellar) | Support | Dawn: gain 1 shield, or 3 while your dead planet faces your sun. |
 
 **Starter decks with orbit:**
 - **Solar Lancers:** Gravity Assist and Tidal Brake, in place of a Helio Lancer and Aurelia.
 - **Shard Overload:** Comet Shard and Tidal Brake, in place of an Overload Core and Crystal Storm.
 - **Abyssal Tide:** Tidal Brake, in place of a Plasma Relay.
 - **Hive Bloom:** two Orbit Roots and a Tidal Brake, with Coolant Array and Cryo Vault for more cooling, in place of the Mycelium Tower, Regrowth Pod, Entropy Pulse and the attacks.
+
+**One day per planet** (from three): the cards that moved an orbit 3 did nothing (a whole lap), and ±2 meant ∓1, so every orbit move is now ±1: Orbital Slingshot, Survey Probe (now also {shield:1}, so Tide-Turner no longer beats it), Tactical Withdrawal, Grand Orrery and Aster's lead +1; Gravity Well, Tidal Brake, Eclipse Caster and Spring Tide −1; Tide-Turner and Conjunction +1; Tidecaller's Astrolabe +1 as each battle begins. Planet Shepherd (dawn: orbit +1, which now only reversed the planets' order and threw the industrial day's play away) is now {dawn}: {shield:1}, {energy:1} while facing the dead planet; Orbit Root (which held the orbit on the dead planet for ever) gains its shields there instead. The sun's ring no longer marks a planet's days, and the planet's tag no longer counts them.
 
 **Playtesting orbit (AI simulations).**
 - Orbit on its own, with the old decks, threw the balance out: Hive Bloom fell from 48% to 20% and Solar Lancers rose from 54% to 66%. Games got shorter (about 9 rounds).

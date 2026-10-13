@@ -557,10 +557,10 @@ export const CARDS: CardDef[] = [
     passive: [{ type: 'extraPlay', amount: 1 }],
     onTurn: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'heat', amount: 2, to: 'target', if: { minCards: 4 } }],
   },
-  // ---- Orbit: cards that move the planets round a sun (dead → abundant → industrial, three turns each) ----
+  // ---- Orbit: cards that move the planets round a sun (dead → abundant → industrial, a day each) ----
   { id: 'gravity_assist', name: 'Gravity Assist', kind: 'attack', text: '{heat:2}. Your {orbit:+1}.', onPlay: [{ type: 'heat', amount: 2, to: 'target' }, { type: 'orbit', amount: 1, who: 'self' }] },
-  { id: 'orbital_slingshot', name: 'Orbital Slingshot', kind: 'growth', text: 'Your {orbit:+3}: the next planet swings round. Draw 1.', onPlay: [{ type: 'orbit', amount: 3, who: 'self' }, { type: 'draw', amount: 1 }] },
-  { id: 'tidal_brake', name: 'Tidal Brake', kind: 'defence', text: "{shield:2}. Your rival's {orbit:−2}.", onPlay: [{ type: 'shield', amount: 2 }, { type: 'orbit', amount: -2, who: 'rival' }] },
+  { id: 'orbital_slingshot', name: 'Orbital Slingshot', kind: 'growth', text: 'Your {orbit:+1}. Draw 1.', onPlay: [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'draw', amount: 1 }] },
+  { id: 'tidal_brake', name: 'Tidal Brake', kind: 'defence', text: "{shield:2}. Your rival's {orbit:−1}.", onPlay: [{ type: 'shield', amount: 2 }, { type: 'orbit', amount: -1, who: 'rival' }] },
   {
     id: 'dead_world_mine',
     name: 'Dead World Mine',
@@ -604,8 +604,8 @@ export const CARDS: CardDef[] = [
     name: 'Orbit Root',
     kind: 'growth',
     race: 3,
-    text: '{dawn}: {shield:1}. While facing the dead planet, your {orbit:+2}.',
-    onTurn: [{ type: 'shield', amount: 1 }, { type: 'orbit', amount: 2, who: 'self', if: { planet: 'dead' } }],
+    text: '{dawn}: {shield:1}. {shield:+2} while facing the dead planet.',
+    onTurn: [{ type: 'shield', amount: 1, plus: { of: 'planet', planet: 'dead', amount: 2 } }],
   },
 
   // ---- More recovery and recall: every race can get its cards back ----

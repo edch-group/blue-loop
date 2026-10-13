@@ -617,16 +617,15 @@ describe('Attunement', () => {
       return dawnEffects(card, me, s).map((e) => `${e.type}${'amount' in e ? e.amount : ''}`).join(',');
     };
     expect(at(0)).toBe('shield1');
-    expect(at(2)).toBe('shield1');
-    expect(at(4)).toBe('draw1');
-    expect(at(8)).toBe('heat1');
+    expect(at(1)).toBe('draw1');
+    expect(at(2)).toBe('heat1');
     // Attunement 2: every number doubled.
-    expect(at(8, engine)).toBe('heat2');
+    expect(at(2, engine)).toBe('heat2');
     // Without its owner known (the card's own text), nothing is added.
     expect(dawnEffects(orrery)).toEqual([]);
     // With the planets eaten, the dead planet's bonus.
     give(rival, ['orion_galaxy_eater'], 'tableau');
-    expect(at(8)).toBe('shield1');
+    expect(at(2)).toBe('shield1');
   });
 });
 
@@ -636,7 +635,7 @@ describe('Orion, Galaxy Eater', () => {
     const me = activePlayer(s);
     const rival = s.players.find((p) => p.id !== me.id)!;
     // Both suns face the industrial planet.
-    me.orbit = rival.orbit = 6;
+    me.orbit = rival.orbit = 2;
     expect(currentPlanet(rival, s)).toBe('industrial');
     const withIndustry = playsAllowed(s, rival);
     give(me, ['orion_galaxy_eater'], 'tableau');
@@ -759,6 +758,7 @@ describe('the end', () => {
     let s = endTurn(twoPlayer()); // Bo's first turn: the opening hand covers it.
     s.players[0].deck = [];
     s.players[0].discard = [];
+    s.players[0].orbit = 2; // (Ada's next day at the dead planet: no extra card)
     const before = s.players[0].heat;
     s = endTurn(s);
     expect(s.players[0].heat).toBe(before + BALANCE.drawPerTurn * BALANCE.fatigueHeat);
@@ -768,6 +768,7 @@ describe('the end', () => {
     let s = endTurn(twoPlayer());
     s.players[0].deck = [];
     s.players[0].discard = [{ uid: 'x1', defId: 'coolant_array' }, { uid: 'x2', defId: 'cryo_vault' }, { uid: 'x3', defId: 'coronal_lance' }];
+    s.players[0].orbit = 2; // (Ada's next day at the dead planet: no extra card)
     const before = s.players[0].heat;
     const hand = s.players[0].hand.length;
     s = endTurn(s);
@@ -1185,6 +1186,7 @@ describe('turn forecast', () => {
     give(ada, ['plasma_relay', 'mycelium_tower', 'bell_warden', 'coolant_array'], 'tableau');
     ada.tableau[1].growth = 1;
     ada.heat = 5;
+    ada.orbit = 2; // (her next day at the dead planet)
     const f = turnForecast(s, ada);
     // (The Relay attacks rather than heating at dawn.) Tower grows to 2 then heats 2; Warden 3 shields; Array cools 1.
     expect(f).toMatchObject({ heat: 2, targetId: 'p2', shields: 3, cool: 1, selfHeat: 0, draw: 0 });
@@ -1204,29 +1206,29 @@ describe('orbit', () => {
     return s;
   };
 
-  it('brings each planet round for three turns: dead, abundant (+1 draw), industrial (+1 play)', () => {
+  it('brings each planet round for a day: dead, abundant (+1 draw), industrial (+1 play)', () => {
     let s = twoPlayer();
     const id = activePlayer(s).id;
     const seen: string[] = [];
     for (let t = 0; t < 10; t++) {
       const me = activePlayer(s);
       seen.push(currentPlanet(me));
-      if (t === 0) expect(planetTurnsLeft(me)).toBe(3);
+      if (t === 0) expect(planetTurnsLeft(me)).toBe(1);
       s = nextTurnOf(s, id);
     }
-    expect(seen).toEqual(['dead', 'dead', 'dead', 'abundant', 'abundant', 'abundant', 'industrial', 'industrial', 'industrial', 'dead']);
+    expect(seen).toEqual(['dead', 'abundant', 'industrial', 'dead', 'abundant', 'industrial', 'dead', 'abundant', 'industrial', 'dead']);
   });
 
   it('draws an extra card at the abundant planet and plays an extra one at the industrial planet', () => {
     let s = twoPlayer();
     const id = activePlayer(s).id;
     const me = () => s.players.find((p) => p.id === id)!;
-    me().orbit = 2; // the dead planet's last turn: next turn the abundant planet comes round
+    me().orbit = 0; // the dead planet: next turn the abundant planet comes round
     me().hand = [];
     s = nextTurnOf(s, id);
     expect(currentPlanet(me())).toBe('abundant');
     expect(me().hand.length).toBe(BALANCE.drawPerTurn + BALANCE.abundantDraw);
-    me().orbit = 5;
+    me().orbit = 1;
     me().turnsTaken = 10; // well past the ramp to full energy
     s = nextTurnOf(s, id);
     expect(currentPlanet(me())).toBe('industrial');
@@ -1239,9 +1241,9 @@ describe('orbit', () => {
     const rival = s.players.find((p) => p.id !== me.id)!;
     give(me, ['orbital_slingshot', 'tidal_brake']);
     const a = applyAction(s, { type: 'playCard', cardUid: me.hand.at(-2)!.uid });
-    expect(currentPlanet(activePlayer(a))).toBe('abundant'); // +3 from the dead planet's first turn
+    expect(currentPlanet(activePlayer(a))).toBe('abundant'); // +1 from the dead planet
     const b = applyAction(s, { type: 'playCard', cardUid: me.hand.at(-1)!.uid });
-    expect(b.players.find((p) => p.id === rival.id)!.orbit).toBe(7); // −2 from 0 wraps to the industrial planet
+    expect(b.players.find((p) => p.id === rival.id)!.orbit).toBe(2); // −1 from 0 wraps to the industrial planet
   });
 
   it('counts the planet in conditions and forecasts', () => {
@@ -1249,7 +1251,7 @@ describe('orbit', () => {
     const me = activePlayer(s);
     give(me, ['perihelion_forge'], 'tableau');
     me.turnsTaken = 2;
-    me.orbit = 5; // next turn: industrial
+    me.orbit = 1; // next turn: industrial
     const f = turnForecast(s, me);
     expect(f.planet).toBe('industrial');
     expect(f.plays).toBe(BALANCE.industrialPlays);

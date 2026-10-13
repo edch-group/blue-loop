@@ -113,9 +113,9 @@ export const SINGULARITIES: Record<string, Singularity> = {
   kor_hero_brannoc: s('Unbroken', 'turned', 8, 'Your strongest card becomes a Guard, +3 defence. {shield:4}.', [{ type: 'fortify', amount: 3, who: 'best' }, { type: 'shield', amount: 4 }]),
   kor_hero_anvil_king: s("Anvil's Fall", 'playsDefence', 4, '{heat:7}, {pierce}. {repair:3}.', [heat(7, true), { type: 'repair', amount: 3 }]),
   // Seren: the stars' turning.
-  ser_hero_ilyath: s('Conjunction', 'orbit', 4, 'Your orbit +2. Draw 2.', [{ type: 'orbit', amount: 2, who: 'self' }, { type: 'draw', amount: 2 }]),
-  ser_hero_maren: s('Spring Tide', 'dawns', 5, "Their orbit −2. {heat:4}.", [{ type: 'orbit', amount: -2, who: 'rival' }, heat(4)]),
-  ser_hero_aster: s('Starfall Cascade', 'abilities', 4, '{heat:6}, {pierce}. Your orbit +1.', [heat(6, true), { type: 'orbit', amount: 1, who: 'self' }]),
+  ser_hero_ilyath: s('Conjunction', 'orbit', 4, 'Your {orbit:+1}. Draw 2.', [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'draw', amount: 2 }]),
+  ser_hero_maren: s('Spring Tide', 'dawns', 5, "Their {orbit:−1}. {heat:4}.", [{ type: 'orbit', amount: -1, who: 'rival' }, heat(4)]),
+  ser_hero_aster: s('Starfall Cascade', 'abilities', 4, '{heat:6}, {pierce}. Your {orbit:+1}.', [heat(6, true), { type: 'orbit', amount: 1, who: 'self' }]),
   // Pyrr: the flare.
   pyr_hero_ignis: s('Wildfire', 'playsAttack', 5, '2 heat to each rival card. {energy:1}.', [{ type: 'strikeAll', amount: 2 }, { type: 'plays', amount: 1 }]),
   pyr_hero_ashka: s('Phoenix Heart', 'hotDawns', 3, '{cool:5}. She regains 3 stability. {heat:3}.', [{ type: 'cool', amount: 5 }, { type: 'restore', amount: 3, self: true }, heat(3)]),

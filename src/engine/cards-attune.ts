@@ -17,9 +17,9 @@ export const ATTUNE_CARDS: CardDef[] = [
     name: 'Grand Orrery',
     kind: 'growth',
     rarity: 'anomaly',
-    text: 'Your {orbit:+3}. {attune:2}.',
+    text: 'Your {orbit:+1}. {attune:2}.',
     attune: 2,
-    onPlay: [{ type: 'orbit', amount: 3, who: 'self' }],
+    onPlay: [{ type: 'orbit', amount: 1, who: 'self' }],
   },
 ];
 

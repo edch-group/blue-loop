@@ -276,18 +276,18 @@ export const RACE_CARDS: CardDef[] = [
   },
   {
     id: 'ser_tide_turner', name: 'Tide-Turner', kind: 'growth', race: 6, sub: 'tidecaster', cost: 1, character: true,
-    text: 'Your {orbit:+2}. {cool:2}.',
-    onPlay: [{ type: 'orbit', amount: 2, who: 'self' }, { type: 'cool', amount: 2 }],
+    text: 'Your {orbit:+1}. {cool:2}.',
+    onPlay: [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'cool', amount: 2 }],
   },
   {
     id: 'ser_planet_shepherd', name: 'Planet Shepherd', kind: 'growth', race: 6, sub: 'tidecaster', cost: 2,
-    text: '{dawn}: your {orbit:+1}. {shield:1}.',
-    onTurn: [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'shield', amount: 1 }],
+    text: '{dawn}: {shield:1}. While facing the dead planet, {energy:1}.',
+    onTurn: [{ type: 'shield', amount: 1 }, { type: 'plays', amount: 1, if: { planet: 'dead' } }],
   },
   {
     id: 'ser_eclipse_caster', name: 'Eclipse Caster', kind: 'growth', race: 6, sub: 'tidecaster', cost: 1,
-    text: "Your rival's {orbit:−2}. Draw 1.",
-    onPlay: [{ type: 'orbit', amount: -2, who: 'rival' }, { type: 'draw', amount: 1 }],
+    text: "Your rival's {orbit:−1}. Draw 1.",
+    onPlay: [{ type: 'orbit', amount: -1, who: 'rival' }, { type: 'draw', amount: 1 }],
   },
   {
     id: 'ser_twin_moons', name: 'Twin Moons', kind: 'defence', race: 6, sub: 'tidecaster', cost: 2,
@@ -355,7 +355,7 @@ export const RACE_CARDS: CardDef[] = [
     [act('pull', 'Pull', "{heat:2}. Your rival's {orbit:−1}.", [{ type: 'heat', amount: 2, to: 'target' }, { type: 'orbit', amount: -1, who: 'rival' }], { energy: 1 }), act('drift', 'Drift', 'Your {orbit:+1}. {shield:2}.', [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'shield', amount: 2 }])],
   ),
   hero(
-    { id: 'ser_hero_aster', name: 'Aster, the Last Constellation', race: 6, character: true, rarity: 'anomaly', cost: 4, stability: 7, lead: 'Draw 2. Your {orbit:+3}. {attune:2}.', onPlay: [{ type: 'draw', amount: 2 }, { type: 'orbit', amount: 3, who: 'self' }], attune: 2 },
+    { id: 'ser_hero_aster', name: 'Aster, the Last Constellation', race: 6, character: true, rarity: 'anomaly', cost: 4, stability: 7, lead: 'Draw 2. Your {orbit:+1}. {attune:2}.', onPlay: [{ type: 'draw', amount: 2 }, { type: 'orbit', amount: 1, who: 'self' }], attune: 2 },
     [act('starfall', 'Starfall', '{heat:3}, {pierce}.', [{ type: 'heat', amount: 3, to: 'target', pierce: true }], { sacrifice: true }), act('alignment', 'Alignment', 'Your {orbit:+1}. Draw 1.', [{ type: 'orbit', amount: 1, who: 'self' }, { type: 'draw', amount: 1 }])],
   ),
 

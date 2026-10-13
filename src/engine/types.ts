@@ -166,7 +166,7 @@ export type Effect = (
   | { type: 'skipDay' }
   /** Enigma (Singularity Seed): this card's attack doubles. */
   | { type: 'doubleAttack' }
-  /** Move an orbit on by `amount` turns (negative: back), yours or your rival's. Three turns is a whole planet. */
+  /** Move an orbit on by `amount` turns (negative: back), yours or your rival's. BALANCE.orbitTurns turns is a whole planet (one, now). */
   | { type: 'orbit'; amount: number; who: 'self' | 'rival' }
 ) & { if?: Condition };
 
@@ -550,7 +550,7 @@ export interface PlayerState {
   turnsTaken: number;
   /** Cards this player may still play today. */
   playsLeft: number;
-  /** Where this player's planets are: 0–8, three turns per planet (0–2 dead, 3–5 abundant, 6–8 industrial), moving on one each day. */
+  /** Where this player's planets are: BALANCE.orbitTurns positions per planet (dead, abundant, industrial), moving on one each day. */
   orbit: number;
   turn: TurnStats;
   /** Rivals this player's Stinging Veil has already stung today (the turn number, and who). */

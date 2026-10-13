@@ -42,7 +42,7 @@ export const BALANCE = {
    */
   maxPlays: 5,
   /** Orbit: turns each planet faces its sun, and what the abundant and industrial planets give each day. */
-  orbitTurns: 3,
+  orbitTurns: 1,
   abundantDraw: 1,
   /** The industrial planet: +1 energy each day it faces your sun. */
   industrialPlays: 1,

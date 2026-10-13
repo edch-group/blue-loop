@@ -10,6 +10,7 @@
 
 import { BALANCE } from '../engine';
 import { uiZoom } from './viewport';
+import { orbitNotch } from './art';
 const TW = 512;
 /** Directions round the rim the corona's flames are worked out for each frame. */
 const FLAMES = 360;
@@ -562,7 +563,8 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
   ];
 
   // The planets: half-spheres in the board on the orbit, easing round to where the orbit puts them.
-  const real = canvas.dataset.orbit === '' || canvas.dataset.orbit === undefined ? NaN : Number(canvas.dataset.orbit);
+  // (On the ring's nine notches: with a day for each planet, each planet's middle one.)
+  const real = canvas.dataset.orbit === '' || canvas.dataset.orbit === undefined ? NaN : orbitNotch(Number(canvas.dataset.orbit));
   // Flat on the board under the balls: the trail the facing planet leaves along its notches, and the notches.
   const flat: (() => void)[] = [];
   if (!dead && isFinite(real)) {
@@ -576,7 +578,8 @@ function drawDome(canvas: HTMLCanvasElement, time: number) {
     const stage = wrap - fi * 3;
     const ringAt = (deg: number): [number, number] => [c[0] + Math.cos((deg * Math.PI) / 180) * ORBIT_R * vs, c[1] + Math.sin((deg * Math.PI) / 180) * ORBIT_R * vs];
     const colour = (pl: string, a: number) => `rgba(${TRAIL_RGB[pl].join(', ')}, ${a})`;
-    flat.push(() => {
+    // (Its days marked only while a planet faces the sun for more than one.)
+    if (BALANCE.orbitTurns > 1) flat.push(() => {
       const arc = (pl: string, to: number, alpha: number) => {
         if (to <= NOTCHES[0] + 0.01 || alpha <= 0) return;
         ctx.beginPath();
