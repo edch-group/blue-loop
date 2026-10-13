@@ -1,7 +1,7 @@
 /** Relics' painted badges (and each kind's mark in ink), for the map and the battle board. */
 const glyph = (d: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
 
-/** Each relic's painted badge, by its base name (the name without its quality or curse word): "Bright Sunlance" is sunlance. */
+/** Each relic's painted badge, by its base name (the name without its quality word): "Bright Sunlance" is sunlance. */
 const RELIC_ART: Record<string, string> = Object.fromEntries(
   Object.entries(import.meta.glob<string>('../assets/relics/*.webp', { eager: true, query: '?url', import: 'default' })).map(([path, url]) => [
     path.slice(path.lastIndexOf('/') + 1, -'.webp'.length),

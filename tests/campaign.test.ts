@@ -517,24 +517,31 @@ describe('ship modules and finds', () => {
 
 
 describe('relics', () => {
-  it('carries a power over the whole board, or curses the flagship, in every battle', async () => {
+  it('has no curses: an older save loses its cursed relics', async () => {
+    const { migrateCampaign } = await import('../src/engine/campaign');
+    const { makeRelic } = await import('../src/engine/heroes');
+    const s = fresh();
+    const me = campaignPlayer(s);
+    const keep = makeRelic('r1', 'weapon', 'stellar', me.race, 0);
+    me.relics = [keep, { id: 'old', name: 'Cracked Helm', slot: 'helm', rarity: 'dwarf', boons: [], cursed: true, mods: { startingHeat: 2 }, text: 'x' } as never];
+    const loaded = migrateCampaign(JSON.parse(JSON.stringify(s)));
+    expect(campaignPlayer(loaded).relics?.map((r) => r.id)).toEqual(['r1']);
+  });
+  it('carries a power over the whole board in every battle', async () => {
     const { makeRelic } = await import('../src/engine/heroes');
     const s = fresh();
     const me = campaignPlayer(s);
     const plain = armyBonus(s, myArmy(s));
     // (A weapon's first power: guns for every armed card, 2 at stellar.)
-    const guns = makeRelic('r1', 'weapon', 'stellar', me.race, 0, false);
-    const shields = makeRelic('r3', 'mantle', 'dwarf', me.race, 0, false);
-    const nova = makeRelic('r4', 'facet', 'anomaly', me.race, 0.15, false);
-    const curse = makeRelic('r2', 'helm', 'dwarf', me.race, 0, true);
+    const guns = makeRelic('r1', 'weapon', 'stellar', me.race, 0);
+    const shields = makeRelic('r3', 'mantle', 'dwarf', me.race, 0);
+    const nova = makeRelic('r4', 'facet', 'anomaly', me.race, 0.15);
     expect([guns.power, guns.n, shields.power, nova.power, nova.n]).toEqual(['edge', 2, 'aegis', 'nova', 3]);
-    expect(curse.cursed).toBe(true);
-    me.relics = [guns, shields, nova, curse];
+    me.relics = [guns, shields, nova];
     const b = armyBonus(s, myArmy(s));
     expect(b.boons.length).toBe(plain.boons.length);
     expect(b.relics.guns).toBe(2);
     expect(b.mods.shieldPerTurn ?? 0).toBe((plain.mods.shieldPerTurn ?? 0) + 2);
-    expect(b.mods.startingHeat ?? 0).toBe((plain.mods.startingHeat ?? 0) + 2);
     // A once-a-battle power is a skill of the battle's, shown with the relics.
     expect(b.skills.find((k) => k.relic)).toMatchObject({ once: true, cost: 0, effects: [{ type: 'strikeAll', amount: 3 }] });
   });
@@ -564,7 +571,7 @@ describe('no run-ending moves, and relic caches', () => {
     s = applyCampaignAction(s, { type: 'finishBattle', game: lost });
     const relics = campaignPlayer(s).relics ?? [];
     expect(relics.length).toBe(before + 2);
-    expect(relics.slice(-2).every((r) => !r.cursed && r.power)).toBe(true);
+    expect(relics.slice(-2).every((r) => r.power)).toBe(true);
     expect(nodeById(s, to).vault).toBeUndefined();
   });
 });

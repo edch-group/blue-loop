@@ -166,7 +166,7 @@ function saveCampaign(s: CampaignState | null) {
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const lower = (t: string) => esc(t.toLowerCase());
 /** Where a relic does its work, for its tip. */
-const relicNote = (r: Relic) => (r.cursed ? 'Cursed emblem.' : !r.power ? 'Hero card.' : RELIC_POWERS[r.power].kind === 'once' ? 'Once per battle.' : RELIC_POWERS[r.power].kind === 'ability' ? 'Hero ability, one a day.' : '');
+const relicNote = (r: Relic) => (!r.power ? 'Hero card.' : RELIC_POWERS[r.power].kind === 'once' ? 'Once per battle.' : RELIC_POWERS[r.power].kind === 'ability' ? 'Hero ability, one a day.' : '');
 
 import { FACTION_COLOUR, factionAvatar } from './factions';
 import { relicMark } from './relic-art';
@@ -631,7 +631,7 @@ export class CampaignView {
   }
 
   /** What the player found in the wreckage of a battle just won (gear for their hero, modules for their ship). */
-  findsFor(game: GameState): { name: string; text: string; rarity: string; kind: 'gear' | 'module'; mark: string; art?: string; note?: string; cursed?: boolean }[] {
+  findsFor(game: GameState): { name: string; text: string; rarity: string; kind: 'gear' | 'module'; mark: string; art?: string; note?: string }[] {
     const s = this.state;
     if (!s?.battle || !game.winnerId) return [];
     const b = s.battle;
@@ -642,7 +642,7 @@ export class CampaignView {
     // (Each marked by what it does: its first boon's kind.)
     const mark = (boons: string[] | undefined) => (boons?.[0] ?? 'boon_star').replace(/^boon_/, '').replace(/_\d+$/, '');
     return [
-      ...items.map((i) => ({ name: i.name, text: relicText(i), rarity: i.rarity, kind: 'gear' as const, mark: i.cursed ? 'heat' : mark(i.boons), art: relicMark(i.name, i.slot), note: relicNote(i), cursed: !!i.cursed })),
+      ...items.map((i) => ({ name: i.name, text: relicText(i), rarity: i.rarity, kind: 'gear' as const, mark: mark(i.boons), art: relicMark(i.name, i.slot), note: relicNote(i) })),
 
     ];
   }
@@ -1572,8 +1572,8 @@ export class CampaignView {
   /**
    * The galaxy's name and what it does to every battle in it, written on the land itself [direction: the galaxy mod's
    * title and description always above the map; a rift's name placed the same way, never over the nodes; stood up so
-   * it is legible]: out past the systems on the side that is up the screen as the camera rests, standing on the land
-   * like a sign, facing the camera as it rests.
+   * it is legible; still following the angle of the galaxy]: out past the systems on the side that is up the screen as
+   * the camera rests, standing on the land like a sign running along the way, read from the camera's side.
    * A rift's galaxy has no mods: there, its name and what it is like.
    */
   private renderGalaxy(): string {
@@ -1591,7 +1591,13 @@ export class CampaignView {
     const up = [Math.sin(-YAW), -Math.cos(-YAW)] as const;
     // Along the way: a strip runs along x; any other shape, across the screen.
     const strip = s.layout === 'strip';
-    const d = strip ? [1, 0] : [Math.cos(YAW), -Math.sin(YAW)];
+    const at = (c: number) => {
+      const cs = nodes.filter((n) => n.col === c);
+      return cs.length ? [cs.reduce((t, n) => t + n.x, 0) / cs.length, cs.reduce((t, n) => t + n.y, 0) / cs.length] : null;
+    };
+    const c1 = strip ? at(1) : null, c3 = strip ? at(3) : null;
+    const dl = c1 && c3 ? Math.hypot(c3[0] - c1[0], c3[1] - c1[1]) : 0;
+    const d = c1 && c3 && dl ? [(c3[0] - c1[0]) / dl, (c3[1] - c1[1]) / dl] : strip ? [1, 0] : [Math.cos(YAW), -Math.sin(YAW)];
     let nrm = [-d[1], d[0]];
     if (nrm[0] * up[0] + nrm[1] * up[1] < 0) nrm = [-nrm[0], -nrm[1]];
     const along = (n: { x: number; y: number }) => n.x * d[0] + n.y * d[1];
@@ -1606,36 +1612,43 @@ export class CampaignView {
     const beside = nodes.filter((n) => Math.abs(along(n) - mid) < HALF_W + 260);
     if (strip && beside.length && beside.every((n) => n.collapsed)) return '';
     const edge = Math.max(...(beside.length ? beside : nodes).map(out));
-    // Standing up, it hides what lies behind it from the camera as it rests: out past every system, and on out
-    // until no system is hidden behind it (a sight line from the eye to it passing through the sign).
-    const right = [-up[1], up[0]];
-    const SIGN_H = 380, PAD = 130;
+    // Laid over the scene, it covers whatever falls under it on screen: a system, or the station or ship standing over
+    // one, nearer than it or further off. Out past every system, then on out until the sight line from the camera's
+    // resting eye to each system (its foot and the top of whatever stands on it) misses the sign.
+    // The sign runs along the way [direction: the galaxy mod text following the angle of the galaxy], read from the
+    // camera's side: its words along `right`, its face toward the camera (away from `back`).
+    let right = [d[0], d[1]];
+    if (-right[1] * -up[0] + right[0] * -up[1] < 0) right = [-right[0], -right[1]];
+    const back = [right[1], -right[0]];
+    const face = (Math.atan2(right[1], right[0]) * 180) / Math.PI;
+    const SIGN_H = 380, PAD = 130, TALL = 170;
     const eyeW = this.nebula?.restEye();
     const eye = eyeW ? [eyeW[0] / MAP_K + MAP_WIDTH / 2, eyeW[2] / MAP_K + MAP_HEIGHT / 2, eyeW[1] / MAP_K] : null;
     const hides = (cx: number, cy: number) =>
       nodes.some((n) => {
         const dot = (vx: number, vy: number, w: readonly number[]) => vx * w[0] + vy * w[1];
-        const b = dot(n.x - cx, n.y - cy, up);
-        if (b < -PAD) return false;
-        if (!eye) return Math.abs(dot(n.x - cx, n.y - cy, right)) < HALF_W + PAD && b < 900;
-        // (Where its sight line crosses the sign's plane, and how high.)
-        const be = dot(eye[0] - cx, eye[1] - cy, up);
-        const t = Math.max(0, Math.min(1, -be / (b - be || 1)));
-        const h = eye[2] + t * ((n.h ?? 0) - eye[2]);
+        if (!eye) return Math.abs(dot(n.x - cx, n.y - cy, right)) < HALF_W + PAD && dot(n.x - cx, n.y - cy, back) > -PAD && dot(n.x - cx, n.y - cy, back) < 900;
+        const be = dot(eye[0] - cx, eye[1] - cy, back), bp = dot(n.x - cx, n.y - cy, back);
+        if (Math.abs(bp - be) < 1) return false;
+        // (Where the sight line through it meets the sign's plane, and how high: foot and top.)
+        const t = -be / (bp - be);
+        if (t <= 0) return false;
         const a = dot(eye[0] - cx, eye[1] - cy, right) + t * dot(n.x - eye[0], n.y - eye[1], right);
-        return h < SIGN_H + PAD && Math.abs(a) < HALF_W + PAD;
+        if (Math.abs(a) > HALF_W + PAD) return false;
+        const foot = eye[2] + t * ((n.h ?? 0) - eye[2]), top = eye[2] + t * ((n.h ?? 0) + TALL - eye[2]);
+        return Math.max(foot, top) > -PAD && Math.min(foot, top) < SIGN_H + PAD;
       });
     let o = edge + 260;
     for (let i = 0; i < 40 && hides(d[0] * mid + nrm[0] * o, d[1] * mid + nrm[1] * o); i++) o += 80;
     const x = d[0] * mid + nrm[0] * o, y = d[1] * mid + nrm[1] * o;
     const near = (beside.length ? beside : nodes).reduce((b, n) => (out(n) > out(b) ? n : b));
     const glyph = rift ? '' : `<svg viewBox="0 0 24 24" aria-hidden="true">${GALAXY_GLYPH[kind!]}</svg>`;
-    return `<div class="cmp-galaxy cmp-galaxy-land${s.rift?.kind === 'dark' ? ' cmp-galaxy-dark' : ''}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--face:${((-YAW * 180) / Math.PI).toFixed(1)}deg;--h:${(near.h ?? 0).toFixed(0)}px" aria-label="${esc(`${title}: ${text}`)}"><span class="cmp-galaxy-title">${glyph}<b>${esc(title.toLowerCase())}</b></span><p>${esc(text)}</p></div>`;
+    return `<div class="cmp-galaxy cmp-galaxy-land${s.rift?.kind === 'dark' ? ' cmp-galaxy-dark' : ''}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--face:${face.toFixed(1)}deg;--h:${(near.h ?? 0).toFixed(0)}px" aria-label="${esc(`${title}: ${text}`)}"><span class="cmp-galaxy-title">${glyph}<b>${esc(title.toLowerCase())}</b></span><p>${esc(text)}</p></div>`;
   }
 
   /**
    * The relics found on the way, down the right of the screen: each a token with its painted badge,
-   * rimmed in gold (a blessing) or red (a curse), saying what it does on a hover or tap.
+   * rimmed in gold, saying what it does on a hover or tap.
    */
   private renderRelics(): string {
     const relics = campaignPlayer(this.state!).relics ?? [];
@@ -1643,7 +1656,7 @@ export class CampaignView {
     const tokens = relics
       .map(
         (r) =>
-          `<button class="cmp-relic ${r.cursed ? 'cursed' : 'blessed'} rarity-${r.rarity}" data-key="relic-${r.id}" aria-label="${esc(r.name)}">${relicMark(r.name, r.slot)}</button>`,
+          `<button class="cmp-relic blessed rarity-${r.rarity}" data-key="relic-${r.id}" aria-label="${esc(r.name)}">${relicMark(r.name, r.slot)}</button>`,
       )
       .join('');
     return `<aside class="cmp-relics" aria-label="Emblems">${tokens}</aside>`;
@@ -3249,7 +3262,7 @@ export class CampaignView {
       const items = [
         l.materials ? `<div class="loot-tile loot-res" title="Materials"><span class="loot-glow">${MATERIALS}</span><b>+${l.materials}</b></div>` : '',
         l.petals ? `<div class="loot-tile loot-res" title="Stellari petals"><span class="loot-glow">${PETAL}</span><b>+${l.petals}</b></div>` : '',
-        ...l.relics.map((r) => `<div class="loot-tile loot-emblem"><span class="loot-glow"><span class="cmp-relic ${r.cursed ? 'cursed' : ''}">${relicMark(r.name, r.slot)}</span></span><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div>`),
+        ...l.relics.map((r) => `<div class="loot-tile loot-emblem"><span class="loot-glow"><span class="cmp-relic">${relicMark(r.name, r.slot)}</span></span><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div>`),
         ...l.cards.map((id) => `<div class="loot-tile loot-card"><span class="loot-glow">${cardHtml(id)}</span></div>`),
         ...(l.parts ?? []).map((id) => `<div class="loot-tile loot-part" title="Ship part"><span class="loot-glow">${partShape(id)}</span><b>${esc(shipPart(id)?.name.toLowerCase() ?? '')}</b></div>`),
       ].filter(Boolean);

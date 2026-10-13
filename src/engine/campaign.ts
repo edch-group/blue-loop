@@ -117,8 +117,6 @@ export const CAMPAIGN = {
   missionMaterials: 6,
   cardChoices: 3,
   activeMissions: 0,
-  /** How often a relic found is cursed. */
-  curseChance: 0.3,
   /** Control this share of all systems to win outright. */
   dominationShare: 0.5,
   /** When this turn ends, the faction controlling the most systems wins. */
@@ -536,7 +534,7 @@ export interface Faction {
   heroes?: Record<string, HeroState>;
   /** Gear found, not yet worn. */
   items?: Item[];
-  /** Relics found on the way, worn at once: blessings on the hero's card, or curses on the flagship. */
+  /** Relics found on the way, at work at once: each a power over the whole board. */
   relics?: Relic[];
   /** Ship modules in its stores (not fitted). */
   modules?: ShipModule[];
@@ -581,7 +579,7 @@ export function armyBonus(s: CampaignState, a: Army) {
   const r = researchBonus(a.lost || !f ? undefined : f.research);
   const bonus = { ...hero, ...r, foeMods: {} as BattleModifiers, foeHeat: 0, foeConditions: [] as { name: string; text: string }[] };
   // Relics: their powers over the whole board (the passive ones as modifiers, walls and guns, the Hero in play; the
-  // once-a-battle ones as skills; the rest for the engine), their curses' tolls on the army's own side.
+  // once-a-battle ones as skills; the rest for the engine).
   const relics = { walls: 0, guns: 0, powers: [] as RelicInPlay[] };
   if (f && !a.lost && f.relics?.length) {
     const rel = relicBonus(f.relics, a.general);
@@ -1208,6 +1206,8 @@ export function migrateCampaign(s: CampaignState): CampaignState {
     const st = n.station as (Station & { options?: string[] }) | undefined;
     if (st?.kind === 'research' && !st.options) st.options = st.project ? [st.project] : [];
   }
+  // There are no curses [direction: get rid of curses]: an older save's cursed relics are gone.
+  for (const f of s.factions) if (f.relics) f.relics = f.relics.filter((r) => !(r as { cursed?: boolean }).cursed);
   // (A rift's galaxy has no galaxy of its own [direction: rifts have no galaxy mods]: an older save's, given one
   // here on loading, loses it.)
   if (s.rift) s.galaxy = undefined;
@@ -1517,7 +1517,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   // An Heirloom, from the skill tree: a Stellar emblem of the race's own to start with.
   if (run.heirloom) {
     const slots = RACE_SLOTS[race];
-    me.relics = [makeRelic(`item${++s.uidCounter}`, slots[Math.floor(nextRandom(s) * slots.length)].kind, 'stellar', race, nextRandom(s), false)];
+    me.relics = [makeRelic(`item${++s.uidCounter}`, slots[Math.floor(nextRandom(s) * slots.length)].kind, 'stellar', race, nextRandom(s))];
   }
   // The raiders: the last of peoples the collapse has already taken, roaming the strip (and hunting).
   s.factions.push({ id: 'lost', name: 'Raiders', isAI: true, race: 0, materials: 0, ship: newShip(), reserve: [], missions: [], missionDeck: [], stats: emptyStats(), eliminated: false, lost: true });
@@ -2934,7 +2934,7 @@ export function battleFinds(s: CampaignState, game: GameState): { items: Relic[]
   if (next() < HEROES.itemChance + (army ? armyBonus(s, army).loot : 0)) {
     const slots = RACE_SLOTS[f.race];
     const slot = slots[Math.floor(next() * slots.length)].kind, rarity = findRarity(n, next(), s.universe), roll = next();
-    items.push(makeRelic(`item${++uid}`, slot, rarity, f.race, roll, next() < CAMPAIGN.curseChance, f.relics ?? []));
+    items.push(makeRelic(`item${++uid}`, slot, rarity, f.race, roll, f.relics ?? []));
   }
   // (No modules any more: the flagship is not fitted out.)
   void modules;
@@ -2943,7 +2943,7 @@ export function battleFinds(s: CampaignState, game: GameState): { items: Relic[]
 
 /**
  * A relic cache broken open on the battlefield (its Reliquary Obelisk destroyed before the battle ended): the relics
- * it sealed, the player's whoever won, never cursed. Worked out from the finished battle, as battleFinds is.
+ * it sealed, the player's whoever won. Worked out from the finished battle, as battleFinds is.
  */
 export function vaultFinds(s: CampaignState, game: GameState): Relic[] {
   const b = s.battle;
@@ -2958,7 +2958,7 @@ export function vaultFinds(s: CampaignState, game: GameState): Relic[] {
   return Array.from({ length: n.vault ?? 0 }, () => {
     const slots = RACE_SLOTS[f.race];
     const slot = slots[Math.floor(next() * slots.length)].kind;
-    const relic = makeRelic(`item${++uid}`, slot, findRarity(n, next(), s.universe), f.race, next(), false, held);
+    const relic = makeRelic(`item${++uid}`, slot, findRarity(n, next(), s.universe), f.race, next(), held);
     held.push(relic);
     return relic;
   });
@@ -2982,7 +2982,7 @@ function takeFinds(s: CampaignState, game: GameState) {
   const f = factionById(s, game.winnerId === game.players[0].id ? b.attacker : b.defender!);
   s.uidCounter += items.length + modules.length;
   (f.relics ??= []).push(...items);
-  for (const r of items) clog(s, `${f.name} finds ${r.name}${r.cursed ? ': it is cursed' : ''}.`, b.nodeId, f.id);
+  for (const r of items) clog(s, `${f.name} finds ${r.name}.`, b.nodeId, f.id);
   clog(s, `${f.name} finds ${[...items, ...modules].map((x) => x.name).join(' and ')} in the wreckage.`, b.nodeId, f.id);
   if (f.isAI) {
     aiEquip(f);
@@ -3340,14 +3340,14 @@ function takeCache(s: CampaignState, f: Faction, n: CampaignNode, army: Army) {
   clog(s, `${f.name} finds ${what} at ${n.name}.`, n.id, f.id);
 }
 
-/** A relic found by an army in a system it took: better the deeper the system lies, and now and then cursed. */
+/** A relic found by an army in a system it took: better the deeper the system lies. */
 function findItem(s: CampaignState, f: Faction, army: Army, n: CampaignNode) {
   const rarity = findRarity(n, nextRandom(s), s.universe);
   const slots = RACE_SLOTS[f.race];
   const kind: SlotKind = slots[randomInt(s, slots.length)].kind;
-  const relic = makeRelic(`item${++s.uidCounter}`, kind, rarity, f.race, nextRandom(s), nextRandom(s) < CAMPAIGN.curseChance, f.relics ?? []);
+  const relic = makeRelic(`item${++s.uidCounter}`, kind, rarity, f.race, nextRandom(s), f.relics ?? []);
   (f.relics ??= []).push(relic);
-  clog(s, `${cardDef(army.general).name}'s army finds ${relic.name} in ${n.name}${relic.cursed ? ': it is cursed' : ''}.`, n.id, f.id);
+  clog(s, `${cardDef(army.general).name}'s army finds ${relic.name} in ${n.name}.`, n.id, f.id);
 }
 
 /** Fit a module into a room: one already there goes back to the stores. */

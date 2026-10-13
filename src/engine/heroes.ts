@@ -341,47 +341,31 @@ export const itemValue = (i: Item) => STEP[i.rarity] * 10;
 
 /**
  * A relic: found on the way, and at work at once (there is nothing to equip). Each carries a power over the whole
- * board in every battle its faction's flagship fights (relics.ts); some are cursed, and weaken the flagship instead.
+ * board in every battle its faction's flagship fights (relics.ts). There are no curses [direction: get rid of curses].
  * (An older save's relic, from before relics had powers, still blesses the hero's card as gear does.)
  */
 export interface Relic extends Item {
-  cursed?: boolean;
-  /** A curse's toll on the flagship's own side, every battle. */
-  mods?: BattleModifiers;
   /** Its power, and how strong (by its rarity). */
   power?: RelicPower;
   n?: number;
 }
 
-/** The curses a relic can carry: what it costs, and how it reads. */
-const CURSES: { mods: BattleModifiers; text: string; name: string }[] = [
-  { mods: { startingHeat: 2 }, text: 'Your sun starts every battle 2 hotter.', name: 'Cracked' },
-  { mods: { heatPerTurn: 1 }, text: 'Your sun heats 1 more every day.', name: 'Smouldering' },
-  { mods: { maxHealthDelta: -2 }, text: 'Your sun has 2 less max health.', name: 'Hollow' },
-];
-
 /**
- * A relic for a race, of a rarity: a power (one its kind can carry, chosen by the roll), or, if cursed, a toll. Never
- * the same as one already held (`held`): no power twice, no curse twice, while there are others to be had.
+ * A relic for a race, of a rarity: a power (one its kind can carry, chosen by the roll). Never the same as one already
+ * held (`held`): no power twice, while there are others to be had.
  */
-export function makeRelic(id: string, slot: SlotKind, rarity: ItemRarity, race: number, roll: number, cursed: boolean, held: Relic[] = []): Relic {
-  if (!cursed) {
-    const power = rollPower(slot, roll, new Set(held.flatMap((r) => (r.power ? [r.power] : []))));
-    const n = RELIC_POWERS[power].amounts[STEP[rarity] - 1];
-    return { id, name: `${QUALITY[rarity]} ${GEAR_NAMES[slot][race] ?? GEAR_NAMES[slot][0]}`, slot, rarity, boons: [], power, n, text: RELIC_POWERS[power].text(n) };
-  }
-  const fresh = CURSES.filter((c) => !held.some((r) => r.cursed && r.text === c.text));
-  const curses = fresh.length ? fresh : CURSES;
-  const curse = curses[Math.floor(roll * curses.length) % curses.length];
-  return { id, name: `${curse.name} ${GEAR_NAMES[slot][race] ?? GEAR_NAMES[slot][0]}`, slot, rarity, boons: [], cursed: true, mods: curse.mods, text: curse.text };
+export function makeRelic(id: string, slot: SlotKind, rarity: ItemRarity, race: number, roll: number, held: Relic[] = []): Relic {
+  const power = rollPower(slot, roll, new Set(held.flatMap((r) => (r.power ? [r.power] : []))));
+  const n = RELIC_POWERS[power].amounts[STEP[rarity] - 1];
+  return { id, name: `${QUALITY[rarity]} ${GEAR_NAMES[slot][race] ?? GEAR_NAMES[slot][0]}`, slot, rarity, boons: [], power, n, text: RELIC_POWERS[power].text(n) };
 }
 
-/** A relic's words: its power, or its curse (an older blessing: what it puts on the hero's card). */
-export const relicText = (r: Relic) => (r.power || r.cursed ? r.text : itemText(r));
+/** A relic's words: its power (an older blessing: what it puts on the hero's card). */
+export const relicText = (r: Relic) => (r.power ? r.text : itemText(r));
 
 /**
  * All the relics' work in battle, sorted by where it goes: the passive powers that are battle modifiers (shields
- * and cooling at dawn, a fuller first hand) with the curses' tolls; the slots' walls and guns; whether the Hero
+ * and cooling at dawn, a fuller first hand); the slots' walls and guns; whether the Hero
  * starts in play; the once-a-battle powers (as battle skills, by the hero); the rest, carried into the battle for
  * the engine to answer (relics.ts); and an older save's blessings on the hero's card.
  */
@@ -389,8 +373,6 @@ export function relicBonus(relics: Relic[] | undefined, hero = ''): { boons: str
   const out = { boons: [] as string[], mods: {} as BattleModifiers, walls: 0, guns: 0, start: false, skills: [] as BattleSkill[], powers: [] as RelicInPlay[] };
   const add = (k: keyof BattleModifiers, v: number) => (out.mods[k] = (out.mods[k] ?? 0) + v);
   for (const r of relics ?? []) {
-    for (const [k, v] of Object.entries(r.mods ?? {}) as [keyof BattleModifiers, number][]) add(k, v);
-    if (r.cursed) continue;
     if (!r.power) {
       out.boons.push(...itemBoons(r));
       continue;
