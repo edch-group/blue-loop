@@ -317,6 +317,8 @@ function portrait(cardId: string): string {
 /** One of the Lost Races: a faded figure, half gone into the dark. */
 /** How long the flagship takes to fly in as a campaign starts (seconds). */
 const ARRIVAL_FLIGHT = 3.2;
+/** Setting out from the menu: how long its camera takes to pan onto the campaign's opening shot (seconds). */
+const LAUNCH_PAN = 3.4;
 /** A burst cache: when its first reward comes out, and the gap between each (ms; the CSS's --i steps match). */
 const LOOT_FIRST = 450;
 const LOOT_STEP = 420;
@@ -1636,7 +1638,7 @@ export class CampaignView {
    * The run shown: the map up, and (`cine`) the opening shot alongside the flagship as its hero speaks, or (set out from
    * the menu, which has already carried the camera here) the flagship simply flying in.
    */
-  private beginRun(run: { state: CampaignState; hero: string }, cine: boolean) {
+  private beginRun(run: { state: CampaignState; hero: string }, cine: boolean, under = 0) {
     const hero = run.hero;
     this.state = run.state;
     this.arriving = true;
@@ -1653,9 +1655,10 @@ export class CampaignView {
     this.host.render();
     if (this.cine) {
       // The hero speaks as the flagship cruises in; the map is shown once they are done (or after a while).
-      voices.arrive(hero, 900);
+      // (Made under the menu's pan, `under` seconds before it is seen: the shot is as long as ever once it is.)
+      voices.arrive(hero, 900 + under * 1000);
       window.clearTimeout(this.cineTimer);
-      this.cineTimer = window.setTimeout(() => this.endRide(), CINE_RIDE_MAX * 1000);
+      this.cineTimer = window.setTimeout(() => this.endRide(), (CINE_RIDE_MAX + under) * 1000);
     } else {
       this.host.banner('galaxy 1', 'reach the wormhole');
       // The hero speaks as the flagship comes to rest (their words on the guide, spoken if recorded).
@@ -1665,14 +1668,14 @@ export class CampaignView {
 
   /** Whether the run is setting out from the menu (its options flying away, the ship surging off). */
   private launching = false;
-  /** Set out from the menu: the camera's pose the map opens on (the menu's last frame), once. */
-  private launchCut: Pose | null = null;
+  /** Set out from the menu: the campaign is being made under the menu's pan (its land shown whole at once). */
+  private launchHeld = false;
   /** How far east the menu's land had broken away when the run set out (it stays gone on the first map). */
   private menuGone: number | null = null;
   /** The menu's land, its camera as last drawn, and (setting out) its pan to where the run opens. */
   private menuWorld: Nebula | null = null;
   private menuPose: Pose | null = null;
-  private menuPan: { from: Pose; to: Pose; t0: number; dur: number; e: number; done?: boolean; end: () => void } | null = null;
+  private menuPan: { from: Pose; to: () => Pose; t0: number; dur: number; e: number; done?: boolean; end: () => void } | null = null;
 
   /**
    * Setting out from the menu [direction: no fade between the two screens; the ship moving forwards, away from the
@@ -1707,53 +1710,64 @@ export class CampaignView {
     });
     sound.whoosh(0.05);
     // Where the campaign's opening shot begins [direction: the camera panned from the menu outwards to match the start
-    // of the campaign's intro; one shot, no fading ship, no cutting camera]: the flagship cruising in from off the
-    // route's near end toward its first system, the camera close beside it. The land's camera eases there, and the
-    // menu's own camera with it, so its ship comes to lie exactly where the campaign's flagship will be drawn: there the
-    // campaign takes over, on the very same frame, and its opening plays on.
+    // of the campaign's intro; one shot, no fading ship, no cutting camera; the ship moving forward as soon as the
+    // camera starts panning; no freeze at the switch]: the campaign is made at once, under the menu (lifted out of the
+    // page, over it), its renderer drawn once and then held, its flagship already cruising in toward its first system.
+    // The land's camera eases from the menu's to the campaign's ride camera beside that flagship as it goes, and the
+    // menu's own camera with it, so the menu's ship comes to lie exactly where the campaign's flagship is drawn, moving
+    // with it: there the campaign takes over, on the very same frame, and its opening plays on.
     const node: [number, number] = [(at.x - MAP_WIDTH / 2) * MAP_K, (at.y - MAP_HEIGHT / 2) * MAP_K];
     const from: [number, number] = [node[0] - 3.4, node[1] + 2.5];
     const heading = Math.atan2(node[1] - from[1], node[0] - from[0]);
-    const ship = { x: from[0], y: PLANE_Y + 0.13 + 0.05, z: from[1], heading };
-    const to = world.rideAt(ship, 0);
+    const still = { x: from[0], y: PLANE_Y + 0.13 + 0.05, z: from[1], heading };
+    const fallback = world.rideAt(still, 0);
+    const veil = document.createElement('div');
+    veil.className = 'cs-launch-veil';
+    veil.appendChild(page);
+    document.body.appendChild(veil);
+    // (The menu's ship is kept: drawn on in the lifted scene, not put away with the page.)
+    this.base = null;
+    this.launchHeld = true;
+    this.beginRun(run, true, LAUNCH_PAN);
+    this.launchHeld = false;
+    if (this.nebula) this.nebula.hold = true;
+    world.smooth = true;
     // (The campaign's flagship, 0.2 long, against the menu's, 4.2: the menu's scene seen as the campaign's camera sees
     // its flagship, scaled to it, so the two draw alike.)
     const k = 0.2 / Base3d.SHIP_SCALE;
-    const fx = Math.cos(heading), fz = Math.sin(heading);
-    const place = [fx * k, 0, fz * k, 0, 0, k, 0, 0, -fz * k, 0, fx * k, 0, ship.x, ship.y, ship.z, 1];
-    const view = mul4(Array.from(poseView(to)), place);
-    for (const c of [0, 4, 8, 12]) for (const r of [0, 1, 2]) view[c + r] /= k;
-    base.handTo(new Float32Array(view), NEBULA_FOV, () => this.menuPan?.e ?? 1);
+    const ride = () => this.nebula?.rideNow() ?? { pose: fallback, ship: still };
+    const view = () => {
+      const { pose, ship } = ride();
+      const fx = Math.cos(ship.heading), fz = Math.sin(ship.heading);
+      const place = [fx * k, 0, fz * k, 0, 0, k, 0, 0, -fz * k, 0, fx * k, 0, ship.x, ship.y, ship.z, 1];
+      const v = mul4(Array.from(poseView(pose)), place);
+      for (const c of [0, 4, 8, 12]) for (const r of [0, 1, 2]) v[c + r] /= k;
+      return new Float32Array(v);
+    };
+    base.handTo(view, NEBULA_FOV, () => this.menuPan?.e ?? 1);
     this.menuPan = {
       from: start,
-      to,
+      to: () => ride().pose,
       t0: -1,
-      dur: 3.4,
+      dur: LAUNCH_PAN,
       e: 0,
-      end: () =>
-        window.setTimeout(() => {
-          // The menu's scene, lifted out of the page as it is, over the campaign as it comes up on the same frame;
-          // taken away the moment the campaign has drawn it.
-          const veil = document.createElement('div');
-          veil.className = 'cs-launch-veil';
-          veil.appendChild(scene);
-          document.body.appendChild(veil);
-          this.base = null;
-          this.launching = false;
-          this.menuPan = null;
-          this.menuWorld = null;
-          this.launchCut = to;
-          this.beginRun(run, true);
-          let frames = 0;
-          const wait = () => {
-            if (this.nebula?.landed) frames++;
-            if (frames >= 3 || !document.body.contains(veil)) return veil.remove();
-            requestAnimationFrame(wait);
-          };
+      end: () => {
+        // The campaign takes over: drawn from this frame on (its camera already where the menu's has come to), the
+        // menu's scene over it taken away the moment it has drawn.
+        this.launching = false;
+        this.menuPan = null;
+        this.menuWorld = null;
+        if (this.nebula) this.nebula.hold = false;
+        let frames = 0;
+        const wait = () => {
+          if (this.nebula?.landed) frames++;
+          if (frames >= 2 || !document.body.contains(veil)) return veil.remove();
           requestAnimationFrame(wait);
-          // (Never left up, whatever happens.)
-          window.setTimeout(() => veil.remove(), 2500);
-        }, 0),
+        };
+        requestAnimationFrame(wait);
+        // (Never left up, whatever happens.)
+        window.setTimeout(() => veil.remove(), 2500);
+      },
     };
   }
 
@@ -2833,13 +2847,14 @@ export class CampaignView {
             const k = Math.min(1, (time - pan.t0) / pan.dur);
             const e = k * k * (3 - 2 * k);
             pan.e = e;
-            const a = pan.from, b = pan.to;
+            const a = pan.from, b = pan.to();
             const dy = Math.atan2(Math.sin(b.yaw - a.yaw), Math.cos(b.yaw - a.yaw));
             last = { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, z: a.z + (b.z - a.z) * e, yaw: a.yaw + dy * e, pitch: a.pitch + (b.pitch - a.pitch) * e, dist: a.dist + (b.dist - a.dist) * e };
             if (sunrise) sunrise.style.opacity = (1 - e).toFixed(3);
             if (k >= 1 && !pan.done) {
               pan.done = true;
-              pan.end();
+              // (After this frame: the campaign's first is the next.)
+              window.setTimeout(pan.end, 0);
             }
             return last;
           }
@@ -3020,7 +3035,9 @@ export class CampaignView {
   /** The routes as lines of light, drawn flat on the screen between the stars as they stand (crisp at any size). */
   private drawRays(stage: HTMLElement) {
     const svg = stage.querySelector<SVGSVGElement>('.cmp-rays');
-    if (!svg) return;
+    // (Not drawn over the 3D map, which draws its routes itself: measuring every star each frame of a camera move made
+    // the move stutter.)
+    if (!svg || stage.closest('.cmp-3d')) return;
     const box = stage.getBoundingClientRect();
     const at = new Map<string, [number, number]>();
     for (const el of stage.querySelectorAll<HTMLElement>('.cmp-n3[data-key^="sys-"]')) {
@@ -3146,7 +3163,7 @@ export class CampaignView {
     // (The land knows each system's place along the route, in columns, so it breaks away in the route's order.)
     // (The first galaxy on the menu's own land, carrying straight on from it; any other on its own.)
     const menuLand = s.universe === 1 && !s.rift;
-    if (menuLand) this.nebula.show(MENU_LAND.seed, MENU_LAND.strip, { instant: !!this.launchCut });
+    if (menuLand) this.nebula.show(MENU_LAND.seed, MENU_LAND.strip, { instant: this.launchHeld });
     else this.nebula.show(seed, { nodes: s.nodes.map((n) => [...at.get(n.id)!, n.col ?? 0, lift.get(n.id)!] as [number, number, number, number]), routes });
     // The map's things in 3D: every system's star (ringed in its holder's colour); nothing over them (what a system
     // holds is found by going there).
@@ -3246,10 +3263,6 @@ export class CampaignView {
     // The camera keeps the flagship in view, on its own. (Set out from the menu: it carries straight on from the menu's
     // last frame, which was its resting place.)
     const own = ships.find((sh) => sh.id === mine?.id);
-    if (this.launchCut) {
-      this.nebula.setPose(this.launchCut);
-      this.launchCut = null;
-    }
     if (own) this.nebula.follow(own.x, own.z);
     // Instability: the land is gone up to half a column past the last collapsed system, and cracked up to half a
     // column past the last one collapsing (counted along the route, in columns).

@@ -645,6 +645,15 @@ export class Nebula {
   private last = 0;
   /** When the scene was last drawn (its gas alone drifting, it is drawn at most 30 times a second). */
   private drawn = 0;
+  /**
+   * Held: set up and drawn once (its shaders built, its land sent to the GPU), then not drawn again until let go, its
+   * clock and its ships running on meanwhile. (Set out from the campaign menu: the map is made ready under the menu
+   * while its camera pans, so nothing stalls the moment it takes over.)
+   */
+  hold = false;
+  private warmed = false;
+  /** Driven, drawn every frame the screen shows (a camera move the eye follows), not the drifting gas's 30. */
+  smooth = false;
   private time = 0;
   private reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   /** Where the camera is, and where it is easing to after a reset. */
@@ -766,6 +775,12 @@ export class Nebula {
     // (On the clock, not the frames: a slow device sees the same shot, only less smoothly.)
     c.reveal = { t0: performance.now() / 1000, dur, from: { ...this.pose } };
     this.wake();
+  }
+
+  /** The opening shot's camera this frame and the ship it rides beside (null: no shot playing). */
+  rideNow(): { pose: Pose; ship: { x: number; y: number; z: number; heading: number } } | null {
+    const sh = this.cine && this.layers[this.layers.length - 1].objects?.shipPose(this.cine.id, this.time);
+    return sh ? { pose: this.rideAt(sh, this.time), ship: sh } : null;
   }
 
   /** Whether the opening shot is still playing. */
@@ -1096,8 +1111,9 @@ export class Nebula {
       const objects = this.layers[this.layers.length - 1].objects;
       const busy = this.moved || !!this.glide || !!this.cine || this.fade < 1 || this.gone !== this.goneTarget || !!objects?.shipsUnderway || !!objects?.hoverMoving || this.forceDraw;
       // (Driven, it is always moving a little: 30 frames a second, never every one the screen can show.)
-      const due = (busy && !this.driver) || t - this.drawn >= 33;
-      if (due && !document.hidden) {
+      const due = (busy && (!this.driver || this.smooth)) || t - this.drawn >= 33;
+      if (due && !document.hidden && (!this.hold || !this.warmed)) {
+        this.warmed = true;
         this.drawn = t;
         this.forceDraw = false;
         for (const l of this.layers) l.draw(cam, this.time, fade, this.gone, this.crack, this.look, this.dark);

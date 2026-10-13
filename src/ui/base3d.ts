@@ -176,7 +176,7 @@ export class Base3d {
    * the camera the menu hands over on (as a view matrix and field of view: the campaign's first frame, seen in this
    * scene's own units), how far the hand-over has come (0 to 1, the land's pan's own), and where it set out from.
    */
-  private handOver: { view: M4; fov: number; k: () => number; from?: { eye: V3; target: V3; fov: number; off: number } } | null = null;
+  private handOver: { view: () => M4; fov: number; k: () => number; from?: { eye: V3; target: V3; fov: number; off: number } } | null = null;
   private dust: { p: V3; s: number; a: number }[] = [];
   /** Told after each frame (to lay the labels by their places). */
   onFrame: (() => void) | null = null;
@@ -291,7 +291,7 @@ export class Base3d {
   }
 
   /** The run begins: the camera eases to `view` (a rigid view of this scene) and `fov`, as `k` goes from 0 to 1. */
-  handTo(view: M4, fov: number, k: () => number) {
+  handTo(view: () => M4, fov: number, k: () => number) {
     this.handOver = { view, fov, k };
   }
 
@@ -339,7 +339,8 @@ export class Base3d {
   private loop(now: number) {
     if (!this.canvas.isConnected) return this.destroy();
     this.raf = requestAnimationFrame(this.loop);
-    if (now - this.last < 32 || this.paused) return;
+    // (Handing over to the campaign, every frame: its camera moves with the land's, which is drawn every frame too.)
+    if ((now - this.last < 32 && !this.handOver) || this.paused) return;
     this.last = now;
     this.draw();
     this.onFrame?.();
@@ -412,7 +413,7 @@ export class Base3d {
       // From where it was to the campaign's first frame: the eye and what it looks at eased along, the lens and the
       // framing with them; at the end, exactly the view handed over.
       if (!hand.from) hand.from = { eye: [...this.eye] as V3, target: [...p.target] as V3, fov, off: p.off };
-      const v = hand.view;
+      const v = hand.view();
       const r: V3 = [v[0], v[4], v[8]], u: V3 = [v[1], v[5], v[9]], f: V3 = [-v[2], -v[6], -v[10]];
       const eye1: V3 = [0, 1, 2].map((i) => -v[12] * r[i] - v[13] * u[i] + v[14] * f[i]) as V3;
       const d = Math.hypot(eye1[0], eye1[1], eye1[2]) || 1;
