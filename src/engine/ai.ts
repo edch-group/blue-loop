@@ -367,7 +367,7 @@ function evaluate(state: GameState, meId: string): number {
       // (A Lost Overlord has no sun: how near its Overlord is to falling is its danger.)
       const leader = o.boss?.leader ? o.tableau.find((c) => c.uid === o.boss!.leader) : undefined;
       const danger = leader ? 1 - (leader.health ?? 0) / Math.max(1, leader.maxHealth ?? baseHealth(leader.defId)) : Math.max(0, o.heat) / supernovaThreshold(o);
-      score += 12 * danger + 5 * danger * danger - RIVAL_BOARD * tableauValue(state, o) - 0.6 * orbitOutlook(o);
+      score += 12 * danger + 5 * danger * danger - RIVAL_BOARD * tableauValue(state, o) - 0.6 * orbitOutlook(o) - singularityThreat(o);
     }
   }
   // Count the heat already on its way: what each rival's tableau will do to this sun at their next dawn,
@@ -387,11 +387,37 @@ function evaluate(state: GameState, meId: string): number {
   // way, shields, cooling) beats any heat it could send their way now.
   const lethal = lethalMargin(state, me);
   if (lethal >= 0) score -= LETHAL_WEIGHT + 3 * lethal;
-  score += tableauValue(state, me) + orbitOutlook(me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
+  score += tableauValue(state, me) + orbitOutlook(me) + singularityHope(me) + 0.8 * me.hand.length + 0.3 * me.shields + (me.lightspeed ? LIGHTSPEED_VALUE : 0);
   // A Lightspeed card in hand it could pay for from what it leaves unspent (banked at day's end): an answer ready.
   const ready = me.hand.some((c) => !!cardDef(c.defId).lightspeed && reactCost(c.defId) <= (activePlayer(state).id === me.id ? me.playsLeft : me.banked ?? 0));
   if (ready) score += LIGHTSPEED_VALUE * 0.6;
   return score;
+}
+
+/**
+ * A rival Hero's singularity charging [direction: singularities make heroes a much higher priority target, and the AI
+ * should recognise that]: the fuller, the more it threatens (rising steeply toward full, most of all once charged), so
+ * beating that Hero down (its charge lost with it) is worth a great deal, more the nearer it is.
+ */
+export const SINGULARITY_THREAT = 7;
+function singularityThreat(o: PlayerState): number {
+  const hero = commandCard(o);
+  const k = hero && singularityOf(hero.defId);
+  if (!hero || !k) return 0;
+  const f = Math.min(1, (hero.charge ?? 0) / k.need);
+  return SINGULARITY_THREAT * (0.25 + 0.75 * f * f) + (f >= 1 ? 3 : 0);
+}
+/**
+ * Its own Hero's singularity on its way: worth keeping its Hero alive for (and charging). Unleashing it gives this back
+ * (see chooseAIAction), so it is spent for what it does, never hoarded or shied from filling.
+ */
+export const SINGULARITY_HOPE = 3;
+function singularityHope(me: PlayerState): number {
+  const hero = commandCard(me);
+  const k = hero && singularityOf(hero.defId);
+  if (!hero || !k) return 0;
+  const f = Math.min(1, (hero.charge ?? 0) / k.need);
+  return SINGULARITY_HOPE * f;
 }
 
 /** How hot it would burn past its limit if the rivals' next days went all at its sun (negative: it survives). */
@@ -629,7 +655,9 @@ export function chooseAIAction(state: GameState): Action {
     const ramp = gained > 0 ? gained * ACTION_VALUE * Math.min(1, after.hand.filter((c) => cardCost(c.defId) <= after.playsLeft && cardCost(c.defId) > 0).length / gained) : 0;
     // (A Vigil card that attacks gives up tonight's Vigil.)
     const vigil = action.type === 'attack' ? vigilWorth(view, me, me.tableau.find((c) => c.uid === action.attackerUid)) : 0;
-    const raw = evaluate(next, me.id) + ramp - vigil;
+    // (Unleashing its singularity: the charge it gives up is spent, not lost.)
+    const unleash = action.type === 'singularity' ? SINGULARITY_HOPE : 0;
+    const raw = evaluate(next, me.id) + ramp - vigil + unleash;
     // (Replacing a card of yours in a full tableau: only for a clear gain, never a like-for-like swap.)
     const replacing = played && action.type === 'playCard' && !action.faceDown && action.hostUid === undefined && replaces(me, played.defId) ? ACTION_VALUE : 0;
     const score = raw - extra * ACTION_VALUE - replacing;

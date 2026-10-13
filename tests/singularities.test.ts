@@ -96,3 +96,29 @@ describe('singularities', () => {
     expect(singularityOf(captainId({ attack: 1, stability: 0, cheaper: 0, abilities: ['brace'], sing: 'scrap' }))!.name).toBe('Scrap Run');
   });
 });
+
+describe('the AI and singularities', () => {
+  it('goes after a rival Hero whose singularity is charged', () => {
+    const s = createGame({ seed: 3, players: [{ name: 'Ada', isAI: true, deck: TEST_DECKS[0].cards }, { name: 'Bo', isAI: false, deck: TEST_DECKS[1].cards }] });
+    const me = s.players[0], rival = s.players[1];
+    me.hand = [];
+    me.playsLeft = 0;
+    // One attacker of its own (enough to beat their Hero down past its defence); their Hero (charged, nearly
+    // beaten) beside a plain card of theirs, as easy to finish.
+    me.tableau.push({ uid: 'a1', defId: 'coronal_lance', slot: 2, health: 9, attackBonus: 4 });
+    rival.tableau.push({ uid: 'h1', defId: 'ignition_protocol', slot: COMMAND_SLOT, health: 1, charge: SINGULARITIES.ignition_protocol.need });
+    rival.tableau.push({ uid: 'p1', defId: 'coronal_lance', slot: 2, health: 2 });
+    const a = chooseAIAction(s);
+    expect(a).toEqual({ type: 'attack', attackerUid: 'a1', targetUid: 'h1' });
+  });
+
+  it('spends its removal on a rival Hero whose singularity is charging', () => {
+    const s = createGame({ seed: 3, players: [{ name: 'Ada', isAI: true, deck: TEST_DECKS[0].cards }, { name: 'Bo', isAI: false, deck: TEST_DECKS[1].cards }] });
+    const me = s.players[0], rival = s.players[1];
+    me.hand = [{ uid: 'sb', defId: 'star_breaker' }];
+    me.playsLeft = 9;
+    rival.tableau.push({ uid: 'h1', defId: 'ignition_protocol', slot: COMMAND_SLOT, health: 5, charge: 5 });
+    rival.tableau.push({ uid: 'p1', defId: 'coronal_lance', slot: 2, health: baseHealth('coronal_lance') });
+    expect(chooseAIAction(s)).toMatchObject({ type: 'playCard', enemyUid: 'h1' });
+  });
+});
