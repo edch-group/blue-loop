@@ -85,6 +85,19 @@ class HeroLines {
     if (recording) window.setTimeout(() => sound.clip(recording), afterMs);
   }
 
+  private talk: number[] = [];
+
+  /** Lines said in turn, each when the last has had its time, each beside where its speaker is (found as it is said). */
+  converse(lines: { text: string; at: () => Element | null }[]) {
+    for (const t of this.talk) window.clearTimeout(t);
+    this.talk = [];
+    let at = 600;
+    for (const l of lines) {
+      this.talk.push(window.setTimeout(() => this.showCaption(l.text, l.at()), at));
+      at += 2600 + l.text.length * 30 + 300;
+    }
+  }
+
   private showCaption(text: string, card: Element | null) {
     this.caption?.remove();
     window.clearTimeout(this.captionTimer);

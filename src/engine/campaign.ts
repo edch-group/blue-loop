@@ -29,6 +29,7 @@ import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type H
 import { RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, supersededResearch, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
 import { isCaptain } from './captain';
+import { COMPANION_IDS, companionDef, DEFECTOR_SPARED, ENGINEER_PARTS, xpFromActs, type CompanionId } from './companions';
 import { newPart, partRarity, partSlots, shipFit, shipPart, type PartSlot } from './parts';
 import { RIFT_JUMPS, RIFT_KINDS, RIFTS, markedId, marksFor, NYX_MARKS, type NyxMark, type RiftKind } from './rifts';
 const NYX_MARK_NAME = (Object.fromEntries(Object.entries(NYX_MARKS).map(([k, v]) => [k, v.name])) as Record<NyxMark, string>);
@@ -629,6 +630,8 @@ export interface BattleContext {
   struggle?: { hero: string; damage: number };
   /** A Dream of the Lost (its puzzle's id), and the flagship's sun before it (a dream leaves it as it was). */
   dream?: { id: string; damage: number };
+  /** The crystal holding Kaelen, and the flagship's sun before it (a loss leaves it as it was). */
+  crystal?: { damage: number };
 }
 
 export interface CampaignLogEntry {
@@ -714,6 +717,16 @@ export interface CampaignState {
   /** Ship parts found this run (parts.ts), and those already put in the hangar for good (see partsBanked). */
   partsFound?: string[];
   partsBanked?: number;
+  /** Companions (companions.ts) who joined this run, and how many of them are already kept for good. */
+  freed?: CompanionId[];
+  freedBanked?: number;
+  /** Experience the companions have earnt in battle and not yet kept for good. */
+  companionXp?: Partial<Record<CompanionId, number>>;
+  /** Beaten heroes spared this run (what brings the defector), and how many are already counted for good. */
+  spared?: number;
+  sparedBanked?: number;
+  /** The crystal holding Kaelen waits on this galaxy's first battle (until he is free). */
+  crystal?: boolean;
   /** A Dream of the Lost waiting to be dreamt: where, and which (its puzzle's id). */
   dream?: { nodeId: string; id: string };
   /** A battle the player is fighting (or can auto-resolve). */
@@ -1530,6 +1543,8 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   if (!human) for (const id of run.deck ?? []) if (CARDS.some((c) => c.id === id) && army.deck.filter((x) => x === id).length < campaignCopies(id)) army.deck.push(id);
   // (Each Requisition: a pick of cards, the one chosen going straight into the deck.)
   for (let k = 0; k < run.picks; k++) s.cardRewards.push({ source: 'Requisition', options: randomCardChoices(s, me), toDeck: army.id });
+  // (The Captain's companions found on earlier runs come aboard, as their trees have made them.)
+  if (human) army.deck.push(...(run.companions ?? []));
   army.refit = false;
   tell(s, human ? captainIntroScene(me.id, army.general) : introScene(me.race, me.id, army.general));
   noticeStory(s);
@@ -1745,6 +1760,85 @@ export function buildUniverse(s: CampaignState, universe: number, layout?: MapLa
   }
   clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into galaxy ${universe}, at ${home.name}.`);
   tell(s, wormholeSightedScene(universe));
+  // Kaelen's crystal waits on the galaxy's first battle, until he is free.
+  s.crystal = !!me.human && !hasCompanion(s, 'lancer');
+}
+
+// ---------------------------------------------------------------------------
+// The Captain's companions (companions.ts): Kaelen in his crystal, the engineer at a station, the defector who hears
+// of the Captain's mercy. Each joins once, for good: their card into the flagship's deck, and kept on the account
+// (the screen keeps them: see freed).
+// ---------------------------------------------------------------------------
+
+/** Whether a companion is with the Captain on this run (found before it began, or since). */
+export function hasCompanion(s: CampaignState, id: CompanionId): boolean {
+  const card = companionDef(id).card;
+  return !!s.freed?.includes(id) || !!s.run?.companions?.some((c) => c === card || c.startsWith(card + '@'));
+}
+
+/** A companion joins: their card into the flagship's deck (the reserve, without one), and a word from them. */
+function joinCompanion(s: CampaignState, id: CompanionId, line: string) {
+  if (hasCompanion(s, id)) return;
+  const f = campaignPlayer(s);
+  const c = companionDef(id);
+  (s.freed ??= []).push(id);
+  const army = flagship(s, f.id);
+  if (army) army.deck.push(c.card);
+  else f.reserve.push(c.card);
+  clog(s, `${c.name}, ${c.title.toLowerCase()}, joins the Captain's ship.`, army?.nodeId, f.id);
+  tell(s, { id: `companion:${id}`, title: c.name, lines: [{ speaker: { kind: 'general', card: c.card, faction: f.id }, text: line }] });
+}
+
+/** The engineer: found at a space station once the ship has its parts fitted. */
+function meetEngineer(s: CampaignState, n: CampaignNode) {
+  const f = campaignPlayer(s);
+  if (!f.human || !n.station || hasCompanion(s, 'engineer')) return;
+  if (Object.keys(s.run?.ship?.fitted ?? {}).length < ENGINEER_PARTS) return;
+  joinCompanion(s, 'engineer', "Three good parts on a hull like that? Somebody aboard cares. I'm coming with you, Captain. She needs an engineer.");
+}
+
+/** The companions' experience from a battle: what each did in it (game.acts), kept until the screen banks it. */
+function noteActs(s: CampaignState, game: GameState) {
+  for (const id of COMPANION_IDS) {
+    const a = game.acts?.[id];
+    const xp = a ? xpFromActs(id, a) : 0;
+    if (xp > 0) (s.companionXp ??= {})[id] = (s.companionXp[id] ?? 0) + xp;
+  }
+}
+
+/** The crystal's own stability: a little more in each galaxy. */
+export const crystalHealth = (universe: number) => 10 + 4 * (universe - 1);
+/** Days to break it in. */
+export const CRYSTAL_DAYS = 4;
+
+/**
+ * The galaxy's first battle, while Kaelen is held: the crystal, where the flagship was bound. Break it before the days
+ * run out and he is free; if not, the crystal holds (the flagship's sun as it was), and waits in the next galaxy.
+ * Either way the flagship stays where it set out from, and the system it was bound for waits.
+ */
+function startCrystal(s: CampaignState, army: Army, target: CampaignNode) {
+  const f = factionById(s, army.owner);
+  army.moved = true;
+  s.crystal = false;
+  const [me] = battleSetup(s, army, { ...target, owner: null, station: undefined, vault: undefined, garrison: [], fortification: 0, damage: 0, star: undefined });
+  const side: PlayerSetup = { name: 'The Crystal Prison', isAI: true, deck: [], boss: true, bossLeader: 'crystal_prison', bossHealth: crystalHealth(s.universe), tableau: ['crystal_prison'] };
+  const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players: [me, side], campaign: true, mode: s.mode, challenge: { kind: 'crystal', days: CRYSTAL_DAYS, broken: 0 } });
+  clog(s, `On the way to ${target.name}, ${f.name}'s flagship finds Kaelen, held in a crystal.`, [army.nodeId, target.id], f.id);
+  s.battle = { attacker: f.id, defender: null, fromId: army.nodeId, nodeId: army.nodeId, armyId: army.id, defenderArmyId: null, game, crystal: { damage: army.damage } };
+}
+
+function resolveCrystal(s: CampaignState, game: GameState) {
+  const b = s.battle!;
+  s.battle = null;
+  const army = s.armies.find((a) => a.id === b.armyId);
+  const won = !isDraw(game) && game.winnerId === game.players[0].id;
+  if (army) army.damage = won ? Math.max(BALANCE.minHeat, game.players[0].heat) : b.crystal!.damage;
+  gainXp(s, won ? CAMPAIGN.xpChallenge : CAMPAIGN.xpBattleLost);
+  if (!won) {
+    clog(s, 'The crystal holds. Kaelen is lost to sight again.', b.nodeId, b.attacker);
+    return;
+  }
+  joinCompanion(s, 'lancer', 'Free. Free! I knew you would come for me, Captain. Where you fly, my lance flies.');
 }
 
 // ---------------------------------------------------------------------------
@@ -2190,6 +2284,9 @@ function decideBeaten(s: CampaignState, recruit: boolean) {
     if (army) army.deck.push(p.hero);
     else f.reserve.push(p.hero);
     clog(s, `${name} joins the Captain's ship.`, p.nodeId, f.id);
+    // (Word of the Captain's mercy spreads: the defector comes.)
+    s.spared = (s.spared ?? 0) + 1;
+    if ((s.run?.spared ?? 0) + s.spared >= DEFECTOR_SPARED) joinCompanion(s, 'defector', 'You spare the ones you beat. My Hierarch never spared anyone. I tore out his shard. Let me fight for you, human.');
     return;
   }
   (s.slain ??= []).push(p.hero);
@@ -2759,6 +2856,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
       if (offers.length) s.prophet = { nodeId: target.id, offers };
       clog(s, `A Dark Prophet waits at ${target.name}.`, target.id, f.id);
     }
+    if (f.id === s.playerId) meetEngineer(s, target);
     army.steps = (army.steps ?? 0) + 1;
     // (A hero who marches fast may go on, but not after a battle.)
     if (army.steps >= 1 + armyBonus(s, army).march) army.moved = true;
@@ -2775,6 +2873,11 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     return;
   }
   if (hazardBlocks(target, f.id)) throw new GameError(`${target.name} is still reeling from a supernova.`);
+  // (The galaxy's first battle, while Kaelen is held, is his crystal.)
+  if (s.crystal && f.id === s.playerId && f.human && !army.lost && !s.rift) {
+    startCrystal(s, army, target);
+    return;
+  }
   // A hero's Dread: a weak neutral system surrenders, as if beaten, with no battle.
   if (surrenders(s, army, target)) {
     army.moved = true;
@@ -3042,6 +3145,8 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   const b = s.battle;
   if (!b) throw new GameError('There is no battle to finish.');
   if (!isGameOver(game)) throw new GameError('That battle is not over yet.');
+  noteActs(s, game);
+  if (b.crystal) return resolveCrystal(s, game);
   if (b.challenge) return resolveChallenge(s, game);
   if (b.struggle) return resolveStruggle(s, game);
   if (b.dream) return resolveDream(s, game);
@@ -3559,6 +3664,9 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     s.xpBanked = s.xp ?? 0;
     s.starsBanked = s.starsTaken ?? 0;
     s.partsBanked = s.partsFound?.length ?? 0;
+    s.freedBanked = s.freed?.length ?? 0;
+    s.sparedBanked = s.spared ?? 0;
+    s.companionXp = {};
     return s;
   }
   const f = campaignPlayer(s);
@@ -3698,6 +3806,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       s.run = { ...(s.run ?? runBonuses(null)), ship: shipFit(fitted) };
       if (n.station?.kind === 'armory') n.station.used = { ...n.station.used, part: true };
       clog(s, action.partId ? `${f.name} fits ${shipPart(action.partId)!.name} at ${n.name}.` : `${f.name} strips a part at ${n.name}.`, n.id, f.id);
+      meetEngineer(s, n);
       break;
     }
     case 'struggleChoice': {

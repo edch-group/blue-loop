@@ -963,6 +963,15 @@ export class App {
     playBattle: (game) => {
       this.campaignBattle = true;
       this.beginWithArt(game);
+      // Kaelen's crystal: he begs to be freed, and the Captain answers.
+      if (game.challenge?.kind === 'crystal' && !game.players[0].turnsTaken) {
+        const crystal = () => this.root.querySelector(`.tableau [data-uid="${game.players[1].tableau[0]?.uid}"]`);
+        const captain = () => this.root.querySelector(`[data-anchor="player:${game.players[0].id}"]`);
+        voices.converse([
+          { text: 'Captain? Is that you? Break it, please. I can’t hold on much longer.', at: crystal },
+          { text: 'Hold on, Kaelen. I’m getting you out.', at: captain },
+        ]);
+      }
     },
     settingsButtons: () => this.settingsButtons(),
     banner: (text, sub) => this.showBanner(text, sub, 120, 'campaign'),
@@ -5583,7 +5592,7 @@ export class App {
       const lord = s.players.find((x) => x.boss && !x.eliminated);
       const ch = s.challenge;
       const clock = ch?.days !== undefined ? `${ch.days} day${ch.days === 1 ? '' : 's'} left${ch.kind === 'mine' ? ` · ${ch.broken} broken` : ''}` : '';
-      if (lord && !bossIntent(lord) && clock) return `<div class="mid-hint boss-hint"><small>${esc(lord.name.toLowerCase())}</small><b>${ch!.kind === 'mine' ? 'break the crystals' : 'hold the line'}</b><span>${clock}</span></div>`;
+      if (lord && !bossIntent(lord) && clock) return `<div class="mid-hint boss-hint"><small>${esc(lord.name.toLowerCase())}</small><b>${ch!.kind === 'mine' ? 'break the crystals' : ch!.kind === 'crystal' ? 'break the crystal' : 'hold the line'}</b><span>${clock}</span></div>`;
     }
     if (!p || p.step === 'choice' || p.step === 'recover') return '';
     const card = activePlayer(s).hand.find((c) => c.uid === p.uid) ?? (p.attack || p.ability !== undefined ? activePlayer(s).tableau.find((c) => c.uid === p.uid) : undefined);
@@ -6428,10 +6437,11 @@ export class App {
     const hp = leader?.health ?? 0, max = leader?.maxHealth ?? (leader ? baseHealth(leader.defId) : 1);
     const pct = Math.max(0, Math.min(100, (hp / Math.max(1, max)) * 100));
     return `<div class="vitals boss-vitals" data-anchor="player:${p.id}" title="Beat down the Overlord itself: heat sent at it strikes the Overlord, past its shields.">
-      <span class="boss-vitals-label">destroy the overlord</span>
+      <span class="boss-vitals-label">${ch?.kind === 'crystal' ? 'break the crystal' : 'destroy the overlord'}</span>
       <b class="boss-vitals-hp">${hp}<small>/${max}</small></b>
       <span class="boss-vitals-bar"><i style="width:${pct.toFixed(1)}%"></i></span>
       ${p.shields ? `<span class="boss-vitals-shields">⛨ ${p.shields}</span>` : ''}
+      ${ch?.kind === 'crystal' && ch.days !== undefined ? `<span class="boss-vitals-shields">${ch.days} day${ch.days === 1 ? '' : 's'} left</span>` : ''}
       <span class="vitals-name">${esc(p.name.toLowerCase())}</span>
     </div>`;
   }

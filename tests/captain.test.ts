@@ -228,6 +228,7 @@ describe('the ship and its parts', () => {
     const have = SHIP_PARTS.slice(0, 5).map((p) => p.id);
     const s = createCampaign({ seed: 6, captain: CAPTAIN, run: runBonuses(stowParts(emptyMeta(), have)) });
     for (const n of s.nodes) delete n.cache;
+    s.crystal = false;
     const heart = s.nodes.find((n) => n.heart)!;
     const army = myArmy(s);
     army.nodeId = heart.links[0];

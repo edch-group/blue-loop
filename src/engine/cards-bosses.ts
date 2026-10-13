@@ -142,6 +142,11 @@ export const CHALLENGE_CARDS: CardDef[] = [
     id: 'reliquary_obelisk_2', overlordPart: 'vault', name: 'Reliquary Obelisk', kind: 'defence', health: 14, defence: 2,
     text: 'Destroy it before the battle ends to claim 2 emblems.',
   },
+  // The crystal Kaelen, the Captain's Aureline friend, is trapped in (companions.ts): break it before time runs out.
+  {
+    id: 'crystal_prison', overlordPart: 'vault', name: 'Crystal Prison', kind: 'defence', health: 10,
+    text: 'Break it before time runs out to free Kaelen.',
+  },
   {
     id: 'lost_retinue', overlordPart: 'retainer', name: 'Lost Retinue', kind: 'attack', health: 3, attack: 2,
     text: "{dawn}: {heat:1}. Sworn to a lord whose people are gone.",

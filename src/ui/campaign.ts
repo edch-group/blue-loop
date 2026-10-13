@@ -37,6 +37,7 @@ import {
   levelOf,
   raceConquests,
   runBonuses,
+  bankCompanions,
   type MetaGroup,
   battleOdds,
   ORACLE_NAME,
@@ -121,6 +122,17 @@ import {
   type MenuSection,
   openSections,
   sectionOpen,
+  companionDef,
+  companionCardId,
+  companionLevel,
+  companionsFound,
+  companionPoints,
+  companionPrice,
+  buyCompanion,
+  type CompanionId,
+  type CompanionBuy,
+  type CompanionMeta,
+  type CompanionStat,
 } from '../engine';
 import { account, markDirty } from './account';
 import { profile } from './profile';
@@ -216,7 +228,17 @@ const SHIP_ICON =
  * its white disc, raised from it (light above, shadow below: styles.css .cs-emblem). Near-symmetrical.
  */
 const emblem = (body: string) => `<svg class="cs-emblem" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
-const MENU_EMBLEM: Record<'captain' | 'ship' | 'stellari', string> = {
+/** A skill on a tree's page (the Captain's, a companion's), and a branch of them. */
+type TreeItem = { key: string; owned: boolean; can: boolean; locked: boolean; on?: boolean; title: string; sub: string; what?: string };
+type TreeBranch = { name: string; colour: string; chain: boolean; items: TreeItem[] };
+
+const MENU_EMBLEM: Record<'captain' | 'ship' | 'stellari' | CompanionId, string> = {
+  // Kaelen: a lance upright, its leaf blade, through a halo.
+  lancer: emblem('<path d="M12 1.4l2.3 4.6L12 9.6 9.7 6Z"/><path d="M11.2 9.4h1.6v13.2h-1.6Z"/><path fill-rule="evenodd" d="M12 9.2c4.4 0 7.6 1.3 7.6 3s-3.2 3-7.6 3-7.6-1.3-7.6-3 3.2-3 7.6-3Zm0 1.5c-3.4 0-5.9.7-5.9 1.5s2.5 1.5 5.9 1.5 5.9-.7 5.9-1.5-2.5-1.5-5.9-1.5Z"/>'),
+  // Mara: a spanner crossed under a shield.
+  engineer: emblem('<path d="M12 2.2 19 5v5.4c0 4.4-2.9 7.9-7 9.4-4.1-1.5-7-5-7-9.4V5Z" opacity=".55"/><path d="M8.2 7.6a3 3 0 0 1 3.9 3.6l4.6 4.6-1.4 1.4-4.6-4.6a3 3 0 0 1-3.6-3.9l1.9 1.9 1.3-.2.2-1.3Z"/><path d="M15.8 7.6a3 3 0 0 0-3.9 3.6l-4.6 4.6 1.4 1.4 4.6-4.6a3 3 0 0 0 3.6-3.9l-1.9 1.9-1.3-.2-.2-1.3Z"/>'),
+  // Vey'Sharr: a shard split from its crown, a core of light between.
+  defector: emblem('<path d="M12 1.6 14.6 7 12 10.4 9.4 7Z"/><path d="M7.6 6.4 9.8 11 7 13.6 4.2 9.4Z"/><path d="M16.4 6.4 19.8 9.4 17 13.6 14.2 11Z"/><circle cx="12" cy="13.4" r="2.2"/><path d="M12 16.6 14.4 19.4 12 22.6 9.6 19.4Z"/>'),
   // A captain's rank: two chevrons under a star.
   captain: emblem('<path d="M12 2.4l1.1 2.3 2.5.3-1.8 1.7.5 2.5L12 8l-2.3 1.2.5-2.5-1.8-1.7 2.5-.3Z"/><path d="M4.8 14.2 12 9.6l7.2 4.6v2.6L12 12.2l-7.2 4.6Z"/><path d="M4.8 19 12 14.4l7.2 4.6v2.6L12 17l-7.2 4.6Z"/>'),
   // The ship from above, nose up: its hull, its swept fins, its engines.
@@ -447,6 +469,10 @@ export class CampaignView {
   /** How far the Captain's tree is scrolled (null: not yet, so it opens at the foot, by his emblem). */
   private hpScroll: number | null = null;
   private capHistory: CaptainMeta[] = [];
+  /** A companion's tree open (companions.ts), what was learnt on it this visit, and how they were before each. */
+  private compOpen: CompanionId | null = null;
+  private compPlaced: string[] = [];
+  private compHistory: CompanionMeta[] = [];
   private hangarOpen = false;
   /** The base on the setup page (3D), while it is shown. */
   private base: Base3d | null = null;
@@ -830,8 +856,12 @@ export class CampaignView {
     const stars = (s?.starsTaken ?? 0) - (s?.starsBanked ?? 0);
     // (Ship parts found too: into the hangar for good.)
     const parts = (s?.partsFound ?? []).slice(s?.partsBanked ?? 0);
-    if (!s || (s.petals <= s.petalsBanked && xp <= 0 && stars <= 0 && !parts.length)) return;
-    const meta = stowParts(loadMeta(), parts);
+    // (The companions too: those who joined, what they learnt in battle, and beaten heroes spared.)
+    const freed = (s?.freed ?? []).slice(s?.freedBanked ?? 0);
+    const spared = (s?.spared ?? 0) - (s?.sparedBanked ?? 0);
+    const learnt = Object.values(s?.companionXp ?? {}).some((n) => (n ?? 0) > 0);
+    if (!s || (s.petals <= s.petalsBanked && xp <= 0 && stars <= 0 && !parts.length && !freed.length && spared <= 0 && !learnt)) return;
+    const meta = bankCompanions(stowParts(loadMeta(), parts), freed, s.companionXp ?? {}, Math.max(0, spared));
     const race = campaignPlayer(s)?.race;
     const conquests = race !== undefined && stars > 0 ? { ...meta.conquests, [race]: raceConquests(meta, race) + stars } : meta.conquests;
     saveMeta({ ...meta, petals: meta.petals + (s.petals - s.petalsBanked), xp: (meta.xp ?? 0) + Math.max(0, xp), best: Math.max(meta.best, s.universe - 1), ...(conquests ? { conquests } : {}) });
@@ -992,6 +1022,56 @@ export class CampaignView {
         this.capPlaced = [];
         this.capHistory = [];
         break;
+      case 'cmp-comp':
+        this.compOpen = this.compOpen ? null : (arg as CompanionId);
+        this.hpScroll = null;
+        this.compPlaced = [];
+        this.compHistory = [];
+        break;
+      case 'cmp-comp-pick': {
+        // (As on the Captain's tree: a tap learns it there and then; undo or clear takes it back while it is open.)
+        const id = this.compOpen;
+        const meta = loadMeta();
+        const c = id && meta.companions?.[id];
+        if (!id || !c) break;
+        const [kind, key, step] = arg.split(':');
+        const buy: CompanionBuy = kind === 'stat' ? { kind: 'stat', stat: key as CompanionStat } : { kind: 'trait', id: key };
+        if (buy.kind === 'stat' && Number(step) < c[buy.stat]) break;
+        if (buy.kind === 'trait' && c.traits.includes(key)) break;
+        const fail = (why: string) => {
+          this.host.toast(why);
+          sound.error();
+        };
+        if (buy.kind === 'stat' && Number(step) > c[buy.stat]) {
+          fail('Learn the one before it first.');
+          break;
+        }
+        const price = companionPrice(meta, id, buy);
+        if (price === null) break;
+        if (price > companionPoints(meta, id)) {
+          fail(`Needs ${price} skill point${price === 1 ? '' : 's'}.`);
+          break;
+        }
+        this.compHistory.push(c);
+        this.compPlaced.push(arg);
+        saveMeta(buyCompanion(meta, id, buy));
+        sound.charge(this.compPlaced.length - 1);
+        break;
+      }
+      case 'cmp-comp-undo':
+      case 'cmp-comp-clear': {
+        const id = this.compOpen;
+        const snap = act === 'cmp-comp-undo' ? this.compHistory.pop() : this.compHistory[0];
+        if (act === 'cmp-comp-undo') this.compPlaced.pop();
+        else {
+          this.compPlaced = [];
+          this.compHistory = [];
+        }
+        const meta = loadMeta();
+        if (id && snap && meta.companions) saveMeta({ ...meta, companions: { ...meta.companions, [id]: snap } });
+        sound.hover();
+        break;
+      }
       case 'cmp-hangar':
         this.hangarOpen = !this.hangarOpen;
         this.hangarPick = null;
@@ -1804,9 +1884,13 @@ export class CampaignView {
     // stem from it to its place, bent at a right angle as the tree's are.
     // (A section with nothing in it yet is greyed out, and can't be opened [direction: the menu's items greyed out until
     // points or parts are available for the first time].)
-    const sectionOf: Record<BaseZone, MenuSection> = { captain: 'captain', hangar: 'ship', research: 'stellari' };
-    const label = (zone: BaseZone, act: string, title: string, sub: string, mark: string) =>
-      `<button class="cs-base-label cs-node${shut(sectionOf[zone]) ? ' cs-node-shut' : ''}" data-zone="${zone}" data-act="${act}"${shut(sectionOf[zone]) ? ' disabled aria-disabled="true"' : ''}><span class="up-node-disc">${mark}</span><span class="cs-node-text"><b>${title}</b><small>${sub}</small></span></button>`;
+    const sectionOf = (zone: BaseZone): MenuSection => (zone === 'hangar' ? 'ship' : zone === 'research' ? 'stellari' : zone);
+    const label = (zone: BaseZone, act: string, title: string, sub: string, mark: string, arg = '') =>
+      `<button class="cs-base-label cs-node${shut(sectionOf(zone)) ? ' cs-node-shut' : ''}" data-zone="${zone}" data-act="${act}"${arg ? ` data-arg="${arg}"` : ''}${shut(sectionOf(zone)) ? ' disabled aria-disabled="true"' : ''}><span class="up-node-disc">${mark}</span><span class="cs-node-text"><b>${title}</b><small>${sub}</small></span></button>`;
+    // (Each companion found has an option of their own, beside the Captain's.)
+    const crew = companionsFound(meta)
+      .map((id) => label(id, 'cmp-comp', esc(companionDef(id).name.toLowerCase()), `${companionPoints(meta, id)} skill point${companionPoints(meta, id) === 1 ? '' : 's'}`, MENU_EMBLEM[id], id))
+      .join('');
     const body = canNebula()
       ? `<div class="cs-base">
           <div class="cs-sunrise" aria-hidden="true"></div>
@@ -1815,6 +1899,7 @@ export class CampaignView {
           <div class="cs-nodes">
             <svg class="cs-arc" aria-hidden="true"><path/></svg>
             ${label('captain', 'cmp-hero', 'the captain', `${pointsLeft(meta)} skill points`, MENU_EMBLEM.captain)}
+            ${crew}
             ${label('hangar', 'cmp-hangar', 'the ship', 'fit parts', MENU_EMBLEM.ship)}
             ${label('research', 'cmp-shop', 'the stellari', `${meta.petals} petals`, MENU_EMBLEM.stellari)}
           </div>
@@ -1832,7 +1917,7 @@ export class CampaignView {
           </section>
         </div>`;
     return `
-      <main class="cmp-setup setup-page cs-page cs-captain-page${canNebula() && (this.heroOpen || this.hangarOpen || this.shopOpen) ? ' cs-focus' : ''}">
+      <main class="cmp-setup setup-page cs-page cs-captain-page${canNebula() && (this.heroOpen || this.hangarOpen || this.shopOpen || this.compOpen) ? ' cs-focus' : ''}">
         <header class="setup-top">
           <button class="btn btn-small" data-act="cmp-exit">‹ back</button>
           <h2 class="menu-heading">a dying universe</h2>
@@ -1841,6 +1926,7 @@ export class CampaignView {
         <footer class="setup-foot"><button class="btn-primary" data-act="cmp-start">begin run</button></footer>
         ${this.shopOpen ? this.renderShop(meta) : ''}
         ${this.heroOpen ? this.renderHeroPanel(meta) : ''}
+        ${this.compOpen && meta.companions?.[this.compOpen] ? this.renderCompanionPanel(meta, this.compOpen) : ''}
         ${this.hangarOpen ? this.renderHangar(meta) : ''}
       </main>`;
   }
@@ -1859,8 +1945,7 @@ export class CampaignView {
     // skill tree]: his emblem at the foot, each branch climbing from it as a column of skills (its stem bent at right
     // angles, as the tree's are), each skill a mote of light with its name and what it is beside it; the page opens at
     // the foot and scrolls up. A tap learns a skill (or carries an ability, or leads with a lead).
-    type Item = { key: string; owned: boolean; can: boolean; locked: boolean; on?: boolean; title: string; sub: string; what?: string };
-    type Branch = { name: string; colour: string; chain: boolean; items: Item[] };
+    type Branch = TreeBranch;
     const price = (buy: CaptainBuy) => captainPrice(meta, buy);
     const can = (buy: CaptainBuy) => !captainBuyProblem(meta, buy);
     const cost = (buy: CaptainBuy | null) => {
@@ -1922,6 +2007,89 @@ export class CampaignView {
       abilities,
       leads,
     ];
+    const sheet = this.treeSheet(branches, placed, 'cmp-cap-pick', MENU_EMBLEM.captain);
+    return `
+      <div class="up-shop hero-panel">
+        <header class="up-head up-head-tree">
+          <div class="up-left">
+            <button class="up-back" data-act="cmp-hero" aria-label="Back">‹ back</button>
+            ${this.capPlaced.length ? '<button class="up-plan-undo" data-act="cmp-cap-undo">undo</button><button class="up-plan-undo" data-act="cmp-cap-clear">clear</button>' : ''}
+            ${captainPointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.capResetArmed ? 'armed' : ''}" data-act="cmp-cap-reset">${this.capResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}
+          </div>
+          <div class="up-title-big"><h3>the captain</h3><span class="up-xp">${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small></span></div>
+          <span></span>
+        </header>
+        ${sheet}
+      </div>`;
+  }
+
+  /**
+   * A companion's tree [direction: each character has their own skill tree and experience, earnt from their actions
+   * in battle]: their stats (attack, cost, stability), each a path, and what they can learn; laid out as the
+   * Captain's is, their emblem at the foot. Experience comes only from what they do in battle.
+   */
+  private renderCompanionPanel(meta: MetaState, id: CompanionId): string {
+    const c = meta.companions![id]!;
+    const d = companionDef(id);
+    const placed = new Set(this.compPlaced);
+    const left = companionPoints(meta, id);
+    const cost = (buy: CompanionBuy) => {
+      const n = companionPrice(meta, id, buy);
+      return n === null ? '' : `${n} skill point${n === 1 ? '' : 's'}`;
+    };
+    const can = (buy: CompanionBuy) => {
+      const n = companionPrice(meta, id, buy);
+      return n !== null && n <= left;
+    };
+    const stat = (k: CompanionStat, name: string, colour: string, say: (n: number) => string): TreeBranch => ({
+      name,
+      colour,
+      chain: true,
+      items: d.stats[k].map((_, i) => {
+        const owned = i < c[k], next = i === c[k];
+        const buy: CompanionBuy = { kind: 'stat', stat: k };
+        return { key: `stat:${k}:${i}`, owned, can: next && can(buy), locked: i > c[k], title: say(i + 1), sub: owned ? 'learnt' : next ? cost(buy) : 'after the one below' };
+      }),
+    });
+    const traits: TreeBranch = {
+      name: 'skills',
+      colour: '#4fae9b',
+      chain: false,
+      items: d.traits.map((t) => {
+        const owned = c.traits.includes(t.id);
+        const buy: CompanionBuy = { kind: 'trait', id: t.id };
+        return { key: `trait:${t.id}`, owned, can: !owned && can(buy), locked: false, title: t.name.toLowerCase(), what: t.text, sub: owned ? 'learnt' : cost(buy) };
+      }),
+    };
+    const branches = [
+      stat('attack', 'attack', '#d0675a', (n) => `+${n} attack`),
+      stat('cheaper', 'cost', '#d9a441', (n) => `costs ${n} less`),
+      stat('stability', 'stability', '#5f9fdc', (n) => `+${n * 2} stability`),
+      traits,
+    ].filter((b) => b.items.length);
+    const lv = companionLevel(c.xp);
+    const card = companionCardId(id, c);
+    return `
+      <div class="up-shop hero-panel">
+        <header class="up-head up-head-tree">
+          <div class="up-left">
+            <button class="up-back" data-act="cmp-comp" data-arg="${id}" aria-label="Back">‹ back</button>
+            ${this.compPlaced.length ? '<button class="up-plan-undo" data-act="cmp-comp-undo">undo</button><button class="up-plan-undo" data-act="cmp-comp-clear">clear</button>' : ''}
+          </div>
+          <div class="up-title-big"><h3>${esc(d.name.toLowerCase())}</h3><span class="up-xp">${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${lv.level} · ${lv.into}/${lv.need}</small></span></div>
+          <button class="up-plan-undo hp-card-peek" data-act="inspect" data-card="${esc(card)}">card</button>
+        </header>
+        <p class="hp-learns">${esc(d.learnsText.toLowerCase())}</p>
+        ${this.treeSheet(branches, placed, 'cmp-comp-pick', MENU_EMBLEM[id])}
+      </div>`;
+  }
+
+  /**
+   * A skill tree's page (the Captain's, or a companion's): an emblem at the foot, each branch climbing from it as a
+   * column of skills (its stem bent at right angles), each skill a mote of light with its name and what it is beside
+   * it; the page opens at the foot and scrolls up. `act` is what a tap on a skill does (its key the argument).
+   */
+  private treeSheet(branches: TreeBranch[], placed: Set<string>, act: string, emblem: string): string {
     // Laid out on a sheet 1000 wide: its columns side by side (on a phone, two at a time, each pair a tier further up),
     // a row of 92 a skill, his emblem at the foot.
     // (Narrower than a desktop's, as a phone held sideways: three a tier, so every name has room.)
@@ -1948,7 +2116,7 @@ export class CampaignView {
           const y = base - 30 - k * ROW;
           paths.push(`<path class="${it.owned ? 'lit' : ''}" style="--bc:${br.colour}" d="M${x} ${k ? y + ROW : base} V${y}"/>`);
           const plan = it.owned && placed.has(it.key);
-          nodes.push(`<button class="up-node hp-skill ${it.owned && !plan ? 'owned' : ''} ${plan ? 'planned' : ''} ${it.owned ? 'maxed' : ''} ${it.locked ? 'locked' : ''} ${it.can ? 'afford' : ''} ${it.on ? 'hp-carried' : ''}" style="left:${(x / 10).toFixed(2)}%;top:${y}px;--bc:${br.colour};--lv:${it.owned ? 1 : 0}" data-act="cmp-cap-pick" data-arg="${esc(it.key)}" aria-label="${esc(it.title)}">
+          nodes.push(`<button class="up-node hp-skill ${it.owned && !plan ? 'owned' : ''} ${plan ? 'planned' : ''} ${it.owned ? 'maxed' : ''} ${it.locked ? 'locked' : ''} ${it.can ? 'afford' : ''} ${it.on ? 'hp-carried' : ''}" style="left:${(x / 10).toFixed(2)}%;top:${y}px;--bc:${br.colour};--lv:${it.owned ? 1 : 0}" data-act="${act}" data-arg="${esc(it.key)}" aria-label="${esc(it.title)}">
             <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" class="${plan ? 'plan' : it.owned ? 'on' : ''}"/></svg><i class="up-mote" aria-hidden="true"></i></span>
             <span class="hp-label"><b>${esc(it.title)}</b>${it.what ? `<span class="hp-what">${cardTextHtml(it.what, undefined, true)}</span>` : ''}<small>${esc(it.sub)}</small></span>
           </button>`);
@@ -1956,25 +2124,13 @@ export class CampaignView {
       });
       base -= tierH[ti];
     });
-    return `
-      <div class="up-shop hero-panel">
-        <header class="up-head up-head-tree">
-          <div class="up-left">
-            <button class="up-back" data-act="cmp-hero" aria-label="Back">‹ back</button>
-            ${this.capPlaced.length ? '<button class="up-plan-undo" data-act="cmp-cap-undo">undo</button><button class="up-plan-undo" data-act="cmp-cap-clear">clear</button>' : ''}
-            ${captainPointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.capResetArmed ? 'armed' : ''}" data-act="cmp-cap-reset">${this.capResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}
-          </div>
-          <div class="up-title-big"><h3>the captain</h3><span class="up-xp">${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small></span></div>
-          <span></span>
-        </header>
-        <div class="hp-scroll up-tree">
+    return `<div class="hp-scroll up-tree">
           <div class="hp-sheet" style="height:${H}px;--cols:${cols}">
             <svg class="hp-lines" viewBox="0 0 1000 ${H}" preserveAspectRatio="none" aria-hidden="true">${paths.join('')}</svg>
-            <span class="hp-root" style="top:${rootY}px" aria-hidden="true">${MENU_EMBLEM.captain}</span>
+            <span class="hp-root" style="top:${rootY}px" aria-hidden="true">${emblem}</span>
             ${nodes.join('')}
           </div>
-        </div>
-      </div>`;
+        </div>`;
   }
 
   /** The Captain's ship as the map draws it: the parts fitted for this run (and their rarities), and the Captain's level. */
@@ -2743,10 +2899,12 @@ export class CampaignView {
           const pts = Array.from({ length: 19 }, (_, i) => on(-90 + i * 10)).filter((q): q is { x: number; y: number } => !!q);
           arc.setAttribute('d', pts.map((q, i) => `${i ? 'L' : 'M'}${q.x.toFixed(1)} ${q.y.toFixed(1)}`).join(''));
         }
-        const ANGLE: Record<BaseZone, number> = { captain: 52, hangar: 0, research: -52 };
-        for (const zone of ['captain', 'hangar', 'research'] as BaseZone[]) {
+        // (Spread evenly round the bow, top to bottom: three a quarter turn apart, more closer together.)
+        const zones = [...box.querySelectorAll<HTMLElement>('.cs-node[data-zone]')].map((n) => n.dataset.zone as BaseZone);
+        const step = zones.length <= 3 ? 52 : 150 / (zones.length - 1);
+        for (const [i, zone] of zones.entries()) {
           const node = box.querySelector<HTMLElement>(`.cs-node[data-zone="${zone}"]`);
-          const q = on(ANGLE[zone]);
+          const q = on(((zones.length - 1) / 2 - i) * step);
           if (!node || !q) continue;
           // (Kept on screen, its name and all.)
           // (On whole pixels, and only when it moves: a disc and its mark always drawn together, never shimmering apart.)
@@ -2759,8 +2917,9 @@ export class CampaignView {
     }
     if (!this.base) return;
     this.base.setShip(this.metaShipSpec(meta));
+    this.base.setCrew(companionsFound(meta));
     // (A section's page open: its camera, the ship flying on behind the page.)
-    this.base.focus(this.heroOpen ? 'captain' : this.hangarOpen ? 'hangar' : this.shopOpen ? 'research' : null);
+    this.base.focus(this.heroOpen ? 'captain' : this.compOpen ?? (this.hangarOpen ? 'hangar' : this.shopOpen ? 'research' : null));
     this.base.onFrame?.();
   }
 

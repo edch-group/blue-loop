@@ -37,13 +37,13 @@ const INK: RGB = [0.1, 0.09, 0.1];
 const SOFT = 3;
 
 /** Points along a limb (box units) and their joint balls: a tube from each to the next, tapering. */
-function limb(m: Mesh, pts: V3[], r0: number, r1: number, col: RGB) {
+export function limb(m: Mesh, pts: V3[], r0: number, r1: number, col: RGB) {
   m.tube(pts, r0, r1, col, SOFT, 18);
   for (let i = 1; i < pts.length - 1; i++) m.ball(pts[i][0], pts[i][1], pts[i][2], r0 + ((r1 - r0) * i) / (pts.length - 1), col, SOFT, 16, 10);
 }
 
 /** Turned about a line through a point (box units) along the model's x, y or z: for a feature's own angle. */
-function turned(m: Mesh, at: V3, axis: 'x' | 'y' | 'z', a: number, build: () => void) {
+export function turned(m: Mesh, at: V3, axis: 'x' | 'y' | 'z', a: number, build: () => void) {
   const c = B(at[0], at[1], at[2]), cs = Math.cos(a), sn = Math.sin(a);
   m.with((p) => {
     const d = sub3(p, c);
@@ -147,7 +147,7 @@ export function captainModel(): Float32Array {
  * A sheet of cloth through a grid of points (box units; rows down it, columns across), each face shaded on whichever
  * side is seen.
  */
-function cloth(m: Mesh, grid: V3[][], col: RGB, hem: RGB) {
+export function cloth(m: Mesh, grid: V3[][], col: RGB, hem: RGB) {
   for (let r = 0; r < grid.length - 1; r++)
     for (let c = 0; c < grid[r].length - 1; c++) {
       const [a, b, d, e] = [grid[r][c], grid[r][c + 1], grid[r + 1][c], grid[r + 1][c + 1]].map((q) => B(q[0], q[1], q[2]));

@@ -976,6 +976,15 @@ const ART: Record<string, Draw> = {
   // A relic cache: a dark obelisk, banded in gold, a relic glowing sealed in its heart.
   reliquary_obelisk: (S) => OBELISK(S, 1),
   reliquary_obelisk_2: (S) => OBELISK(S, 2),
+  // A tall violet crystal, a lancer's dim shape held in its heart.
+  crystal_prison: (S) =>
+    S.glow(80, 54, 36, '#8f7cff', 0.45) +
+    S.ground(94, '#08060e', 5) +
+    S.crystal(80, 58, 70, 26, 0, '#b8a8ff', 0.9) +
+    `<path d="M77 40 Q80 34 83 40 L84 52 L88 74 L83 74 L80 62 L77 74 L72 74 L76 52 Z" fill="#2a2240" opacity="0.7"/><circle cx="80" cy="37" r="2" fill="#ffe3a0" opacity="0.8"/><path d="M90 30 L72 84" stroke="#ffe3a0" stroke-width="0.8" opacity="0.55"/>` +
+    S.crystal(56, 74, 30, 11, -22, '#9a8cf0', 0.8) +
+    S.crystal(104, 72, 34, 12, 20, '#a898ff', 0.85) +
+    S.motes(80, 54, 22, 50, '#e0d8ff'),
   lost_retinue: (S) =>
     S.glow(80, 56, 30, '#d4a02a', 0.35) + S.ground(92, '#0a0806', 4) + `<path d="M70 92 L72 58 Q80 48 88 58 L90 92 Z" fill="#1a140c" stroke="#d4a02a" stroke-width="0.7"/><circle cx="80" cy="50" r="6" fill="#1a140c" stroke="#d4a02a" stroke-width="0.7"/><path d="M94 92 L94 40" stroke="#d4a02a" stroke-width="1"/>`,
   lord_orrim: (S) =>

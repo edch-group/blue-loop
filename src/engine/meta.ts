@@ -14,6 +14,7 @@
 
 import { GENERALS } from './story';
 import { partSlots, shipFit, shipPart, type PartSlot, type ShipFit } from './parts';
+import { COMPANION_IDS, companionCardId, companionDef, companionLevel, companionSpent, plainCompanion, type CompanionBuild, type CompanionId, type CompanionStat } from './companions';
 import { CAPTAIN_SLOT_PRICES, CAPTAIN_START_ABILITY, CAPTAIN_STAT_PRICES, captainAbility, captainId, captainLead, captainSlots, type CaptainStat } from './captain';
 import type { BattleModifiers } from './types';
 
@@ -106,10 +107,66 @@ export interface MetaState {
   fitted?: Partial<Record<PartSlot, string>>;
   /** The campaign menu's sections opened up so far (each once there was first something in it to spend). */
   opened?: Partial<Record<MenuSection, boolean>>;
+  /** The Captain's companions found (companions.ts): each one's experience and what their tree has made of them. */
+  companions?: Partial<Record<CompanionId, CompanionMeta>>;
+  /** Beaten heroes spared in Power Struggles, every run (what brings the defector). */
+  spared?: number;
+}
+
+/** A companion as kept: their experience (from what they did in battle) and their build. */
+export interface CompanionMeta extends CompanionBuild {
+  xp: number;
+}
+
+/** The companions found so far, in order. */
+export const companionsFound = (meta: MetaState): CompanionId[] => COMPANION_IDS.filter((id) => meta.companions?.[id]);
+
+/** A found companion's card for the next run (its id carries the build). */
+export const companionCards = (meta: MetaState): string[] => companionsFound(meta).map((id) => companionCardId(id, meta.companions![id]!));
+
+/** A companion's skill points left: one for every level past the first, less those spent. */
+export function companionPoints(meta: MetaState, id: CompanionId): number {
+  const c = meta.companions?.[id];
+  return c ? companionLevel(c.xp).level - 1 - companionSpent(id, c) : 0;
+}
+
+/** Something a companion's tree can buy. */
+export type CompanionBuy = { kind: 'stat'; stat: CompanionStat } | { kind: 'trait'; id: string };
+
+/** Its price in the companion's skill points (null: learnt already, or at its most). */
+export function companionPrice(meta: MetaState, id: CompanionId, buy: CompanionBuy): number | null {
+  const c = meta.companions?.[id];
+  if (!c) return null;
+  const d = companionDef(id);
+  if (buy.kind === 'stat') return d.stats[buy.stat][c[buy.stat]] ?? null;
+  return c.traits.includes(buy.id) ? null : (d.traits.find((x) => x.id === buy.id)?.price ?? null);
+}
+
+/** Learn it (a new state; unchanged if it can't be had). */
+export function buyCompanion(meta: MetaState, id: CompanionId, buy: CompanionBuy): MetaState {
+  const c = meta.companions?.[id];
+  const price = companionPrice(meta, id, buy);
+  if (!c || price === null || companionPoints(meta, id) < price) return meta;
+  const next: CompanionMeta = { ...c, traits: [...c.traits] };
+  if (buy.kind === 'stat') next[buy.stat]++;
+  else next.traits.push(buy.id);
+  return { ...meta, companions: { ...meta.companions, [id]: next } };
+}
+
+/**
+ * What a run brings back for the companions: those who joined (found for good, from a plain build), the experience
+ * each earnt, and beaten heroes spared.
+ */
+export function bankCompanions(meta: MetaState, freed: CompanionId[], xp: Partial<Record<CompanionId, number>>, spared: number): MetaState {
+  if (!freed.length && !spared && !Object.values(xp).some((n) => (n ?? 0) > 0)) return meta;
+  const companions = { ...(meta.companions ?? {}) };
+  for (const id of freed) companions[id] ??= { ...plainCompanion(id), xp: 0 };
+  for (const id of COMPANION_IDS) if (companions[id] && (xp[id] ?? 0) > 0) companions[id] = { ...companions[id]!, xp: companions[id]!.xp + xp[id]! };
+  return { ...meta, companions, spared: (meta.spared ?? 0) + spared };
 }
 
 /** The campaign menu's sections: the Captain's skills, the ship's parts, the Stellari's skill tree. */
-export type MenuSection = 'captain' | 'ship' | 'stellari';
+export type MenuSection = 'captain' | 'ship' | 'stellari' | CompanionId;
 
 /**
  * Whether a section of the campaign menu is open [direction: the menu's items greyed out until points or parts are
@@ -120,6 +177,8 @@ export function sectionOpen(meta: MetaState, s: MenuSection): boolean {
   if (meta.opened?.[s]) return true;
   if (s === 'captain') return pointsLeft(meta) > 0 || captainPointsSpent(meta) > 0;
   if (s === 'ship') return (meta.hangar?.length ?? 0) > 0;
+  // (A companion's: once they are found and have a skill point to spend.)
+  if (s !== 'stellari') return !!meta.companions?.[s] && (companionPoints(meta, s) > 0 || companionSpent(s, meta.companions[s]!) > 0);
   return meta.petals > 0 || treePetalsSpent(meta) > 0;
 }
 
@@ -127,7 +186,7 @@ export function sectionOpen(meta: MetaState, s: MenuSection): boolean {
 export function openSections(meta: MetaState): MetaState {
   const opened = { ...(meta.opened ?? {}) };
   let changed = false;
-  for (const s of ['captain', 'ship', 'stellari'] as MenuSection[])
+  for (const s of ['captain', 'ship', 'stellari', ...COMPANION_IDS] as MenuSection[])
     if (!opened[s] && sectionOpen(meta, s)) {
       opened[s] = true;
       changed = true;
@@ -503,6 +562,9 @@ export interface RunBonuses {
   /** The Captain's ship as fitted (parts.ts), and the parts already in the hangar (so a find is a new one). */
   ship?: ShipFit;
   hangar?: string[];
+  /** The Captain's companions' cards (companions.ts), as their trees have made them; beaten heroes spared so far. */
+  companions?: string[];
+  spared?: number;
   /** The races the Captain's rewards lean to (Kinship, Fellowship), and how far. */
   affinity?: { primary?: number; primaryBoost: number; secondary?: number; secondaryBoost: number };
   /** A share more experience (Study), cards more in every card reward (Wide offers), petals more from every Overlord (Overlord's tithe), and cards more in its hoard (Overlord's vault). */
@@ -616,6 +678,9 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
     tithe: 2 * l('tithe'),
     vault: 2 * l('vault'),
     ...(meta?.hangar?.length ? { ship: shipFit(meta.fitted), hangar: [...meta.hangar] } : {}),
+    // (The Captain's companions found so far, their cards as their trees have made them; and beaten heroes spared.)
+    companions: meta ? companionCards(meta) : [],
+    spared: meta?.spared ?? 0,
     ...(l('kinship') || l('fellowship')
       ? { affinity: { primary: meta?.affinity?.primary, primaryBoost: KINSHIP_BOOST[l('kinship')] ?? 0, secondary: meta?.affinity?.secondary, secondaryBoost: FELLOWSHIP_BOOST[l('fellowship')] ?? 0 } }
       : {}),

@@ -1324,3 +1324,26 @@ Every boss (Overlord or Lost Race ruler) leaves one; a slain hero half the time,
 
 Older saves keep the rules they began under (a race and its hero).
 
+### The companions
+
+[direction: more permanent characters, earnt over time and in different ways, like ship parts; every one earnt sits or stands on the ship in the campaign menu with the Captain; the first battle in every universe is one to save the Captain's missing Aureline friend, an Aureline lancer trapped in a crystal (a DPS challenge): destroy it in the time limit to unlock him (into the deck and the opening menu); once done the challenge never comes again; on battle start the friend begs the Captain to free him; each character has their own skill tree and experience points, linked directly to their actions in battle; four for now (the Captain one of them), all playable cards in the deck, each with their own place on the ship and a unique unlock] (companions.ts). Three, the Captain the fourth:
+
+| Companion | Card | Found | Learns from |
+|---|---|---|---|
+| **Kaelen**, Aureline Lancer | Attack, 3 energy, 3 attack, 4 stability; Lunge (heat 1) | Breaking his crystal: the first battle of each galaxy while he is held | Damage he deals (to suns and cards): 1 a point |
+| **Mara Venn**, Engineer (human) | Defence, 2 energy, no attack, 4 stability; Emitter (dawn: shield 1) | Docking at a space station (or fitting a part at one) with three ship parts fitted | Shields she raises, heat she cools, stability she mends: 1 a point |
+| **Vey'Sharr**, Xel'Naru Defector | Attack, 3 energy, 2 attack, 5 stability; Shardstep (2 heat to the rival card with the most attack) | Two beaten heroes spared (recruited) in Power Struggles, over any runs | Cards it burns away: 6 each (and half a point a point of damage) |
+
+**Kaelen's crystal** (campaign.ts startCrystal): while he is held, every galaxy's first battle (not a rift's) is the crystal, found on the way to the system flown at: the flagship stays where it was, and the system waits. The Crystal Prison (cards-bosses.ts) leads a boss seat with no sun: 10 stability, 4 more each galaxy after the first; entrenched; it does nothing. **Four days** to break it (the clock in place of a sun: "break the crystal", days left); when they run out, the crystal holds (the flagship's sun as it was) and it waits in the next galaxy. As it begins, Kaelen begs from inside it ("Captain? Is that you? Break it, please. I can't hold on much longer.") and the Captain answers ("Hold on, Kaelen. I'm getting you out.") (voice.ts converse). Broken, he joins the deck there and then, and the crystal never comes again.
+
+Each one who joins comes aboard with a word, into the flagship's deck at once and kept for good (banked as parts are: meta.companions). **Experience** is counted from the battle itself (game.ts acts: what each companion's card did, by its card) and banked after every battle, won or lost. **Levels**: 16 experience to the second, 6 more each level after (companions.ts companionXpToNext); a skill point a level.
+
+**Each companion's tree** (its own skill points): attack, cost and stability paths (+2 stability a level), and its skills, every one learnt kept on the card:
+- Kaelen: Charge (Darkspeed, 2), Halo (dawn: shield 1, 2), Sun-Lance (dawn: heat 1, 3), Gilded Plate (Sturdy 2, 2), Zeal (your attack cards heat +1, 4).
+- Mara: Coolant Flush (cool 2, 1), Field Weld (dawn: renew 1, 2), Barrier (shield 3, 2), Heat Sink (dawn: cool 1, 3), Bulwark (Guard, Sturdy 2, 3).
+- Vey'Sharr: Shard Edge (Sting 2, 2), Hunt (dawn: 1 heat to the rival card with the most attack, 3), Swift (Darkspeed, 2), Shatterstorm (2 heat to each rival card, 4).
+
+A companion's card is built from its tree as the Captain's is, the build written into its id (`companion_lancer@attack.stability.cheaper.skill+skill`); every build shows its painted picture (scripts/cardart/prompts/companions.json).
+
+**On the menu's ship** (companion-models.ts), each found companion has a place: Kaelen standing on the foredeck behind the Captain, his lance upright, halo and crimson cape; Mara kneeling at the foredeck's hatch, a wrench in it, her shield emitter glowing on her forearm; Vey'Sharr hanging in the air over the bridge, its shards apart round its core, one arm a blade. Each has an option of their own in the arc, after the Captain's (their name and skill points; greyed out until they first have a point), opening their tree on the Captain's page (back, undo, clear; their card at the top right, how they learn under the title), the camera framing them.
+

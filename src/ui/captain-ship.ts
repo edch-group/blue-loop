@@ -63,7 +63,7 @@ function hullAt(k: number, x: number) {
  * array astern (research), a mast; every part fitted built on in its place and its rarity's colour; and, while the
  * Captain is still low, the wear of it: scorched and torn plating, a burning gash, the ribs showing.
  */
-export function captainShipModel(spec: CaptainShipSpec): { mesh: Float32Array; smoke: V3[]; engines: V3[]; deck: number } {
+export function captainShipModel(spec: CaptainShipSpec): { mesh: Float32Array; smoke: V3[]; engines: V3[]; deck: number; bridge: number } {
   const m = new Mesh();
   const lv = Math.max(0, Math.min(15, spec.level));
   const k = 1 + lv * 0.025;
@@ -259,7 +259,7 @@ export function captainShipModel(spec: CaptainShipSpec): { mesh: Float32Array; s
       m.ring(x, 12, 5, hullAt(k, x).w + 0.9, 0.12, Math.PI / 2, LAMP_CYAN, 2);
     }
   }
-  return { mesh: new Float32Array(m.out), smoke, engines, deck };
+  return { mesh: new Float32Array(m.out), smoke, engines, deck, bridge: bz + 2.6 };
 }
 
 const mapModels = new Map<string, ShipModel & { smoke: V3[] }>();

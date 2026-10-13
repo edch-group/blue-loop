@@ -1,3 +1,4 @@
+import type { Acts, CompanionId } from './companions';
 import type { RelicInPlay } from './relics';
 import type { GameMode } from './modes';
 /**
@@ -597,7 +598,9 @@ export interface GameState {
    * over: survived, or mined out); what the other side calls into its free slots each day (`spawn`, `per` at a
    * time), and the crystals broken so far (the Antimatter Mine).
    */
-  challenge?: { kind: 'mine' | 'frost' | 'lord' | 'dream'; days?: number; spawn?: string[]; per?: number; broken: number; /** A dream's goal: win before this day ends, or live through the rival's next. */ goal?: 'win' | 'survive' };
+  /** What the companions (companions.ts) did in this battle: what they learn from. */
+  acts?: Partial<Record<CompanionId, Acts>>;
+  challenge?: { kind: 'mine' | 'frost' | 'lord' | 'dream' | 'crystal'; days?: number; spawn?: string[]; per?: number; broken: number; /** A dream's goal: win before this day ends, or live through the rival's next. */ goal?: 'win' | 'survive' };
   /** Campaign: a Reliquary Obelisk on the field was broken (its relics are the attacker's, whoever wins). */
   vaultOpened?: boolean;
   /** Traps that sprang (or Lightspeed cards played in reply) during this move, and the enemy card that sprang each (if a card did). */

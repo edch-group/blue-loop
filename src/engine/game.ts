@@ -2,6 +2,7 @@ import { attunedEffects, attunePosition } from './attunement';
 import { BALANCE } from './balance';
 import { CARDS, cardDef, cardIn as cardInMode, hasDarkspeed, isBurst, PRESET_DECKS } from './cards';
 import { isBossCard } from './cards-bosses';
+import { companionOf, noActs, type ActKind } from './companions';
 import { inMode, setRulesMode, type GameMode } from './modes';
 import { relicN, relicOf, RELIC_POWERS, type RelicPower } from './relics';
 import { raceTrait } from './races';
@@ -551,11 +552,13 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
     log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${turned} on its defence${fromText} (defence ${cardDefence(owner, victim)} left).`);
   }
   amount -= turned;
+  credit(state, source, cardUid, 'damage', turned + Math.max(0, amount));
   if (amount <= 0) return;
   victim.health = Math.max(0, (victim.health ?? 0) - amount);
   log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${amount}${turned > 0 ? '' : fromText} (health ${victim.health}).`);
   if (victim.health <= 0) {
     log(state, `${owner.name}'s ${cardDef(victim.defId).name} burns away.`);
+    if (source !== owner) credit(state, source, cardUid, 'kills', 1);
     leaveTableau(state, owner, victim);
     // A Bounty relic: each rival card burned away cools its holder's sun.
     const bounty = source !== owner ? relicN(source.relics, 'bounty') : 0;
@@ -1105,6 +1108,15 @@ function cardIn(p: PlayerState, uid: string): CardInstance | undefined {
   return [...p.tableau, ...p.hand, ...p.discard, ...p.deck, ...(p.lightspeed ? [p.lightspeed] : [])].find((c) => c.uid === uid);
 }
 
+/** A companion's card (companions.ts) did something it learns from: noted on the battle, for the campaign to count. */
+function credit(state: GameState, who: PlayerState | null | undefined, uid: string | undefined, kind: ActKind, n: number) {
+  if (!who || !uid || n <= 0) return;
+  const c = cardIn(who, uid);
+  const id = c && companionOf(c.defId);
+  if (!id) return;
+  ((state.acts ??= {})[id] ??= noActs())[kind] += n;
+}
+
 /**
  * Heat a sun. Enemy heat is absorbed by shields first. Returns the heat that got through. `why` names what the heat
  * came from, for the log (unset: the card `cardUid` of `source`'s, if it is one).
@@ -1128,7 +1140,10 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   target.shields -= blocked;
   const applied = amount - blocked;
   target.heat = Math.max(BALANCE.minHeat, target.heat + applied);
-  if (enemy) source.turn.heatDealt += amount;
+  if (enemy) {
+    source.turn.heatDealt += amount;
+    credit(state, source, cardUid, 'damage', amount);
+  }
   const byCard = cardUid && source ? cardIn(source, cardUid) : undefined;
   const from = why ?? (byCard && source ? `${source.name}'s ${cardDef(byCard.defId).name}` : undefined);
   // Two lines, led by what did it: the shields it broke (or wore down), then the sun it heated. (In a dawn or dusk:
@@ -1270,6 +1285,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'cool': {
         const amount = effectAmount(state, p, card, e, when);
         if (amount > 0) {
+          credit(state, p, card.uid, 'support', Math.min(amount, p.heat - BALANCE.minHeat));
           cool(state, p, amount, `${p.name}'s ${cardDef(card.defId).name}`);
           if (when === 'turn') notePulse(state, p, card, 'cool', p, amount);
         }
@@ -1278,6 +1294,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'shield': {
         const amount = effectAmount(state, p, card, e, when);
         if (amount > 0) {
+          credit(state, p, card.uid, 'support', amount);
           p.shields += amount;
           if (tally && tally.owner === p) tally.shields += amount;
           else log(state, `${p.name} raises ${amount} shield${amount === 1 ? '' : 's'}.`);
@@ -1417,7 +1434,9 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         for (const c of mine) {
           // (Up to its full stability. A Relic stays brittle: nothing steadies it.)
           if (cardDef(c.defId).kind === 'relic') continue;
+          const was = c.health ?? 0;
           mend(state, p, c, e.amount);
+          credit(state, p, card.uid, 'support', (c.health ?? 0) - was);
         }
         break;
       }
@@ -2087,6 +2106,13 @@ function challengeDay(state: GameState, p: PlayerState) {
     c.days -= 1;
     if (c.days <= 0) {
       const them = state.players.find((x) => x !== p && !x.eliminated);
+      // (A crystal prison the other way about: time running out is the challenger's loss. The crystal holds.)
+      if (c.kind === 'crystal') {
+        log(state, `The crystal holds.`);
+        if (them) them.eliminated = true;
+        state.winnerId = p.id;
+        return;
+      }
       log(state, c.kind === 'mine' ? `The mine seals itself: ${c.broken} crystal${c.broken === 1 ? '' : 's'} broken.` : `${them?.name ?? 'The challenger'} holds the line: the storm is spent.`);
       p.eliminated = true;
       state.winnerId = them?.id ?? null;

@@ -7410,3 +7410,5 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-captain-page .up-shop.up-tree { animation: up-in 0.7s ease-out 0.9s both; }
 /* The menu's Stellari: white and fully open, as on the home screen, standing on the horizon behind the land (the land
    cuts off its foot), the sunrise behind it; its petals turning one way, its spikes the other. */
+/* A companion's tree: how they learn, under its title. */
+.hp-learns { position: absolute; top: 100px; left: 50%; transform: translateX(-50%); margin: 0; font-size: 0.7rem; letter-spacing: 0.08em; color: #7d8496; pointer-events: none; z-index: 2; white-space: nowrap; }

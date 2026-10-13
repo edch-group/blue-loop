@@ -15,10 +15,12 @@
 import { SHIP_FRAG, SHIP_VERT } from './nebula-objects';
 import { captainShipModel, seq } from './captain-ship';
 import { captainModel, streamerModel } from './captain-model';
+import { COMPANION_PLACES, companionModel } from './companion-models';
+import type { CompanionId } from '../engine/companions';
 import { Mesh, SHIP_STRIDE, type CaptainShipSpec, type RGB, type V3 } from './ship3d';
 import { uiZoom } from './viewport';
 
-export type BaseZone = 'hangar' | 'captain' | 'research';
+export type BaseZone = 'hangar' | 'captain' | 'research' | CompanionId;
 export const BASE_ZONES: BaseZone[] = ['hangar', 'captain', 'research'];
 
 // ---- Matrices (column-major, as WebGL takes them) ----
@@ -153,6 +155,9 @@ export class Base3d {
   private smoke: V3[] = [];
   private engines: V3[] = [];
   private deck = 8;
+  private bridge = 12;
+  /** The companions aboard (companions.ts), each its figure's buffer and where it is now. */
+  private crew: { id: CompanionId; buf: WebGLBuffer; count: number; m: M4 }[] = [];
   private raf = 0;
   private last = 0;
   private start = performance.now();
@@ -225,6 +230,17 @@ export class Base3d {
     this.smoke = s.smoke;
     this.engines = s.engines;
     this.deck = s.deck;
+    this.bridge = s.bridge;
+  }
+
+  /** The companions aboard (each drawn where it stands; built once). */
+  setCrew(ids: CompanionId[]) {
+    if (ids.join() === this.crew.map((c) => c.id).join()) return;
+    for (const c of this.crew) this.gl.deleteBuffer(c.buf);
+    this.crew = ids.map((id) => {
+      const data = companionModel(id);
+      return { id, buf: this.buffer(data), count: data.length / SHIP_STRIDE, m: IDENTITY };
+    });
   }
 
   /** (A section under the pointer: its label lights, on the page; the scene itself is left as it is.) */
@@ -243,17 +259,21 @@ export class Base3d {
   static readonly SHIP_SCALE = 4.2;
   private spot(zone: BaseZone): V3 {
     if (zone === 'captain') return apply(this.capM, B(20, 12, 30));
+    if (zone === 'lancer' || zone === 'engineer' || zone === 'defector') {
+      const c = this.crew.find((x) => x.id === zone);
+      return c ? apply(c.m, B(20, 12, zone === 'engineer' ? 20 : 28)) : apply(this.capM, B(20, 12, 30));
+    }
     if (zone === 'research') return apply(this.shipM, B(5.5, 12, 12));
     return apply(this.shipM, B(17, 12, 5));
   }
   private reach(zone: BaseZone) {
-    return zone === 'captain' ? 0.32 : zone === 'research' ? 0.38 : 1.9;
+    return zone === 'research' ? 0.38 : zone === 'hangar' ? 1.9 : 0.32;
   }
 
   /** The section at a point on the canvas (CSS pixels from its corner, as laid out), if any (the smallest wins). */
   zoneAt(x: number, y: number): BaseZone | null {
     let best: BaseZone | null = null, bestK = 1;
-    for (const z of ['captain', 'research', 'hangar'] as BaseZone[]) {
+    for (const z of ['captain', ...this.crew.map((c) => c.id), 'research', 'hangar'] as BaseZone[]) {
       const c = this.toScreen(this.spot(z)), e = this.toScreen(sub3(this.spot(z), [0, this.reach(z), 0]));
       if (!c || !e) continue;
       const r = Math.abs(e.y - c.y);
@@ -329,6 +349,8 @@ export class Base3d {
     const narrow = Math.min(1, aspect / 1.6);
     // (The Captain in the middle of the screen, low, his skill tree starting above his head and wrapping round him.)
     if (z === 'captain') return { target: sub3(this.spot('captain'), [0, -0.14, 0]), yaw: 1.0, pitch: 0.02, dist: 2.0 / narrow, off: 0 };
+    // (A companion as the Captain is: in the middle, low, their tree above and round them.)
+    if (z && z !== 'hangar' && z !== 'research') return { target: sub3(this.spot(z), [0, -0.14, 0]), yaw: 1.0, pitch: 0.02, dist: 2.0 / narrow, off: 0 };
     if (z === 'hangar') return { target: this.spot('hangar'), yaw: -0.45, pitch: 0.48, dist: 9 / narrow, off: -0.3 };
     // (Enlightenment is the Stellari, out on the land: the camera turns from the ship, which slides away to the left.)
     if (z === 'research') return { target: [7, 1.4, -2], yaw: -0.52, pitch: 0.1, dist: 6, off: 0 };
@@ -438,6 +460,14 @@ export class Base3d {
     drawMesh(this.shipBuf, this.shipCount, this.shipM);
     drawMesh(this.capBuf, this.capCount, this.capM);
     drawMesh(this.tailBuf, this.tailCount, tailM);
+    // The companions aboard, each in their place (the defector hanging over the bridge, rising and falling).
+    for (const c of this.crew) {
+      const pl = COMPANION_PLACES[c.id];
+      const hover = pl.bridge ? 1.4 + 0.5 * Math.sin(t * 1.3) : 0;
+      const p = B(pl.x, pl.y, (pl.bridge ? this.bridge : this.deck) + hover);
+      c.m = mul(this.shipM, mul(translate(p[0], p[1], p[2]), mul(rotY(pl.turn), mul(scale(pl.size / S), translate(-B(20, 12, 0)[0], 0, -B(20, 12, 0)[2])))));
+      drawMesh(c.buf, c.count, c.m);
+    }
     // Planets far off in the sky, going slowly past as the ship flies on [direction: planets going past slowly in the
     // background]: along a line far behind the ship, right to left, each in its turn.
     {
