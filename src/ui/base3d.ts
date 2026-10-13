@@ -274,7 +274,19 @@ export class Base3d {
    * the ship lies at rest, not as it bobs and rolls.
    */
   shipScreen(x: number, y: number, z: number): { x: number; y: number } | null {
-    return this.toScreen(apply(scale(Base3d.SHIP_SCALE), B(x, y, z)));
+    // (Seen from the camera's own framing of the whole ship, still: not as it sways or moves to a section.)
+    const lw = this.canvas.clientWidth, lh = this.canvas.clientHeight;
+    if (!lw || !lh) return null;
+    const fov = (32 * Math.PI) / 180, aspect = lw / lh;
+    const focused = this.focused;
+    this.focused = null;
+    const g = this.goal(aspect, Math.tan(fov / 2));
+    this.focused = focused;
+    const dir: V3 = [Math.sin(g.yaw) * Math.cos(g.pitch), Math.sin(g.pitch), Math.cos(g.yaw) * Math.cos(g.pitch)];
+    const eye: V3 = [g.target[0] + dir[0] * g.dist, g.target[1] + dir[1] * g.dist, g.target[2] + dir[2] * g.dist];
+    const proj = perspective(fov, aspect, 0.05, 140);
+    proj[8] = -g.off * 2;
+    return this.toScreen(apply(scale(Base3d.SHIP_SCALE), B(x, y, z)), lookAt(eye, g.target), proj);
   }
 
   /** Where a section is on the canvas (CSS pixels, as laid out): the point its node's stem runs to. */
@@ -289,8 +301,7 @@ export class Base3d {
     return this.toScreen([p[0], p[1] + lift, p[2]]);
   }
 
-  private toScreen(p: V3): { x: number; y: number } | null {
-    const v = this.view, P = this.proj;
+  private toScreen(p: V3, v: M4 = this.view, P: M4 = this.proj): { x: number; y: number } | null {
     const ex = v[0] * p[0] + v[4] * p[1] + v[8] * p[2] + v[12];
     const ey = v[1] * p[0] + v[5] * p[1] + v[9] * p[2] + v[13];
     const ez = v[2] * p[0] + v[6] * p[1] + v[10] * p[2] + v[14];

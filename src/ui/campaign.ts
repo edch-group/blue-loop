@@ -2533,12 +2533,16 @@ export class CampaignView {
         }
         // The options, arced round the ship's bow in a half circle [direction: the menu options arced round the front
         // of the ship in a semicircle, following the ship's angle so as to look natural; not following its bobbing,
-        // just arced]: the half circle stands upright along the ship as it lies at rest, still as it bobs.
+        // just arced; a little further right]: the half circle stands upright along the ship as it lies at rest.
         // (Setting out, they fly off on their own.)
+        // [direction: menu items, angled only, never redrawn live to match the ship]: placed once from the camera's
+        // still framing, and again only when the screen changes size.
         if (box.closest('.cs-launching, .cs-launch-veil')) return;
         const r = canvas.getBoundingClientRect(), zoom = r.width / (canvas.clientWidth || r.width) || 1;
         const W = window.innerWidth / zoom;
-        const BOW = [36.5, 5], R = 13;
+        const size = `${canvas.clientWidth}x${canvas.clientHeight}`;
+        if (box.dataset.laid === size || !canvas.clientWidth) return;
+        const BOW = [39.5, 5], R = 13.5;
         const on = (deg: number) => {
           const q = base.shipScreen(BOW[0] + R * Math.cos((deg * Math.PI) / 180), 12, BOW[1] + R * Math.sin((deg * Math.PI) / 180));
           return q ? { x: q.x + r.left / zoom, y: q.y + r.top / zoom } : null;
@@ -2558,6 +2562,7 @@ export class CampaignView {
           if (node.style.left !== `${x}px`) node.style.left = `${x}px`;
           if (node.style.top !== `${y}px`) node.style.top = `${y}px`;
         }
+        box.dataset.laid = size;
       };
     }
     if (!this.base) return;
