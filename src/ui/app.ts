@@ -964,7 +964,7 @@ export class App {
       this.campaignBattle = true;
       this.beginWithArt(game);
       // Kaelen's crystal: he begs to be freed, and the Captain answers.
-      if (game.challenge?.kind === 'crystal' && !game.players[0].turnsTaken) {
+      if (game.challenge?.kind === 'crystal' && game.turnNumber <= 1) {
         const crystal = () => this.root.querySelector(`.tableau [data-uid="${game.players[1].tableau[0]?.uid}"]`);
         const captain = () => this.root.querySelector(`[data-anchor="player:${game.players[0].id}"]`);
         voices.converse([
