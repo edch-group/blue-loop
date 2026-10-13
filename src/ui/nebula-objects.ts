@@ -9,7 +9,8 @@
  */
 
 import type { Camera } from './nebula3d';
-import { captainShip3d, propModel3d, shipModel3d, SHIP_STRIDE, type CaptainShipSpec, type PropKind } from './ship3d';
+import { captainShipMap } from './captain-ship';
+import { propModel3d, shipModel3d, SHIP_STRIDE, type CaptainShipSpec, type PropKind } from './ship3d';
 import sunCoronaUrl from './gems/sun-corona.png';
 import sunDiscUrl from './gems/sun-disc.png';
 
@@ -646,7 +647,7 @@ export class MapObjects {
     let m = this.captainBufs.get(key);
     if (!m) {
       const gl = this.gl;
-      const model = captainShip3d(spec);
+      const model = captainShipMap(spec);
       const buf = gl.createBuffer()!;
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, model.mesh, gl.STATIC_DRAW);

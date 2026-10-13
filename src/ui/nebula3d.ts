@@ -850,7 +850,7 @@ export class Nebula {
     return Math.max(2.4, ((STRIP_WIDTH / 2 + 0.3) / (Math.tan(FOV / 2) * Math.min(1, aspect))) * 0.6);
   }
 
-  /** What the camera follows (world x, z): it glides to keep it in view, on its own (the player never moves it). */
+  /** What the camera follows (world x, z): it glides to keep it in view as it moves (a drag looks elsewhere till then). */
   private focus: [number, number] | null = null;
 
   follow(x: number, z: number) {
@@ -861,6 +861,25 @@ export class Nebula {
   }
 
 
+
+  /**
+   * The player's drag [direction: the camera dragged around again, a very limited range, but always enough to see the
+   * whole map]: the camera's aim slides along the map with the pointer, as far as either end of the strip and a little
+   * nearer or further, and no more (no turning, no zoom). It stays where it is left until the ship it follows moves.
+   */
+  pan(dx: number, dy: number) {
+    const cam = this.camera;
+    if (!cam || this.cine || this.spinning || !this.homed) return;
+    const a = this.onPlane(cam.width / 2, cam.height / 2), b = this.onPlane(cam.width / 2 - dx, cam.height / 2 - dy);
+    if (!a || !b) return;
+    this.glide = null;
+    const p = this.pose;
+    const reach = Math.max(0, STRIP_WIDTH / 2 - p.dist * 0.2);
+    p.x = Math.max(-reach, Math.min(reach, p.x + (b[0] - a[0])));
+    p.z = Math.max(-0.35, Math.min(0.65, p.z + (b[1] - a[1])));
+    this.moved = true;
+    this.wake();
+  }
 
   /** Where a point on the canvas (CSS pixels) falls on the map's plane (world x, z), if it does. */
   onPlane(sx: number, sy: number): [number, number] | null {

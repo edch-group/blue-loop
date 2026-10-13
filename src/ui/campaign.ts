@@ -2332,7 +2332,7 @@ export class CampaignView {
         over = zone;
         base.hover(zone);
         box.querySelectorAll<HTMLElement>('.cs-base-label').forEach((l) => l.classList.toggle('on', l.dataset.zone === zone));
-        canvas.style.cursor = zone ? 'pointer' : '';
+        canvas.style.cursor = zone ? 'var(--cur-pointer)' : '';
         if (zone && pointer !== 'touch') sound.hover();
       };
       canvas.addEventListener('pointermove', (e) => hover(zoneAt(e), e.pointerType));
@@ -2390,6 +2390,41 @@ export class CampaignView {
     if (!boundStages.has(stage)) {
       boundStages.add(stage);
       stage.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+      // A drag slides the camera along the map (as far as its ends: Nebula.pan); a drag isn't a click on what it ends on.
+      stage.addEventListener('pointerdown', (e) => {
+        if (!this.nebula || e.button !== 0 || (e.target as Element).closest?.('button, .cmp-pop, .cmp-orbits')) return;
+        const start = { x: e.clientX, y: e.clientY };
+        let last = start, dragging = false;
+        const move = (m: PointerEvent) => {
+          if (m.pointerId !== e.pointerId) return;
+          if (!dragging && Math.hypot(m.clientX - start.x, m.clientY - start.y) < 6) return;
+          if (!dragging) stage.classList.add('cmp-grabbing');
+          dragging = true;
+          // (In the canvas's own layout pixels: the page may be zoomed.)
+          const back = this.nebula?.back, r = back?.getBoundingClientRect();
+          const z = r && back ? r.width / (back.clientWidth || r.width) || 1 : 1;
+          this.nebula?.pan((m.clientX - last.x) / z, (m.clientY - last.y) / z);
+          last = { x: m.clientX, y: m.clientY };
+        };
+        const up = (u: PointerEvent) => {
+          if (u.pointerId !== e.pointerId) return;
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+          window.removeEventListener('pointercancel', up);
+          stage.classList.remove('cmp-grabbing');
+          if (dragging) {
+            const swallow = (c: Event) => {
+              c.stopPropagation();
+              c.preventDefault();
+            };
+            window.addEventListener('click', swallow, { capture: true, once: true });
+            window.setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 0);
+          }
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+        window.addEventListener('pointercancel', up);
+      });
       // A star under the pointer swells and flares, with a soft chime.
       // (Anywhere inside its rings, measured from the scene: see pickAt. Without WebGL, the star's own mark.)
       stage.addEventListener('pointermove', (e) => {
