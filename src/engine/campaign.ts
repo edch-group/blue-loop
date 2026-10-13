@@ -1751,10 +1751,12 @@ export function buildUniverse(s: CampaignState, universe: number, layout?: MapLa
     const kind = weights.find(([, w]) => (roll -= w) < 0)?.[0] ?? weights[0][0];
     n.cache = { kind, amount: kind === 'cards' ? 3 : 4 + 2 * n.tier };
   }
-  placeChallenges(s);
-  placeRivals(s);
-  // Dreams of the Lost, unseen, in a few systems of any kind.
-  for (const n of shuffleInPlace(s, s.nodes.filter((x) => !x.home && !x.heart && !x.challenge)).slice(0, DREAM_NODES)) n.dream = true;
+  // What else this galaxy holds, if anything (a surprise, not a certainty; none in the first).
+  const extras = rollExtras(s, universe);
+  placeChallenges(s, extras.secret);
+  placeRivals(s, extras.rival);
+  // Dreams of the Lost, unseen, in a system of any kind.
+  for (const n of shuffleInPlace(s, s.nodes.filter((x) => !x.home && !x.heart && !x.challenge && !x.rival)).slice(0, extras.dream)) n.dream = true;
   // Relic caches: now and then a neutral system's battlefield holds a sealed Reliquary Obelisk (one relic, now and
   // then two).
   for (const n of s.nodes.filter((x) => open(x) && !x.station && !x.cache && !x.challenge && (x.col ?? 0) >= 1)) {
@@ -2169,9 +2171,22 @@ export function struggleRival(s: CampaignState, army: Army): string | null {
   return free.length ? free[randomInt(s, free.length)] : null;
 }
 
-/** Rival heroes waiting on each galaxy's map (the Captain's runs), and the chance of one ambushing a jump. */
-export const RIVAL_NODES = 2;
-export const AMBUSH_CHANCE = 0.05;
+/**
+ * A galaxy's extras [direction: far too much extra content, a power struggle and a dream in every first galaxy; stage
+ * when it can happen, none until galaxy 2; rarer, a surprise to see one, not an eventuality]: none in the first; from
+ * the second, each kind now and then (one at most), and never more than two in a galaxy.
+ */
+export const EXTRAS = { from: 2, rival: 0.25, dream: 0.25, secret: 0.3, most: 2 };
+export function rollExtras(s: CampaignState, universe: number): { rival: number; dream: number; secret: number } {
+  const out = { rival: 0, dream: 0, secret: 0 };
+  if (universe < EXTRAS.from) return out;
+  const hit = (['rival', 'dream', 'secret'] as const).filter((k) => nextRandom(s) < EXTRAS[k]);
+  for (const k of shuffleInPlace(s, [...hit]).slice(0, EXTRAS.most)) out[k] = 1;
+  return out;
+}
+
+/** The chance of a rival hero ambushing a jump (the Captain's runs; from the second galaxy). */
+export const AMBUSH_CHANCE = 0.02;
 
 /** A rival hero waiting where the flagship has come: their Power Struggle begins. */
 function rivalHere(s: CampaignState, army: Army) {
@@ -2183,12 +2198,12 @@ function rivalHere(s: CampaignState, army: Army) {
 }
 
 /** Rival heroes set on a galaxy's map for the Captain (none in a Lost Race's galaxy: its own ruler waits there). */
-function placeRivals(s: CampaignState) {
+function placeRivals(s: CampaignState, count: number) {
   const me = campaignPlayer(s);
   const army = flagship(s, me.id);
   if (!me.human || !army || s.rift) return;
   const open = s.nodes.filter((n) => !n.home && !n.heart && !n.challenge && !n.station && !n.prophet && (n.col ?? 0) >= 2);
-  for (const n of shuffleInPlace(s, open).slice(0, RIVAL_NODES)) {
+  for (const n of shuffleInPlace(s, open).slice(0, count)) {
     const hero = struggleRival(s, army);
     if (hero) n.rival = hero;
   }
@@ -2309,8 +2324,6 @@ function decideBeaten(s: CampaignState, recruit: boolean) {
 // pick of rare cards (anomalies too, more often deeper into the run).
 // ---------------------------------------------------------------------------
 
-/** Dreams hidden in each galaxy. */
-export const DREAM_NODES = 2;
 
 /** A dream's difficulty: a step with each wormhole passed, up to the hardest. */
 export const dreamTier = (s: CampaignState) => Math.min(4, s.universe);
@@ -2866,7 +2879,7 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
     // A rival waiting here comes for the ship. (The Captain's runs: now and then one ambushes a jump. Others': overheated,
     // a hero of the player's own race may come for the command.) A station's use waits on it.
     rivalHere(s, army);
-    const ambush = f.human ? nextRandom(s) < AMBUSH_CHANCE : flagshipOverheated(s, army) && nextRandom(s) < STRUGGLE_CHANCE;
+    const ambush = f.human ? s.universe >= EXTRAS.from && nextRandom(s) < AMBUSH_CHANCE : flagshipOverheated(s, army) && nextRandom(s) < STRUGGLE_CHANCE;
     if (f.id === s.playerId && !army.lost && !s.prophet && !s.struggle && !s.beaten && ambush) {
       const hero = struggleRival(s, army);
       if (hero) s.struggle = { nodeId: toId, hero, ambush: true };
@@ -3303,10 +3316,10 @@ function revealChallenges(s: CampaignState, f: Faction, n: CampaignNode) {
  * route (past the outer lanes, or in a gap where the lanes spread apart), linked to it alone, hidden until that
  * system is taken. Never two alike; the Lost Lord only while there are Lost Lords left to beat.
  */
-function placeChallenges(s: CampaignState) {
+function placeChallenges(s: CampaignState, count: number) {
   const C = CAMPAIGN.columns, gap = CAMPAIGN.laneGap;
   // (A rift into a Lost Race's galaxy among them, often [direction: rifts as a potential secret node].)
-  const kinds = shuffleInPlace<ChallengeKind>(s, ['mine', 'frost', 'rift', ...(LOST_LORDS.some((id) => !s.lordsWon?.includes(id)) ? ['lord' as const] : [])]).slice(0, 2);
+  const kinds = shuffleInPlace<ChallengeKind>(s, ['mine', 'frost', 'rift', ...(LOST_LORDS.some((id) => !s.lordsWon?.includes(id)) ? ['lord' as const] : [])]).slice(0, count);
   const hosts = shuffleInPlace(s, s.nodes.filter((n) => !n.heart && !n.home && !n.station && (n.col ?? 0) >= 2 && (n.col ?? 0) <= C - 2));
   const segDist = (px: number, py: number, a: CampaignNode, b: CampaignNode) => {
     const vx = b.x - a.x, vy = b.y - a.y, len = vx * vx + vy * vy || 1;

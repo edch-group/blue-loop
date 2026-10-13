@@ -18,7 +18,8 @@ import {
   GENERALS,
   isCaptain,
   simulateBattle,
-  RIVAL_NODES,
+  EXTRAS,
+  buildUniverse,
   SLAY_LOOT,
   pointsLeft,
   xpForLevel,
@@ -130,12 +131,22 @@ describe("Power Struggles on the Captain's runs", () => {
     return t;
   };
 
-  it('sets rival heroes of the core races on each galaxy map', () => {
-    const s = run(11);
-    const rivals = s.nodes.filter((n) => n.rival).map((n) => n.rival!);
-    expect(rivals).toHaveLength(RIVAL_NODES);
-    expect(new Set(rivals).size).toBe(RIVAL_NODES);
-    for (const h of rivals) expect(CORE_RACES.some((r) => GENERALS[r].includes(h))).toBe(true);
+  it('holds no extras in the first galaxy, and only now and then after (a rival of the core races, two extras at most)', () => {
+    let withRival = 0;
+    const N = 200;
+    for (let seed = 1; seed <= N; seed++) {
+      const s = run(seed);
+      expect(s.nodes.some((n) => n.rival || n.dream || n.challenge)).toBe(false);
+      buildUniverse(s, 2);
+      const rivals = s.nodes.filter((n) => n.rival).map((n) => n.rival!);
+      expect(rivals.length).toBeLessThanOrEqual(1);
+      const extras = rivals.length + s.nodes.filter((n) => n.dream).length + s.nodes.filter((n) => n.challenge).length;
+      expect(extras).toBeLessThanOrEqual(EXTRAS.most);
+      for (const h of rivals) expect(CORE_RACES.some((r) => GENERALS[r].includes(h))).toBe(true);
+      if (rivals.length) withRival++;
+    }
+    expect(withRival / N).toBeGreaterThan(0.12);
+    expect(withRival / N).toBeLessThan(0.35);
   });
 
   it('won, asks the Captain: recruited, the hero joins the deck', () => {

@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { applyCampaignAction, createCampaign, flagship, nodeById, simulateBattle, visibleNodes, type CampaignState } from '../src/engine/campaign';
+import { applyCampaignAction, buildUniverse, createCampaign, flagship, nodeById, simulateBattle, visibleNodes, type CampaignState } from '../src/engine/campaign';
 import { LOST_LORDS } from '../src/engine/cards-bosses';
+
+/** A run in its second galaxy (the first holds no extras). */
+function galaxyTwo(seed: number): CampaignState {
+  const s = createCampaign({ seed, race: 0 });
+  buildUniverse(s, 2);
+  return s;
+}
 
 /** A run with its flagship standing next to a challenge of this kind, revealed. */
 function nextTo(kind: 'mine' | 'lord' | 'frost'): CampaignState | null {
-  for (let seed = 1; seed < 60; seed++) {
-    const s = createCampaign({ seed, race: 0 });
+  for (let seed = 1; seed < 600; seed++) {
+    const s = galaxyTwo(seed);
     const ch = s.nodes.find((n) => n.challenge?.kind === kind);
     if (!ch) continue;
     const from = nodeById(s, ch.challenge!.from);
@@ -20,7 +27,9 @@ function nextTo(kind: 'mine' | 'lord' | 'frost'): CampaignState | null {
 
 describe('challenges', () => {
   it('lie hidden off the strip until the system they hang off is taken', () => {
-    const s = createCampaign({ seed: 3, race: 0 });
+    let seed = 1;
+    while (!galaxyTwo(seed).nodes.some((n) => n.challenge)) seed++;
+    const s = galaxyTwo(seed);
     const hidden = s.nodes.filter((n) => n.challenge);
     expect(hidden.length).toBeGreaterThan(0);
     for (const n of hidden) {
