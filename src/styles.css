@@ -7360,7 +7360,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-captain-page .up-shop.hero-panel, .cs-captain-page .up-shop.hangar-panel { left: 40%; background: linear-gradient(90deg, rgba(251, 251, 252, 0), rgba(251, 251, 252, 0.88) 9%, rgba(251, 251, 252, 0.94)); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .cs-captain-page .up-shop.hero-panel .hp-card { display: none; }
 .cs-captain-page .up-shop.hero-panel .hp-body { grid-template-columns: minmax(0, 1fr); }
-.cs-captain-page .up-shop.up-tree { background: rgba(251, 251, 252, 0.72); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
 .cs-captain-page .cs-base-label { transition: opacity 0.3s, box-shadow 0.18s, background 0.18s, transform 0.18s; }
 
 .cmp-stage.cmp-grabbing, .cmp-stage.cmp-grabbing * { cursor: var(--cur-grabbing) !important; }

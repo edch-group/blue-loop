@@ -1680,7 +1680,6 @@ export class CampaignView {
       ? `<div class="cs-base">
           <div class="cs-sunrise" aria-hidden="true"></div>
           <canvas class="cs-world cs-world-back" aria-hidden="true"></canvas>
-          <canvas class="cs-world cs-world-front" aria-hidden="true"></canvas>
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
           <div class="cs-nodes">
             <svg class="cs-arc" aria-hidden="true"><path/></svg>
@@ -2479,8 +2478,10 @@ export class CampaignView {
       // turning, as if the ship flies toward it, a bright sunrise on the horizon just behind it; the land falling away
       // behind the ship to reveal a full colour galaxy, as the map's instability does]: the map's own landscape, the
       // camera flying low along a valley toward the Stellari, the land breaking away a little behind it.
-      const back = box.querySelector<HTMLCanvasElement>('canvas.cs-world-back'), front = box.querySelector<HTMLCanvasElement>('canvas.cs-world-front');
-      const world = back && front ? nebulaOn(back, front, { clearSky: true, soft: true }) : null;
+      // (On one canvas alone: the map's second, over it, holds the hills so its marks hide behind them; here it would
+      // cover any shard falling below them, which would vanish at once.)
+      const back = box.querySelector<HTMLCanvasElement>('canvas.cs-world-back');
+      const world = back ? nebulaOn(back, null, { clearSky: true, soft: true }) : null;
       const sunrise = box.querySelector<HTMLElement>('.cs-sunrise');
       // (The Stellari stands at the land's far end, to the right on the horizon, the land in front of its foot: as the
       // flight goes on it draws nearer, the ship flying toward it.)
@@ -2503,7 +2504,6 @@ export class CampaignView {
           const edge = Math.min(f.k, 1 - f.k) * LOOP;
           const shown = Math.min(1, edge / 1.5).toFixed(3);
           if (back) back.style.opacity = shown;
-          if (front) front.style.opacity = shown;
           if (sunrise) sunrise.style.opacity = shown;
           // Enlightenment open: the camera glides down to the Stellari, set at the foot of the screen, where the
           // skill tree's own Stellari comes in over it.
