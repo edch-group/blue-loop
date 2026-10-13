@@ -433,6 +433,11 @@ export class Base3d {
     return best;
   }
 
+  /** Where a section is on the canvas (CSS pixels, as laid out): the point its node's stem runs to. */
+  anchorAt(zone: BaseZone): { x: number; y: number } | null {
+    return this.toScreen(this.spot(zone));
+  }
+
   /** Where a section's label goes on the canvas (CSS pixels, as laid out). */
   labelAt(zone: BaseZone): { x: number; y: number } | null {
     const p = this.spot(zone);
@@ -465,7 +470,8 @@ export class Base3d {
     const narrow = Math.min(1, aspect / 1.6);
     if (z === 'captain') return { target: sub3(this.spot('captain'), [0, -0.05, 0]), yaw: 1.0, pitch: 0.02, dist: 1.55 / narrow, off: -0.24 };
     if (z === 'hangar') return { target: this.spot('hangar'), yaw: -0.45, pitch: 0.48, dist: 9 / narrow, off: -0.3 };
-    if (z === 'research') return { target: sub3(this.spot('research'), [-0.6, -0.9, 0]), yaw: 0.55, pitch: -0.12, dist: 3.4 / narrow, off: -0.12 };
+    // (Enlightenment is the Stellari, out on the land: the camera turns from the ship, which slides away to the left.)
+    if (z === 'research') return { target: [7, 1.4, -2], yaw: -0.52, pitch: 0.1, dist: 6, off: 0 };
     // The whole ship, side on and a little from ahead and below (as the art has it), all of it in view.
     const dist = Math.max(3.1 / (half * aspect), 1.85 / half);
     return { target: [-0.3, 0.74, 0], yaw: -0.52, pitch: 0.1, dist, off: 0 };

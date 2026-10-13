@@ -7384,3 +7384,24 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-base-label { z-index: 2; }
 /* (The world fills the whole page, behind it: the page's own header and footer over it.) */
 .cs-captain-page > .setup-top, .cs-captain-page > .setup-foot { position: relative; z-index: 3; }
+
+/* The ship menu's sections as the skill tree's nodes [direction: styled as the skill panel's nodes, angular lines
+   connecting them to the relevant part of the ship]: a white disc with its mark, its name and what it holds beside it,
+   an ink stem bent at a right angle running from it to its place (a dot there). */
+.cs-nodes { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+.cs-stems { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.cs-stems path { fill: none; stroke: rgba(58, 66, 86, 0.55); stroke-width: 1.2; transition: stroke 0.18s; }
+.cs-stems circle { fill: #3a4256; stroke: #fff; stroke-width: 2; }
+.cs-base-label.cs-node { left: -999px; transform: translate(-15px, -50%); display: flex; align-items: center; gap: 10px; padding: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: auto; text-align: left; }
+.cs-base-label.cs-node::after { display: none; }
+.cs-node .up-node-disc { width: 30px; height: 30px; flex: none; color: #3a4256; box-shadow: 0 0 0 1.5px #e3e6ec, 0 3px 10px rgba(70, 76, 100, 0.14); }
+.cs-node .up-node-disc .cur { width: 15px; height: 15px; margin: 0; vertical-align: 0; }
+.cs-node-text { display: grid; gap: 2px; }
+.cs-node-text b { font-family: var(--display); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-soft); padding-left: 0; }
+.cs-node-text small { font-size: 0.68rem; color: var(--ink-faint); }
+.cs-base-label.cs-node.on, .cs-base-label.cs-node:hover { transform: translate(-15px, -50%); background: none; box-shadow: none; }
+.cs-node.on .up-node-disc, .cs-node:hover .up-node-disc { transform: scale(1.12); box-shadow: 0 0 0 1.5px #3a4256, 0 8px 20px rgba(58, 66, 86, 0.2); }
+.cs-node.on .cs-node-text b, .cs-node:hover .cs-node-text b { color: var(--ink); }
+.cs-captain-page.cs-focus .cs-nodes { opacity: 0; transition: opacity 0.3s; }
+/* (Enlightenment: the camera glides down to the Stellari first; the tree comes in over it, its own Stellari there.) */
+.cs-captain-page .up-shop.up-tree { animation: up-in 0.7s ease-out 0.9s both; }

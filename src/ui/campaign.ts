@@ -137,7 +137,7 @@ import { voices } from './voice';
 import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
 import { FLY_SECONDS, WARP_SECONDS } from './nebula-objects';
 import type { CaptainShipSpec } from './ship3d';
-import { Base3d, type BaseZone } from './base3d';
+import { Base3d, BASE_ZONES, type BaseZone } from './base3d';
 
 const KEY = 'blue-loop:campaign:v6';
 
@@ -1552,17 +1552,23 @@ export class CampaignView {
       `<button class="cs-tab" data-act="${act}"><span class="cs-tab-icon">${icon}</span><b>${title}</b><small>${sub}</small></button>`;
     // [direction: the campaign's sections spread out like a base, all 3D: a hangar holding the ship, the hero sitting,
     // and a research panel where the general upgrades are taken] (Without WebGL, the tiles as they were.)
-    const label = (zone: BaseZone, act: string, title: string, sub: string) =>
-      `<button class="cs-base-label" data-zone="${zone}" data-act="${act}"><b>${title}</b><small>${sub}</small></button>`;
+    // [direction: the sections styled as the skill tree's nodes, angular lines connecting them to the relevant part of
+    // the ship; research named Enlightenment, at the Stellari, its line to it]: each a node's disc and its name, a
+    // stem from it to its place, bent at a right angle as the tree's are.
+    const label = (zone: BaseZone, act: string, title: string, sub: string, mark: string) =>
+      `<button class="cs-base-label cs-node" data-zone="${zone}" data-act="${act}"><span class="up-node-disc">${mark}</span><span class="cs-node-text"><b>${title}</b><small>${sub}</small></span></button>`;
     const body = canNebula()
       ? `<div class="cs-base">
           <canvas class="cs-world cs-world-back" aria-hidden="true"></canvas>
           <div class="cs-sunrise" aria-hidden="true"></div>
           <canvas class="cs-world cs-world-front" aria-hidden="true"></canvas>
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
-          ${label('hangar', 'cmp-hangar', 'ship', 'fit parts')}
-          ${label('captain', 'cmp-hero', 'the captain', `${XP_MARK}${pointsLeft(meta)} skill points`)}
-          ${label('research', 'cmp-shop', 'research', `${PETAL}${meta.petals} petals`)}
+          <div class="cs-nodes">
+            <svg class="cs-stems" aria-hidden="true">${(['hangar', 'captain', 'research'] as const).map((z) => `<path data-zone="${z}"/><circle data-zone="${z}" r="3"/>`).join('')}</svg>
+            ${label('hangar', 'cmp-hangar', 'ship', 'fit parts', SHIP_ICON)}
+            ${label('captain', 'cmp-hero', 'the captain', `${pointsLeft(meta)} skill points`, XP_MARK)}
+            ${label('research', 'cmp-shop', 'enlightenment', `${meta.petals} petals`, PETAL)}
+          </div>
         </div>`
       : `<div class="cs-body cs-captain-body">
           <div class="cs-captain-card" data-act="inspect" data-card="${esc(captain)}">${cardHtml(captain)}</div>
@@ -2338,10 +2344,21 @@ export class CampaignView {
         canvas.style.cursor = zone ? 'var(--cur-pointer)' : '';
         if (zone && pointer !== 'touch') sound.hover();
       };
-      canvas.addEventListener('pointermove', (e) => hover(zoneAt(e), e.pointerType));
+      // (Enlightenment is the Stellari, on the land beyond the ship: a pointer near it is on it.)
+      const nearStellari = (e: PointerEvent) => {
+        const q = world?.toScreen(stellari[0], PLANE_Y + 0.3, stellari[1]);
+        if (!q || !back) return false;
+        const r = back.getBoundingClientRect(), z = r.width / (back.clientWidth || r.width) || 1;
+        return Math.hypot((e.clientX - r.left) / z - q.x, (e.clientY - r.top) / z - q.y) < 46;
+      };
+      const zoneHere = (e: PointerEvent): BaseZone | null => {
+        const z = zoneAt(e);
+        return z && z !== 'research' ? z : nearStellari(e) ? 'research' : null;
+      };
+      canvas.addEventListener('pointermove', (e) => hover(zoneHere(e), e.pointerType));
       canvas.addEventListener('pointerleave', (e) => hover(null, e.pointerType));
       canvas.addEventListener('click', (e) => {
-        const zone = zoneAt(e as PointerEvent);
+        const zone = zoneHere(e as PointerEvent);
         if (zone) box.querySelector<HTMLElement>(`.cs-base-label[data-zone="${zone}"]`)?.click();
       });
       // (A label under the pointer lights its station too.)
@@ -2360,6 +2377,7 @@ export class CampaignView {
       const AHEAD: [number, number] = [7, -0.2];
       let stellari: [number, number] = [AHEAD[0] - 3.6, AHEAD[1]];
       const LOOP = 150;
+      let toward = 0, lastT = 0;
       const flight = (time: number) => {
         const k = (time % LOOP) / LOOP;
         return { x: -3.6 + 6 * k, k };
@@ -2378,7 +2396,22 @@ export class CampaignView {
           if (back) back.style.opacity = shown;
           if (front) front.style.opacity = shown;
           if (sunrise) sunrise.style.opacity = shown;
-          return { x: f.x, y: PLANE_Y, z: 0.15, yaw: -1.05, pitch: 0.2, dist: 3.4 };
+          // Enlightenment open: the camera glides down to the Stellari, set at the foot of the screen, where the
+          // skill tree's own Stellari comes in over it.
+          const dt = Math.max(0, Math.min(0.1, time - lastT));
+          lastT = time;
+          toward += ((this.shopOpen ? 1 : 0) - toward) * (1 - Math.exp(-dt * 2.4));
+          const e = toward * toward * (3 - 2 * toward);
+          const from = { x: f.x, y: PLANE_Y, z: 0.15, yaw: -1.05, pitch: 0.2, dist: 3.4 };
+          const to = { x: stellari[0], y: PLANE_Y + 0.42, z: stellari[1], yaw: -1.05, pitch: 0.08, dist: 1.5 };
+          return {
+            x: from.x + (to.x - from.x) * e,
+            y: from.y + (to.y - from.y) * e,
+            z: from.z + (to.z - from.z) * e,
+            yaw: from.yaw,
+            pitch: from.pitch + (to.pitch - from.pitch) * e,
+            dist: from.dist + (to.dist - from.dist) * e,
+          };
         });
       }
       base.onFrame = () => {
@@ -2388,11 +2421,28 @@ export class CampaignView {
           sunrise.style.left = `${at.x.toFixed(1)}px`;
           sunrise.style.top = `${at.y.toFixed(1)}px`;
         }
-        for (const l of box.querySelectorAll<HTMLElement>('.cs-base-label')) {
-          const at = base.labelAt(l.dataset.zone as BaseZone);
-          if (!at) continue;
-          l.style.left = `${at.x.toFixed(1)}px`;
-          l.style.top = `${at.y.toFixed(1)}px`;
+        // Each section's node, off to one side of its place, its stem running to it: down (or up), then across.
+        // (In the page's own pixels: the ship's canvas sits in the page, the land's fills it.)
+        const r = canvas.getBoundingClientRect(), zoom = r.width / (canvas.clientWidth || r.width) || 1;
+        const page = (q: { x: number; y: number } | null) => (q ? { x: q.x + r.left / zoom, y: q.y + r.top / zoom } : null);
+        const W = window.innerWidth / zoom, H = window.innerHeight / zoom;
+        const place = (zone: BaseZone) => {
+          if (zone === 'research') return at ? { x: at.x, y: at.y } : null;
+          return page(base.anchorAt(zone));
+        };
+        const OFF: Record<BaseZone, [number, number]> = { captain: [-0.09, -0.2], hangar: [-0.12, 0.17], research: [-0.07, -0.17] };
+        for (const zone of BASE_ZONES) {
+          const p = place(zone);
+          const node = box.querySelector<HTMLElement>(`.cs-node[data-zone="${zone}"]`);
+          const path = box.querySelector<SVGPathElement>(`.cs-stems path[data-zone="${zone}"]`);
+          const dot = box.querySelector<SVGCircleElement>(`.cs-stems circle[data-zone="${zone}"]`);
+          if (!p || !node || !path || !dot) continue;
+          const nx = Math.max(90, Math.min(W - 90, p.x + OFF[zone][0] * W)), ny = Math.max(70, Math.min(H - 90, p.y + OFF[zone][1] * H));
+          node.style.left = `${nx.toFixed(1)}px`;
+          node.style.top = `${ny.toFixed(1)}px`;
+          path.setAttribute('d', `M${nx.toFixed(1)} ${ny.toFixed(1)}H${p.x.toFixed(1)}V${p.y.toFixed(1)}`);
+          dot.setAttribute('cx', p.x.toFixed(1));
+          dot.setAttribute('cy', p.y.toFixed(1));
         }
       };
     }
