@@ -2913,7 +2913,7 @@ export class CampaignView {
         // Opened afresh: shown once the land is made and drawn, fading in as the ship flies in from the left; the
         // options after it, once it has settled.
         if (this.menuIntro === 'loading') {
-          const ENTRY = 3.2;
+          const ENTRY = 6.5;
           // (Held off to the left from its first frame, so it never shows at rest before flying in.)
           base.arrive(ENTRY, false);
           world.smooth = true;
@@ -2930,7 +2930,7 @@ export class CampaignView {
               if (this.menuIntro !== 'arriving') return;
               this.menuIntro = null;
               box.querySelector('.cs-nodes')?.classList.remove('cs-nodes-wait');
-            }, (ENTRY - 0.6) * 1000);
+            }, (ENTRY - 1.5) * 1000);
           };
           requestAnimationFrame(ready);
         }

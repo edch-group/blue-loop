@@ -395,14 +395,16 @@ export class Base3d {
     // (Handing over to the campaign, it settles still, as the campaign's first frame has it.)
     const ho = this.handOver ? Math.max(0, Math.min(1, this.handOver.k())) : 0;
     const sway = 1 - ho;
-    // (Flying in: off to the left, easing out to its place.)
+    // (Flying in [direction: drifting in slowly whilst bobbing]: off to the left, drifting gently to its place, rising
+    // and falling as it comes, the bob settling into its idle one.)
     let ex = 0, ey = 0, tip = 0;
     if (this.entry) {
       const k = this.entry.t0 === null ? 0 : Math.min(1, (t - this.entry.t0) / this.entry.dur);
-      const left = Math.pow(1 - k, 3);
-      ex = -16 * left;
-      ey = 0.6 * left;
-      tip = -0.06 * Math.sin(Math.PI * k) * (1 - k);
+      const left = 1 - Math.sin((Math.PI / 2) * k);
+      const ride = Math.sin(Math.PI * Math.min(1, k * 1.15));
+      ex = -14 * left;
+      ey = 0.4 * left + 0.12 * Math.sin(t * 1.5) * ride;
+      tip = -0.03 * left + 0.025 * Math.cos(t * 1.5) * ride;
       if (k >= 1) this.entry = null;
     }
     this.shipM = mul(translate(ex, ey + 0.05 * Math.sin(t * 0.7) * sway, 0), mul(rotZ(tip), mul(rotX(0.035 * Math.sin(t * 0.5) * sway), mul(rotZ(0.025 * Math.sin(t * 0.6 + 1) * sway), scale(S)))));

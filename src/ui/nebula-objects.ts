@@ -62,8 +62,12 @@ export interface MapRoute {
 
 /** A warp from star to star: how long it takes, and where its charge ends and its jump does (fractions of it). */
 export const WARP_SECONDS = 1.1;
-/** A flight from star to star (the Captain's ship, without its warp drive): a little longer than a warp. */
-export const FLY_SECONDS = 1.8;
+/**
+ * A flight from star to star (the Captain's ship, without its warp drive) [direction: the ship first turns towards the
+ * node, then a slightly faster bobbing flight]: it turns to face where it is going, then flies there, bobbing.
+ */
+export const FLY_TURN = 0.8;
+export const FLY_SECONDS = FLY_TURN + 2.6;
 const WARP_PHASES = [0.42, 0.58] as const;
 
 /** A ship on the map: where it is bound (world x, z, over a star), and its holder's colour. */
@@ -495,7 +499,7 @@ export class MapObjects {
   /** Each race's model, uploaded the first time a ship of it is drawn. */
   private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }>();
   /** Each ship as it flies: where it set out from and is bound, since when, and which way it faces. */
-  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number; surge?: { dist: number; dur: number }; fromY: number; toY: number; warp?: boolean; captain?: CaptainShipSpec }>();
+  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number; surge?: { dist: number; dur: number }; fromY: number; toY: number; warp?: boolean; captain?: CaptainShipSpec; /** Turning first: its heading before, and how long the turn takes. */ turnFrom?: number; turnFor?: number }>();
   private routeProg: WebGLProgram;
   private routeBuf: WebGLBuffer;
   private routeCount = 0;
@@ -614,9 +618,16 @@ export class MapObjects {
       was.t0 = now;
       // (From star to star, a lightspeed warp [direction: not flying gently toward the stars]: the same short time
       // however far; see warpAt. The Captain's ship flies, unless it jumps with its warp drive.)
+      // (Flying, it turns to face where it is going first, then flies there.)
+      delete was.turnFrom;
+      delete was.turnFor;
       if (sh.fly) {
         was.dur = reduce ? 0 : FLY_SECONDS;
         was.warp = false;
+        if (!reduce && d > 1e-4) {
+          was.turnFrom = was.heading;
+          was.turnFor = FLY_TURN;
+        }
       } else {
         was.dur = reduce ? 0 : WARP_SECONDS;
         was.warp = true;
@@ -639,6 +650,8 @@ export class MapObjects {
     sh.from = this.shipAt(sh, now);
     sh.cruise = undefined;
     sh.surge = undefined;
+    delete sh.turnFrom;
+    delete sh.turnFor;
     sh.t0 = now;
     sh.dur = dur;
   }
@@ -648,20 +661,37 @@ export class MapObjects {
     const sh = this.ships.get(id);
     if (!sh) return null;
     const [x, z] = this.shipAt(sh, performance.now() / 1000);
-    return { x, y: this.shipLift(sh, performance.now() / 1000, time), z, heading: sh.heading };
+    return { x, y: this.shipLift(sh, performance.now() / 1000, time), z, heading: this.headingAt(sh, performance.now() / 1000) };
   }
 
-  /** How high a ship flies: hovering over its star, bobbing; under way it rises a little. */
-  private shipLift(sh: { t0: number; dur: number; cruise?: number; fromY: number; toY: number }, now: number, time: number): number {
+  /**
+   * How far through its course a ship is (0 to 1): after its turn, if it turned first (during the turn, 0).
+   */
+  private travelK(sh: { t0: number; dur: number; turnFor?: number }, now: number): number {
+    const turn = sh.turnFor ?? 0;
+    return sh.dur > turn ? Math.max(0, Math.min(1, (now - sh.t0 - turn) / (sh.dur - turn))) : 1;
+  }
+  /** Which way a ship faces: turning, eased round from where it faced to its course. */
+  private headingAt(sh: { t0: number; heading: number; turnFrom?: number; turnFor?: number }, now: number): number {
+    if (sh.turnFrom === undefined || !sh.turnFor) return sh.heading;
+    const k = Math.max(0, Math.min(1, (now - sh.t0) / sh.turnFor));
+    const e = k * k * (3 - 2 * k);
+    const d = Math.atan2(Math.sin(sh.heading - sh.turnFrom), Math.cos(sh.heading - sh.turnFrom));
+    return sh.turnFrom + d * e;
+  }
+
+  /** How high a ship flies: hovering over its star, bobbing; under way it rises a little, bobbing quicker. */
+  private shipLift(sh: { t0: number; dur: number; cruise?: number; fromY: number; toY: number; turnFor?: number }, now: number, time: number): number {
     const moving = sh.dur > 0 && now - sh.t0 < sh.dur;
-    const k = moving ? (now - sh.t0) / sh.dur : 1;
-    return this.groundY(sh, now) + 0.13 + Math.sin(time * 1.3) * 0.006 + (sh.cruise ? 0.05 : moving ? Math.sin(Math.PI * k) * 0.05 : 0);
+    const k = moving ? this.travelK(sh, now) : 1;
+    const under = moving && k > 0 && k < 1;
+    return this.groundY(sh, now) + 0.13 + Math.sin(time * 1.3) * 0.006 + (sh.cruise ? 0.05 : moving ? Math.sin(Math.PI * k) * 0.05 + (under ? Math.sin(time * 3.4) * 0.008 * Math.sin(Math.PI * k) : 0) : 0);
   }
 
   /** The height of the route under a ship, eased from the star it left to the one it is bound for. */
-  private groundY(sh: { t0: number; dur: number; fromY: number; toY: number; cruise?: number }, now: number): number {
+  private groundY(sh: { t0: number; dur: number; fromY: number; toY: number; cruise?: number; turnFor?: number }, now: number): number {
     if (sh.cruise) return sh.toY;
-    const t = sh.dur > 0 ? Math.min(1, (now - sh.t0) / sh.dur) : 1;
+    const t = this.travelK(sh, now);
     return sh.fromY + (sh.toY - sh.fromY) * t * t * (3 - 2 * t);
   }
 
@@ -848,7 +878,7 @@ export class MapObjects {
       const d = Math.min(len * 0.85, sh.cruise * Math.max(0, now - sh.t0) + (sh.surge ? sh.surge.dist * k * k * (3 - 2 * k) : 0));
       return [sh.from[0] + ((sh.to[0] - sh.from[0]) * d) / len, sh.from[1] + ((sh.to[1] - sh.from[1]) * d) / len];
     }
-    const t = sh.dur > 0 ? Math.min(1, (now - sh.t0) / sh.dur) : 1;
+    const t = this.travelK(sh, now);
     const e = (sh as { warp?: boolean }).warp && t < 1 ? this.warpAt(t).along : t * t * (3 - 2 * t);
     return [sh.from[0] + (sh.to[0] - sh.from[0]) * e, sh.from[1] + (sh.to[1] - sh.from[1]) * e];
   }
@@ -888,14 +918,15 @@ export class MapObjects {
       const [x, z] = this.shipAt(sh, now);
       const cruising = !!sh.cruise;
       const moving = cruising || (sh.dur > 0 && now - sh.t0 < sh.dur);
-      const k = moving && !cruising ? (now - sh.t0) / sh.dur : 1;
+      const k = moving && !cruising ? (sh.warp ? (now - sh.t0) / sh.dur : this.travelK(sh, now)) : 1;
       // Hovering over its star, bobbing; under way it rises a little and banks into its course (cruising, it rolls
       // gently, steady on its course).
       const y = this.shipLift(sh, now, time);
       const warp = sh.warp && moving && !cruising ? this.warpAt(k) : null;
       const bank = warp ? 0 : cruising ? Math.sin(time * 0.7) * 0.07 : moving ? Math.sin(Math.PI * k) * 0.25 : Math.sin(time * 0.9) * 0.04;
       const pitch = warp ? 0 : moving && !cruising ? Math.cos(Math.PI * k) * 0.12 : 0;
-      const fx = Math.cos(sh.heading), fz = Math.sin(sh.heading);
+      const heading = this.headingAt(sh, now);
+      const fx = Math.cos(heading), fz = Math.sin(heading);
       // Forward (pitched), up (banked), and starboard, scaled.
       const F = [fx * Math.cos(pitch), Math.sin(pitch), fz * Math.cos(pitch)];
       const Rr = [-fz, 0, fx];
