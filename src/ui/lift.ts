@@ -23,9 +23,33 @@ function set(el: HTMLElement | null) {
   onChange?.(el);
 }
 
+/**
+ * Which card of a fanned hand the pointer is over, by where each card rests in the fan (its layout place, which a
+ * lift never moves), not by what is drawn under the pointer [direction: the double hover]: a lifted card turns
+ * straight and rises, uncovering its neighbour under the pointer, which then lifted in its place, and back again.
+ * Each card owns the strip from its own left edge to the next card's; the one up keeps a few pixels' grace either side.
+ */
+function inHand(card: HTMLElement, x: number): HTMLElement {
+  const hand = card.parentElement;
+  if (!hand?.classList.contains('hand')) return card;
+  const cards = [...hand.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c.matches('.card:not(.card-still)'));
+  if (cards.length < 2) return card;
+  const r = hand.getBoundingClientRect();
+  const k = hand.offsetWidth ? r.width / hand.offsetWidth : 1;
+  const lx = (x - r.left) / k;
+  const span = (i: number) => [i ? cards[i].offsetLeft : -Infinity, i < cards.length - 1 ? cards[i + 1].offsetLeft : Infinity];
+  const now = lifted ? cards.indexOf(lifted) : -1;
+  if (now >= 0) {
+    const [a, b] = span(now);
+    if (lx >= a - 6 && lx < b + 6) return lifted!;
+  }
+  for (let i = cards.length - 1; i >= 0; i--) if (lx >= span(i)[0]) return cards[i];
+  return card;
+}
+
 function update(x: number, y: number, target: Element | null) {
   const card = target?.closest<HTMLElement>('.card:not(.card-still)') ?? null;
-  if (card) return set(card);
+  if (card) return set(inHand(card, x));
   // Over the strip the lifted card rose out of: it stays up.
   if (lifted?.isConnected) {
     const r = lifted.getBoundingClientRect();
