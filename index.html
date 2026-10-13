@@ -16,6 +16,17 @@
     <style>html { background: #e0dfdb; } body { background: linear-gradient(180deg, #faf9f6, #f3f2ee 55%, #e0dfdb); }</style>
   </head>
   <body>
+    <!-- Shared paint for the game's token icons (materials, the sun): an emblem's pale rim round a dark disc. -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+      <radialGradient id="tok-rim" cx="38%" cy="32%" r="75%"><stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#ecebe6"/><stop offset="1" stop-color="#c9c8c1"/></radialGradient>
+      <radialGradient id="tok-disc" cx="45%" cy="38%" r="70%"><stop offset="0" stop-color="#34406a"/><stop offset=".7" stop-color="#1b2140"/><stop offset="1" stop-color="#10142a"/></radialGradient>
+      <radialGradient id="tok-gold-glow" r="50%"><stop offset="0" stop-color="#ffd98a" stop-opacity=".55"/><stop offset="1" stop-color="#ffd98a" stop-opacity="0"/></radialGradient>
+      <linearGradient id="crate-top" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6e2b4"/><stop offset="1" stop-color="#d9a95c"/></linearGradient>
+      <linearGradient id="crate-left" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c38c3e"/><stop offset="1" stop-color="#8a5a22"/></linearGradient>
+      <linearGradient id="crate-right" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a5824"/><stop offset="1" stop-color="#55320f"/></linearGradient>
+      <radialGradient id="sun-corona" r="50%"><stop offset="0" stop-color="var(--sun-a, #ffe7a3)" stop-opacity=".95"/><stop offset=".45" stop-color="var(--sun-b, #f0a040)" stop-opacity=".55"/><stop offset="1" stop-color="var(--sun-b, #f0a040)" stop-opacity="0"/></radialGradient>
+      <radialGradient id="sun-core" cx="42%" cy="38%" r="60%"><stop offset="0" stop-color="#fffbea"/><stop offset=".45" stop-color="var(--sun-a, #ffe7a3)"/><stop offset=".8" stop-color="var(--sun-b, #f0a040)"/><stop offset="1" stop-color="var(--sun-c, #c2541c)"/></radialGradient>
+    </defs></svg>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

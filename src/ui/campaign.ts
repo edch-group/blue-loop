@@ -187,9 +187,9 @@ const GALAXY_GLYPH: Record<GalaxyKind, string> = {
   darkMatter: '<circle cx="12" cy="12" r="8" stroke-dasharray="2 3"/><circle cx="8" cy="10" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1" fill="currentColor"/><circle cx="13" cy="15" r="1.5" fill="currentColor"/>',
 };
 
-/** Materials: a paper crate drawn in ink. Earned from systems taken, finds and battles; spent on everything (cards, fusing, repairs). */
+/** Materials: a bronze-strapped crate on an emblem's dark disc, in its pale rim [direction: the materials icon matching the emblems]. Earned from systems taken, finds and battles; spent on everything (cards, fusing, repairs). */
 const MATERIALS =
-  '<svg class="cur cur-materials" viewBox="0 0 20 20" aria-label="materials"><path d="M10 1.5 17 6v8l-7 4.5L3 14V6Z" fill="#e3e2dc"/><path d="M10 1.5 17 6 10 9.6 3 6Z" fill="#ffffff"/><path d="M10 9.6V18.5L3 14V6Z" fill="#f0efea"/><path d="M10 1.5 17 6v8l-7 4.5L3 14V6ZM10 9.6V18.5M3 6l7 3.6L17 6" fill="none" stroke="#6b7590" stroke-width="1" stroke-linejoin="round"/></svg>';
+  '<svg class="cur cur-materials" viewBox="0 0 40 40" aria-label="materials"><circle cx="20" cy="20" r="19.2" fill="url(#tok-rim)" stroke="#bdbcb5" stroke-width=".6"/><circle cx="20" cy="20" r="15.6" fill="url(#tok-disc)" stroke="#0c0f20" stroke-width=".8"/><circle cx="20" cy="20" r="13" fill="url(#tok-gold-glow)"/><path d="M20 9.5 29.5 14.8 20 20 10.5 14.8Z" fill="url(#crate-top)"/><path d="M10.5 14.8 20 20v10.8L10.5 25.6Z" fill="url(#crate-left)"/><path d="M20 20 29.5 14.8v10.8L20 30.8Z" fill="url(#crate-right)"/><path d="M12.6 16 12.6 26.7M27.4 16v10.7M15.2 12.4 24.8 17.6" stroke="#f3dfb0" stroke-width="1.1" opacity=".85"/><path d="M20 9.5 29.5 14.8v10.8L20 30.8 10.5 25.6V14.8ZM10.5 14.8 20 20 29.5 14.8M20 20v10.8" fill="none" stroke="#2c1a08" stroke-width=".8" stroke-linejoin="round"/><path d="M11.4 14.9 20 10.2 28.6 14.9" fill="none" stroke="#fff6dc" stroke-width=".7" opacity=".9"/></svg>';
 /** A station on the map: an armoury (a crate) or a research station (a ringed flask). */
 const ARMORY_ICON =
   '<svg class="cur cur-station" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7 10 3.5 17 7v7L10 17.5 3 14Z" fill="#c99a52" stroke="#7d5a26" stroke-width=".9" stroke-linejoin="round"/><path d="M3 7 10 10.5 17 7M10 10.5v7" fill="none" stroke="#7d5a26" stroke-width=".9"/></svg>';
@@ -1423,7 +1423,7 @@ export class CampaignView {
               // Your flagship's sun: it starts the next battle as the last one left it.
               const f = flagship(s, s.playerId);
               const heat = f?.damage ?? 0;
-              return `<span class="cmp-sunstat ${heat > 0 ? 'hot' : heat < 0 ? 'cold' : ''}"><i class="cmp-sunstat-orb"></i><b>${heat}</b></span>`;
+              return `<span class="cmp-sunstat ${heat > 0 ? 'hot' : heat < 0 ? 'cold' : ''}"><svg class="cmp-sunstat-orb" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19.2" fill="url(#tok-rim)" stroke="#bdbcb5" stroke-width=".6"/><circle cx="20" cy="20" r="15.6" fill="url(#tok-disc)" stroke="#0c0f20" stroke-width=".8"/><circle cx="20" cy="20" r="14" fill="url(#sun-corona)"/><g fill="var(--sun-a, #ffe7a3)" opacity=".75"><path d="M20 6.800000000000001 21.1 14 18.9 14Z" transform="rotate(0 20 20)"/><path d="M20 6.800000000000001 21.1 14 18.9 14Z" transform="rotate(45 20 20)"/><path d="M20 6.800000000000001 21.1 14 18.9 14Z" transform="rotate(90 20 20)"/><path d="M20 6.800000000000001 21.1 14 18.9 14Z" transform="rotate(135 20 20)"/><path d="M20 6.800000000000001 21.1 14 18.9 14Z" transform="rotate(180 20 20)"/><path d="M20 6.800000000000001 21.1 14 18.9 14Z" transform="rotate(225 20 20)"/><path d="M20 6.800000000000001 21.1 14 18.9 14Z" transform="rotate(270 20 20)"/><path d="M20 6.800000000000001 21.1 14 18.9 14Z" transform="rotate(315 20 20)"/></g><circle cx="20" cy="20" r="6.8" fill="url(#sun-core)"/></svg><b>${heat}</b></span>`;
             })()}
             <span>${MATERIALS}<b>${me.materials}</b></span>
             <span>${PETAL}<b>${s.petals}</b></span>
