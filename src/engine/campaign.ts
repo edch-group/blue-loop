@@ -654,6 +654,8 @@ export interface Loot {
   cards: string[];
   /** Ship parts found (the Captain's runs). */
   parts?: string[];
+  /** Found in a system on the map, not won in battle (the system's name). */
+  found?: string;
 }
 
 export interface CampaignState {
@@ -3456,6 +3458,9 @@ function findItem(s: CampaignState, f: Faction, army: Army, n: CampaignNode) {
   const relic = makeRelic(`item${++s.uidCounter}`, kind, rarity, f.race, nextRandom(s), f.relics ?? []);
   (f.relics ??= []).push(relic);
   clog(s, `${cardDef(army.general).name}'s army finds ${relic.name} in ${n.name}.`, n.id, f.id);
+  // (The player's: shown as a battle's spoils are, a cache to open [direction: a relic found at a node popping up on
+  // the screen, not just appearing among the relics].)
+  if (f.id === s.playerId && !f.isAI) s.loot = { won: true, materials: 0, xp: 0, petals: 0, relics: [relic], cards: [], parts: [], found: n.name };
 }
 
 /** Fit a module into a room: one already there goes back to the stores. */

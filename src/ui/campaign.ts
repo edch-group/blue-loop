@@ -3862,7 +3862,7 @@ export class CampaignView {
       const rows = [items.slice(0, split), items.slice(split)].filter((r) => r.length);
       const cols = Math.max(...rows.map((r) => r.length));
       if (!this.lootOpen)
-        return `<div class="overlay overlay-soft loot-overlay"><button class="loot-cache" data-act="cmp-loot-open" aria-label="Open the cache">${canNebula() ? '<span class="loot-cache-halo" aria-hidden="true"></span><canvas class="loot-cache-art loot-cache-3d" data-loot3d="cache"></canvas>' : LOOT_CACHE}<span class="loot-cache-tap">${l.won ? 'victory · tap to open' : 'what was saved · tap to open'}</span></button></div>`;
+        return `<div class="overlay overlay-soft loot-overlay"><button class="loot-cache" data-act="cmp-loot-open" aria-label="Open the cache">${canNebula() ? '<span class="loot-cache-halo" aria-hidden="true"></span><canvas class="loot-cache-art loot-cache-3d" data-loot3d="cache"></canvas>' : LOOT_CACHE}<span class="loot-cache-tap">${l.found ? 'found' : l.won ? 'victory' : 'what was saved'} · tap to open</span></button></div>`;
       return `<div class="overlay overlay-soft loot-overlay loot-opened">
         <div class="loot-burst" aria-hidden="true"></div>
         ${l.xp ? `<div class="loot-item loot-top" style="--i:0">${this.xpGauge(this.commanderXp() - l.xp, l.xp)}</div>` : ''}
