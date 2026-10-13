@@ -7232,8 +7232,8 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 
 /* ---------- The Captain: the setup page, and the hero panel (petals) ---------- */
 .cs-captain-body { grid-template-rows: none; grid-template-columns: auto minmax(0, 420px); justify-content: center; align-items: center; column-gap: clamp(18px, 5vw, 60px); }
-.cs-captain-card, .hp-card { cursor: var(--cur-pointer); }
-.cs-captain-card .cmp-card, .hp-card .cmp-card { --cw: clamp(120px, calc(30 * var(--vh)), 200px); --hw: var(--cw); --hh: calc(var(--cw) * 1.4); }
+.cs-captain-card { cursor: var(--cur-pointer); }
+.cs-captain-card .cmp-card { --cw: clamp(120px, calc(30 * var(--vh)), 200px); --hw: var(--cw); --hh: calc(var(--cw) * 1.4); }
 .cs-captain-text { display: grid; gap: 10px; }
 .cs-captain-text h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(1.1rem, calc(4.4 * var(--vh)), 1.9rem); letter-spacing: 0.4em; text-transform: uppercase; color: var(--ink); }
 .cs-captain-text p { margin: 0; color: var(--ink-soft); font-size: 0.9rem; }
@@ -7245,24 +7245,17 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-tab small { font-family: var(--body, inherit); font-size: 0.66rem; color: var(--ink-faint); }
 
 .hero-panel { grid-template-rows: auto minmax(0, 1fr) auto; }
-.hp-body { min-height: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(14px, 4vw, 44px); align-items: center; width: min(1100px, 100%); justify-self: center; padding: 8px 4px; }
-.hp-tree { min-height: 0; max-height: 100%; overflow-y: auto; scrollbar-width: thin; display: grid; gap: clamp(10px, calc(2.4 * var(--vh)), 18px); padding: 4px 4px 8px; }
-.hp-tree h4 { margin: 0 0 6px; display: flex; align-items: baseline; gap: 10px; font-family: var(--display); font-weight: 500; font-size: 0.6rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-soft); }
-.hp-tree h4 small { font-family: var(--body, inherit); font-size: 0.66rem; letter-spacing: 0; text-transform: none; color: var(--ink-faint); }
-.hp-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 22px; }
-.hp-track { display: flex; align-items: flex-start; }
-.hp-link { flex: 1 1 10px; max-width: 26px; height: 1.5px; margin-top: 17px; background: rgba(58, 66, 86, 0.22); }
-.hp-grid { display: flex; flex-wrap: wrap; gap: 8px 6px; }
-.hp-node { display: grid; justify-items: center; gap: 4px; width: 62px; padding: 0; border: 0; background: none; cursor: var(--cur-pointer); font-family: var(--display); color: var(--ink-soft); }
-.hp-disc { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px rgba(58, 66, 86, 0.22), 0 3px 8px rgba(70, 76, 100, 0.08); transition: box-shadow 0.15s, background 0.15s; }
-.hp-disc b { font-size: 0.68rem; font-weight: 500; letter-spacing: 0.04em; color: var(--ink); }
-.hp-node small { font-size: 0.48rem; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; line-height: 1.25; }
-.hp-node.hp-locked { opacity: 0.45; }
-.hp-node.hp-owned .hp-disc { background: #eef3fb; box-shadow: 0 0 0 1.5px #9fb6d8; }
-.hp-node.hp-on .hp-disc { background: #3a4256; box-shadow: 0 0 0 1.5px #3a4256; }
-.hp-node.hp-on .hp-disc b { color: #fff; }
-.hp-node.hp-on small, .hp-node.hp-owned small { color: var(--ink); }
-.hp-node.hp-picked .hp-disc { box-shadow: 0 0 0 2.5px #d6bd7a, 0 3px 10px rgba(70, 76, 100, 0.14); }
+/* The Captain's skill tree [direction: styled like the general skill tree]: that tree's sky, motes and lines, round
+   the Captain's emblem at the foot (white, embossed, as the menu's), each branch named past its last skill; a skill
+   carried into battle (or the lead led with) ringed in its colour. */
+.hp-tree-wrap { position: relative; min-height: 0; }
+.hp-tree-wrap > .up-sky { width: 100%; }
+.hp-tree-wrap .up-sky > * { --R: min(47cqw, calc((94cqh - 70px) / 1.32)); --cy: calc(100% - 34px); }
+.up-wheel > .hp-root { position: absolute; left: 50%; top: var(--cy); width: 62px; height: 62px; transform: translate(-50%, -50%); display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 38% 30%, #fff 0, #f4f5f8 45%, #e2e5eb 100%); box-shadow: inset 0 1.5px 1px #fff, inset 0 -2px 3px rgba(70, 80, 105, 0.16), 0 0 0 1.5px #fff, 0 0 0 3px #dde0e7, 0 6px 16px rgba(70, 76, 100, 0.16); }
+.up-wheel > .hp-root .cs-emblem { width: 34px; height: 34px; fill: #b7bfcd; filter: drop-shadow(0.5px 0.8px 0 #fff) drop-shadow(-0.4px -0.5px 0.2px rgba(52, 62, 88, 0.35)); }
+.up-wheel > .up-arc-label { left: calc(50% + var(--R) * var(--x)); top: calc(var(--cy) + var(--R) * var(--y)); }
+.hp-branch { font-size: 0.5rem; color: var(--ink-faint); }
+.up-tree .up-node.hp-carried .up-mote::before { content: ''; position: absolute; inset: -55%; border-radius: 50%; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bc) 75%, transparent); }
 .hp-detail { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: min(760px, 100%); justify-self: center; min-height: 56px; padding: 10px 16px; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.1), 0 6px 18px rgba(70, 76, 100, 0.1); }
 .hp-detail b { font-family: var(--display); font-weight: 500; font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink); }
 .hp-detail p { margin: 3px 0 0; font-size: 0.82rem; color: var(--ink-soft); }
@@ -7272,18 +7265,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .hp-have { flex: none; font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); }
 @media (max-height: 560px) {
   .cs-captain-body { column-gap: 22px; }
-  .hp-node { width: 54px; }
-  .hp-disc { width: 30px; height: 30px; }
-  .hp-link { margin-top: 14px; }
   .hp-detail { min-height: 44px; padding: 6px 12px; }
 }
-.hp-marks { display: inline-flex; align-items: center; font-size: 0.62rem; color: var(--ink); white-space: nowrap; transform: scale(0.92); }
-.hp-node.hp-on .hp-marks { color: #fff; filter: brightness(1.6); }
 .hp-detail p small { margin-left: 6px; font-size: 0.7rem; color: var(--ink-faint); }
 .hp-detail p { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
-.hp-marks { gap: 2px; font-size: 0.7rem; transform: none; }
-.hp-marks .kw-ico { width: 13px; height: 13px; }
-.hp-marks b { font-size: 0.66rem; }
 
 /* A rival beaten (the Captain's runs): recruit, or slay for their hoard. */
 .struggle-choice { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
@@ -7358,8 +7343,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-captain-page.cs-focus > .setup-top, .cs-captain-page.cs-focus > .setup-foot { visibility: hidden; }
 .cs-captain-page.cs-focus .cs-base-label { opacity: 0; pointer-events: none; }
 .cs-captain-page .up-shop.hero-panel, .cs-captain-page .up-shop.hangar-panel { left: 40%; background: linear-gradient(90deg, rgba(251, 251, 252, 0), rgba(251, 251, 252, 0.88) 9%, rgba(251, 251, 252, 0.94)); -webkit-backdrop-filter: none; backdrop-filter: none; }
-.cs-captain-page .up-shop.hero-panel .hp-card { display: none; }
-.cs-captain-page .up-shop.hero-panel .hp-body { grid-template-columns: minmax(0, 1fr); }
 .cs-captain-page .cs-base-label { transition: opacity 0.3s, box-shadow 0.18s, background 0.18s, transform 0.18s; }
 
 .cmp-stage.cmp-grabbing, .cmp-stage.cmp-grabbing * { cursor: var(--cur-grabbing) !important; }

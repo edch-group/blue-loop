@@ -130,7 +130,7 @@ import { stellariaFlower } from './art';
 import { choiceRow, setLink, settingsPanel } from './settings';
 import { MENU_ICON } from './menu-icon';
 import { renderedArt } from './cardart';
-import { playerAvatar, raceRow, cardArtLite, cardStock, cardBodyHtml, cardTextHtml, effectMark, mechanicMark, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
+import { playerAvatar, raceRow, cardArtLite, cardStock, cardBodyHtml, cardTextHtml, KIND_COLOUR, stabilityBadge, typeLine } from './glyphs';
 import { sound } from './sound';
 import { reducedMotion } from './fx';
 import { voices } from './voice';
@@ -223,12 +223,6 @@ const MENU_EMBLEM: Record<'captain' | 'ship' | 'stellari', string> = {
   stellari: emblem(`${Array.from({ length: 6 }, (_, i) => `<ellipse cx="12" cy="6.6" rx="2.5" ry="4.6" transform="rotate(${i * 60} 12 12)"/>`).join('')}<circle cx="12" cy="12" r="2.4"/>`),
 };
 
-/** Each of the Captain's abilities and leads at a glance, for the hero panel's discs: its mark and its amount. */
-const CAP_MARKS: Record<string, [string, string]> = {
-  brace: ['shield', '1'], patch: ['cool', '1'], scout: ['draw', '1'], volley: ['heat', '2'], bulwark: ['shield', '3'], vent: ['cool', '2'],
-  strafe: ['heat', '3'], overdrive: ['energy', '1'], rally: ['chosen', '+2'], mend: ['renew', '1'],
-  steady: ['cool', '1'], iron: ['shield', '1'], salvo: ['heat', '3'], gunnery: ['heat', '+1'],
-};
 
 const PETAL =
   '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.8C15.6 6 15.6 14 10 18.2 4.4 14 4.4 6 10 1.8Z" fill="#d8e4f6" stroke="#97a2ba" stroke-width=".9" stroke-linejoin="round"/><path d="M10 4.6v10.8" stroke="#97a2ba" stroke-width=".7" stroke-linecap="round" opacity=".7"/></svg>';
@@ -578,7 +572,7 @@ export class CampaignView {
     if (!sky || !node || sky.closest('.up-mobile')) return;
     const tip = document.createElement('div');
     tip.className = 'up-tip';
-    tip.innerHTML = `<b>${esc(node.dataset.upTitle ?? '')}</b><span>${esc(node.dataset.upText ?? '')}</span>${node.dataset.upNext ? `<small>${esc(node.dataset.upNext)}</small>` : ''}`;
+    tip.innerHTML = `<b>${esc(node.dataset.upTitle ?? '')}</b><span>${node.dataset.upRich ? cardTextHtml(node.dataset.upText ?? '', undefined, true) : esc(node.dataset.upText ?? '')}</span>${node.dataset.upNext ? `<small>${esc(node.dataset.upNext)}</small>` : ''}`;
     sky.appendChild(tip);
     // (Measured on screen, laid out in the page's own pixels: the page may be zoomed.)
     const box = sky.getBoundingClientRect();
@@ -1722,26 +1716,96 @@ export class CampaignView {
    */
   private renderHeroPanel(meta: MetaState): string {
     const c = captainMeta(meta);
-    const card = captainCard(meta);
     const pick = this.capPick;
-    const node = (key: string, label: string, state: 'owned' | 'open' | 'locked' | 'on', inner = '', named = true) =>
-      `<button class="hp-node hp-${state} ${pick === key ? 'hp-picked' : ''}" data-act="cmp-cap-pick" data-arg="${key}" aria-label="${esc(label)}"><span class="hp-disc">${inner}</span>${named ? `<small>${esc(label)}</small>` : ''}</button>`;
-    // (An ability's or a lead's disc shows what it does, in the card's own marks: one mark and its amount.)
-    const marks = (id: string) => {
-      const [k, n] = CAP_MARKS[id] ?? ['star', ''];
-      return `<span class="hp-marks">${k === 'chosen' || k === 'renew' ? mechanicMark(k) : effectMark(k)}<b>${n}</b></span>`;
+    const left = pointsLeft(meta);
+    // [direction: the Captain's skill tree styled like the general skill tree]: drawn as that tree is, round the
+    // Captain's emblem at the foot of the sky: a branch for each of what the Captain can learn fanning up from it, each
+    // skill a mote of light in its branch's colour (lit once learnt, a dashed ring turning round what can be learnt
+    // now), lines joining each to what it needs; its tip on a hover, and a tap shows it below to learn, carry or lead.
+    const BR = {
+      attack: { dir: 190, colour: '#d0675a', name: 'attack' },
+      cheaper: { dir: 212, colour: '#d9a441', name: 'cost' },
+      stability: { dir: 234, colour: '#5f9fdc', name: 'stability' },
+      slots: { dir: 256, colour: '#8a7fd0', name: 'ability slots' },
+      abilities: { dir: 296, colour: '#4fae9b', name: 'abilities' },
+      leads: { dir: 346, colour: '#c98a4b', name: 'leads' },
+    } as const;
+    // (Taller than it is wide, to fill its panel: up in R a third more than across.)
+    const SY = 1.32;
+    const at = (deg: number, k: number): [number, number] => [k * Math.cos((deg * Math.PI) / 180), SY * k * Math.sin((deg * Math.PI) / 180)];
+    const ROOT = 0.11;
+    const line = (a: [number, number], b: [number, number], lit: boolean, colour: string) =>
+      `<span class="up-line ${lit ? 'lit' : ''}" style="--x1:${a[0].toFixed(4)};--y1:${a[1].toFixed(4)};--x2:${b[0].toFixed(4)};--y2:${b[1].toFixed(4)};--bc:${colour}"></span>`;
+    const lines: string[] = [];
+    const nodes: string[] = [];
+    const labels: string[] = [];
+    const node = (key: string, p: [number, number], colour: string, st: { owned: boolean; can: boolean; locked: boolean; on?: boolean; big?: boolean }, title: string, text: string, next = '') =>
+      nodes.push(`<button class="up-node ${st.big ? 'tier-3' : ''} ${st.owned ? 'owned' : ''} ${st.owned ? 'maxed' : ''} ${st.locked ? 'locked' : ''} ${st.can ? 'afford' : ''} ${st.on ? 'hp-carried' : ''} ${pick === key ? 'on' : ''}" style="--x:${p[0].toFixed(4)};--y:${p[1].toFixed(4)};--bc:${colour};--lv:${st.owned ? 1 : 0}" data-act="cmp-cap-pick" data-arg="${esc(key)}" data-up-title="${esc(title)}" data-up-text="${esc(text)}" data-up-next="${esc(next)}" data-up-rich="1" aria-label="${esc(title)}">
+          <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" class="${st.owned ? 'on' : ''}"/></svg><i class="up-mote" aria-hidden="true"></i></span>
+        </button>`);
+    const price = (buy: CaptainBuy) => captainPrice(meta, buy);
+    const can = (buy: CaptainBuy) => !captainBuyProblem(meta, buy);
+    const label = (deg: number, k: number, name: string) => {
+      const [x, y] = at(deg, k);
+      labels.push(`<span class="up-arc-label hp-branch" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)}">${esc(name)}</span>`);
     };
-    const statPath = (stat: CaptainStat, name: string, step: (n: number) => string) => {
-      const prices = CAPTAIN_STAT_PRICES[stat];
-      const nodes = prices.map((_, i) => node(`stat:${stat}:${i}`, step(i + 1), i < c[stat] ? 'owned' : i === c[stat] ? 'open' : 'locked', `<b>${step(i + 1)}</b>`, false)).join('<i class="hp-link"></i>');
-      return `<div class="hp-path"><h4>${name}</h4><div class="hp-track">${nodes}</div></div>`;
+    // The stats and the ability slots: each a chain, out along its branch, each step needing the one before.
+    const chain = (b: { dir: number; colour: string; name: string }, steps: { key: string; owned: boolean; buy: CaptainBuy | null; title: string; text: string }[]) => {
+      const reach = (i: number) => 0.3 + (0.62 * i) / Math.max(4, steps.length);
+      let prev = at(b.dir, ROOT);
+      steps.forEach((st, i) => {
+        const p = at(b.dir, reach(i + (steps.length < 4 ? 0.5 : 0)));
+        const before = i === 0 || steps[i - 1].owned;
+        lines.push(line(prev, p, st.owned, b.colour));
+        const cost = st.buy ? price(st.buy) : null;
+        node(st.key, p, b.colour, { owned: st.owned, can: !st.owned && before && !!st.buy && can(st.buy), locked: !st.owned && !before, big: i === steps.length - 1 }, st.title, st.text, st.owned ? 'learnt' : cost !== null ? `${cost} skill point${cost === 1 ? '' : 's'}` : '');
+        prev = p;
+      });
+      label(b.dir, reach(steps.length - 1 + (steps.length < 4 ? 0.5 : 0)) + 0.1, b.name);
     };
-    const slots = CAPTAIN_SLOT_PRICES.map((_, i) => node(`slot:${i}`, `slot ${i + 2}`, i < c.slots ? 'owned' : i === c.slots ? 'open' : 'locked', `<b>${i + 2}</b>`, false)).join('<i class="hp-link"></i>');
-    const abilities = CAPTAIN_ABILITIES.map((a) => {
-      const learnt = c.abilities.includes(a.id);
-      return node(`ability:${a.id}`, a.ability.name.toLowerCase(), learnt ? (c.equipped.includes(a.id) ? 'on' : 'owned') : 'open', marks(a.id));
-    }).join('');
-    const leads = CAPTAIN_LEADS.map((l) => node(`lead:${l.id}`, l.name.toLowerCase(), c.leads.includes(l.id) ? (c.lead === l.id ? 'on' : 'owned') : 'open', marks(l.id))).join('');
+    const stat = (k: CaptainStat, say: (n: number) => string, text: (n: number) => string) =>
+      chain(BR[k], CAPTAIN_STAT_PRICES[k].map((_, i) => ({ key: `stat:${k}:${i}`, owned: i < c[k], buy: i === c[k] ? { kind: 'stat', stat: k } : null, title: `${BR[k].name} ${say(i + 1)}`, text: text(i + 1) })));
+    stat('attack', (n) => `+${n}`, (n) => `+${n} attack.`);
+    stat('cheaper', (n) => `−${n}`, (n) => `Costs ${n} less to play.`);
+    stat('stability', (n) => `+${n * CAPTAIN_STABILITY_STEP}`, (n) => `+${n * CAPTAIN_STABILITY_STEP} stability.`);
+    chain(BR.slots, [
+      { key: 'slot:base', owned: true, buy: null, title: 'ability slot 1', text: 'Carry 1 ability into battle.' },
+      ...CAPTAIN_SLOT_PRICES.map((_, i) => ({ key: `slot:${i}`, owned: i < c.slots, buy: i === c.slots ? ({ kind: 'slot' } as CaptainBuy) : null, title: `ability slot ${i + 2}`, text: `Carry ${i + 2} abilities into battle.` })),
+    ]);
+    // The abilities and the leads: none needs another, each hung from its branch's fork, fanned in two rows (each
+    // row its own span of the sky, its skills spaced so none crowds the next).
+    const fan = (b: { dir: number; colour: string; name: string }, rows: [number, number, number][], items: { key: string; owned: boolean; on: boolean; buy: CaptainBuy; title: string; text: string; note: string }[]) => {
+      const fork = at(b.dir, 0.3);
+      lines.push(line(at(b.dir, ROOT), fork, items.some((x) => x.owned), b.colour));
+      let n = 0;
+      for (const [k, from, to] of rows) {
+        const row = items.slice(n, n + Math.ceil((items.length - n) / (rows.length - rows.indexOf(rows.find((r) => r[0] === k)!))));
+        n += row.length;
+        row.forEach((it, i) => {
+          const p = at(row.length > 1 ? from + ((to - from) * i) / (row.length - 1) : (from + to) / 2, k);
+          lines.push(line(fork, p, it.owned, b.colour));
+          const cost = price(it.buy);
+          node(it.key, p, b.colour, { owned: it.owned, can: !it.owned && can(it.buy), locked: false, on: it.on }, it.title, it.text, it.owned ? it.note : cost !== null ? `${cost} skill point${cost === 1 ? '' : 's'}` : '');
+        });
+      }
+      label(b.dir, Math.max(...rows.map((r) => r[0])) + 0.1, b.name);
+    };
+    fan(
+      BR.abilities,
+      [[0.62, 268, 324], [0.92, 271, 321]],
+      CAPTAIN_ABILITIES.map((a) => {
+        const owned = c.abilities.includes(a.id), on = c.equipped.includes(a.id);
+        return { key: `ability:${a.id}`, owned, on, buy: { kind: 'ability', id: a.id } as CaptainBuy, title: a.ability.name.toLowerCase(), text: `${[a.ability.cost ? `${a.ability.cost} energy` : '', a.ability.pay?.stability ? `−${a.ability.pay.stability} stability` : '', a.ability.pay?.selfHeat ? `{heat:${a.ability.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ').replace(/^(.+)$/, '$1: ')}${a.ability.text} Once a day.`, note: on ? 'carried' : 'learnt · not carried' };
+      }),
+    );
+    fan(
+      BR.leads,
+      [[0.62, 336, 354], [0.92, 338, 352]],
+      CAPTAIN_LEADS.map((l) => {
+        const owned = c.leads.includes(l.id), on = c.lead === l.id;
+        return { key: `lead:${l.id}`, owned, on, buy: { kind: 'lead', id: l.id } as CaptainBuy, title: l.name.toLowerCase(), text: l.text, note: on ? 'leading' : 'learnt · not leading' };
+      }),
+    );
     return `
       <div class="up-shop hero-panel">
         <header class="up-head up-head-tree">
@@ -1749,20 +1813,17 @@ export class CampaignView {
             <button class="up-back" data-act="cmp-hero" aria-label="Back">‹ back</button>
             ${captainPointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.capResetArmed ? 'armed' : ''}" data-act="cmp-cap-reset">${this.capResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}
           </div>
-          <div class="up-title-big"><h3>the captain</h3><span class="up-xp">${XP_MARK}<b>${pointsLeft(meta)}</b><small>skill point${pointsLeft(meta) === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small></span></div>
+          <div class="up-title-big"><h3>the captain</h3><span class="up-xp">${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small></span></div>
           <span></span>
         </header>
-        <div class="hp-body">
-          <div class="hp-card" data-act="inspect" data-card="${esc(card)}">${cardHtml(card)}</div>
-          <div class="hp-tree">
-            <section class="hp-stats">
-              ${statPath('attack', 'attack', (n) => `+${n}`)}
-              ${statPath('stability', 'stability', (n) => `+${n * CAPTAIN_STABILITY_STEP}`)}
-              ${statPath('cheaper', 'cost', (n) => `−${n}`)}
-              <div class="hp-path"><h4>ability slots</h4><div class="hp-track">${node('slot:base', 'slot 1', 'owned', '<b>1</b>', false)}<i class="hp-link"></i>${slots}</div></div>
-            </section>
-            <section class="hp-set"><h4>abilities <small>${c.equipped.length} of ${captainSlots(c.slots)} carried</small></h4><div class="hp-grid">${abilities}</div></section>
-            <section class="hp-set"><h4>leads <small>one at a time</small></h4><div class="hp-grid">${leads}</div></section>
+        <div class="hp-tree-wrap up-tree">
+          <div class="up-sky">
+            <div class="up-wheel">
+              <span class="hp-root" aria-hidden="true">${MENU_EMBLEM.captain}</span>
+              ${lines.join('')}
+              ${labels.join('')}
+              ${nodes.join('')}
+            </div>
           </div>
         </div>
         ${this.renderCapDetail(meta)}
