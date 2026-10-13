@@ -155,7 +155,8 @@ export class Base3d {
   private smoke: V3[] = [];
   private engines: V3[] = [];
   private deck = 8;
-  private bridge = 12;
+  private rail = { y: 15, z: 9.7 };
+  private dish = 8.3;
   /** The companions aboard (companions.ts), each its figure's buffer and where it is now. */
   private crew: { id: CompanionId; buf: WebGLBuffer; count: number; m: M4 }[] = [];
   private raf = 0;
@@ -230,7 +231,8 @@ export class Base3d {
     this.smoke = s.smoke;
     this.engines = s.engines;
     this.deck = s.deck;
-    this.bridge = s.bridge;
+    this.rail = s.rail;
+    this.dish = s.dish;
   }
 
   /** The companions aboard (each drawn where it stands; built once). */
@@ -460,12 +462,23 @@ export class Base3d {
     drawMesh(this.shipBuf, this.shipCount, this.shipM);
     drawMesh(this.capBuf, this.capCount, this.capM);
     drawMesh(this.tailBuf, this.tailCount, tailM);
-    // The companions aboard, each in their place (the defector hanging over the bridge, rising and falling).
+    // The companions, each in their place: Kaelen on the near rail, Mara over the sensor dish, Vey'Sharr flying alongside
+    // (rising and falling, drifting and rolling on its own, not with the ship).
     for (const c of this.crew) {
       const pl = COMPANION_PLACES[c.id];
-      const hover = pl.bridge ? 1.4 + 0.5 * Math.sin(t * 1.3) : 0;
-      const p = B(pl.x, pl.y, (pl.bridge ? this.bridge : this.deck) + hover);
-      c.m = mul(this.shipM, mul(translate(p[0], p[1], p[2]), mul(rotY(pl.turn), mul(scale(pl.size / S), translate(-B(20, 12, 0)[0], 0, -B(20, 12, 0)[2])))));
+      const k = pl.size / S, a = pl.anchor;
+      const at: V3 =
+        pl.on === 'rail'
+          ? B(pl.x, this.rail.y, this.rail.z)
+          : pl.on === 'dish'
+            ? B(pl.x, pl.y, this.dish)
+            : B(pl.x + 0.5 * Math.sin(t * 0.37), pl.y + 0.3 * Math.sin(t * 0.29 + 2), pl.z + 0.9 * Math.sin(t * 0.83 + 1.7));
+      const o = B(a[0], a[1], a[2]);
+      const local = mul(rotY(pl.turn), mul(scale(k), translate(-o[0], -o[1], -o[2])));
+      c.m =
+        pl.on === 'air'
+          ? mul(scale(S), mul(translate(at[0], at[1], at[2]), mul(rotX(0.06 * Math.sin(t * 0.61)), mul(rotZ(0.07 * Math.sin(t * 0.83 + 2.6)), local))))
+          : mul(this.shipM, mul(translate(at[0], at[1], at[2]), local));
       drawMesh(c.buf, c.count, c.m);
     }
     // Planets far off in the sky, going slowly past as the ship flies on [direction: planets going past slowly in the
