@@ -3,7 +3,6 @@ import heatFire from '../assets/sfx/heat-fire.mp3?inline';
 import sunHit from '../assets/sfx/sun-hit.mp3?inline';
 import cardHit from '../assets/sfx/card-hit.mp3?inline';
 import riftTick from '../assets/sfx/rift-tick.mp3?inline';
-import phaseTick from '../assets/sfx/phase-tick.mp3?inline';
 /**
  * Atmospheric audio, synthesised with Web Audio (no asset files yet).
  *
@@ -25,7 +24,7 @@ const PREFS_KEY = 'blue-loop:sound';
  * app too, where the game runs from file:// and can't fetch files), decoded as soon as audio starts so none plays
  * late.
  */
-const SFX = { heatFire, sunHit, cardHit, riftTick, phaseTick };
+const SFX = { heatFire, sunHit, cardHit, riftTick };
 
 /** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
 function silentWav(): string {
@@ -724,13 +723,6 @@ class SoundBoard {
     });
   }
 
-  /**
-   * A clock's hand moving on: day or dusk coming in (they have no banner) [direction: like a really big clock's
-   * mechanism, deep and boomy]: the rift's deep tick, then the escapement's lower, heavier clunk.
-   */
-  clockTick() {
-    this.clip(SFX.phaseTick, 0.45, 1, true);
-  }
 
 
   /** The boosters' running sound while a ship is under way (built when it starts, let go once it has faded out). */

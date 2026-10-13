@@ -2050,19 +2050,18 @@ export class App {
     this.phaseTick(delay + BANNER_SHOWN_MS + 150, () => {
       this.setPhase('day');
       this.render();
-    }, 'game', false);
+    });
   }
 
   /**
    * Day and dusk come in without a banner [direction: only dawn shows a banner each turn; the other two phases make a
-   * noise like a clock hand moving as the player enters them]: the phase changes with a tick (dusk's; day comes in
-   * silently [direction: remove the day phase tick sound]).
+   * noise like a clock hand moving as the player enters them]: the phase changes, silently now [direction: remove the
+   * day phase tick sound; remove the tick on dusk too].
    */
-  private phaseTick(delay: number, onShow: () => void, screen: Screen = 'game', tick = true) {
+  private phaseTick(delay: number, onShow: () => void, screen: Screen = 'game') {
     window.setTimeout(() => {
       if (this.screen !== screen) return;
       onShow();
-      if (tick) sound.clockTick();
     }, Math.max(0, delay));
   }
 
@@ -2107,7 +2106,7 @@ export class App {
           this.render();
           this.nudgeDailyRelics();
         }
-      }, 'game', false);
+      });
     }
   }
 
