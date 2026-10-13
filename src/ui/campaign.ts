@@ -1498,33 +1498,49 @@ export class CampaignView {
   }
 
   /**
-   * The galaxy's name, written on the land itself beside the start of the route, running along it (turned to read
-   * the right way up): what the galaxy does to every battle in it, on a tap.
+   * The galaxy's name and what it does to every battle in it, written on the land itself [direction: the galaxy mod's
+   * title and description always above the map; a rift's name placed the same way, never over the nodes]: out past
+   * the systems on the side that is up the screen as the camera rests, running along the way, read the right way up.
+   * A rift's galaxy has no mods: there, its name and what it is like.
    */
   private renderGalaxy(): string {
     const s = this.state!;
+    const rift = s.rift ? RIFTS[s.rift.kind] : null;
+    const g = s.galaxy ? GALAXIES[s.galaxy] : null;
     const kind = s.galaxy;
-    if (!kind) return '';
-    const g = GALAXIES[kind];
-    // (Along the outer lane's second and third systems, out past it, on the side away from the other lanes.)
-    const lane = (c: number, l: number) => s.nodes.find((n) => n.col === c && n.lane === l && !n.challenge);
-    const L = CAMPAIGN.lanes;
-    const a = lane(1, L - 1), b = lane(2, L - 1), inner = lane(1, L - 2);
-    // (Gone with the land it was written on.)
-    if (!a || !b || !inner || a.collapsed || b.collapsed) return '';
-    let dx = b.x - a.x, dy = b.y - a.y;
-    const len = Math.hypot(dx, dy) || 1;
-    dx /= len;
-    dy /= len;
-    // (Out from the lanes: the normal pointing away from the next lane in.)
-    let nx = -dy, ny = dx;
-    if (nx * (inner.x - a.x) + ny * (inner.y - a.y) > 0) (nx = -nx), (ny = -ny);
-    const off = CAMPAIGN.laneGap * 0.55;
-    const x = (a.x + b.x) / 2 + nx * off, y = (a.y + b.y) / 2 + ny * off;
-    let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+    if (!rift && !(g && kind)) return '';
+    const title = rift ? rift.name : g!.name;
+    const text = rift ? rift.text : g!.text;
+    const nodes = s.nodes.filter((n) => !n.challenge || !n.challenge.hidden);
+    if (!nodes.length) return '';
+    // Up the screen, on the land, as the camera rests (its yaw, nebula3d.ts home): the side the words go.
+    const YAW = -0.95;
+    const up = [Math.sin(-YAW), -Math.cos(-YAW)] as const;
+    // Along the way: a strip runs along x; any other shape, across the screen.
+    const strip = s.layout === 'strip';
+    const d = strip ? [1, 0] : [Math.cos(YAW), -Math.sin(YAW)];
+    let nrm = [-d[1], d[0]];
+    if (nrm[0] * up[0] + nrm[1] * up[1] < 0) nrm = [-nrm[0], -nrm[1]];
+    const along = (n: { x: number; y: number }) => n.x * d[0] + n.y * d[1];
+    const out = (n: { x: number; y: number }) => n.x * nrm[0] + n.y * nrm[1];
+    // (Its size in map units: the name's big letters, and the words under it, wrapped.)
+    const HALF_W = 820, HALF_H = 175;
+    // Where along: a strip's, over its first few columns (in view as a run begins); any other, its middle.
+    const early = strip ? nodes.filter((n) => (n.col ?? 0) >= 2 && (n.col ?? 0) <= 5) : nodes;
+    const pick = early.length ? early : nodes;
+    const mid = pick.reduce((t, n) => t + along(n), 0) / pick.length;
+    // Out past every system it lies beside (and their rings), so it never covers one.
+    const beside = nodes.filter((n) => Math.abs(along(n) - mid) < HALF_W + 260);
+    if (strip && beside.length && beside.every((n) => n.collapsed)) return '';
+    const edge = Math.max(...(beside.length ? beside : nodes).map(out));
+    const o = edge + 230 + HALF_H;
+    const x = d[0] * mid + nrm[0] * o, y = d[1] * mid + nrm[1] * o;
+    const near = (beside.length ? beside : nodes).reduce((b, n) => (out(n) > out(b) ? n : b));
+    let angle = (Math.atan2(d[1], d[0]) * 180) / Math.PI;
     if (angle > 90) angle -= 180;
     if (angle < -90) angle += 180;
-    return `<button class="cmp-galaxy cmp-galaxy-land" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--a:${angle.toFixed(1)}deg;--h:${(((a.h ?? 0) + (b.h ?? 0)) / 2).toFixed(0)}px" aria-label="${esc(g.name)}"><svg viewBox="0 0 24 24" aria-hidden="true">${GALAXY_GLYPH[kind]}</svg><b>${esc(g.name.toLowerCase())}</b></button>`;
+    const glyph = rift ? '' : `<svg viewBox="0 0 24 24" aria-hidden="true">${GALAXY_GLYPH[kind!]}</svg>`;
+    return `<div class="cmp-galaxy cmp-galaxy-land${s.rift?.kind === 'dark' ? ' cmp-galaxy-dark' : ''}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--a:${angle.toFixed(1)}deg;--h:${(near.h ?? 0).toFixed(0)}px" aria-label="${esc(`${title}: ${text}`)}"><span class="cmp-galaxy-title">${glyph}<b>${esc(title.toLowerCase())}</b></span><p>${esc(text)}</p></div>`;
   }
 
   /**

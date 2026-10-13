@@ -1208,7 +1208,10 @@ export function migrateCampaign(s: CampaignState): CampaignState {
     const st = n.station as (Station & { options?: string[] }) | undefined;
     if (st?.kind === 'research' && !st.options) st.options = st.project ? [st.project] : [];
   }
-  if (!s.galaxy) s.galaxy = GALAXY_KINDS[(s.universe * 7 + s.nodes.length) % GALAXY_KINDS.length];
+  // (A rift's galaxy has no galaxy of its own [direction: rifts have no galaxy mods]: an older save's, given one
+  // here on loading, loses it.)
+  if (s.rift) s.galaxy = undefined;
+  else if (!s.galaxy) s.galaxy = GALAXY_KINDS[(s.universe * 7 + s.nodes.length) % GALAXY_KINDS.length];
   // Enemy flagships carry a card that repairs (their race's, where it has one): an older save's decks, made
   // before, have a neutral card or two swapped for it.
   for (const a of s.armies) {

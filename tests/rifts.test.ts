@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyCampaignAction, armiesOf, armyMoves, campaignPlayer, createCampaign, flagship, nodeById, timePreview, visibleNodes, type CampaignNode, type CampaignState } from '../src/engine/campaign';
+import { applyCampaignAction, armiesOf, galaxyEffects, migrateCampaign, armyMoves, campaignPlayer, createCampaign, flagship, nodeById, timePreview, visibleNodes, type CampaignNode, type CampaignState } from '../src/engine/campaign';
 import { cardDef } from '../src/engine/cards';
 import { markedId, marksFor } from '../src/engine/rifts';
 
@@ -26,6 +26,16 @@ const enter = (s: CampaignState) => {
 };
 
 describe('Rifts', () => {
+  it('has no galaxy and so no galaxy mods, even once saved and loaded again', () => {
+    for (const kind of ['dark', 'time'] as const) {
+      const s = enter(withRift(kind));
+      expect(s.galaxy).toBeUndefined();
+      const loaded = migrateCampaign(JSON.parse(JSON.stringify(s)));
+      expect(loaded.galaxy).toBeUndefined();
+      expect(galaxyEffects(loaded)).toBeNull();
+    }
+  });
+
   it("fields, stocks and gives the rift's own race even in a Core run (no enemy with an empty deck)", () => {
     for (const kind of ['dark', 'time'] as const) {
       const base = withRift(kind);
