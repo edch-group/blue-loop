@@ -26,3 +26,4 @@ export * from './dreams-data';
 export * from './captain';
 export * from './parts';
 export * from './companions';
+export * from './singularities';

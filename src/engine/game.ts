@@ -3,6 +3,7 @@ import { BALANCE } from './balance';
 import { CARDS, cardDef, cardIn as cardInMode, hasDarkspeed, isBurst, PRESET_DECKS } from './cards';
 import { isBossCard } from './cards-bosses';
 import { companionOf, noActs, type ActKind } from './companions';
+import { singularityOf, type ChargeKind } from './singularities';
 import { inMode, setRulesMode, type GameMode } from './modes';
 import { relicN, relicOf, RELIC_POWERS, type RelicPower } from './relics';
 import { raceTrait } from './races';
@@ -329,6 +330,7 @@ export function planetTurnsLeft(p: PlayerState): number {
 function moveOrbit(state: GameState, p: PlayerState, by: number) {
   const before = currentPlanet(p);
   p.orbit = (((p.orbit + by) % ORBIT_LENGTH) + ORBIT_LENGTH) % ORBIT_LENGTH;
+  charge(state, p, 'orbit', Math.abs(by));
   const now = currentPlanet(p);
   log(state, `${p.name}'s orbit ${by > 0 ? 'speeds on' : 'slips back'} ${Math.abs(by)}: the ${now} planet${now === before ? '' : ' swings round'} (${planetTurnsLeft(p)} turn${planetTurnsLeft(p) === 1 ? '' : 's'} left).`);
 }
@@ -526,6 +528,7 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
   if (tidewall(owner) && heat && !pierce) {
     const blocked = Math.min(owner.shields, amount);
     owner.shields -= blocked;
+    charge(state, owner, 'absorbed', blocked);
     if (blocked > 0) {
       log(state, `${owner.name}'s Tidewall shields absorb ${blocked}${fromText}.`);
       // (A sting answered by shields doesn't sting back.)
@@ -553,12 +556,17 @@ function strikeCard(state: GameState, owner: PlayerState, victim: CardInstance, 
   }
   amount -= turned;
   credit(state, source, cardUid, 'damage', turned + Math.max(0, amount));
+  charge(state, owner, 'turned', turned);
+  charge(state, owner, 'struck', turned + Math.max(0, amount));
   if (amount <= 0) return;
+  charge(state, owner, 'wounds', Math.min(amount, victim.health ?? 0));
   victim.health = Math.max(0, (victim.health ?? 0) - amount);
   log(state, `${owner.name}'s ${cardDef(victim.defId).name} takes ${amount}${turned > 0 ? '' : fromText} (health ${victim.health}).`);
   if (victim.health <= 0) {
     log(state, `${owner.name}'s ${cardDef(victim.defId).name} burns away.`);
     if (source !== owner) credit(state, source, cardUid, 'kills', 1);
+    charge(state, owner, 'lost');
+    if (source !== owner) charge(state, source, 'kills');
     leaveTableau(state, owner, victim);
     // A Bounty relic: each rival card burned away cools its holder's sun.
     const bounty = source !== owner ? relicN(source.relics, 'bounty') : 0;
@@ -1084,8 +1092,10 @@ function drawCards(state: GameState, p: PlayerState, count: number) {
       if (p.eliminated) return;
     }
     const card = p.deck.pop();
-    if (card) p.hand.push(card);
-    else {
+    if (card) {
+      p.hand.push(card);
+      charge(state, p, 'draws');
+    } else {
       log(state, `${p.name}'s deck is empty: the strain heats their sun by ${BALANCE.fatigueHeat}.`);
       applyHeat(state, p, BALANCE.fatigueHeat, null, false, undefined, false, 'the strain of an empty deck');
       if (p.eliminated) return;
@@ -1098,6 +1108,7 @@ function reshuffle(state: GameState, p: PlayerState) {
   p.deck = shuffleInPlace(state, p.discard);
   p.discard = [];
   log(state, `${p.name} shuffles their discard pile back into their deck.`);
+  charge(state, p, 'recycles');
   // A Recycle relic answers it with a blow.
   const recycle = relicN(p.relics, 'recycle');
   if (recycle) relicAim(state, p, recycle, 'recycle');
@@ -1106,6 +1117,33 @@ function reshuffle(state: GameState, p: PlayerState) {
 /** A player's card by uid, wherever it is. */
 function cardIn(p: PlayerState, uid: string): CardInstance | undefined {
   return [...p.tableau, ...p.hand, ...p.discard, ...p.deck, ...(p.lightspeed ? [p.lightspeed] : [])].find((c) => c.uid === uid);
+}
+
+/**
+ * A Hero's singularity charging (singularities.ts): from its own one kind of thing, while it leads from the Hero slot.
+ * Told once it is full.
+ */
+let unleashing: PlayerState | null = null;
+function charge(state: GameState, p: PlayerState | null | undefined, kind: ChargeKind, n = 1) {
+  // (A singularity's own effects never charge it again.)
+  if (!p || n <= 0 || unleashing === p) return;
+  const hero = commandCard(p);
+  const k = hero && singularityOf(hero.defId);
+  if (!hero || !k || k.charge !== kind) return;
+  const was = hero.charge ?? 0;
+  if (was >= k.need) return;
+  hero.charge = Math.min(k.need, was + n);
+  if (hero.charge >= k.need) log(state, `${p.name}'s ${cardDef(hero.defId).name}: ${k.name} is charged.`);
+}
+
+/** Why a side's Hero can't unleash its singularity now (null if it can). */
+export function singularityProblem(state: GameState, p: PlayerState): string | null {
+  const hero = commandCard(p);
+  const k = hero && singularityOf(hero.defId);
+  if (!hero || !k) return 'No singularity';
+  if (activePlayer(state).id !== p.id || state.winnerId) return 'Not your day';
+  if ((hero.charge ?? 0) < k.need) return `Charging ${hero.charge ?? 0}/${k.need}`;
+  return null;
 }
 
 /** A companion's card (companions.ts) did something it learns from: noted on the battle, for the campaign to count. */
@@ -1143,7 +1181,11 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   if (enemy) {
     source.turn.heatDealt += amount;
     credit(state, source, cardUid, 'damage', amount);
-  }
+    charge(state, source, 'heat', amount);
+    charge(state, target, 'absorbed', blocked);
+    charge(state, target, 'sunHit', applied);
+  } else charge(state, target, 'burn', applied);
+  charge(state, target, 'struck', applied);
   const byCard = cardUid && source ? cardIn(source, cardUid) : undefined;
   const from = why ?? (byCard && source ? `${source.name}'s ${cardDef(byCard.defId).name}` : undefined);
   // Two lines, led by what did it: the shields it broke (or wore down), then the sun it heated. (In a dawn or dusk:
@@ -1191,6 +1233,7 @@ function cool(state: GameState, p: PlayerState, amount: number, why?: string) {
   const before = p.heat;
   p.heat = Math.max(BALANCE.minHeat, p.heat - amount);
   p.turn.cooled += before - p.heat;
+  charge(state, p, 'cooled', before - p.heat);
   if (tally && p.heat !== before) {
     const at = tallySun(p);
     at.cooled += before - p.heat;
@@ -1295,6 +1338,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         const amount = effectAmount(state, p, card, e, when);
         if (amount > 0) {
           credit(state, p, card.uid, 'support', amount);
+          charge(state, p, 'shields', amount);
           p.shields += amount;
           if (tally && tally.owner === p) tally.shields += amount;
           else log(state, `${p.name} raises ${amount} shield${amount === 1 ? '' : 's'}.`);
@@ -1574,6 +1618,30 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         log(state, `${p.name}'s ${cardDef(mine.defId).name} shifts to slot ${to + 1}, out of harm's way.`);
         break;
       }
+      case 'blast': {
+        // Heat to the rival card aimed at (unaimed, their strongest), and less to each card beside it; with no card
+        // of theirs to take it, their sun.
+        const t = ctx.against ?? targetOf(state, p);
+        if (!t) break;
+        const slotted = t.tableau.filter((c) => c.slot !== COMMAND_SLOT || t.boss);
+        const main = slotted.find((c) => c.uid === ctx.aimUid) ?? strikeHits(state, t, { type: 'strikeBest', amount: e.amount })[0];
+        if (!main) {
+          applyHeat(state, t, e.amount, p, false, card.uid, false, `${p.name}'s ${cardDef(card.defId).name}`);
+          notePulse(state, p, card, 'heat', t, e.amount);
+          break;
+        }
+        const beside = main.slot === COMMAND_SLOT ? [] : t.tableau.filter((c) => c.slot !== COMMAND_SLOT && Math.abs((c.slot ?? -9) - (main.slot ?? -9)) === 1);
+        strikeCard(state, t, main, e.amount, p, false, card.uid, false, true);
+        notePulse(state, p, card, 'heat', t, e.amount, main.uid);
+        for (const c of beside) {
+          if (state.winnerId || t.eliminated || !t.tableau.includes(c)) continue;
+          strikeCard(state, t, c, e.side, p, false, card.uid, false, true);
+          notePulse(state, p, card, 'heat', t, e.side, c.uid);
+          const last = state.turnPulses?.[state.turnPulses.length - 1];
+          if (last) last.together = true;
+        }
+        break;
+      }
       case 'strikeBest':
       case 'strikeAll': {
         const t = ctx.against ?? targetOf(state, p);
@@ -1635,6 +1703,7 @@ function mend(state: GameState, p: PlayerState, c: CardInstance, amount: number)
   const full = Math.max(baseHealth(c.defId), c.maxHealth ?? 0);
   const was = c.health ?? 0;
   c.health = Math.min(full, was + amount);
+  charge(state, p, 'mends', c.health - was);
   if (c.health > was) log(state, `${p.name}'s ${cardDef(c.defId).name} steadies (stability ${c.health}).`);
 }
 
@@ -1647,6 +1716,7 @@ function sweep(state: GameState, owner: PlayerState, card: CardInstance) {
 /** A card leaves its tableau for the discard pile (or its owner's hand or deck), triggering its leave effects. */
 function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, to: 'discard' | 'hand' | 'deck' = 'discard') {
   owner.tableau = owner.tableau.filter((c) => c.uid !== card.uid);
+  charge(state, owner, 'departures');
   if (owner.boss && state.challenge?.kind === 'mine' && card.defId === 'antimatter_crystal') state.challenge.broken += 1;
   // A relic cache broken open.
   if (card.defId.startsWith('reliquary_obelisk') && !state.vaultOpened) {
@@ -1677,6 +1747,7 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   card.spent = undefined;
   delete card.shields;
   delete card.frozen;
+  delete card.charge;
   // (An Echo's Hero turns back into the card it really is, its leave effects the Hero's own.)
   const leaving = cardDef(card.defId);
   if (card.echoOf) {
@@ -1825,6 +1896,7 @@ function repair(state: GameState, p: PlayerState, amount: number) {
     if (!p.slotWear![slot]) delete p.slotWear![slot];
   }
   if (left < amount) {
+    charge(state, p, 'mends', amount - left);
     if (tally && tally.owner === p) tally.repaired += amount - left;
     else log(state, `${p.name} repairs ${amount - left} defence.`);
   }
@@ -1867,6 +1939,8 @@ function startTurn(state: GameState) {
   }
   p.turn = emptyTurn();
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
+  charge(state, p, 'dawns');
+  if (isOverheated(p)) charge(state, p, 'hotDawns');
   // Worn defence mends slowly: 1 a day on each card and empty slot (Sturdy adds defence, not mending: a fused stack of Sturdy cards would wall up for good).
   mendDefences(state, p);
 
@@ -1881,6 +1955,7 @@ function startTurn(state: GameState) {
   if (p.turnsTaken > 1) {
     const before = currentPlanet(p);
     p.orbit = (p.orbit + 1) % ORBIT_LENGTH;
+    charge(state, p, 'orbit');
     if (currentPlanet(p) !== before) log(state, `The ${currentPlanet(p)} planet swings round to face ${p.name}'s sun.`);
   }
   const abundance = currentPlanet(p, state) === 'abundant' ? BALANCE.abundantDraw + (p.modifiers?.abundantDraw ?? 0) : 0;
@@ -2478,6 +2553,7 @@ function springTrap(state: GameState, r: Reaction, o: PlayerState, enemy: Player
   const cause = ev.defId ?? (ev.attackerUid ? enemy.tableau.find((c) => c.uid === ev.attackerUid)?.defId : undefined);
   log(state, `⚡ Trap! ${o.name} springs ${def.name}${cause ? ` in answer to ${enemy.name}'s ${cardDef(cause).name}` : ''}.`);
   (state.sprung ??= []).push({ ownerId: o.id, defId: card.defId, against: cause, enemyId: enemy.id, trigger: t.trigger.on });
+  charge(state, o, 'traps');
   if (t.deploy) {
     // A card that lands as it springs goes in the safest free slot, and the attack comes to it.
     const slot = slotsBySafety().find((i) => freeSlots(o).includes(i) && i !== COMMAND_SLOT)!;
@@ -2630,6 +2706,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
     const victim = chosen ?? sacrificeOf(p);
     if (!victim) throw new GameError(`${def.name} needs another of your cards in play to consume.`);
     log(state, `${p.name}'s ${def.name} consumes ${cardDef(victim.defId).name}.`);
+    charge(state, p, 'sacrifices');
     leaveTableau(state, p, victim);
     if (state.winnerId || p.eliminated) return;
   }
@@ -2686,6 +2763,11 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (def.spendAll) card.spent = spend;
   p.playsLeft -= spend;
   p.turn.cardsPlayed += 1;
+  charge(state, p, 'energy', spend);
+  charge(state, p, 'plays');
+  if (!asTrap && def.kind === 'attack') charge(state, p, 'playsAttack');
+  if (!asTrap && def.kind === 'defence') charge(state, p, 'playsDefence');
+  if (!asTrap && def.kind === 'growth') charge(state, p, 'playsGrowth');
   log(state, asTrap ? `${p.name} sets a trap face down.` : `${p.name} plays ${def.name}.`);
   // A Harvest relic: the third card played in a day draws.
   const harvest = relicN(p.relics, 'harvest');
@@ -2960,6 +3042,8 @@ export function applyAction(prev: GameState, action: Action): GameState {
       const hero = commandCard(p)!;
       const k = heroAbilities(p, hero)[action.index];
       p.playsLeft -= k.cost ?? 0;
+      charge(state, p, 'energy', k.cost ?? 0);
+      charge(state, p, 'abilities');
       // The other costs: the Hero's own stability, a card sacrificed, heat on your own sun.
       if (k.pay?.stability) hero.health = (hero.health ?? 0) - k.pay.stability;
       // (The card given up is the player's choice; unchosen, the weakest.)
@@ -2968,6 +3052,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       const victim = k.pay?.sacrifice ? chosen ?? sacrificeOf(p) : undefined;
       if (victim) {
         log(state, `${p.name} sacrifices ${cardDef(victim.defId).name}.`);
+        charge(state, p, 'sacrifices');
         leaveTableau(state, p, victim);
       }
       if (k.pay?.selfHeat) resolveEffects(state, p, hero, [{ type: 'selfHeat', amount: k.pay.selfHeat }], 'play');
@@ -2979,6 +3064,23 @@ export function applyAction(prev: GameState, action: Action): GameState {
       // (An emblem's ability: its choices, one after another, before anything else.)
       if (k.choices && choiceOpen(state, p, k.choices.kind))
         for (let i = 0; i < k.choices.times; i++) (p.dawnChoices ??= []).push({ uid: `relic:${k.relic ?? k.name}`, kind: k.choices.kind, relic: k.name, ...(k.choices.amount ? { amount: k.choices.amount } : {}) });
+      if (p.eliminated) passOn(state);
+      break;
+    }
+    case 'singularity': {
+      const why = singularityProblem(state, p);
+      if (why) throw new GameError(why);
+      const hero = commandCard(p)!;
+      const k = singularityOf(hero.defId)!;
+      hero.charge = 0;
+      log(state, `✦ ${p.name}'s ${cardDef(hero.defId).name} unleashes ${k.name}!`);
+      if (action.aimUid && !targetOf(state, p)?.tableau.some((c) => c.uid === action.aimUid)) throw new GameError('Pick a rival card');
+      unleashing = p;
+      try {
+        resolveEffects(state, p, hero, k.effects, 'play', { aimUid: action.aimUid });
+      } finally {
+        unleashing = null;
+      }
       if (p.eliminated) passOn(state);
       break;
     }
@@ -3111,6 +3213,7 @@ export function attackProblem(state: GameState, p: PlayerState, attackerUid: str
 /** An attack, and then (the third of the day) a Flurry relic's blow. */
 function attack(state: GameState, p: PlayerState, card: CardInstance, targetUid: string | null) {
   p.turn.attacks = (p.turn.attacks ?? 0) + 1;
+  charge(state, p, 'attacks');
   state.struck = { attackerUid: card.uid, targetUid };
   strike(state, p, card, targetUid);
   const flurry = relicN(p.relics, 'flurry');

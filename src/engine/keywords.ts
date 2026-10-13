@@ -94,6 +94,8 @@ export const KEYWORDS: Record<string, Keyword> = {
   abundance: { name: 'abundance', group: 'tempo', explain: () => 'Extra cards each dawn.' },
   orbit: { name: 'orbit', group: 'orbit', explain: () => 'Moves the planets round.' },
   act: { name: 'act', group: 'timing', explain: () => 'A Hero ability.' },
+  // A Hero's singularity (singularities.ts): its ultimate.
+  sing: { name: 'singularity', group: 'timing', explain: () => 'The Hero\'s ultimate. Charges while it leads, from its own thing; once full, unleash it on your day, free.' },
   attune: {
     name: 'attunement',
     group: 'orbit',
@@ -138,6 +140,7 @@ function rawLabel(id: string, value?: string): string {
   if (id === 'plays' || id === 'abundance') return `${k.name} +${value}`;
   if (id === 'attune') return value === '1' ? k.name : `${k.name} ×${value}`;
   if (id === 'act') return '';
+  if (id === 'sing') return 'singularity';
   if (id === 'abilities') return 'each turn, one of:';
   if (id === 'energy') return `gain ${value} energy`;
   if (id === 'cost') return `(${value} energy)`;

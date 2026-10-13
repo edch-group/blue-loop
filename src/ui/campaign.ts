@@ -110,6 +110,10 @@ import {
   buyCaptain,
   equipCaptainAbility,
   setCaptainLead,
+  setCaptainSingularity,
+  CAPTAIN_SINGULARITIES,
+  CAPTAIN_START_SINGULARITY,
+  CHARGE_TEXT,
   captainSlots,
   CAPTAIN_ABILITIES,
   CAPTAIN_LEADS,
@@ -1130,6 +1134,13 @@ export class CampaignView {
           requestAnimationFrame(() => this.showUpTip());
           break;
         }
+        // (A singularity learnt: chosen, the one the Captain carries.)
+        if (kind === 'sing' && (id === CAPTAIN_START_SINGULARITY || c.sings?.includes(id))) {
+          saveMeta(setCaptainSingularity(meta, id));
+          sound.hover();
+          requestAnimationFrame(() => this.showUpTip());
+          break;
+        }
         if (kind === 'lead' && c.leads.includes(id)) {
           saveMeta(setCaptainLead(meta, c.lead === id ? undefined : id));
           sound.hover();
@@ -1152,7 +1163,7 @@ export class CampaignView {
             break;
           }
           buy = { kind: 'slot' };
-        } else buy = kind === 'ability' ? { kind: 'ability', id } : { kind: 'lead', id };
+        } else buy = kind === 'ability' ? { kind: 'ability', id } : kind === 'sing' ? { kind: 'sing', id } : { kind: 'lead', id };
         const why = captainBuyProblem(meta, buy);
         if (why) {
           fail(why);
@@ -2056,6 +2067,18 @@ export class CampaignView {
         return { key: `lead:${l.id}`, owned, on, can: !owned && can(buy), locked: false, title: l.name.toLowerCase(), what: l.text, sub: owned ? (on ? 'leading' : 'learnt · tap to lead') : cost(buy) };
       }),
     };
+    // [direction: the campaign hero's singularity variable, a couple of options, the first Back to the Wall]: one carried
+    // at a time, the first known from the start, the others learnt.
+    const sings: Branch = {
+      name: 'singularity',
+      colour: '#6f8fd8',
+      chain: false,
+      items: Object.entries(CAPTAIN_SINGULARITIES).map(([id, k]) => {
+        const owned = id === CAPTAIN_START_SINGULARITY || !!c.sings?.includes(id), on = (c.sing ?? CAPTAIN_START_SINGULARITY) === id;
+        const buy: CaptainBuy = { kind: 'sing', id };
+        return { key: `sing:${id}`, owned, on, can: !owned && can(buy), locked: false, title: k.name.toLowerCase(), what: `${CHARGE_TEXT[k.charge](k.need)}: ${k.text}`, sub: owned ? (on ? 'carried' : 'learnt · tap to carry') : cost(buy) };
+      }),
+    };
     const branches: Branch[] = [
       statBranch('attack', 'attack', '#d0675a', (n) => `+${n} attack`),
       statBranch('cheaper', 'cost', '#d9a441', (n) => `costs ${n} less`),
@@ -2063,6 +2086,7 @@ export class CampaignView {
       slots,
       abilities,
       leads,
+      sings,
     ];
     const sheet = this.treeSheet(branches, placed, 'cmp-cap-pick', MENU_EMBLEM.captain);
     return `

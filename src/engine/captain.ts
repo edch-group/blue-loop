@@ -1,5 +1,6 @@
 import type { CardDef, Effect, HeroAbility } from './types';
 import { act, hero } from './heroes-battle';
+import { CAPTAIN_SINGULARITIES, CAPTAIN_START_SINGULARITY, captainSingularityId, withSingularity } from './singularities';
 
 /**
  * The Captain: the nameless human every run begins with [direction: players start as a no-name human hero with
@@ -27,6 +28,8 @@ export interface CaptainBuild {
   abilities: string[];
   /** How it leads (a lasting effect while in play), if one is chosen. */
   lead?: string;
+  /** Its singularity (singularities.ts CAPTAIN_SINGULARITIES), if not the first. */
+  sing?: string;
 }
 
 /** The plain Captain: no attack, a little stability, two energy to play, and one small ability. */
@@ -91,9 +94,10 @@ export const plainBuild = (): CaptainBuild => ({ attack: 0, stability: 0, cheape
 /** The Captain's card id for a build (the plain id for the plain Captain). */
 export function captainId(b: CaptainBuild): string {
   const abilities = b.abilities.filter((a) => captainAbility(a)).slice(0, captainSlots(CAPTAIN_SLOT_PRICES.length));
-  const plain = !b.attack && !b.stability && !b.cheaper && !b.lead && abilities.length === 1 && abilities[0] === CAPTAIN_START_ABILITY;
+  const sing = b.sing && b.sing !== CAPTAIN_START_SINGULARITY && CAPTAIN_SINGULARITIES[b.sing] ? b.sing : undefined;
+  const plain = !b.attack && !b.stability && !b.cheaper && !b.lead && !sing && abilities.length === 1 && abilities[0] === CAPTAIN_START_ABILITY;
   if (plain) return CAPTAIN;
-  return `${CAPTAIN}${SEP}${b.attack}.${b.stability}.${b.cheaper}.${abilities.join('+') || '-'}.${b.lead ?? '-'}`;
+  return `${CAPTAIN}${SEP}${b.attack}.${b.stability}.${b.cheaper}.${abilities.join('+') || '-'}.${b.lead ?? '-'}${sing ? `.${sing}` : ''}`;
 }
 
 /** Whether a card is the Captain (any build of it). */
@@ -111,6 +115,7 @@ export function captainBuild(id: string): CaptainBuild | null {
     cheaper: n(c, CAPTAIN_STAT_PRICES.cheaper.length),
     abilities: abilities && abilities !== '-' ? abilities.split('+').filter((x) => captainAbility(x)) : [],
     ...(captainLead(lead) ? { lead } : {}),
+    ...(captainSingularityId(id) !== CAPTAIN_START_SINGULARITY ? { sing: captainSingularityId(id) } : {}),
   };
 }
 
@@ -135,6 +140,7 @@ export function captainDef(id: string): CardDef | undefined {
     },
     b.abilities.map((x) => captainAbility(x)!.ability),
   );
+  withSingularity(def);
   DEFS.set(id, def);
   return def;
 }

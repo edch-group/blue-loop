@@ -1,5 +1,6 @@
 import { BALANCE } from './balance';
 import { cardDef } from './cards';
+import { singularityOf } from './singularities';
 import {
   cloneGame,
   reactCost,
@@ -8,6 +9,7 @@ import {
   COMMAND_SLOT,
   heroSkillProblem,
   heroAbilityProblem,
+  singularityProblem,
   cardAttack,
   commandCard,
   applyAction,
@@ -538,9 +540,14 @@ function abilityMoves(state: GameState, me: PlayerState): Action[] {
   const hero = commandCard(me);
   if (!hero) return [];
   const aimAt = aimChoices(state, me).cards.map((c) => c.uid);
-  return heroAbilities(me, hero).flatMap((_, index) =>
+  // (A charged singularity: free, and weighed as any move is.)
+  // (One that blasts a card: at each it may be aimed at, or left to strike their strongest.)
+  const k = singularityOf(hero.defId);
+  const blasts = !!k?.effects.some((e) => e.type === 'blast');
+  const ultimate: Action[] = singularityProblem(state, me) === null ? [{ type: 'singularity' }, ...(blasts ? aimAt.map((aimUid) => ({ type: 'singularity' as const, aimUid })) : [])] : [];
+  return ultimate.concat(heroAbilities(me, hero).flatMap((_, index) =>
     heroAbilityProblem(state, me, index) !== null ? [] : [{ type: 'heroAbility' as const, index }, ...(abilityAimable(hero.defId, index) ? aimAt.map((aimUid) => ({ type: 'heroAbility' as const, index, aimUid })) : [])],
-  );
+  ));
 }
 
 export function movesNow(state: GameState): Action[] {

@@ -1,5 +1,6 @@
 import { captainDef } from './captain';
 import { companionCard } from './companions';
+import { withSingularity } from './singularities';
 import { isMarked, markedDef } from './rifts';
 import { BALANCE } from './balance';
 import type { CardDef, Rarity } from './types';
@@ -744,6 +745,8 @@ for (const c of CARDS) {
   Object.assign(c, v);
   c.cost ??= cost;
 }
+// Every Hero's singularity (singularities.ts), written under its abilities.
+for (const c of CARDS) if (c.kind === 'command') withSingularity(c);
 // Fusion cards: what they wrote is now only their bonus to a host (its words after "Fusion:"); in a slot of
 // their own they are plain cards, a little lighter than a plain card of their cost for the choice they offer.
 for (const c of CARDS) {

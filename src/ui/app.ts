@@ -3,6 +3,9 @@ import {
   activePlayer,
   heroSkillProblem,
   heroAbilityProblem,
+  singularityProblem,
+  singularityOf,
+  CHARGE_TEXT,
   heroAbilities,
   handCost,
   raceTrait,
@@ -309,8 +312,10 @@ const BANNER_GAP_MS = 1300;
 const BANNER_SHOWN_MS = 2000;
 const SPEED_FACTOR: Record<Speed, number> = { slow: 1.7, normal: 1, fast: 0.4 };
 /** Pause after each kind of AI action, before the next one (ms at normal speed). */
-const AI_PAUSE: Record<Action['type'], number> = { reclaim: 800, playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, attack: 1300, dawnChoice: 1100, react: 1000 };
+const AI_PAUSE: Record<Action['type'], number> = { reclaim: 800, playCard: 1700, setTarget: 500, endTurn: 1200, concede: 0, heroSkill: 1400, heroAbility: 1400, singularity: 2200, attack: 1300, dawnChoice: 1100, react: 1000 };
 const TOAST_MS = 2600;
+/** A pending aim that is the Hero's singularity's (not one of its abilities). */
+const SING_AIM = -1;
 const LONG_PRESS_MS = 450;
 /** Log lines worth emphasising: hits, supernovas, choices and so on. */
 const HOT = '#f0a07a';
@@ -4351,6 +4356,21 @@ export class App {
         this.heroPanel = this.heroPanel === arg ? null : arg;
         sound.hover();
         return this.render();
+      case 'singularity': {
+        const me = this.viewer();
+        const why = this.state && singularityProblem(this.state, me);
+        if (why) return this.showToast(why, 'error');
+        this.heroPanel = null;
+        // (One that blasts a card, with rival cards on the table: aim it first.)
+        const hero = commandCard(me)!;
+        if (singularityOf(hero.defId)?.effects.some((e) => e.type === 'blast') && aimChoices(this.state!, me).cards.length) {
+          this.pending = { uid: hero.uid, step: 'aim', ability: SING_AIM };
+          sound.hover();
+          return this.render();
+        }
+        sound.hero();
+        return this.dispatch({ type: 'singularity' });
+      }
       case 'hero-ability': {
         const why = heroAbilityProblem(this.state!, this.viewer(), Number(arg));
         if (why) return this.showToast(why, 'info');
@@ -4424,6 +4444,8 @@ export class App {
         if (pend.ability !== undefined) {
           this.pending = null;
           sound.hero();
+          // (−1: the Hero's singularity, aimed.)
+          if (pend.ability === SING_AIM) return this.dispatch({ type: 'singularity', ...(arg === 'sun' ? {} : { aimUid: arg }) });
           return this.dispatch({ type: 'heroAbility', index: pend.ability, aimUid: arg === 'sun' ? undefined : arg, ...(pend.sacrificeUid ? { sacrificeUid: pend.sacrificeUid } : {}) });
         }
         pend.aimUid = arg;
@@ -5815,6 +5837,8 @@ export class App {
       const move = (aim: string): Action =>
         pend.attack
           ? { type: 'attack', attackerUid: pend.uid, targetUid: aim }
+          : pend.ability === SING_AIM
+            ? { type: 'singularity', aimUid: aim }
           : pend.ability !== undefined
             ? { type: 'heroAbility', index: pend.ability, aimUid: aim, ...(pend.sacrificeUid ? { sacrificeUid: pend.sacrificeUid } : {}) }
             : { type: 'playCard', cardUid: pend.uid, choice: pend.choice, enemyUid: pend.enemyUid, allyUid: pend.allyUid, recoverUid: pend.recoverUid, slot: pend.slot, shiftTo: pend.shiftTo, aimUid: aim, ...(pend.hostUid ? { hostUid: pend.hostUid } : {}) };
@@ -6029,7 +6053,7 @@ export class App {
       state = 'card-attacker';
     }
     // Your Hero, with abilities, on your day: tap it for its abilities (and its attack) to pick from.
-    if (!p && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && c.slot === COMMAND_SLOT && !c.dimmed && heroAbilities(me, c).length && !isGameOver(s)) {
+    if (!p && act && me && s && opts.tableau === 'mine' && opts.owner?.id === me.id && me.id === this.viewer().id && c.slot === COMMAND_SLOT && ((!c.dimmed && heroAbilities(me, c).length) || !singularityProblem(s, me)) && !isGameOver(s)) {
       // (One that can attack can still be dragged straight onto a target, as any attacker; a tap opens its abilities.)
       attrs = `data-act="hero-panel" data-arg="${c.uid}" ${this.heroActions(me).includes('attack') ? 'data-attacker="1"' : ''} title="Its abilities"`;
       state = 'card-attacker';
@@ -6329,8 +6353,15 @@ export class App {
    */
   private heroRail(_p: PlayerState, hero: CardInstance, side: 'mine' | 'rival'): string {
     const boons = hero.boons?.length ? this.boonMarks(hero.boons, 'boon-mark hero-boon') : '';
-    if (!boons) return '';
-    return `<div class="hero-rail hero-rail-${side}"><div class="hero-rail-col">${boons}</div></div>`;
+    // Its singularity's charge [direction: hero ultimates, "singularities"]: a slim gauge beside it, filling with
+    // what charges it, blazing once full.
+    const k = singularityOf(hero.defId);
+    const n = Math.min(k?.need ?? 0, hero.charge ?? 0);
+    const gauge = k
+      ? `<span class="hero-charge${n >= k.need ? ' hero-charge-full' : ''}" style="--k:${(n / k.need).toFixed(3)}" title="${esc(`${k.name}: ${n >= k.need ? 'charged' : `${n}/${k.need}`} · ${CHARGE_TEXT[k.charge](k.need)}`)}"><i></i><b>✦</b></span>`
+      : '';
+    if (!boons && !gauge) return '';
+    return `<div class="hero-rail hero-rail-${side}"><div class="hero-rail-col">${gauge}${boons}</div></div>`;
   }
 
   /** Your Hero, tapped on your day: its card in the preview pane (middle right), its abilities as pills to its left. */
@@ -6413,8 +6444,17 @@ export class App {
           <span class="hero-pick-words"><b>attack</b><span>A rival card${aimChoices(s, me, true).sun ? ' or their sun' : ''}.</span></span>
         </button>`
       : '';
+    // Its singularity, first: charged, a blazing pill to unleash it; charging, how far it has to go.
+    const k = singularityOf(hero.defId);
+    const why = k ? singularityProblem(s, me) : null;
+    const ultimate = k
+      ? `<button class="hero-pick hero-pick-sing ${why ? 'hero-pick-off' : ''}" ${why ? 'aria-disabled="true"' : 'data-act="singularity"'} title="${esc(plainText(k.text))}">
+          <span class="hero-pick-mark hero-pick-mark-sing">✦</span>
+          <span class="hero-pick-words"><b>${esc(k.name.toLowerCase())}</b><span>${esc(why ? `${Math.min(hero.charge ?? 0, k.need)}/${k.need} · ${CHARGE_TEXT[k.charge](k.need)}` : plainText(k.text))}</span></span>
+        </button>`
+      : '';
     // (Each its own pill, nothing round them; a tap anywhere else puts them away.)
-    return `<div class="hero-picks" aria-label="${esc(def.name)}">${abilities}${attack}</div>`;
+    return `<div class="hero-picks" aria-label="${esc(def.name)}">${ultimate}${abilities}${attack}</div>`;
   }
 
   /**

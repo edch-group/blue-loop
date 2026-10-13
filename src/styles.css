@@ -7426,3 +7426,22 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .loot-cache { position: relative; }
 .loot-cache-halo { position: absolute; left: 50%; top: min(110px, 19vh); width: min(300px, 52vh); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; z-index: -1; pointer-events: none;
   background: radial-gradient(closest-side, rgba(255, 255, 255, 1), rgba(232, 240, 252, 0.7) 50%, rgba(214, 226, 246, 0) 100%); animation: loot-glow-breathe 2.6s ease-in-out infinite; }
+/* A Hero's singularity [direction: hero ultimates, "singularities"]: its charge a slim gauge beside the Hero, filling
+   from the foot, a star over it; blazing (white light pulsing) once full. On the card, its block under the abilities. */
+.hero-charge { position: relative; display: grid; justify-items: center; width: calc(var(--tcw) * 0.14); min-width: 10px; height: calc(var(--tcw) * 0.9); border-radius: 999px; background: rgba(40, 46, 66, 0.12); box-shadow: inset 0 0 0 1px rgba(90, 100, 130, 0.28); overflow: visible; cursor: var(--cur); }
+.hero-charge i { position: absolute; left: 2px; right: 2px; bottom: 2px; height: calc((100% - 4px) * var(--k)); border-radius: 999px; background: linear-gradient(180deg, #ffffff, #b9d4f6); box-shadow: 0 0 6px rgba(150, 190, 250, 0.6); transition: height 0.5s ease-out; }
+.hero-charge b { position: absolute; top: calc(-1 * var(--tcw) * 0.16); font-size: calc(var(--tcw) * 0.13); line-height: 1; color: #8292b4; }
+.hero-charge-full { background: rgba(120, 160, 230, 0.2); box-shadow: inset 0 0 0 1px rgba(150, 190, 250, 0.7), 0 0 12px rgba(160, 200, 255, 0.8); animation: hero-charge-blaze 1.4s ease-in-out infinite; }
+.hero-charge-full b { color: #4f7fd0; text-shadow: 0 0 6px rgba(160, 200, 255, 0.9); }
+@keyframes hero-charge-blaze { 50% { box-shadow: inset 0 0 0 1px rgba(190, 215, 255, 0.9), 0 0 20px rgba(170, 210, 255, 1); } }
+@media (prefers-reduced-motion: reduce) { .hero-charge-full { animation: none; } }
+.hero-pick-sing { background: linear-gradient(135deg, #1d2236, #2d3756); color: #eef3ff; box-shadow: 0 0 0 1px rgba(150, 190, 250, 0.6), 0 0 14px rgba(150, 190, 250, 0.55); }
+.hero-pick-sing:hover { background: linear-gradient(135deg, #252c46, #36426a); }
+.hero-pick-sing .hero-pick-words span { color: #c6d2ea; }
+.hero-pick-sing.hero-pick-off { background: rgba(255, 255, 255, 0.97); color: inherit; box-shadow: 0 0 0 1px rgba(150, 156, 170, 0.45), 0 4px 10px rgba(70, 70, 90, 0.1); }
+.hero-pick-sing.hero-pick-off .hero-pick-words span { color: inherit; }
+.hero-pick-mark-sing { font-size: 1.4em; color: #9cc4ff; text-shadow: 0 0 8px rgba(160, 200, 255, 0.9); }
+.hero-pick-sing.hero-pick-off .hero-pick-mark-sing { color: #8292b4; text-shadow: none; }
+.card-sing { display: block; margin-top: 0.3em; padding-top: 0.3em; border-top: 1px solid currentColor; }
+.card-sing-name { display: block; font-weight: 700; letter-spacing: 0.03em; }
+.card.kind-command:not(.card-big) .card-sing { margin-top: 0.15em; padding-top: 0.15em; }

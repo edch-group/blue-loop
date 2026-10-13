@@ -14,6 +14,7 @@
 
 import { GENERALS } from './story';
 import { partSlots, shipFit, shipPart, type PartSlot, type ShipFit } from './parts';
+import { CAPTAIN_SINGULARITIES, CAPTAIN_START_SINGULARITY } from './singularities';
 import { COMPANION_IDS, companionCardId, companionDef, companionLevel, companionSpent, plainCompanion, type CompanionBuild, type CompanionId, type CompanionStat } from './companions';
 import { CAPTAIN_SLOT_PRICES, CAPTAIN_START_ABILITY, CAPTAIN_STAT_PRICES, captainAbility, captainId, captainLead, captainSlots, type CaptainStat } from './captain';
 import type { BattleModifiers } from './types';
@@ -244,6 +245,9 @@ export interface CaptainMeta {
   equipped: string[];
   leads: string[];
   lead?: string;
+  /** Singularities learnt past the first (singularities.ts CAPTAIN_SINGULARITIES), and the one chosen (unset: the first). */
+  sings?: string[];
+  sing?: string;
 }
 
 export const plainCaptain = (): CaptainMeta => ({ attack: 0, stability: 0, cheaper: 0, slots: 0, abilities: [CAPTAIN_START_ABILITY], equipped: [CAPTAIN_START_ABILITY], leads: [] });
@@ -252,11 +256,11 @@ export const captainMeta = (meta: MetaState): CaptainMeta => ({ ...plainCaptain(
 /** The Captain's card for the next run (its id carries the build: captain.ts). */
 export function captainCard(meta: MetaState): string {
   const c = captainMeta(meta);
-  return captainId({ attack: c.attack, stability: c.stability, cheaper: c.cheaper, abilities: c.equipped.slice(0, captainSlots(c.slots)), ...(c.lead ? { lead: c.lead } : {}) });
+  return captainId({ attack: c.attack, stability: c.stability, cheaper: c.cheaper, abilities: c.equipped.slice(0, captainSlots(c.slots)), ...(c.lead ? { lead: c.lead } : {}), ...(c.sing ? { sing: c.sing } : {}) });
 }
 
 /** Something petals can buy for the Captain. */
-export type CaptainBuy = { kind: 'stat'; stat: CaptainStat } | { kind: 'slot' } | { kind: 'ability'; id: string } | { kind: 'lead'; id: string };
+export type CaptainBuy = { kind: 'stat'; stat: CaptainStat } | { kind: 'slot' } | { kind: 'ability'; id: string } | { kind: 'lead'; id: string } | { kind: 'sing'; id: string };
 
 /** Its price in petals (null: bought already, or at its most). */
 export function captainPrice(meta: MetaState, buy: CaptainBuy): number | null {
@@ -264,6 +268,7 @@ export function captainPrice(meta: MetaState, buy: CaptainBuy): number | null {
   if (buy.kind === 'stat') return CAPTAIN_STAT_PRICES[buy.stat][c[buy.stat]] ?? null;
   if (buy.kind === 'slot') return CAPTAIN_SLOT_PRICES[c.slots] ?? null;
   if (buy.kind === 'ability') return c.abilities.includes(buy.id) ? null : (captainAbility(buy.id)?.price ?? null);
+  if (buy.kind === 'sing') return buy.id === CAPTAIN_START_SINGULARITY || c.sings?.includes(buy.id) ? null : (CAPTAIN_SINGULARITIES[buy.id]?.price ?? null);
   return c.leads.includes(buy.id) ? null : (captainLead(buy.id)?.price ?? null);
 }
 
@@ -284,6 +289,7 @@ export function captainPointsSpent(meta: MetaState): number {
   n += CAPTAIN_SLOT_PRICES.slice(0, c.slots ?? 0).reduce((t, p) => t + p, 0);
   for (const a of c.abilities ?? []) n += captainAbility(a)?.price ?? 0;
   for (const l of c.leads ?? []) n += captainLead(l)?.price ?? 0;
+  for (const k of c.sings ?? []) n += CAPTAIN_SINGULARITIES[k]?.price ?? 0;
   return n;
 }
 
@@ -298,6 +304,9 @@ export function buyCaptain(meta: MetaState, buy: CaptainBuy): MetaState {
   else if (buy.kind === 'ability') {
     next.abilities.push(buy.id);
     if (next.equipped.length < captainSlots(next.slots)) next.equipped.push(buy.id);
+  } else if (buy.kind === 'sing') {
+    next.sings = [...(c.sings ?? []), buy.id];
+    next.sing = buy.id;
   } else {
     next.leads.push(buy.id);
     next.lead = buy.id;
@@ -320,6 +329,13 @@ export function setCaptainLead(meta: MetaState, id: string | undefined): MetaSta
   const c = captainMeta(meta);
   if (id !== undefined && !c.leads.includes(id)) return meta;
   return { ...meta, captain: { ...c, lead: id } };
+}
+
+/** Choose a learnt singularity (the first is always known). */
+export function setCaptainSingularity(meta: MetaState, id: string): MetaState {
+  const c = captainMeta(meta);
+  if (id !== CAPTAIN_START_SINGULARITY && !c.sings?.includes(id)) return meta;
+  return { ...meta, captain: { ...c, sing: id === CAPTAIN_START_SINGULARITY ? undefined : id } };
 }
 
 export const emptyMeta = (): MetaState => ({ petals: 0, xp: 0, upgrades: {}, deck: {}, best: 0, runs: 0, v: 4 });

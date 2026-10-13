@@ -225,6 +225,40 @@ Only one Hero is in play at a time, so these ask for one, and do something witho
 
 Result (1000 games): Tide 54%, Lancers 53%, Overload 49%, Hive 44%; seats 49/51; about 12.5 rounds a game.
 
+## Singularities
+
+[direction: ultimates for the heroes, in and out of the campaign; every hero's different and charging in a different way (playing cards, attacking cards, defending, cards destroyed, deck recycling, planet orbits, drawing cards...); making heroes feel more unique, and keeping the lesser heroes worth leading, their niche ultimate fitting some decks; called "singularities"] (singularities.ts). Every Hero has a **singularity**, its ultimate, written on its card under its abilities (✦ its name, what charges it, what it does). While the Hero leads from the Hero slot, its singularity charges from one thing of its own that happens in the battle (no two Heroes' alike); a Hero that leaves play loses its charge. Once full, it is unleashed on your day, free: no energy, and on top of the day's ability (game.ts `singularity`); it empties and charges again. A singularity's own effects never charge it. Its charge shows as a slim gauge beside the Hero, filling from the foot under a ✦, blazing once full; tapping the Hero shows it first among its abilities (a dark pill, lit when it can be unleashed, else how far it has to go). The AI weighs unleashing it as any move.
+
+| Hero | Singularity | Charges from | Does |
+|---|---|---|---|
+| Solarch Veyra | Solar Decree | play 8 cards | Draw 2, +2 energy |
+| Sol-Marshal Aurex | Sunstrike | attack 6 times | Heat 6, pierce |
+| Empress Solenne | Corona | deal 16 heat to rival suns | 4 heat to each rival card, cool 3 |
+| Archon Seris | Shatterpoint | take 8 heat on your own sun | Heat 5 pierce, cool 4 |
+| Hierarch Vael | Absolute Zero | cool 10 | Cool 6, shield 3 |
+| The Shardmind | Reassembly | lose 3 cards | Recover your last discarded card (or draw 1), draw 2 |
+| Tide-Regent Osshara | Riptide | raise 12 shields | Heat 1 per 2 shields (up to 6) |
+| The Admiralty | Grand Broadside | absorb 12 heat with shields | 3 heat to each rival card, shield 3 |
+| Leviathan Thoross | Maelstrom | your cards lose 10 stability | Eject (defence up to 9), shield 4 |
+| Hive-Speaker Zyth | Swarm Tide | spend 14 energy | Plant 3, +1 energy |
+| Broodmother Ul'Kha | Brood Surge | play 4 growth cards | Your other cards grow 2, renew 2 |
+| The Worldroot | Overgrowth | draw 14 cards | Plant 2, your other cards grow 1, draw 2 |
+| Shade-Queen Vesh | Veil of Night | spring 2 traps | Shield 5, draw 2 |
+| Unmaker Kael | Unmaking | destroy 3 rival cards | 8 heat to their card with the most attack |
+| Nyxara the Unlit | Total Eclipse | give up 2 cards (sacrifice or consume) | 3 heat to each rival card, heat 4 pierce |
+| Sanguis the Blood Saint | Blood Moon | 5 of your cards leave play | Renew 3, heat 4 |
+| Forgemother Durga | Masterwork | mend or repair 8 | Repair 6, renew 2 |
+| Warden Brannoc | Unbroken | your defence turns 8 heat | Your strongest card a Guard with +3 defence, shield 4 |
+| The Anvil-King | Anvil's Fall | play 4 defence cards | Heat 7 pierce, repair 3 |
+| Star-Reader Ilyath | Conjunction | your orbit moves 4 | Your orbit +2, draw 2 |
+| Tidecaster Maren | Spring Tide | last 5 days | Their orbit −2, heat 4 |
+| Aster the Last Constellation | Starfall Cascade | use abilities 4 times | Heat 6 pierce, your orbit +1 |
+| Flame-Herald Ignis | Wildfire | play 5 attack cards | 2 heat to each rival card, +1 energy |
+| Cinder-Queen Ashka | Phoenix Heart | begin 3 days overheated | Cool 5, she regains 3, heat 3 |
+| Pyrrhus the Undying Flare | Rekindle | reshuffle your deck | Cool 6, draw 3 |
+
+**The Captain's is chosen** [direction: the campaign hero's singularity variable, a couple of options; the first "Back to the Wall", 3 damage to one card and 2 to the cards next to it, charging from taking damage from cards or other sources]. Learnt on his tree (its own branch, "singularity"), one carried at a time, the choice written into his card's id: **Back to the Wall** (known from the start: take 10 damage, from anything, to your sun or your cards; 3 heat to a rival card you aim at, unaimed their strongest, and 2 to each card beside it; no card, their sun), **Last Stand** (3 points: take 12 rival heat to your sun; cool 5, shield 5, draw 1) and **Scrap Run** (3 points: lose 3 cards; draw 2, +2 energy).
+
 ## Orion, Galaxy Eater [design review]
 
 A neutral Anomaly, cost 5 (a day's bonus energy, or the industrial planet, to play it), sturdy 1. While it is in play, every rival's planets count as the dead planet: no Industry energy and no Abundance cards from them, and planet conditions on their cards read "dead". The sun gauge's planet tag reads "eaten" while it lasts. Its own owner's planets are untouched.

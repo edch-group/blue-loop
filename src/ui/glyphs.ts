@@ -787,6 +787,7 @@ export function cardTextHtml(text: string, chosen?: string, inline = false, live
   // A Hero's abilities: each line wrapped as one (`data-ability`, its index), so a Hero's line can be its button.
   let ability = -1;
   let open = false;
+  let sing = false;
   const html = parts
     .map((p, i) => {
       // Each sentence is a paragraph of its own: a full stop becomes a break (and the last one just ends it).
@@ -795,6 +796,13 @@ export function cardTextHtml(text: string, chosen?: string, inline = false, live
         if (!open || !t.includes(PARA)) return t;
         open = false;
         return t.replace(PARA, `</span>${PARA}`);
+      }
+      // A Hero's singularity: its own block after the abilities, its name over what charges it and what it does.
+      if (p.kw === 'sing') {
+        const close = open ? '</span>' : '';
+        open = false;
+        sing = true;
+        return `${close}<span class="card-sing"><b class="card-sing-name">✦ ${escText(p.value ?? '')}</b>`;
       }
       if (p.kw === 'act') {
         const close = open ? '</span>' : '';
@@ -816,7 +824,7 @@ export function cardTextHtml(text: string, chosen?: string, inline = false, live
       }
       return keywordHtml(p.kw, p.value, { data: true });
     })
-    .join('') + (open ? '</span>' : '');
+    .join('') + (open ? '</span>' : '') + (sing ? '</span>' : '');
   return only && !inline ? `<span class="card-text-mid">${html}</span>` : html;
 }
 

@@ -150,6 +150,8 @@ export type Effect = (
    * (the Frost Line's cold): a Guard draws it in, and with no card to strike it goes to their sun.
    */
   | { type: 'strikeBest'; amount: number; guarded?: boolean }
+  /** Heat to a rival card (the one aimed at; unaimed, their strongest) and `side` to each card beside it (no card: their sun). */
+  | { type: 'blast'; amount: number; side: number }
   /** A Lost Overlord's sweep: this much heat to every rival card (each one's defence first). */
   | { type: 'strikeAll'; amount: number }
   /** A Lost Overlord's hunger: the rival card with the least stability left is destroyed. */
@@ -404,6 +406,8 @@ export interface CardInstance {
   /** In a tableau: a campaign hero's boons (from gear and skills), carried while it is in play. */
   /** Dimmed: it has taken its action (attacked, or a Hero used an ability) and can't act again until its owner's next dawn. Cards come into play dimmed. */
   dimmed?: boolean;
+  /** A Hero's singularity's charge, while it leads (singularities.ts). */
+  charge?: number;
   /** Attack added by a Chosen effect, while it stays in play. */
   attackBonus?: number;
   /** Defence added by a trap, until its owner's next dawn. */
@@ -781,6 +785,8 @@ export type Action =
   /** Use one of your hero's battle skills (campaign), on your own day. */
   | { type: 'heroSkill'; index: number }
   /** Use one of the abilities of the Hero leading from your Hero slot (one a day). */
+  /** Unleash the leading Hero's singularity (charged: singularities.ts). */
+  | { type: 'singularity'; /** One that blasts a card: the rival card aimed at (unset: their strongest). */ aimUid?: string }
   | { type: 'heroAbility'; index: number; /** An ability that heats: the rival card it goes to (unset: their sun, or a Guard). */ aimUid?: string; /** One that costs a sacrifice: the card of yours given up (unset: your weakest). */ sacrificeUid?: string }
   /** One of your cards attacks: one of your rival's cards, or their sun (target null). */
   | { type: 'attack'; attackerUid: string; targetUid: string | null }
