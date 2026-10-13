@@ -274,8 +274,14 @@ export class Base3d {
 
   /** Frame a section (its page open beside it), or (null) the whole ship. */
   focus(zone: BaseZone | null) {
+    // (From one of the crew to another on the crew page [direction: the toggle between characters instant, a slight
+    // ease, not a big pan]: a quick settle onto them. Leaving it, the camera pans out from whoever it was on at its
+    // usual pace.)
+    const crew = (z: BaseZone | null) => !!z && z !== 'hangar' && z !== 'research';
+    if (zone !== this.focused) this.quick = crew(this.focused) && crew(zone);
     this.focused = zone;
   }
+  private quick = false;
 
   /**
    * The crew page's spotlight [direction: the crew member highlighted, a screen overlay covering everything behind
@@ -455,7 +461,7 @@ export class Base3d {
     if (!this.pose) this.pose = { ...g, target: [...g.target] as V3 };
     const dt = Math.min(0.2, t - this.lastT);
     this.lastT = t;
-    const p = this.pose, e = 1 - Math.exp(-dt * 2.6);
+    const p = this.pose, e = 1 - Math.exp(-dt * (this.quick ? 15 : 2.6));
     for (let i = 0; i < 3; i++) p.target[i] += (g.target[i] - p.target[i]) * e;
     p.yaw += (g.yaw - p.yaw) * e;
     p.pitch += (g.pitch - p.pitch) * e;
