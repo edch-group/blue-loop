@@ -467,6 +467,14 @@ function partIcon(id: string): string {
 /** A crew member's page on the crew overlay: its tools (undo and the like), name, experience, note and tree. */
 type CrewPage = { tools: string; title: string; xp: string; note?: string; sheet: string };
 
+/** Who has used a station (taken its research, or traded at its dock), if anyone: the player, as it stands. */
+function stationUser(n: CampaignNode, playerId: string): string | undefined {
+  const st = n.station;
+  if (!st) return undefined;
+  if (st.kind === 'research') return st.takenBy;
+  return st.used && Object.values(st.used).some(Boolean) ? playerId : undefined;
+}
+
 export class CampaignView {
   state: CampaignState | null = null;
   private selected: string | null = null;
@@ -3368,7 +3376,9 @@ export class CampaignView {
         z,
         y: lift.get(n.id),
         heart: !!n.heart,
-        ring: n.challenge ? hex(CHALLENGE_COLOUR[n.challenge.kind]) : n.owner ? hex(this.colourOf(n.owner)) : undefined,
+        // (A station used, its research taken or its dock traded at, shows as the player's [direction: depleted stations
+        // showing as conquered, not as an unclaimed white sun].)
+        ring: n.challenge ? hex(CHALLENGE_COLOUR[n.challenge.kind]) : n.owner ? hex(this.colourOf(n.owner)) : stationUser(n, s.playerId) ? hex(this.colourOf(stationUser(n, s.playerId)!)) : undefined,
         dim: !!(n.dimmed || n.collapsing || n.challenge?.done),
         doom: !!n.collapsing,
         dead: !!(n.collapsed || n.ruined),
