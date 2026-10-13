@@ -430,18 +430,17 @@ export class Base3d {
     // (In the hangar, looked down on as parts are fitted, it rides almost still: its slots held under the finger.)
     this.calm += ((this.focused === 'hangar' ? 1 : 0) - this.calm) * Math.min(1, Math.max(0, t - this.lastT) * 2.6);
     const sway = (1 - ho) * (1 - 0.8 * this.calm);
-    // (Flying in [direction: drifting in slowly whilst bobbing]: off to the left, drifting gently to its place, rising
-    // and falling as it comes, the bob settling into its idle one.)
+    // (Flying in [direction: drifting in slowly whilst bobbing]: off to the left, drifting gently to its place.)
     let ex = 0, ey = 0, tip = 0;
     if (this.entry) {
       const k = this.entry.t0 === null ? 0 : Math.min(1, (t - this.entry.t0) / this.entry.dur);
       // (Starting just in view, so it shows near at once, bobbing from the first frame [direction: bobbing in right
       // from the start, slower still, visible near-instantly].)
+      // (Its bob is its idle one, nothing added [direction: the fly-in's bob was over the top].)
       const left = 1 - Math.sin((Math.PI / 2) * k);
-      const ride = 1 - Math.max(0, Math.min(1, (k - 0.6) / 0.4)) ** 2;
       ex = -4 * left;
-      ey = 0.4 * left + 0.12 * Math.sin(t * 1.5) * ride;
-      tip = -0.03 * left + 0.025 * Math.cos(t * 1.5) * ride;
+      ey = 0.4 * left;
+      tip = -0.03 * left;
       if (k >= 1) this.entry = null;
     }
     this.shipM = mul(translate(ex, ey + 0.05 * Math.sin(t * 0.7) * sway, 0), mul(rotZ(tip), mul(rotX(0.035 * Math.sin(t * 0.5) * sway), mul(rotZ(0.025 * Math.sin(t * 0.6 + 1) * sway), scale(S)))));

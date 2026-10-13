@@ -680,12 +680,10 @@ export class MapObjects {
     return sh.turnFrom + d * e;
   }
 
-  /** How high a ship flies: hovering over its star, bobbing; under way it rises a little, bobbing quicker. */
+  /** How high a ship flies: hovering over its route, bobbing as it does at rest, under way too [direction: the
+   *  node flight's bob exactly the ship's usual one]. */
   private shipLift(sh: { t0: number; dur: number; cruise?: number; fromY: number; toY: number; turnFor?: number }, now: number, time: number): number {
-    const moving = sh.dur > 0 && now - sh.t0 < sh.dur;
-    const k = moving ? this.travelK(sh, now) : 1;
-    const under = moving && k > 0 && k < 1;
-    return this.groundY(sh, now) + 0.13 + Math.sin(time * 1.3) * 0.006 + (sh.cruise ? 0.05 : moving ? Math.sin(Math.PI * k) * 0.05 + (under ? Math.sin(time * 3.4) * 0.008 * Math.sin(Math.PI * k) : 0) : 0);
+    return this.groundY(sh, now) + 0.13 + Math.sin(time * 1.3) * 0.006 + (sh.cruise ? 0.05 : 0);
   }
 
   /** The height of the route under a ship, eased from the star it left to the one it is bound for. */
@@ -919,12 +917,12 @@ export class MapObjects {
       const cruising = !!sh.cruise;
       const moving = cruising || (sh.dur > 0 && now - sh.t0 < sh.dur);
       const k = moving && !cruising ? (sh.warp ? (now - sh.t0) / sh.dur : this.travelK(sh, now)) : 1;
-      // Hovering over its star, bobbing; under way it rises a little and banks into its course (cruising, it rolls
-      // gently, steady on its course).
+      // Hovering over its star, bobbing and rolling a little, under way as at rest (cruising, it rolls gently, steady
+      // on its course).
       const y = this.shipLift(sh, now, time);
       const warp = sh.warp && moving && !cruising ? this.warpAt(k) : null;
-      const bank = warp ? 0 : cruising ? Math.sin(time * 0.7) * 0.07 : moving ? Math.sin(Math.PI * k) * 0.25 : Math.sin(time * 0.9) * 0.04;
-      const pitch = warp ? 0 : moving && !cruising ? Math.cos(Math.PI * k) * 0.12 : 0;
+      const bank = warp ? 0 : cruising ? Math.sin(time * 0.7) * 0.07 : Math.sin(time * 0.9) * 0.04;
+      const pitch = 0;
       const heading = this.headingAt(sh, now);
       const fx = Math.cos(heading), fz = Math.sin(heading);
       // Forward (pitched), up (banked), and starboard, scaled.
