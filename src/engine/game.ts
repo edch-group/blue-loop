@@ -505,8 +505,13 @@ export function heroAbilities(p: PlayerState, hero: CardInstance | undefined = c
   return [...(cardDef(hero.defId).abilities ?? []), ...lent];
 }
 
+/** Whether a card can take an Overdrive of this much: it pays in stability, and must outlast the price. */
+export function overdrivable(c: CardInstance, n: number): boolean {
+  return (c.health ?? 0) > n;
+}
+
 /** Whether a choice an ability leaves has anything to fall on: a card of the holder's, or the rival's (aimed heat always has their sun). */
-function choiceOpen(state: GameState, p: PlayerState, kind: AbilityChoice): boolean {
+function choiceOpen(state: GameState, p: PlayerState, kind: AbilityChoice, amount = 1): boolean {
   const rival = targetOf(state, p);
   if (kind === 'aim') return !!rival && (rival.tableau.length > 0 || !rival.boss);
   if (kind === 'freeze') return !!rival?.tableau.length;
@@ -514,6 +519,7 @@ function choiceOpen(state: GameState, p: PlayerState, kind: AbilityChoice): bool
   if (kind === 'shift') return p.tableau.some((c) => c.slot !== COMMAND_SLOT);
   if (kind === 'recall') return p.tableau.some(returnable);
   if (kind === 'discount') return p.hand.some((c) => handCost(c) > 0);
+  if (kind === 'empower') return p.tableau.some((c) => overdrivable(c, amount));
   return p.tableau.length > 0;
 }
 
@@ -2981,8 +2987,10 @@ export function applyAction(prev: GameState, action: Action): GameState {
         if (!mine) throw new GameError('Choose one of your cards in play.');
         const n = next.amount ?? 1;
         if (next.kind === 'empower') {
+          if (!overdrivable(mine, n)) throw new GameError(`Choose a card with more than ${n} stability.`);
           mine.attackBonus = (mine.attackBonus ?? 0) + n;
-          log(state, `${p.name}'s ${name}: ${cardDef(mine.defId).name} gains +${n} attack.`);
+          mine.health = (mine.health ?? 0) - n;
+          log(state, `${p.name}'s ${name}: ${cardDef(mine.defId).name} gains +${n} attack and loses ${n} stability (stability ${mine.health}).`);
         } else if (next.kind === 'ward') {
           mine.shields = (mine.shields ?? 0) + n;
           log(state, `${p.name}'s ${name}: ${cardDef(mine.defId).name} gains ${n} shields.`);
@@ -3093,7 +3101,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       log(state, `${p.name}'s ${cardDef(hero.defId).name}: ${k.name}.`);
       resolveEffects(state, p, hero, k.effects, 'play', { aimUid: action.aimUid });
       // (An emblem's ability: its choices, one after another, before anything else.)
-      if (k.choices && choiceOpen(state, p, k.choices.kind))
+      if (k.choices && choiceOpen(state, p, k.choices.kind, k.choices.amount))
         for (let i = 0; i < k.choices.times; i++) (p.dawnChoices ??= []).push({ uid: `relic:${k.relic ?? k.name}`, kind: k.choices.kind, relic: k.name, ...(k.choices.amount ? { amount: k.choices.amount } : {}) });
       if (p.eliminated) passOn(state);
       break;
@@ -3305,7 +3313,7 @@ export function heroAbilityProblem(state: GameState, p: PlayerState, index: numb
   const hero = commandCard(p);
   const k = hero ? heroAbilities(p, hero)[index] : undefined;
   if (!hero || !k) return 'No Hero leads your tableau.';
-  if (k.choices && !choiceOpen(state, p, k.choices.kind)) return `${k.name} has nothing to choose.`;
+  if (k.choices && !choiceOpen(state, p, k.choices.kind, k.choices.amount)) return `${k.name} has nothing to choose.`;
   if (activePlayer(state).id !== p.id) return 'Not your day';
   if (hero.dimmed) return p.abilityTurn === state.turnNumber ? 'Used today' : 'Dimmed until your next day';
   if ((k.cost ?? 0) > p.playsLeft) return 'Not enough energy';

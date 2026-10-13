@@ -120,7 +120,7 @@ import { ORACLE_NAME } from '../engine/story';
 import { relicMark } from './relic-art';
 
 import { closeTour, startTour, tourShowing } from './tour';
-import { DREAMS, shownKind, isBurst, isBossCard, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS } from '../engine';
+import { DREAMS, shownKind, isBurst, isBossCard, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS, overdrivable } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -6202,8 +6202,8 @@ export class App {
       state = 'card-choosable';
     }
     // An emblem's ability: a card of yours to empower, steady or ward (your Hero too); a rival card to freeze, or to move.
-    const verb = ({ empower: 'Empower', renew: 'Steady', ward: 'Ward' } as Record<string, string>)[recall?.kind ?? ''];
-    if (verb && opts.tableau === 'mine' && opts.owner?.id === this.viewer().id && c.slot !== undefined) {
+    const verb = ({ empower: 'Overdrive', renew: 'Steady', ward: 'Ward' } as Record<string, string>)[recall?.kind ?? ''];
+    if (verb && opts.tableau === 'mine' && opts.owner?.id === this.viewer().id && c.slot !== undefined && (recall?.kind !== 'empower' || overdrivable(c, recall.amount ?? 1))) {
       attrs = `data-act="dawn-ally" data-arg="${c.uid}" title="${verb} ${esc(cardDef(c.defId).name)}"`;
       state = 'card-choosable';
     }

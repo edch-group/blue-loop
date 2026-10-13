@@ -50,6 +50,7 @@ import {
   isDraw,
   heroAbilities,
   handCost,
+  overdrivable,
 } from './game';
 import type { Action, CardInstance, Effect, GameState, HeroAbility, PlayerState } from './types';
 
@@ -880,7 +881,7 @@ function dawnPick(state: GameState, me: PlayerState): Action {
       if (c.slot === COMMAND_SLOT) continue;
       for (let to = 0; to < BALANCE.tableauSlots; to++) if (to !== c.slot) options.push({ type: 'dawnChoice', enemyUid: c.uid, shiftTo: to });
     }
-  else if (dawn.kind === 'empower' || dawn.kind === 'renew' || dawn.kind === 'ward') for (const c of me.tableau) options.push({ type: 'dawnChoice', allyUid: c.uid });
+  else if (dawn.kind === 'empower' || dawn.kind === 'renew' || dawn.kind === 'ward') for (const c of me.tableau) { if (dawn.kind !== 'empower' || overdrivable(c, dawn.amount ?? 1)) options.push({ type: 'dawnChoice', allyUid: c.uid }); }
   else
     for (const c of me.tableau) {
       if (c.slot === COMMAND_SLOT) continue;

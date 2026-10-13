@@ -1904,13 +1904,19 @@ describe('emblem hero abilities', () => {
     expect(() => applyAction(t, { type: 'heroAbility', index: 0 })).toThrow(/comes first/);
   });
 
-  it('Empower: a card of yours gains attack', () => {
+  it('Overdrive: a card of yours gains attack and pays as much stability, only a card that outlasts the price', () => {
     const { s, index } = setup('might', 2);
     const mine = s.players[0].tableau[1];
+    mine.health = 5;
     const before = cardAttack(s, s.players[0], mine);
     let t = applyAction(s, { type: 'heroAbility', index });
     t = applyAction(t, { type: 'dawnChoice', allyUid: mine.uid });
     expect(cardAttack(t, t.players[0], t.players[0].tableau[1])).toBe(before + 2);
+    expect(t.players[0].tableau[1].health).toBe(3);
+    // (A card with no more stability than the price can't take it.)
+    s.players[0].tableau[1].health = 2;
+    const u = applyAction(s, { type: 'heroAbility', index });
+    expect(() => applyAction(u, { type: 'dawnChoice', allyUid: mine.uid })).toThrow(/more than 2 stability/);
   });
 
   it('Steady: a card gains stability, past its full', () => {

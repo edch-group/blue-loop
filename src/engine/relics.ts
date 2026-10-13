@@ -110,7 +110,9 @@ export const RELIC_POWERS: Record<RelicPower, RelicPowerDef> = {
   // that attacks at all: a wall with none still doesn't.)
   ram: { kind: 'trigger', amounts: [2, 3, 4], text: (n) => `Your attackers add their defence to their attack (up to +${n}).` },
   // Hero abilities: the Hero leading its holder's tableau may use one of these as one of its own (one a day).
-  might: { kind: 'ability', amounts: [1, 1, 2], text: (n) => `Hero ability: a card gains +${n} attack.`, ability: (n) => ({ name: 'Empower', text: `+${n} attack to a card.`, choice: { kind: 'empower', times: 1, amount: n } }) },
+  // (Not free [direction: no downside, no thought in whether to use it before attacking]: the card burns its own
+  // stability for the attack, so it is worth it only on a card that will strike with it before it would fall.)
+  might: { kind: 'ability', amounts: [1, 1, 2], text: (n) => `Hero ability: a card gains +${n} attack and loses ${n} stability.`, ability: (n) => ({ name: 'Overdrive', text: `+${n} attack to a card; it loses ${n} stability.`, choice: { kind: 'empower', times: 1, amount: n } }) },
   steady: { kind: 'ability', amounts: [2, 3, 4], text: (n) => `Hero ability: a card gains ${n} stability.`, ability: (n) => ({ name: 'Steady', text: `${n} stability to a card.`, choice: { kind: 'renew', times: 1, amount: n } }) },
   multishot: { kind: 'ability', amounts: [3, 3, 3], text: (n) => `Hero ability: Multishot, ${n} heat split among up to ${n} targets.`, ability: (n) => ({ name: 'Multishot', text: `${n} heat, split among up to ${n} targets.`, choice: { kind: 'aim', times: n, amount: 1 } }) },
   ward: { kind: 'ability', amounts: [2, 2, 3], text: (n) => `Hero ability: a card gains ${n} shields.`, ability: (n) => ({ name: 'Ward', text: `${n} shields to a card.`, choice: { kind: 'ward', times: 1, amount: n } }) },
