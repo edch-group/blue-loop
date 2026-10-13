@@ -753,8 +753,7 @@ export class CampaignView {
         else this.enterStation(toId);
         return this.host.render();
       }
-      // A dive-bombing synth as it lands; the battle board opens a second later.
-      sound.encounter();
+      // (The battle board opens a second after it lands.)
       setTimeout(() => {
         this.advance = null;
         this.encountering = false;
@@ -1296,7 +1295,7 @@ export class CampaignView {
         if (this.apply({ type: 'struggleChoice', recruit: act === 'cmp-recruit' })) act === 'cmp-recruit' ? sound.upgrade() : sound.buy();
         break;
       case 'cmp-struggle':
-        if (this.apply({ type: 'struggle' })) sound.encounter();
+        this.apply({ type: 'struggle' });
         break;
       case 'cmp-prophet':
         if (this.apply({ type: 'prophetPick', index: arg === '' ? null : Number(arg) })) arg === '' ? sound.hover() : sound.upgrade();
@@ -3093,7 +3092,7 @@ export class CampaignView {
         this.dreamStarting = true;
         window.setTimeout(() => {
           this.dreamStarting = false;
-          if (this.state?.dream && !this.state.struggle && !spoilsWaiting(this.state) && this.apply({ type: 'dream' })) sound.encounter();
+          if (this.state?.dream && !this.state.struggle && !spoilsWaiting(this.state)) this.apply({ type: 'dream' });
           this.host.render();
         }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 900 : 4200);
       }

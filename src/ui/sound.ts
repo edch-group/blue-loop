@@ -2,7 +2,6 @@ import { markDirty } from './account';
 import heatFire from '../assets/sfx/heat-fire.mp3?inline';
 import sunHit from '../assets/sfx/sun-hit.mp3?inline';
 import cardHit from '../assets/sfx/card-hit.mp3?inline';
-import battleSiren from '../assets/sfx/battle-siren.mp3?inline';
 import riftTick from '../assets/sfx/rift-tick.mp3?inline';
 import phaseTick from '../assets/sfx/phase-tick.mp3?inline';
 /**
@@ -26,9 +25,7 @@ const PREFS_KEY = 'blue-loop:sound';
  * app too, where the game runs from file:// and can't fetch files), decoded as soon as audio starts so none plays
  * late.
  */
-const SFX = { heatFire, sunHit, cardHit, battleSiren, riftTick, phaseTick };
-/** The encounter siren's level. */
-const ENCOUNTER_LEVEL = 0.4;
+const SFX = { heatFire, sunHit, cardHit, riftTick, phaseTick };
 
 /** A tiny silent WAV. Playing it (looped) from a tap moves iOS into media playback, so the silent switch no longer mutes the game. */
 function silentWav(): string {
@@ -829,14 +826,6 @@ class SoundBoard {
     n.gain.gain.exponentialRampToValueAtTime(0.13, t + 0.7);
   }
 
-  /**
-   * An encounter: the flagship lands at a guarded star. A recorded air-raid siren [direction: cut before it
-   * descends, three times, cut naturally]: three rises, each fading out at its height as the next begins, into the
-   * hall. (The battle screen itself opens in silence.)
-   */
-  encounter() {
-    this.clip(SFX.battleSiren, ENCOUNTER_LEVEL);
-  }
   /**
    * A heat wave from the Stellari: a rising roar as it flushes red, then a deep whump as the ring goes out and
    * a long rushing wash as it crosses the board.
