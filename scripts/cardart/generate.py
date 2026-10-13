@@ -66,13 +66,14 @@ def main():
     args = [a for a in sys.argv[1:] if a != '--edit']
     race, ids = args[0], args[1:]
     spec = json.load(open(os.path.join(HERE, 'prompts', f'{race}.json')))
-    refs = [data_uri(p) for p in sorted(glob.glob(os.path.join(HERE, 'refs', f'{race}-*.jpg')))]
+    # (A card may take another race's reference images: "refs" in the prompts file, by card.)
+    refs_of = lambda r: [data_uri(p) for p in sorted(glob.glob(os.path.join(HERE, 'refs', f'{r}-*.jpg')))]
     os.makedirs(KEEP, exist_ok=True)
     failed = []
     for cid in ids or list(spec['cards']):
         scene = EDIT + spec['edits'][cid] if edit else spec['cards'][cid]
         prompt = ' '.join([scene, spec['race'], spec['style'], spec['framing']])
-        images = ([data_uri(os.path.join(KEEP, f'{cid}.png'))] if edit else []) + refs
+        images = ([data_uri(os.path.join(KEEP, f'{cid}.png'))] if edit else []) + refs_of(spec.get('refs', {}).get(cid, race))
         t = time.time()
         try:
             img = call(prompt, images)
