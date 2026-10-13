@@ -192,7 +192,10 @@ describe('economy', () => {
     expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize);
     myArmy(s).deck.push('cryo_vault', 'heat_sink');
     expect(recycleProblem(s, campaignPlayer(s), nodeById(s, shop.id), 'cryo_vault')).toMatch(/One recycle/);
-    // Fused from the deck, once: the two out, the fused one in.
+    // No fusing at a plain station; at one that fuses, once: the two out, the fused one in.
+    expect(() => applyCampaignAction(s, { type: 'fuseDeck', nodeId: shop.id, a: 'cryo_vault', b: 'heat_sink' })).toThrow(/can't fuse/);
+    const st = nodeById(s, shop.id).station!;
+    if (st.kind === 'armory') st.fuse = true;
     s = applyCampaignAction(s, { type: 'fuseDeck', nodeId: shop.id, a: 'cryo_vault', b: 'heat_sink' });
     expect(myArmy(s).deck.length).toBe(CAMPAIGN.armySize + 1);
     expect(myArmy(s).deck.some((id) => id.startsWith('fuse:'))).toBe(true);
@@ -250,8 +253,8 @@ describe('galaxies', () => {
 });
 
 describe('stations', () => {
-  it('dots armouries and research stations about the map, better stocked deep in the strip', async () => {
-    const { deepIn, researchProject: rp } = await import('../src/engine');
+  it('dots armouries and research stations about the map, the first galaxy\'s research only the gentle tier', async () => {
+    const { researchProject: rp } = await import('../src/engine');
     for (const seed of [1, 2, 3]) {
       const s = fresh(seed);
       const shops = s.nodes.filter((n) => n.station?.kind === 'armory');
@@ -268,7 +271,7 @@ describe('stations', () => {
       for (const n of labs) {
         const options = n.station!.kind === 'research' ? n.station!.options : [];
         expect(options).toHaveLength(CAMPAIGN.researchOptions);
-        if (deepIn(s, n)) expect(rp(options[0])!.tier).toBeGreaterThanOrEqual(2);
+        for (const id of options) expect(rp(id)!.tier).toBe(1);
       }
     }
   });

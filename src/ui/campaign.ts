@@ -4127,7 +4127,7 @@ export class CampaignView {
     const used = n.station?.kind === 'armory' ? n.station.used ?? {} : {};
     const picks = sh.fuse ?? [];
     const repair = ship && ship.damage > 0 ? `<span class="ar-repair"><small>sun ✸${ship.damage}</small>${this.repairButtons('cmp-heal-army', ship.id, ship.damage, CAMPAIGN.armyHealCost, '')}</span>` : '';
-    const tabs = (me.human ? (['buy', 'recycle', 'fuse', 'ship'] as const) : (['buy', 'recycle', 'fuse'] as const)).map((t) => `<button class="${t === tab ? 'on' : ''}" data-act="cmp-armory-tab" data-arg="${t}">${t}</button>`).join('');
+    const tabs = (['buy', 'recycle', ...(n.station?.kind === 'armory' && n.station.fuse ? (['fuse'] as const) : []), ...(me.human ? (['ship'] as const) : [])] as const).map((t) => `<button class="${t === tab ? 'on' : ''}" data-act="cmp-armory-tab" data-arg="${t}">${t}</button>`).join('');
     // The cards, each with what it costs, fetches or how many are kept.
     const cards = list
       .map((id, i) => {

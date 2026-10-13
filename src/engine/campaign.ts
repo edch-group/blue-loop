@@ -68,8 +68,8 @@ export const CAMPAIGN = {
   /** Chance the winner of a battle finds a ship module in the wreckage (gear: HEROES.itemChance). */
   moduleChance: 0.35,
   /** Armouries and research stations on each universe's strip, and how many cards an armoury stocks (each sold once). */
-  armories: 2,
-  researchStations: 2,
+  armories: 1,
+  researchStations: 1,
   armoryStock: 6,
   /** Upgrades a research station offers (the flagship picks one, free). */
   researchOptions: 3,
@@ -349,8 +349,9 @@ export interface CampaignNode {
  * both are better.
  */
 export type Station =
-  /** A space station: its stock, and what has been done there [direction: one buy, one recycle and one fusion per station]. */
-  | { kind: 'armory'; cards: string[]; used?: { buy?: boolean; recycle?: boolean; fuse?: boolean; part?: boolean } }
+  /** A space station: its stock, and what has been done there [direction: one buy and one recycle per station]. `fuse`:
+   *  one that also fuses [direction: fusion is far too powerful to be so trivial; a god-tier reward somewhere, later]. */
+  | { kind: 'armory'; cards: string[]; used?: { buy?: boolean; recycle?: boolean; fuse?: boolean; part?: boolean }; fuse?: boolean }
   | { kind: 'research'; options: string[]; project?: string; takenBy?: string };
 
 /** A flagship: its rooms (the five card slots and the command room), its shields and its hull. */
@@ -1011,6 +1012,7 @@ export function fuseProblem(s: CampaignState, f: Faction, n: CampaignNode, a: st
   const why = stationProblem(s, f, n);
   if (why) return why;
   if (n.station?.kind !== 'armory') return `${n.name} has no space station.`;
+  if (!n.station.fuse) return `${n.name}'s station can't fuse cards.`;
   if (n.station.used?.fuse) return 'One fusion per station';
   const army = flagship(s, f.id);
   if (!army) return 'You have no flagship.';
@@ -1733,7 +1735,7 @@ export function buildUniverse(s: CampaignState, universe: number, layout?: MapLa
   for (const n of sites.slice(0, CAMPAIGN.armories)) n.station = { kind: 'armory', cards: armoryStock(s, n) };
   const projects = new Set<string>(me.research?.done ?? []);
   for (const n of sites.slice(CAMPAIGN.armories, CAMPAIGN.armories + CAMPAIGN.researchStations)) {
-    const options = pickResearch(s, n, projects);
+    const options = pickResearch(s, projects);
     for (const id of options) projects.add(id);
     n.station = { kind: 'research', options };
   }
@@ -2085,7 +2087,7 @@ function buildRift(s: CampaignState, kind: RiftKind) {
   const open = (n: CampaignNode) => !n.home && !n.heart && !n.prophet;
   const mid = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 1 && (n.col ?? 0) <= RIFT_JUMPS - 2));
   if (mid[0]) mid[0].station = { kind: 'armory', cards: armoryStock(s, mid[0]) };
-  if (mid[1]) mid[1].station = { kind: 'research', options: pickResearch(s, mid[1], new Set(me.research?.done ?? [])) };
+  if (mid[1]) mid[1].station = { kind: 'research', options: pickResearch(s, new Set(me.research?.done ?? [])) };
   spinGalaxy(s);
   clog(s, `${me.name} comes through the rift into ${RIFTS[kind].name}. ${RIFTS[kind].text}`);
 }
@@ -2563,15 +2565,17 @@ function armoryStock(s: CampaignState, n: CampaignNode): string[] {
 }
 
 /**
- * A research station's upgrades to pick from: early ones, or (deep in the strip) deeper ones, none already taken or
+ * A research station's upgrades to pick from: up to the galaxy's own tier, none already taken or
  * offered elsewhere while they last (topped up from the rest when they run short).
  */
-function pickResearch(s: CampaignState, n: CampaignNode, taken: Set<string>): string[] {
-  const near = deepIn(s, n);
+function pickResearch(s: CampaignState, taken: Set<string>): string[] {
   // (A rift's galaxy offers its race's own upgrades; nowhere else does.)
   const race = riftRace(s);
-  const free = RESEARCH.filter((r) => !taken.has(r.id) && !RETIRED_RESEARCH.has(r.id) && r.race === race);
-  const fits = shuffleInPlace(s, free.filter((r) => (near ? r.tier >= 2 : r.tier <= 2)));
+  // [direction: research too strong for the early game (+1 energy etc.)]: a galaxy offers nothing above its own
+  // number's tier, so the first gives only the gentle ones; the newest tier it allows first.
+  const top = Math.min(4, s.universe);
+  const free = RESEARCH.filter((r) => !taken.has(r.id) && !RETIRED_RESEARCH.has(r.id) && r.race === race && (race !== undefined || r.tier <= top));
+  const fits = shuffleInPlace(s, free.filter((r) => r.tier === top));
   const rest = shuffleInPlace(s, free.filter((r) => !fits.includes(r)));
   return [...fits, ...rest].slice(0, CAMPAIGN.researchOptions).map((r) => r.id);
 }
