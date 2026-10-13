@@ -6690,11 +6690,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cmp-galaxy.cmp-galaxy-land.cmp-galaxy-dark, .cmp-galaxy.cmp-galaxy-land.cmp-galaxy-dark p { color: rgba(214, 220, 238, 0.6); }
 
 /* Setting out: the page's header and footer and the options' arc fade as the options fly off; then the menu's scene,
-   lifted out over the map as it comes up, fades away. */
+   lifted out over the map as it comes up on the same frame, is taken away once the map has drawn it (no fade). */
 .cs-captain-page.cs-launching > .setup-top, .cs-captain-page.cs-launching > .setup-foot { opacity: 0; transition: opacity 0.45s; pointer-events: none; }
 .cs-captain-page.cs-launching .cs-arc path { opacity: 0; }
-.cs-launch-veil { position: fixed; inset: 0; z-index: 40; pointer-events: none; background: inherit; transition: opacity 1.3s ease-in-out; }
-.cs-launch-veil.gone { opacity: 0; }
+.cs-launch-veil { position: fixed; inset: 0; z-index: 40; pointer-events: none; background: inherit; }
 
 /* ---- The commander on the map: face, name, level, and the bar to the next level ---- */
 .cmp-profile { display: flex; align-items: center; gap: 8px; height: 44px; box-sizing: border-box; padding: 4px 14px 4px 4px; border-radius: 999px; background: var(--glass-strong); border: 1px solid #fff; box-shadow: var(--shadow); cursor: help; }

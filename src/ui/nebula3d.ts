@@ -678,14 +678,16 @@ export class Nebula {
   }
 
   /** Which universe's nebula to show (built once per seed, with channels cleared for the strip). */
-  show(seed: number, strip: Strip) {
+  show(seed: number, strip: Strip, opts: { instant?: boolean } = {}) {
     if (seed !== this.seed) {
       this.seed = seed;
+      this.landed = false;
       void geometry(seed, strip).then((g) => {
         if (this.seed !== seed) return;
         for (const l of this.layers) l.upload(g);
-        // Fade in (at once if motion is reduced).
-        this.fade = this.reduce ? 1 : 0;
+        // Fade in (at once if motion is reduced, or if it carries straight on from another view of the same land).
+        this.fade = this.reduce || opts.instant ? 1 : 0;
+        this.landed = true;
         this.wake();
       });
     }
@@ -875,6 +877,27 @@ export class Nebula {
     const p = this.home();
     const cp = Math.cos(p.pitch), sp = Math.sin(p.pitch), cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
     return [p.x + sy * cp * p.dist, p.y + sp * p.dist, p.z + cy * cp * p.dist];
+  }
+
+  /** Whether its land has come (and so is drawn from the next frame). */
+  landed = false;
+
+  /** Where the camera rests when it follows a ship at (x, z): the view a run opens on. */
+  restPose(x: number, z: number): Pose {
+    const was = this.focus;
+    this.focus = [x, z];
+    const p = this.home();
+    this.focus = was;
+    return p;
+  }
+
+  /** The camera put just here, at once (carrying straight on from another view of the same scene). */
+  setPose(p: Pose) {
+    this.pose = { ...p };
+    this.homed = true;
+    this.glide = null;
+    this.moved = true;
+    this.wake();
   }
 
   /** A galaxy turning slowly round its heart (a spiral arm's): how far it has turned, and whether it turns at all. */

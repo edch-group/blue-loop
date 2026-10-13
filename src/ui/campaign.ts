@@ -133,7 +133,7 @@ import { playerAvatar, raceRow, cardArtLite, cardStock, cardBodyHtml, cardTextHt
 import { sound } from './sound';
 import { reducedMotion } from './fx';
 import { voices } from './voice';
-import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula } from './nebula3d';
+import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula, type Pose } from './nebula3d';
 import { FLY_SECONDS, WARP_SECONDS } from './nebula-objects';
 import type { CaptainShipSpec } from './ship3d';
 import { Base3d, type BaseZone } from './base3d';
@@ -399,8 +399,17 @@ type Sheet =
 /** Map stages already listening for drags and zooms (kept through redraws, which no longer rebuild them). */
 const boundStages = new WeakSet<HTMLElement>();
 
+/**
+ * The campaign menu's land, which every run's first galaxy lies on too [direction: the first map always uses the start
+ * menu's terrain]: one seed, one straight line along it (its land known by how far along it lies, west to east).
+ */
+const MENU_LINE: [number, number][] = Array.from({ length: 13 }, (_, i) => [-6 + i, 0]);
+const MENU_LAND = { seed: 77017, strip: { nodes: MENU_LINE, routes: MENU_LINE.slice(1).map((q, i) => [MENU_LINE[i][0], MENU_LINE[i][1], q[0], q[1]] as [number, number, number, number]) } };
+
 /** How the map's units scale into the nebula's space (the strip spans STRIP_WIDTH there). */
 const MAP_K = STRIP_WIDTH / MAP_WIDTH;
+/** A column's width, in the nebula's space. */
+const COL_X = CAMPAIGN.colGap * MAP_K;
 
 /** Two column-major 4x4 matrices multiplied (a after b). */
 function mul4(a: number[], b: number[]): number[] {
@@ -1521,20 +1530,34 @@ export class CampaignView {
 
   /** A new run: the Captain's, as petals have made them, the map up and the opening shot under way. */
   private startRun(): boolean {
+    this.beginRun(this.newRun(), canNebula() && !reducedMotion());
+    return true;
+  }
+
+  /** A new run made (not yet shown): the Captain's, as petals have made them. */
+  private newRun(): { state: CampaignState; hero: string } {
     const meta = loadMeta();
     // (Every run is the Captain's, as petals have made them.)
     const hero = captainCard(meta);
     saveMeta({ ...meta, runs: meta.runs + 1 });
-    this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, captain: hero, run: runBonuses(meta) });
+    const state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, captain: hero, run: runBonuses(meta) });
+    // The hero's arrival comes first: whatever else the opening brought on waits its turn behind it.
+    const story = state.story;
+    return { state: { ...state, story: { ...story, queue: [...story.queue.filter((sc) => sc.id === 'intro'), ...story.queue.filter((sc) => sc.id !== 'intro')] } }, hero };
+  }
+
+  /**
+   * The run shown: the map up, and (`cine`) the opening shot alongside the flagship as its hero speaks, or (set out from
+   * the menu, which has already carried the camera here) the flagship simply flying in.
+   */
+  private beginRun(run: { state: CampaignState; hero: string }, cine: boolean) {
+    const hero = run.hero;
+    this.state = run.state;
     this.arriving = true;
     this.introFlight = true;
-    // (In 3D and with motion: the opening shot, alongside the flagship as its hero speaks; see showNebula.)
-    this.cine = canNebula() && !reducedMotion() ? 'start' : null;
+    this.cine = cine ? 'start' : null;
     this.selected = null;
     this.view = null;
-    // The hero's arrival comes first: whatever else the opening brought on waits its turn behind it.
-    const story = this.state.story;
-    this.state = { ...this.state, story: { ...story, queue: [...story.queue.filter((sc) => sc.id === 'intro'), ...story.queue.filter((sc) => sc.id !== 'intro')] } };
     if (this.state.story.queue[0]?.id !== 'intro') this.skipSilentScenes();
     saveCampaign(this.state);
     sound.objective();
@@ -1552,23 +1575,35 @@ export class CampaignView {
       // The hero speaks as the flagship comes to rest (their words on the guide, spoken if recorded).
       voices.arrive(hero, ARRIVAL_FLIGHT * 1000);
     }
-    return true;
   }
 
   /** Whether the run is setting out from the menu (its options flying away, the ship surging off). */
   private launching = false;
+  /** Set out from the menu: the camera's pose the map opens on (the menu's last frame), once. */
+  private launchCut: Pose | null = null;
+  /** How far east the menu's land had broken away when the run set out (it stays gone on the first map). */
+  private menuGone: number | null = null;
+  /** The menu's land, its camera as last drawn, and (setting out) its pan to where the run opens. */
+  private menuWorld: Nebula | null = null;
+  private menuPose: Pose | null = null;
+  private menuPan: { from: Pose; to: Pose; t0: number; dur: number; done?: boolean; end: () => void } | null = null;
 
   /**
-   * Setting out from the menu: each option flies up and away toward the side of the screen nearest it, the page's
-   * header and footer fade, and the ship surges away ahead; then the run begins under the menu's scene, which fades
-   * away over the opening shot alongside the flagship (no other screen between).
+   * Setting out from the menu [direction: no fade between the two screens; the ship moving forwards, away from the
+   * crumbling terrain, the camera panning out and right to the campaign's starting angle, one continuous shot]: each
+   * option flies up and away toward the side of the screen nearest it, the header and footer fade, the ship surges away
+   * ahead, the land's breaking holds, and the camera eases out and round to the view the run opens on (the first galaxy
+   * lies on this same land). There the map takes over, on the very same frame.
    */
   private launch() {
     const page = document.querySelector<HTMLElement>('.cs-captain-page');
     const scene = page?.querySelector<HTMLElement>('.cs-base');
-    const base = this.base;
-    if (!page || !scene || !base) {
-      this.startRun();
+    const base = this.base, world = this.menuWorld, from = this.menuPose;
+    const run = this.newRun();
+    const me = flagship(run.state, run.state.playerId);
+    const at = me ? run.state.nodes.find((n) => n.id === me.nodeId) : undefined;
+    if (!page || !scene || !base || !world || !from || !at || run.state.rift) {
+      this.beginRun(run, canNebula() && !reducedMotion());
       return;
     }
     this.launching = true;
@@ -1586,19 +1621,40 @@ export class CampaignView {
     });
     base.launch();
     sound.whoosh(0.05);
-    window.setTimeout(() => {
-      // The menu's scene, lifted out of the page as it is, over the map as it comes up, fading away.
-      const veil = document.createElement('div');
-      veil.className = 'cs-launch-veil';
-      veil.appendChild(scene);
-      document.body.appendChild(veil);
-      this.base = null;
-      this.launching = false;
-      this.startRun();
-      requestAnimationFrame(() => requestAnimationFrame(() => veil.classList.add('gone')));
-      // (Gone, its scenes stop drawing and let go of their contexts: they see they are no longer on the page.)
-      window.setTimeout(() => veil.remove(), 1700);
-    }, 750);
+    // (The ship gone ahead, its sky's planets and dust go too: what is left is the land, the map's own.)
+    base.canvas.style.transition = 'opacity 1s ease 0.9s';
+    base.canvas.style.opacity = '0';
+    const to = world.restPose((at.x - MAP_WIDTH / 2) * MAP_K, (at.y - MAP_HEIGHT / 2) * MAP_K);
+    this.menuPan = {
+      from,
+      to,
+      t0: -1,
+      dur: 2.8,
+      end: () =>
+        window.setTimeout(() => {
+          // The menu's scene, lifted out of the page as it is, over the map as it comes up on the same frame; taken
+          // away the moment the map has drawn it.
+          const veil = document.createElement('div');
+          veil.className = 'cs-launch-veil';
+          veil.appendChild(scene);
+          document.body.appendChild(veil);
+          this.base = null;
+          this.launching = false;
+          this.menuPan = null;
+          this.menuWorld = null;
+          this.launchCut = to;
+          this.beginRun(run, false);
+          let frames = 0;
+          const wait = () => {
+            if (this.nebula?.landed) frames++;
+            if (frames >= 3 || !document.body.contains(veil)) return veil.remove();
+            requestAnimationFrame(wait);
+          };
+          requestAnimationFrame(wait);
+          // (Never left up, whatever happens.)
+          window.setTimeout(() => veil.remove(), 2500);
+        }, 0),
+    };
   }
 
   /** The commander's experience in all: what is banked, and what this run has earned and not yet banked. */
@@ -2570,16 +2626,39 @@ export class CampaignView {
       const stellari: [number, number] = [6.2, -1.2];
       const LOOP = 150;
       let toward = 0, lastT = 0;
+      // (Over the land west of where the first galaxy's route begins, the land breaking away behind well short of it:
+      // the first map lies on this same land, and opens whole [direction: the first map always uses the start menu's
+      // terrain].)
       const flight = (time: number) => {
         const k = (time % LOOP) / LOOP;
-        return { x: -3.6 + 6 * k, k };
+        return { x: -4.6 + 3 * k, k };
       };
+      let last: Pose = { x: -4.6, y: PLANE_Y, z: 0.15, yaw: -0.85, pitch: 0.2, dist: 3.4 };
       if (world) {
-        const line: [number, number][] = Array.from({ length: 13 }, (_, i) => [-6 + i, 0]);
+        this.menuWorld = world;
         world.setPixelBudget(1.8e6);
-        world.show(77017, { nodes: line, routes: line.slice(1).map((q, i) => [line[i][0], line[i][1], q[0], q[1]]) });
+        world.show(MENU_LAND.seed, MENU_LAND.strip);
         world.drive((time) => {
+          // Setting out [direction: the ship moving forwards, away from the crumbling terrain, the camera panning out
+          // and right to the campaign's starting view, one continuous shot]: the land's breaking held where it is, the
+          // camera easing from where it was to where the run opens.
+          const pan = this.menuPan;
+          if (pan) {
+            if (pan.t0 < 0) pan.t0 = time;
+            const k = Math.min(1, (time - pan.t0) / pan.dur);
+            const e = k * k * (3 - 2 * k);
+            const a = pan.from, b = pan.to;
+            const dy = Math.atan2(Math.sin(b.yaw - a.yaw), Math.cos(b.yaw - a.yaw));
+            last = { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, z: a.z + (b.z - a.z) * e, yaw: a.yaw + dy * e, pitch: a.pitch + (b.pitch - a.pitch) * e, dist: a.dist + (b.dist - a.dist) * e };
+            if (sunrise) sunrise.style.opacity = (1 - e).toFixed(3);
+            if (k >= 1 && !pan.done) {
+              pan.done = true;
+              pan.end();
+            }
+            return last;
+          }
           const f = flight(time);
+          this.menuGone = f.x - 1.1;
           world.setCollapse(f.x - 1.1, f.x - 0.5);
 
           // (Faded out and back as the flight comes round to its start: the land whole again.)
@@ -2587,15 +2666,14 @@ export class CampaignView {
           const shown = Math.min(1, edge / 1.5).toFixed(3);
           if (back) back.style.opacity = shown;
           if (sunrise) sunrise.style.opacity = shown;
-          // Enlightenment open: the camera glides down to the Stellari, set at the foot of the screen, where the
-          // skill tree's own Stellari comes in over it.
+          // Enlightenment open: the camera glides down toward the horizon, where the skill tree's Stellari comes in.
           const dt = Math.max(0, Math.min(0.1, time - lastT));
           lastT = time;
           toward += ((this.shopOpen ? 1 : 0) - toward) * (1 - Math.exp(-dt * 2.4));
           const e = toward * toward * (3 - 2 * toward);
           const from = { x: f.x, y: PLANE_Y, z: 0.15, yaw: -0.85, pitch: 0.2, dist: 3.4 };
           const to = { x: stellari[0], y: PLANE_Y + 0.42, z: stellari[1], yaw: -0.85, pitch: 0.08, dist: 1.5 };
-          return {
+          last = {
             x: from.x + (to.x - from.x) * e,
             y: from.y + (to.y - from.y) * e,
             z: from.z + (to.z - from.z) * e,
@@ -2603,6 +2681,8 @@ export class CampaignView {
             pitch: from.pitch + (to.pitch - from.pitch) * e,
             dist: from.dist + (to.dist - from.dist) * e,
           };
+          this.menuPose = last;
+          return last;
         });
       }
       const arc = box.querySelector<SVGPathElement>('.cs-arc path');
@@ -2869,7 +2949,10 @@ export class CampaignView {
     let seed = s.universe * 7919;
     for (const ch of s.nodes[0]?.name ?? '') seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
     // (The land knows each system's place along the route, in columns, so it breaks away in the route's order.)
-    this.nebula.show(seed, { nodes: s.nodes.map((n) => [...at.get(n.id)!, n.col ?? 0, lift.get(n.id)!] as [number, number, number, number]), routes });
+    // (The first galaxy on the menu's own land, carrying straight on from it; any other on its own.)
+    const menuLand = s.universe === 1 && !s.rift;
+    if (menuLand) this.nebula.show(MENU_LAND.seed, MENU_LAND.strip, { instant: !!this.launchCut });
+    else this.nebula.show(seed, { nodes: s.nodes.map((n) => [...at.get(n.id)!, n.col ?? 0, lift.get(n.id)!] as [number, number, number, number]), routes });
     // The map's things in 3D: every system's star (ringed in its holder's colour); nothing over them (what a system
     // holds is found by going there).
     const hex = (c: string): [number, number, number] => {
@@ -2965,8 +3048,13 @@ export class CampaignView {
       if (mine) this.nebula.ride(mine.id);
       this.cine = 'ride';
     }
-    // The camera keeps the flagship in view, on its own.
+    // The camera keeps the flagship in view, on its own. (Set out from the menu: it carries straight on from the menu's
+    // last frame, which was its resting place.)
     const own = ships.find((sh) => sh.id === mine?.id);
+    if (this.launchCut) {
+      this.nebula.setPose(this.launchCut);
+      this.launchCut = null;
+    }
     if (own) this.nebula.follow(own.x, own.z);
     // Instability: the land is gone up to half a column past the last collapsed system, and cracked up to half a
     // column past the last one collapsing (counted along the route, in columns).
@@ -2975,7 +3063,23 @@ export class CampaignView {
       return cols.length ? Math.max(...cols) + 0.5 : -50;
     };
     const gone = edge((n) => !!n.collapsed);
-    this.nebula.setCollapse(gone, Math.max(gone, edge((n) => !!n.collapsing)));
+    const crack = Math.max(gone, edge((n) => !!n.collapsing));
+    if (menuLand) {
+      // (The menu's land breaks away by how far east it lies, not by column: a column's place is where its systems
+      // stand, half a column on either side; and what the menu already broke away stays gone.)
+      const colX = (c: number) => {
+        if (c < -9) return c;
+        const xs = (k: number) => {
+          const ns = s.nodes.filter((n) => (n.col ?? 0) === k && !n.challenge);
+          return ns.length ? ns.reduce((t, n) => t + at.get(n.id)![0], 0) / ns.length : null;
+        };
+        const k = Math.floor(c), f = c - k;
+        const a = xs(k) ?? xs(0)! + k * COL_X, b = xs(k + 1) ?? a + COL_X;
+        return a + (b - a) * f;
+      };
+      const floor = this.menuGone ?? -50;
+      this.nebula.setCollapse(Math.max(colX(gone), floor), Math.max(colX(crack), floor));
+    } else this.nebula.setCollapse(gone, crack);
     if (this.nebula.camera) this.layPlane(this.nebula.camera);
   }
 

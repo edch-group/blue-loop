@@ -1617,7 +1617,10 @@ export function buildUniverse(s: CampaignState, universe: number, layout?: MapLa
   // The lie of the map: the first universe is always a strip; after it, a strip or a spiral, never twice running.
   s.layout = layout ?? (universe === 1 ? 'strip' : nextRandom(s) < (s.layout === 'spiral' ? 0.25 : 0.55) ? 'spiral' : 'strip');
   const terrains: MapTerrain[] = ['flat', 'rolling', 'climb'];
-  s.terrain = terrains[randomInt(s, terrains.length)];
+  const terrain = terrains[randomInt(s, terrains.length)];
+  // (The first galaxy lies on the campaign menu's own land, flat under its route [direction: the first map always uses the
+  // start menu's terrain, the menu flowing into it in one shot].)
+  s.terrain = universe === 1 ? 'flat' : terrain;
   const place = mapPlacer(s, s.layout, s.terrain);
   // The flagship's arrival: one system alone at the near end, in the middle, with a route into every lane.
   const at0 = place(0, (L - 1) / 2);
