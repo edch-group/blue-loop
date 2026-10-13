@@ -418,6 +418,9 @@ export interface CardInstance {
   shields?: number;
   /** Frozen: it can't attack until its owner's day is over. */
   frozen?: boolean;
+  /** Chilled: attack taken off by a rival's cooling, until that rival's next day (`chilledBy`). */
+  chill?: number;
+  chilledBy?: string;
   /** In hand: energy off its cost (a Bargain), until it is played. */
   discount?: number;
   /** In play: the card it really is, while an Echo has it stand as a Hero (it turns back as it leaves). */
@@ -769,6 +772,8 @@ export type Action =
       recoverUid?: string;
       /** A card that heats as it is played: the rival card its heat goes to (unset: their sun, or a Guard). */
       aimUid?: string;
+      /** A card that cools as it is played: the rival card it chills instead (its attack down by as much until your next day; unset: your sun is cooled). */
+      chillUid?: string;
       /** A Consume card: the card of yours in play it consumes (unset: your weakest). */
       sacrificeUid?: string;
     }

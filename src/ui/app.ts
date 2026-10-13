@@ -59,6 +59,8 @@ import {
   aimChoices,
   survivalDream,
   aimable,
+  chillable,
+  chillChoices,
   abilityAimable,
   COMMAND_SLOT,
   dawnEffects,
@@ -176,13 +178,15 @@ type Speed = 'slow' | 'normal' | 'fast';
  */
 interface Pending {
   uid: string;
-  step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot' | 'host' | 'shift' | 'sacrifice';
+  step: 'choice' | 'enemy' | 'ally' | 'recover' | 'aim' | 'slot' | 'host' | 'shift' | 'sacrifice' | 'chill';
   /** An ability that costs a sacrifice: the card of yours chosen to give up. */
   sacrificeUid?: string;
   /** A Fusion card: the card of yours it fuses onto. */
   hostUid?: string;
   /** Where its heat goes: a rival card's uid, or 'sun'. */
   aimUid?: string;
+  /** A card that cools: the rival card it chills instead, or 'sun' (your sun cooled). */
+  chillUid?: string;
   /** Your Hero's ability being aimed (uid is the Hero): which one. */
   ability?: number;
   /** A card of yours in play attacking (uid is that card): its target is chosen like an aim. */
@@ -3538,7 +3542,9 @@ export class App {
     if (recoverChoices(me, card.defId).length > 0 && !p.recoverUid) return ask('recover');
     // A card that heats, with rival cards on the table: where its heat goes (a card, or their sun).
     if (aimable(card.defId) && aimChoices(s, me).cards.length && p.aimUid === undefined) return ask('aim');
-    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, shiftTo: p.shiftTo, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined, ...(p.hostUid ? { hostUid: p.hostUid } : {}), ...(p.sacrificeUid ? { sacrificeUid: p.sacrificeUid } : {}) });
+    // A card that cools, with a rival card that could attack: chill that card instead, or cool your sun.
+    if (chillable(card.defId) && chillChoices(s, me).length && p.chillUid === undefined) return ask('chill');
+    this.dispatch({ type: 'playCard', cardUid: p.uid, choice: p.choice, enemyUid: p.enemyUid, allyUid: p.allyUid, recoverUid: p.recoverUid, slot: p.slot, shiftTo: p.shiftTo, aimUid: p.aimUid && p.aimUid !== 'sun' ? p.aimUid : undefined, ...(p.chillUid && p.chillUid !== 'sun' ? { chillUid: p.chillUid } : {}), ...(p.hostUid ? { hostUid: p.hostUid } : {}), ...(p.sacrificeUid ? { sacrificeUid: p.sacrificeUid } : {}) });
   }
 
   // -------------------------------------------------------------------------
@@ -4518,6 +4524,12 @@ export class App {
         this.pending = { uid: arg, step: 'aim', attack: true };
         sound.hover();
         return this.render();
+      }
+      case 'choose-chill': {
+        const pend = this.pending;
+        if (!pend) return;
+        pend.chillUid = arg;
+        return this.advancePlay();
       }
       case 'choose-aim': {
         const pend = this.pending;
@@ -5711,6 +5723,7 @@ export class App {
     const guarded = !aimChoices(s, activePlayer(s), true).sun && !survivalDream(s);
     if (p.step === 'aim' && p.attack) return hint(guarded ? 'attack a guard' : `attack with ${esc(cardDef(card.defId).name.toLowerCase())}`);
     if (p.step === 'aim') return hint('aim heat');
+    if (p.step === 'chill') return hint('chill or cool');
     if (p.step === 'sacrifice') return hint(p.ability !== undefined ? 'sacrifice a card' : this.state && cardDef(this.state.players.find((x) => x.hand.some((c) => c.uid === p.uid))?.hand.find((c) => c.uid === p.uid)?.defId ?? '').consume ? 'consume a card' : 'replace a card');
     if (p.step === 'enemy') return hint({ destroy: 'destroy a card', bounce: 'return a card', erode: 'erode a card', shift: 'move a card', offer: 'strike a card', steal: 'take a card', rootbreak: 'split a card' }[enemyEffectKind(card.defId) ?? 'destroy']);
     if (p.step === 'ally') return hint({ recall: 'recall a card', empower: 'choose a card', offer: 'offer a card’s attack', rootbreak: 'choose a grown card', restore: 'restore a card', shift: 'choose a card' }[allyEffectKind(card.defId) ?? 'restore']);
@@ -5949,6 +5962,8 @@ export class App {
     const ghostAt = (i: number) => (placing && pend!.slot === i && !p.tableau.some((x) => x.slot === i) ? `<div class="slot-empty slot-chosen" data-slot="${i}"></div>` : null);
     // Aiming (an attack, a card's heat or a Hero's ability): the rival's sun is a target too, unless a Guard stands (against an attack).
     const sunAim = side === 'rival' && pend?.step === 'aim' && aimChoices(st, activePlayer(st), !!pend.attack).sun;
+    // (A cooling card's: your own sun, cooled as it always was.)
+    const sunCool = side === 'mine' && pend?.step === 'chill';
     // A relic's heat at any target: their sun is one.
     const relicSun = side === 'rival' && this.dawnChoice()?.kind === 'aim' && !p.boss;
     // The Command slot: the one Command card leads the tableau from out in front (top right of yours,
@@ -5990,7 +6005,7 @@ export class App {
     return `
       <div class="tableau tableau-${side} ${this.shownDead(p) ? 'tableau-dead' : ''}" data-owner="${p.id}">
         <div class="tableau-row-wrap">
-          ${p.boss ? this.bossVitals(p) : `<div class="vitals ${sunAim || relicSun ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : relicSun ? 'data-act="dawn-aim-sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), paradise: relicN(p.relics, 'paradise') + (p.modifiers?.paradise ?? 0) > 0, shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>`}
+          ${p.boss ? this.bossVitals(p) : `<div class="vitals ${sunAim || relicSun || sunCool ? 'vitals-choosable' : ''}" data-anchor="player:${p.id}" ${sunAim ? 'data-act="choose-aim" data-arg="sun" role="button" title="Aim at their sun"' : sunCool ? 'data-act="choose-chill" data-arg="sun" role="button" title="Cool your sun"' : relicSun ? 'data-act="dawn-aim-sun" role="button" title="Aim at their sun"' : ''}>${vitals({ heat: p.heat, threshold: supernovaThreshold(p), shields: p.shields, dead: this.shownDead(p), id: p.id, orbit: p.orbit, eaten: planetsEaten(st, p), paradise: relicN(p.relics, 'paradise') + (p.modifiers?.paradise ?? 0) > 0, shieldsHtml: shieldBadge(p.id, p.shields, side) })}<span class="vitals-name">${side === 'mine' ? 'your sun' : `${esc(p.name.toLowerCase())}'s sun`}</span></div>`}
           <div class="tableau-row"><svg class="tableau-frame" aria-hidden="true"><path/></svg>${slots}<button class="tableau-eye tableau-eye-${side}" data-act="board-zoom" data-arg="${side}" title="Look closely at ${side === 'mine' ? 'your' : 'their'} tableau (or double-tap it; pinch on a phone)" aria-label="Zoom in on ${side === 'mine' ? 'your' : 'their'} tableau">${EYE_ICON}</button><div class="ls-slot">${lightspeed}</div><div class="cmd-slot">${cmdHtml}</div></div>
           ${this.renderPiles(p, side)}
         </div>
@@ -6129,6 +6144,10 @@ export class App {
     const pendingDef = p && me ? me.hand.find((h) => h.uid === p.uid)?.defId : undefined;
     if (p && pendingDef && me && opts.tableau === 'rival' && p.step === 'enemy' && enemyChoices(s!, me, pendingDef, p.aimUid !== 'sun' ? p.aimUid : undefined).some((x) => x.uid === c.uid)) {
       attrs = `data-act="choose-enemy" data-arg="${c.uid}"`;
+      state = 'card-choosable';
+    }
+    if (p?.step === 'chill' && me && opts.tableau === 'rival' && chillChoices(s!, me).some((x) => x.uid === c.uid)) {
+      attrs = `data-act="choose-chill" data-arg="${c.uid}" title="Chill: attack −, until your next day"`;
       state = 'card-choosable';
     }
     if (p?.step === 'aim' && me && opts.tableau === 'rival' && aimChoices(s!, me, !!p.attack).cards.some((x) => x.uid === c.uid)) {
@@ -6274,7 +6293,7 @@ export class App {
     const aimHeat = blow ? Math.max(0, blow.sun, ...blow.cards.map((x) => x.heat)) : 0;
     const actionTag = aimHeat ? `<b class="boss-aim-heat">${symbolIcon('heat')}<span>${aimHeat}</span></b>` : '';
     return `
-      <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}${opts.tableau && c.frozen ? ' card-frozen' : ''}${opts.tableau && heroAblaze(c) ? ' card-ablaze' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
+      <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}${opts.tableau && c.frozen ? ' card-frozen' : ''}${opts.tableau && c.chill ? ' card-chilled' : ''}${opts.tableau && heroAblaze(c) ? ' card-ablaze' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${growth}${resonance}${fusedTags}${stats}${actionTag}${opts.hand && me && hasPower(me, 'freeCards') && cardCost(c.defId) > 0 ? `<b class="card-discount" title="Costs 0 now (Zero-Point Core)">−${cardCost(c.defId)}</b>` : opts.hand && c.discount ? `<b class="card-discount" title="Costs ${handCost(c)} now (a Bargain)">−${c.discount}</b>` : ''}${opts.tableau && c.shields ? `<b class="card-shields" title="Shields: they take heat before its defence does, and fade at its owner's dawn">${symbolIcon('shield')}<span>${c.shields}</span></b>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>

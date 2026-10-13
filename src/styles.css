@@ -7501,3 +7501,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .crew-tree { min-height: 0; display: grid; }
 .crew-tree .hp-scroll { min-height: 0; }
 @media (max-width: 700px) { .crew-tab { padding: 7px 10px; letter-spacing: 0.16em; } .crew-body { grid-template-columns: minmax(0, 34%) minmax(0, 1fr); } }
+/* Chilled [direction: cooling cards able to reduce a rival card's attack until your next day]: a light frost on it,
+   lighter than frozen's (it can still attack, for less). */
+.card.card-table.card-chilled::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2;
+  background: linear-gradient(170deg, rgba(210, 235, 255, 0.32), rgba(210, 235, 255, 0) 45%);
+  box-shadow: inset 0 0 0 1.5px rgba(150, 200, 245, 0.8), inset 0 0 10px rgba(170, 215, 255, 0.55);
+}

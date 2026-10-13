@@ -79,6 +79,12 @@ An attuned card gains, at each of its owner's dawns, the bonus of the planet fac
 - Both tableaus are visible: your rival's lies across the table and yours is on the near side. [design review: players need to see each other's tableaus]
 - Only **one global card** can be in play on the whole table. A new one sweeps the old one away. Global effects apply to both players equally. [design review: globals are symmetric]
 
+## Chill
+
+[direction: cooling cards also able to reduce the attack of enemy cards ("reduce their heat"), until the player's next day] A card that cools as it is played can **chill** a rival card instead of cooling your sun: that card's attack goes down by as much as it would have cooled, until your next day (it wears off at your next dawn), so it covers exactly one of their days. Your sun is not cooled, so nothing that counts cooling (Absolute Zero's charge, a cooling credit) counts a chill. Played, a cooling card asks "chill or cool" while the rival has a card with attack: tap that card, or your own sun. A chilled card wears a light frost (lighter than Frozen's: it can still attack, for less). Dawn cooling never chills.
+
+The AI weighs a chill as the heat it keeps off the card's next attack (as cooling its own sun by as much would be, counted at 80%: the card may not attack, or not at its sun), plus a small share of what the weaker card means to the board; in AI games it chills about one cooling play in five, where a card's attack matters most. (The dreams' solver leaves chilling out: every dream was set and proven without it.)
+
 ## Orbit
 
 Three planets circle each sun. Each faces it for **one of its owner's days**, in turn, and then the next comes round: a rhythm of rest, draw, play [direction: 1 turn per planet, giving more meaning to the draw 1 more, play 1 more loop; no text explaining the planet coming round]. [design review]

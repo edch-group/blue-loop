@@ -42,6 +42,8 @@ import {
   inSlots,
   aimChoices,
   aimable,
+  chillable,
+  chillChoices,
   abilityAimable,
   shiftEffect,
   shiftSlots,
@@ -472,6 +474,8 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
     if (!aims.length) aims.push(undefined);
     // (A rival card to remove: as it stands, or (Void Bolt) worn down by heat aimed at it first.)
     const foes = opt([...new Set(aims.flatMap((a) => enemyChoices(state, me, card.defId, a).map((c) => c.uid)))]);
+    // Cooling as it is played: a rival card with attack to chill instead.
+    const chills = chillable(card.defId) ? chillChoices(state, me).map((c) => c.uid) : [];
     // A recall card may also take the slot of the card it recalls.
     const recalls = allyEffectKind(card.defId) === 'recall' && inSlots(card.defId);
     for (const choice of choices)
@@ -484,6 +488,8 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
           const moved = shifts === 'mine' ? me.tableau.find((c) => c.uid === allyUid) : shifts === 'rival' ? state.players.flatMap((pl) => pl.tableau).find((c) => c.uid === enemyUid) : undefined;
           const tos: (number | undefined)[] = moved ? shiftSlots(moved) : [undefined];
           for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) for (const hostUid of hosts) for (const shiftTo of tos) if (!hostUid || slot === here[0]) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid, ...(hostUid ? { hostUid } : {}), ...(shiftTo !== undefined ? { shiftTo } : {}) });
+          // (A card that cools may chill a rival card instead: once each, placed as it would be first.)
+          for (const chillUid of chills) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot: here[0], allyUid, recoverUid: recovers[0], aimUid: aims[0], chillUid, ...(tos[0] !== undefined ? { shiftTo: tos[0] } : {}) });
         }
   }
   return plays;
@@ -594,7 +600,8 @@ export function movesNow(state: GameState): Action[] {
     if (targets.sun) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: null });
     for (const t of targets.cards) attacks.push({ type: 'attack', attackerUid: c.uid, targetUid: t.uid });
   }
-  return [...attacks, ...abilityMoves(state, me), ...candidatePlays(state, me)];
+  // (Chilling left out: every dream was set and proven without it, and the solver's search stays in reach.)
+  return [...attacks, ...abilityMoves(state, me), ...candidatePlays(state, me).filter((a) => !(a.type === 'playCard' && a.chillUid))];
 }
 
 export function chooseAIAction(state: GameState): Action {
@@ -641,8 +648,17 @@ export function chooseAIAction(state: GameState): Action {
   chargeFloor = new Map(view.players.filter((p) => p.id !== me.id).flatMap((p) => (commandCard(p) ? [[commandCard(p)!.uid, commandCard(p)!.charge ?? 0] as const] : [])));
   for (const action of [...attacks, ...abilities, ...candidatePlays(view, me)]) {
     let next: GameState;
+    let chillBonus = 0;
     try {
       next = settleChoices(applyAction(view, action), me.id);
+      // (A chill lasts only until its next day: weighed as the heat it keeps off the card's next attack, as cooling
+      // your sun by as much would be, not as a card weakened for good.)
+      // (Plus a part of what the board makes of the weaker card, its threat to your cards and the like, for the day.)
+      if (action.type === 'playCard' && action.chillUid) {
+        const kept = chillWorth(view, next, me.id, action);
+        chillBonus = CHILL_SHARE * Math.max(0, evaluate(next, me.id) - evaluate(kept, me.id));
+        next = kept;
+      }
     } catch {
       continue;
     }
@@ -667,7 +683,7 @@ export function chooseAIAction(state: GameState): Action {
     const vigil = action.type === 'attack' ? vigilWorth(view, me, me.tableau.find((c) => c.uid === action.attackerUid)) : 0;
     // (Unleashing its singularity: the charge it gives up is spent, not lost.)
     const unleash = action.type === 'singularity' ? SINGULARITY_HOPE : 0;
-    const raw = evaluate(next, me.id) + ramp - vigil + unleash;
+    const raw = evaluate(next, me.id) + ramp - vigil + unleash + chillBonus;
     // (Replacing a card of yours in a full tableau: only for a clear gain, never a like-for-like swap.)
     const replacing = played && action.type === 'playCard' && !action.faceDown && action.hostUid === undefined && replaces(me, played.defId) ? ACTION_VALUE : 0;
     const score = raw - extra * ACTION_VALUE - replacing;
@@ -706,6 +722,28 @@ export function chooseAIAction(state: GameState): Action {
   aiLastDecision.bestAction = best?.action ?? null;
   if (!best || (ENERGY_CONTENTION ? bestRaw : best.score) < baseline - 1.5) return { type: 'endTurn' };
   return best.action;
+}
+
+/** How much of what a chilled card's weakness means to the board (beyond the heat it keeps off) a day's chill is worth. */
+export const CHILL_SHARE = 0.15;
+/** How sure a chill is to keep its heat off (the card may not attack, or not at your sun). */
+export const CHILL_SURE = 0.8;
+/**
+ * A chill, as the AI weighs it: the same card played cooling its own sun instead, by the heat the chill keeps off
+ * (as much as it chills, up to the card's attack; nothing if it could not attack anyway).
+ */
+function chillWorth(view: GameState, chilled: GameState, meId: string, action: Extract<Action, { type: 'playCard' }>): GameState {
+  const uid = action.chillUid!;
+  const owner = view.players.find((p) => p.tableau.some((c) => c.uid === uid));
+  const before = owner?.tableau.find((c) => c.uid === uid);
+  const after = chilled.players.flatMap((p) => p.tableau).find((c) => c.uid === uid);
+  const amount = (after?.chill ?? 0) - (before?.chill ?? 0);
+  // (Discounted: the card may not attack, or not where it would have hurt.)
+  const kept = owner && before && !before.frozen ? CHILL_SURE * Math.min(amount, cardAttack(view, owner, before)) : 0;
+  const plain = settleChoices(applyAction(view, { ...action, chillUid: undefined }), meId);
+  const me = plain.players.find((p) => p.id === meId)!, was = view.players.find((p) => p.id === meId)!;
+  me.heat = was.heat - kept;
+  return plain;
 }
 
 /**

@@ -472,6 +472,17 @@ export function survivalDream(state: GameState): boolean {
 }
 
 /** Whether a card heats your rival as it is played (it may be aimed then, at their sun or one of their cards). */
+/** Whether a card cools as it is played (and so may chill a rival card instead). */
+export function chillable(defId: string): boolean {
+  return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'cool');
+}
+
+/** The rival cards a cooling card may chill: any of your target's with attack. */
+export function chillChoices(state: GameState, p: PlayerState): CardInstance[] {
+  const t = targetOf(state, p);
+  return t ? t.tableau.filter((c) => cardAttack(state, t, c) > 0) : [];
+}
+
 export function aimable(defId: string): boolean {
   return (cardDef(defId).onPlay ?? []).some((e) => e.type === 'heat' && e.to === 'target');
 }
@@ -1282,6 +1293,8 @@ export type Timing = 'play' | 'turn' | 'leave' | 'recover' | 'spring';
 
 interface PlayContext {
   enemyUid?: string;
+  /** Cooling as it is played: the rival card chilled instead of your sun cooled. */
+  chillUid?: string;
   /** Heat as it is played (or a Hero's ability): the rival card aimed at (unset: their sun, or a Guard). */
   aimUid?: string;
   allyUid?: string;
@@ -1327,6 +1340,16 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         break;
       case 'cool': {
         const amount = effectAmount(state, p, card, e, when);
+        // (Chilling a rival card instead [direction: cooling cards also able to reduce the attack of enemy cards, until
+        // your next day]: its attack down by as much; your sun is not cooled, so nothing that counts cooling counts it.)
+        const chilled = when === 'play' && ctx.chillUid ? state.players.find((o) => o.id !== p.id && o.tableau.some((c) => c.uid === ctx.chillUid)) : undefined;
+        const victim = chilled?.tableau.find((c) => c.uid === ctx.chillUid);
+        if (amount > 0 && chilled && victim) {
+          victim.chill = (victim.chill ?? 0) + amount;
+          victim.chilledBy = p.id;
+          log(state, `${p.name}'s ${cardDef(card.defId).name} chills ${chilled.name}'s ${cardDef(victim.defId).name} (attack −${amount} until ${p.name}'s next day).`);
+          break;
+        }
         if (amount > 0) {
           credit(state, p, card.uid, 'support', Math.min(amount, p.heat - BALANCE.minHeat));
           cool(state, p, amount, `${p.name}'s ${cardDef(card.defId).name}`);
@@ -1404,7 +1427,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         t.tableau = t.tableau.filter((c) => c !== victim);
         const wear = Math.min(victim.dented ?? 0, slotDefence(victim.slot));
         if (wear > 0 && victim.slot !== undefined) (t.slotWear ??= {})[victim.slot] = wear;
-        for (const k of ['boons', 'dented', 'shields', 'frozen', 'fortified', 'spentAttack', 'dimmed', 'fresh', 'maxHealth'] as const) delete victim[k];
+        for (const k of ['boons', 'dented', 'shields', 'frozen', 'fortified', 'spentAttack', 'dimmed', 'fresh', 'maxHealth', 'chill', 'chilledBy'] as const) delete victim[k];
         victim.slot = undefined;
         const open = freeSlots(p);
         const slot = slotsBySafety().find((i) => open.includes(i));
@@ -1937,6 +1960,13 @@ function startTurn(state: GameState) {
     delete c.fresh;
     delete c.spentAttack;
   }
+  // (Their chill on rival cards wears off: it held only until this day.)
+  for (const o of state.players)
+    for (const c of o.tableau)
+      if (c.chilledBy === p.id) {
+        delete c.chill;
+        delete c.chilledBy;
+      }
   p.turn = emptyTurn();
   log(state, `— Day ${state.turnNumber}: ${p.name}.`);
   charge(state, p, 'dawns');
@@ -2755,6 +2785,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   if (shifted && (action.shiftTo === undefined || !shiftSlots(shifted).includes(action.shiftTo))) throw new GameError('Choose a slot to move it into.');
 
   if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError('Pick a rival card or their sun');
+  if (action.chillUid && (!chillable(def.id) || !chillChoices(state, p).some((c) => c.uid === action.chillUid))) throw new GameError('Pick a rival card with attack, or your sun');
 
   p.hand = p.hand.filter((c) => c.uid !== card.uid);
   delete card.discount;
@@ -3140,7 +3171,7 @@ export function cardAttack(state: GameState, p: PlayerState, card: CardInstance)
   // (A Ram emblem: its defence adds to its attack, up to the emblem's number.)
   const ram = p.relics ? Math.min(relicN(p.relics, 'ram'), cardDefence(p, card)) : 0;
   // (Offered today: what it gave up is gone until its owner's dawn.)
-  return Math.max(0, effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play') + ram - (card.spentAttack ?? 0));
+  return Math.max(0, effectAmount(state, p, card, { type: 'heat', amount: base, to: 'target' }, 'play') + ram - (card.spentAttack ?? 0) - (card.chill ?? 0));
 }
 
 /**

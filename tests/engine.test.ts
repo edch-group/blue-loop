@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { BALANCE } from '../src/engine/balance';
 import { CARDS, cardDef, copyLimit, deckProblems, PRESET_DECKS, RACE_NAMES } from '../src/engine/cards';
-import { activePlayer, replaces, isGuard, guards, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, answerShown,
+import { activePlayer, chillable, chillChoices, replaces, isGuard, guards, attackProblem, cardAttack, counterDamage, heroAbilityProblem, effectAmount, planetsEaten, allyChoices, COMMAND_SLOT, cardCost, applyAction, answerShown,
   baseHealth, baseAttack, dawnEffects, hasRoomFor, recoverChoices, currentPlanet, planetTurnsLeft, turnForecast, cardDefence, createGame, freeSlots, GameError, instabilityHeat, isGameOver,
   isDraw, maxHand, playsAllowed, supernovaThreshold, tableauFull, handCost, enemyChoices } from '../src/engine/game';
 import type { CardInstance, GameState, PlayerState } from '../src/engine/types';
@@ -2052,5 +2052,43 @@ describe('Void Bolt', () => {
     if (cardDefence(bo, tough) < 4) return;
     give(ada, ['void_bolt']);
     expect(() => play(s, 'void_bolt', { aimUid: 'vb2', enemyUid: 'vb2' })).toThrow();
+  });
+});
+
+describe('chill', () => {
+  it("lets a cooling card chill a rival card instead: its attack down until the chiller's next day, their sun untouched", () => {
+    let s = twoPlayer();
+    const me = activePlayer(s);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    const [lance] = give(rival, ['plasma_relay'], 'tableau');
+    const atk = cardAttack(s, rival, lance);
+    expect(atk).toBeGreaterThan(0);
+    me.heat = 6;
+    me.playsLeft = 5;
+    expect(chillable('heat_sink')).toBe(true);
+    expect(chillChoices(s, me).map((c) => c.uid)).toEqual([lance.uid]);
+    const [sink] = give(me, ['heat_sink']);
+    s = applyAction(s, { type: 'playCard', cardUid: sink.uid, chillUid: lance.uid });
+    const them = () => s.players.find((p) => p.id === rival.id)!;
+    const theirLance = () => them().tableau.find((c) => c.uid === lance.uid)!;
+    // (Heat Sink cools 2: the lance's attack is 2 less, and the chiller's sun is as hot as it was.)
+    expect(cardAttack(s, them(), theirLance())).toBe(Math.max(0, atk - 2));
+    expect(s.players.find((p) => p.id === me.id)!.heat).toBe(6);
+    // Through the rival's day it holds; at the chiller's next dawn it is gone.
+    s = endTurn(s);
+    expect(theirLance().chill).toBe(2);
+    s = endTurn(s);
+    expect(theirLance().chill).toBeUndefined();
+    expect(cardAttack(s, them(), theirLance())).toBe(atk);
+  });
+
+  it('chills only a rival card with attack, and only from a card that cools', () => {
+    const s = twoPlayer();
+    const me = activePlayer(s);
+    const rival = s.players.find((p) => p.id !== me.id)!;
+    const [lance] = give(rival, ['plasma_relay'], 'tableau');
+    me.playsLeft = 5;
+    const [lancer] = give(me, ['coronal_lance']);
+    expect(() => applyAction(s, { type: 'playCard', cardUid: lancer.uid, slot: freeSlots(me)[0], chillUid: lance.uid })).toThrow();
   });
 });
