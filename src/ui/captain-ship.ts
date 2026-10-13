@@ -4,6 +4,8 @@
  * model as the campaign menu's]. Box units as the ships' (ship3d.ts): 40 to the model's 1, x along, y across, z up.
  */
 import { captainModel, streamerModel } from './captain-model';
+import { COMPANION_PLACES, companionModel } from './companion-models';
+import type { CompanionId } from '../engine/companions';
 import type { PartSlot } from '../engine/parts';
 import { Mesh, SHIP_STRIDE, type CaptainShipSpec, type RGB, type ShipModel, type V3 } from './ship3d';
 
@@ -287,15 +289,33 @@ const mapModels = new Map<string, ShipModel & { smoke: V3[] }>();
  * in the wind; here they are still): at the rail, facing ahead and a little out, his height 0.7 of the menu ship's 4.2.
  */
 function withCaptain(ship: Float32Array, deck: number): Float32Array {
-  const at = B(32, 12, deck), mid = B(20, 12, 0);
-  const k = 0.7 / 4.2, c = Math.cos(1.3), sn = Math.sin(1.3);
-  const parts = [captainModel(), streamerModel()];
+  return placed(ship, [captainModel(), streamerModel()], B(32, 12, deck), B(20, 12, 0), 0.7 / 4.2, 1.3);
+}
+
+/**
+ * The companions aboard [direction: the map's ship shows the friends on it too, both ships identical]: each where the
+ * menu's ship has them (companion-models.ts COMPANION_PLACES), as it stands, sits or flies there.
+ */
+function withCrew(ship: Float32Array, crew: string[], rail: { y: number; z: number }, dish: number): Float32Array {
+  let out = ship;
+  for (const id of crew) {
+    const pl = COMPANION_PLACES[id as CompanionId];
+    if (!pl) continue;
+    const at = pl.on === 'rail' ? B(pl.x, rail.y, rail.z) : pl.on === 'dish' ? B(pl.x, pl.y, dish) : B(pl.x, pl.y, pl.z);
+    out = placed(out, [companionModel(id as CompanionId)], at, B(pl.anchor[0], pl.anchor[1], pl.anchor[2]), pl.size / 4.2, pl.turn);
+  }
+  return out;
+}
+
+/** Figures set on the ship: each scaled by `k` about its `mid`, turned by `turn` about the vertical, and stood at `at`. */
+function placed(ship: Float32Array, parts: Float32Array[], at: V3, mid: V3, k: number, turn: number): Float32Array {
+  const c = Math.cos(turn), sn = Math.sin(turn);
   const out = new Float32Array(ship.length + parts.reduce((n, p) => n + p.length, 0));
   out.set(ship);
   let o = ship.length;
   for (const p of parts) {
     for (let i = 0; i < p.length; i += SHIP_STRIDE) {
-      const x = (p[i] - mid[0]) * k, y = p[i + 1] * k, z = (p[i + 2] - mid[2]) * k;
+      const x = (p[i] - mid[0]) * k, y = (p[i + 1] - mid[1]) * k, z = (p[i + 2] - mid[2]) * k;
       out[o + i] = at[0] + c * x + sn * z;
       out[o + i + 1] = at[1] + y;
       out[o + i + 2] = at[2] - sn * x + c * z;
@@ -314,7 +334,7 @@ export function captainShipMap(spec: CaptainShipSpec): ShipModel & { smoke: V3[]
   let m = mapModels.get(key);
   if (!m) {
     const s = captainShipModel(spec);
-    m = { mesh: withCaptain(s.mesh, s.deck), engines: s.engines, glow: ENGINE, suns: [], smoke: s.smoke };
+    m = { mesh: withCrew(withCaptain(s.mesh, s.deck), spec.crew ?? [], s.rail, s.dish), engines: s.engines, glow: ENGINE, suns: [], smoke: s.smoke };
     mapModels.set(key, m);
   }
   return m;

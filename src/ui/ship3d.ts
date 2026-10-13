@@ -1015,5 +1015,7 @@ export interface CaptainShipSpec {
   rarity: Partial<Record<string, string>>;
   /** How far the Captain has been built up (petal upgrades bought, 0 to about 15). */
   level: number;
+  /** The companions aboard (the map's ship shows them where the menu's does). */
+  crew?: string[];
 }
 

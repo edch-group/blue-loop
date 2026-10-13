@@ -2245,7 +2245,8 @@ export class CampaignView {
     for (const [slot, id] of Object.entries(fitted)) rarity[slot] = shipPart(id)?.rarity ?? 'dwarf';
     const b = captainBuild(general);
     const level = b ? b.attack + b.stability + b.cheaper + Math.max(0, b.abilities.length - 1) + (b.lead ? 2 : 0) : 0;
-    return { parts: fitted, rarity, level };
+    // (Its companions aboard, as on the menu's ship.)
+    return { parts: fitted, rarity, level, crew: companionsFound(loadMeta()) };
   }
 
   /**
