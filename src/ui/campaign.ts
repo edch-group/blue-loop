@@ -109,8 +109,6 @@ import {
   buyCaptain,
   equipCaptainAbility,
   setCaptainLead,
-  captainAbility,
-  captainLead,
   captainSlots,
   CAPTAIN_ABILITIES,
   CAPTAIN_LEADS,
@@ -118,6 +116,7 @@ import {
   CAPTAIN_STAT_PRICES,
   CAPTAIN_STABILITY_STEP,
   type CaptainBuy,
+  type CaptainMeta,
   type CaptainStat,
 } from '../engine';
 import { account, markDirty } from './account';
@@ -431,7 +430,9 @@ export class CampaignView {
   /** The starting-deck panel (cards bought into the picked race's starting deck with petals) is open. */
   /** The hero panel open, and the node picked on it; the ship's hangar open. */
   private heroOpen = false;
-  private capPick: string | null = null;
+  /** The Captain's skills learnt this visit to his tree (undo or clear takes them back), and how he was before each. */
+  private capPlaced: string[] = [];
+  private capHistory: CaptainMeta[] = [];
   private hangarOpen = false;
   /** The base on the setup page (3D), while it is shown. */
   private base: Base3d | null = null;
@@ -973,7 +974,8 @@ export class CampaignView {
       }
       case 'cmp-hero':
         this.heroOpen = !this.heroOpen;
-        this.capPick = null;
+        this.capPlaced = [];
+        this.capHistory = [];
         break;
       case 'cmp-hangar':
         this.hangarOpen = !this.hangarOpen;
@@ -1000,22 +1002,73 @@ export class CampaignView {
         saveMeta(fitPart(loadMeta(), arg as PartSlot, null));
         sound.hover();
         break;
-      case 'cmp-cap-pick':
-        this.capPick = this.capPick === arg ? null : arg;
-        sound.hover();
-        break;
-      case 'cmp-cap-buy': {
+      case 'cmp-cap-pick': {
+        // [direction: a skill taken when tapped once, the points all confirmed at once, as in the other skills menu]: a
+        // tap learns it there and then (undo or clear takes it back while the tree is open); a learnt ability is
+        // carried or left behind, a learnt lead led with or not.
         const meta = loadMeta();
-        const [kind, id] = arg.split(':');
-        const buy: CaptainBuy = kind === 'stat' ? { kind: 'stat', stat: id as CaptainStat } : kind === 'slot' ? { kind: 'slot' } : kind === 'ability' ? { kind: 'ability', id } : { kind: 'lead', id };
-        const why = captainBuyProblem(meta, buy);
-        if (why) {
+        const c = captainMeta(meta);
+        const [kind, id, step] = arg.split(':');
+        const fail = (why: string) => {
           this.host.toast(why);
           sound.error();
+        };
+        if (kind === 'ability' && c.abilities.includes(id)) {
+          if (!c.equipped.includes(id) && c.equipped.length >= captainSlots(c.slots)) {
+            fail('Every ability slot is full.');
+            break;
+          }
+          saveMeta(equipCaptainAbility(meta, id));
+          sound.hover();
+          requestAnimationFrame(() => this.showUpTip());
           break;
         }
+        if (kind === 'lead' && c.leads.includes(id)) {
+          saveMeta(setCaptainLead(meta, c.lead === id ? undefined : id));
+          sound.hover();
+          requestAnimationFrame(() => this.showUpTip());
+          break;
+        }
+        let buy: CaptainBuy;
+        if (kind === 'stat') {
+          const stat = id as CaptainStat;
+          if (Number(step) < c[stat]) break;
+          if (Number(step) > c[stat]) {
+            fail('Learn the one before it first.');
+            break;
+          }
+          buy = { kind: 'stat', stat };
+        } else if (kind === 'slot') {
+          if (id === 'base' || Number(id) < c.slots) break;
+          if (Number(id) > c.slots) {
+            fail('Unlock the one before it first.');
+            break;
+          }
+          buy = { kind: 'slot' };
+        } else buy = kind === 'ability' ? { kind: 'ability', id } : { kind: 'lead', id };
+        const why = captainBuyProblem(meta, buy);
+        if (why) {
+          fail(why);
+          break;
+        }
+        this.capHistory.push(c);
+        this.capPlaced.push(arg);
+        sound.charge(this.capPlaced.length - 1);
         saveMeta(buyCaptain(meta, buy));
-        sound.upgrade();
+        requestAnimationFrame(() => this.showUpTip());
+        break;
+      }
+      case 'cmp-cap-undo':
+      case 'cmp-cap-clear': {
+        // Skills learnt this visit taken back (the last, or all of them), the Captain as he was before.
+        const snap = act === 'cmp-cap-undo' ? this.capHistory.pop() : this.capHistory[0];
+        if (act === 'cmp-cap-undo') this.capPlaced.pop();
+        else {
+          this.capPlaced = [];
+          this.capHistory = [];
+        }
+        if (snap) saveMeta({ ...loadMeta(), captain: snap });
+        sound.hover();
         break;
       }
       case 'cmp-aff':
@@ -1062,7 +1115,8 @@ export class CampaignView {
           break;
         }
         this.capResetArmed = false;
-        this.capPick = null;
+        this.capPlaced = [];
+        this.capHistory = [];
         saveMeta(resetCaptain(meta));
         sound.upgrade();
         break;
@@ -1716,12 +1770,12 @@ export class CampaignView {
    */
   private renderHeroPanel(meta: MetaState): string {
     const c = captainMeta(meta);
-    const pick = this.capPick;
+    const placed = new Set(this.capPlaced);
     const left = pointsLeft(meta);
     // [direction: the Captain's skill tree styled like the general skill tree]: drawn as that tree is, round the
     // Captain's emblem at the foot of the sky: a branch for each of what the Captain can learn fanning up from it, each
     // skill a mote of light in its branch's colour (lit once learnt, a dashed ring turning round what can be learnt
-    // now), lines joining each to what it needs; its tip on a hover, and a tap shows it below to learn, carry or lead.
+    // now), lines joining each to what it needs; its tip on a hover, and a tap learns it (or carries it, or leads).
     // [direction: the tree starting above his head, wrapping round him to use the page]: its root just over the
     // Captain's head, its branches curving down the page on either side of him, his body clear beneath it (angles
     // clockwise on screen from straight right; up is drawn shallower, the page's head being close above).
@@ -1745,10 +1799,13 @@ export class CampaignView {
     const lines: string[] = [];
     const nodes: string[] = [];
     const labels: string[] = [];
-    const node = (key: string, p: [number, number], colour: string, st: { owned: boolean; can: boolean; locked: boolean; on?: boolean; big?: boolean }, title: string, text: string, next = '') =>
-      nodes.push(`<button class="up-node ${st.big ? 'tier-3' : ''} ${st.owned ? 'owned' : ''} ${st.owned ? 'maxed' : ''} ${st.locked ? 'locked' : ''} ${st.can ? 'afford' : ''} ${st.on ? 'hp-carried' : ''} ${pick === key ? 'on' : ''}" style="--x:${p[0].toFixed(4)};--y:${p[1].toFixed(4)};--bc:${colour};--lv:${st.owned ? 1 : 0}" data-act="cmp-cap-pick" data-arg="${esc(key)}" data-up-title="${esc(title)}" data-up-text="${esc(text)}" data-up-next="${esc(next)}" data-up-rich="1" aria-label="${esc(title)}">
-          <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" class="${st.owned ? 'on' : ''}"/></svg><i class="up-mote" aria-hidden="true"></i></span>
+    // (Learnt this visit: planned, its ring paler, until the tree is left; undo or clear takes it back.)
+    const node = (key: string, p: [number, number], colour: string, st: { owned: boolean; can: boolean; locked: boolean; on?: boolean; big?: boolean }, title: string, text: string, next = '') => {
+      const plan = st.owned && placed.has(key);
+      nodes.push(`<button class="up-node ${st.big ? 'tier-3' : ''} ${st.owned && !plan ? 'owned' : ''} ${plan ? 'planned' : ''} ${st.owned ? 'maxed' : ''} ${st.locked ? 'locked' : ''} ${st.can ? 'afford' : ''} ${st.on ? 'hp-carried' : ''}" style="--x:${p[0].toFixed(4)};--y:${p[1].toFixed(4)};--bc:${colour};--lv:${st.owned ? 1 : 0}" data-act="cmp-cap-pick" data-arg="${esc(key)}" data-up-title="${esc(title)}" data-up-text="${esc(text)}" data-up-next="${esc(next)}" data-up-rich="1" aria-label="${esc(title)}">
+          <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" class="${plan ? 'plan' : st.owned ? 'on' : ''}"/></svg><i class="up-mote" aria-hidden="true"></i></span>
         </button>`);
+    };
     const price = (buy: CaptainBuy) => captainPrice(meta, buy);
     const can = (buy: CaptainBuy) => !captainBuyProblem(meta, buy);
     const label = (deg: number, k: number, name: string) => {
@@ -1803,7 +1860,7 @@ export class CampaignView {
       [[0.56, 238, 302, 4], [0.9, 212, 328, 6]],
       CAPTAIN_ABILITIES.map((a) => {
         const owned = c.abilities.includes(a.id), on = c.equipped.includes(a.id);
-        return { key: `ability:${a.id}`, owned, on, buy: { kind: 'ability', id: a.id } as CaptainBuy, title: a.ability.name.toLowerCase(), text: `${[a.ability.cost ? `${a.ability.cost} energy` : '', a.ability.pay?.stability ? `−${a.ability.pay.stability} stability` : '', a.ability.pay?.selfHeat ? `{heat:${a.ability.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ').replace(/^(.+)$/, '$1: ')}${a.ability.text} Once a day.`, note: on ? 'carried' : 'learnt · not carried' };
+        return { key: `ability:${a.id}`, owned, on, buy: { kind: 'ability', id: a.id } as CaptainBuy, title: a.ability.name.toLowerCase(), text: `${[a.ability.cost ? `${a.ability.cost} energy` : '', a.ability.pay?.stability ? `−${a.ability.pay.stability} stability` : '', a.ability.pay?.selfHeat ? `{heat:${a.ability.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ').replace(/^(.+)$/, '$1: ')}${a.ability.text} Once a day.`, note: on ? 'carried · tap to leave it behind' : c.equipped.length >= captainSlots(c.slots) ? 'learnt · every ability slot full' : 'learnt · tap to carry it' };
       }),
     );
     fan(
@@ -1811,7 +1868,7 @@ export class CampaignView {
       [[0.5, 4, 40, 2], [0.82, 8, 36, 2]],
       CAPTAIN_LEADS.map((l) => {
         const owned = c.leads.includes(l.id), on = c.lead === l.id;
-        return { key: `lead:${l.id}`, owned, on, buy: { kind: 'lead', id: l.id } as CaptainBuy, title: l.name.toLowerCase(), text: l.text, note: on ? 'leading' : 'learnt · not leading' };
+        return { key: `lead:${l.id}`, owned, on, buy: { kind: 'lead', id: l.id } as CaptainBuy, title: l.name.toLowerCase(), text: l.text, note: on ? 'leading · tap to stop' : 'learnt · tap to lead with it' };
       }),
     );
     return `
@@ -1819,6 +1876,7 @@ export class CampaignView {
         <header class="up-head up-head-tree">
           <div class="up-left">
             <button class="up-back" data-act="cmp-hero" aria-label="Back">‹ back</button>
+            ${this.capPlaced.length ? '<button class="up-plan-undo" data-act="cmp-cap-undo">undo</button><button class="up-plan-undo" data-act="cmp-cap-clear">clear</button>' : ''}
             ${captainPointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.capResetArmed ? 'armed' : ''}" data-act="cmp-cap-reset">${this.capResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}
           </div>
           <div class="up-title-big"><h3>the captain</h3><span class="up-xp">${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small></span></div>
@@ -1834,7 +1892,6 @@ export class CampaignView {
             </div>
           </div>
         </div>
-        ${this.renderCapDetail(meta)}
       </div>`;
   }
 
@@ -1922,50 +1979,6 @@ export class CampaignView {
         </div>
         <div class="ar-act">${action}</div>
       </div>`;
-  }
-
-  /** The picked node of the hero panel: what it gives, and buying it (or carrying it, or leading with it). */
-  private renderCapDetail(meta: MetaState): string {
-    const key = this.capPick;
-    if (!key) return `<footer class="hp-detail hp-hint">Tap a node to see it.</footer>`;
-    const c = captainMeta(meta);
-    const [kind, id] = key.split(':');
-    const buyBtn = (buy: CaptainBuy, label = 'learn') => {
-      const price = captainPrice(meta, buy);
-      if (price === null) return '';
-      const why = captainBuyProblem(meta, buy);
-      return `<button class="btn-primary hp-buy" data-act="cmp-cap-buy" data-arg="${esc(key)}" ${why ? 'disabled' : ''}>${label} · ${XP_MARK}${price}</button>`;
-    };
-    let title = '', text = '', act = '';
-    if (kind === 'stat') {
-      const stat = id as CaptainStat;
-      const level = Number(key.split(':')[2]) + 1;
-      const name = { attack: 'attack', stability: 'stability', cheaper: 'cost' }[stat];
-      title = `${name} ${level}`;
-      text = esc(stat === 'attack' ? `+${level} attack.` : stat === 'stability' ? `+${level * CAPTAIN_STABILITY_STEP} stability.` : `Costs ${level} less to play.`);
-      act = c[stat] === level - 1 ? buyBtn({ kind: 'stat', stat }, 'upgrade') : c[stat] >= level ? '<span class="hp-have">learnt</span>' : '<span class="hp-have">the one before first</span>';
-    } else if (kind === 'slot') {
-      const n = id === 'base' ? 1 : Number(id) + 2;
-      title = `ability slot ${n}`;
-      text = esc(`Carry ${n} abilities into battle.`);
-      act = id === 'base' ? '<span class="hp-have">learnt</span>' : c.slots === Number(id) ? buyBtn({ kind: 'slot' }, 'unlock') : c.slots > Number(id) ? '<span class="hp-have">learnt</span>' : '<span class="hp-have">the one before first</span>';
-    } else if (kind === 'ability') {
-      const a = captainAbility(id)!;
-      title = a.ability.name.toLowerCase();
-      const pay = [a.ability.cost ? `${a.ability.cost} energy` : '', a.ability.pay?.stability ? `−${a.ability.pay.stability} stability` : '', a.ability.pay?.selfHeat ? `{heat:${a.ability.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ');
-      text = `${cardTextHtml(`${pay ? `${pay}: ` : ''}${a.ability.text}`, undefined, true)} <small>once a day</small>`;
-      act = !c.abilities.includes(id)
-        ? buyBtn({ kind: 'ability', id })
-        : !c.equipped.includes(id) && c.equipped.length >= captainSlots(c.slots)
-          ? '<span class="hp-have">slots full</span>'
-          : `<button class="btn hp-buy" data-act="cmp-cap-equip" data-arg="${esc(id)}">${c.equipped.includes(id) ? 'leave behind' : 'carry'}</button>`;
-    } else {
-      const l = captainLead(id)!;
-      title = l.name.toLowerCase();
-      text = cardTextHtml(l.text, undefined, true);
-      act = !c.leads.includes(id) ? buyBtn({ kind: 'lead', id }) : `<button class="btn hp-buy" data-act="cmp-cap-lead" data-arg="${esc(id)}">${c.lead === id ? 'stop leading' : 'lead'}</button>`;
-    }
-    return `<footer class="hp-detail"><div><b>${esc(title)}</b><p>${text}</p></div>${act}</footer>`;
   }
 
   /**
