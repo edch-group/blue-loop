@@ -4,6 +4,7 @@
  * model as the campaign menu's]. Box units as the ships' (ship3d.ts): 40 to the model's 1, x along, y across, z up.
  */
 import { captainModel, streamerModel } from './captain-model';
+import type { PartSlot } from '../engine/parts';
 import { Mesh, SHIP_STRIDE, type CaptainShipSpec, type RGB, type ShipModel, type V3 } from './ship3d';
 
 /** A point of the box (x along, y across, z up) in the model's own axes. */
@@ -45,6 +46,22 @@ function hullSecs(k: number) {
     { x: 40.5, w: 0.25, t: 0.25, b: 0.35, z: 4.3, p: 2 },
   ];
 }
+/**
+ * Where each part's slot is on the ship (box units: x along, y across, z up), as the hangar marks it [direction: a
+ * birdseye view of the actual ship, parts attached to it directly]: over the place its part is built.
+ */
+export function slotSpots(level: number): Record<PartSlot, V3> {
+  const k = 1 + Math.max(0, Math.min(15, level)) * 0.025;
+  return {
+    armour: [9.5, 12 - hullAt(k, 9.5).w - 0.4, hullAt(k, 9.5).top - 1],
+    shield: [21.5, 14.5, hullAt(k, 22).top + 1.6],
+    port: [24, 12 - (hullAt(k, 22).w + 1.4), 6.6],
+    starboard: [24, 12 + hullAt(k, 22).w + 1.4, 6.6],
+    booster: [3, 12 + 4.6 * k + 1.6, 6],
+    warp: [13.2, 12 + hullAt(k, 13.2).w + 0.9, 6],
+  };
+}
+
 /** The hull's half-width and its top at x (box units), by its sections. */
 function hullAt(k: number, x: number) {
   const s = hullSecs(k);

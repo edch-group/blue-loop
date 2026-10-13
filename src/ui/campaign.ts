@@ -458,6 +458,12 @@ function mul4(a: number[], b: number[]): number[] {
 }
 
 
+/** A part's tile picture: the part itself in 3D, turning (loot3d.ts), or without WebGL its slot's shape. */
+function partIcon(id: string): string {
+  const p = shipPart(id);
+  return canNebula() && p ? `<canvas class="part-3d" data-loot3d="${p.kind}:${p.rarity}"></canvas>` : partShape(id);
+}
+
 export class CampaignView {
   state: CampaignState | null = null;
   private selected: string | null = null;
@@ -2231,13 +2237,17 @@ export class CampaignView {
    * (or, with nothing in hand, to take out what is fitted).
    */
   private renderHangar(meta: MetaState): string {
+    // [direction: clicking the ship takes the player to a birdseye view of the actual ship, where they attach parts to
+    // it directly and see them change its look]: with the 3D ship, no schematic; each slot marked on the ship itself
+    // (placed as it moves: showBase's frame), a part fitted there built onto it at once.
+    const onShip = canNebula();
     const fitted = meta.fitted ?? {};
     const have = meta.hangar ?? [];
     const pick = this.hangarPick;
     const fits = pick ? partSlots(pick) : [];
     const on = new Set(Object.values(fitted));
     const tiles = SHIP_PARTS.filter((p) => have.includes(p.id))
-      .map((p) => `<button class="hg-part rarity-${p.rarity} ${pick === p.id ? 'on' : ''} ${on.has(p.id) ? 'fitted' : ''}" data-act="cmp-part-pick" data-arg="${p.id}" aria-label="${esc(p.name)}">${partShape(p.id)}<b>${esc(p.name.toLowerCase())}</b>${on.has(p.id) ? '<small>fitted</small>' : ''}</button>`)
+      .map((p) => `<button class="hg-part rarity-${p.rarity} ${pick === p.id ? 'on' : ''} ${on.has(p.id) ? 'fitted' : ''}" data-act="cmp-part-pick" data-arg="${p.id}" aria-label="${esc(p.name)}">${partIcon(p.id)}<b>${esc(p.name.toLowerCase())}</b>${on.has(p.id) ? '<small>fitted</small>' : ''}</button>`)
       .join('');
     const p = shipPart(pick ?? undefined);
     const where = p ? SHIP_SLOTS.filter((sl) => sl.kind === p.kind) : [];
@@ -2253,12 +2263,17 @@ export class CampaignView {
           <div class="up-title-big"><h3>ship</h3><span class="up-xp"><b>${have.length}</b><small>of ${SHIP_PARTS.length} parts found</small></span></div>
           <span></span>
         </header>
-        <div class="hg-body">
-          <div class="hg-ship">${schematic(fitted, pick, fits)}</div>
+        <div class="hg-body${onShip ? ' hg-body-3d' : ''}">
+          ${onShip ? '' : `<div class="hg-ship">${schematic(fitted, pick, fits)}</div>`}
           <div class="hg-parts">${tiles || '<p class="hg-none">No parts yet.</p>'}</div>
         </div>
         ${detail}
-      </div>`;
+      </div>
+      ${onShip ? `<div class="hg-marks">${SHIP_SLOTS.map((sl) => {
+        const part = shipPart(fitted[sl.id]);
+        const state = pick && fits.includes(sl.id) && fitted[sl.id] !== pick ? 'hg-lit' : pick ? 'hg-dim' : part ? 'hg-fitted' : 'hg-empty';
+        return `<button class="hg-mark ${state}${part ? ` rarity-${part.rarity}` : ''}" data-slot="${sl.id}" data-act="cmp-slot" data-arg="${sl.id}" aria-label="${esc(sl.name)}"><span class="hg-mark-ring"></span><small>${esc(part ? part.name.toLowerCase() : sl.name)}</small></button>`;
+      }).join('')}</div>` : ''}`;
   }
 
   /**
@@ -2275,7 +2290,7 @@ export class CampaignView {
     const fits = pick ? partSlots(pick) : [];
     const on = new Set(Object.values(fitted));
     const tiles = SHIP_PARTS.filter((p) => have.includes(p.id))
-      .map((p) => `<button class="hg-part rarity-${p.rarity} ${pick === p.id ? 'on' : ''} ${on.has(p.id) ? 'fitted' : ''}" data-act="cmp-ar-pick" data-arg="${p.id}" ${used ? 'disabled' : ''} aria-label="${esc(p.name)}">${partShape(p.id)}<b>${esc(p.name.toLowerCase())}</b>${on.has(p.id) ? '<small>fitted</small>' : ''}</button>`)
+      .map((p) => `<button class="hg-part rarity-${p.rarity} ${pick === p.id ? 'on' : ''} ${on.has(p.id) ? 'fitted' : ''}" data-act="cmp-ar-pick" data-arg="${p.id}" ${used ? 'disabled' : ''} aria-label="${esc(p.name)}">${partIcon(p.id)}<b>${esc(p.name.toLowerCase())}</b>${on.has(p.id) ? '<small>fitted</small>' : ''}</button>`)
       .join('');
     const p = shipPart(pick ?? undefined);
     const action = used
@@ -2992,6 +3007,16 @@ export class CampaignView {
         if (sunrise && at) {
           sunrise.style.left = `${at.x.toFixed(1)}px`;
           sunrise.style.top = `${at.y.toFixed(1)}px`;
+        }
+        // The hangar's marks: each on its slot on the ship, wherever it is now.
+        const marks = canvas.closest('main')?.querySelectorAll<HTMLElement>('.hg-mark[data-slot]');
+        if (marks?.length) {
+          const r = canvas.getBoundingClientRect(), zoom = r.width / (canvas.clientWidth || r.width) || 1;
+          for (const mk of marks) {
+            const q = base.slotAt(mk.dataset.slot as PartSlot);
+            if (!q) continue;
+            mk.style.transform = `translate(${(q.x + r.left / zoom).toFixed(1)}px, ${(q.y + r.top / zoom).toFixed(1)}px)`;
+          }
         }
         // The options, arced round the ship's bow in a half circle [direction: the menu options arced round the front
         // of the ship in a semicircle, following the ship's angle so as to look natural; not following its bobbing,

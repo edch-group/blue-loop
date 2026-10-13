@@ -13,7 +13,8 @@
  * lit by the same shader (nebula-objects.ts), so it belongs to the same game.
  */
 import { SHIP_FRAG, SHIP_VERT } from './nebula-objects';
-import { captainShipModel, seq } from './captain-ship';
+import { captainShipModel, seq, slotSpots } from './captain-ship';
+import type { PartSlot } from '../engine/parts';
 import { captainModel, streamerModel } from './captain-model';
 import { COMPANION_PLACES, companionModel } from './companion-models';
 import type { CompanionId } from '../engine/companions';
@@ -233,6 +234,14 @@ export class Base3d {
     this.deck = s.deck;
     this.rail = s.rail;
     this.dish = s.dish;
+    this.slots = slotSpots(spec.level);
+  }
+  private slots: Record<PartSlot, V3> | null = null;
+
+  /** Where a part's slot is on the canvas now (CSS pixels, as laid out), as the ship moves: the hangar marks it there. */
+  slotAt(slot: PartSlot): { x: number; y: number } | null {
+    const s = this.slots?.[slot];
+    return s ? this.toScreen(apply(this.shipM, B(s[0], s[1], s[2]))) : null;
   }
 
   /**
@@ -240,6 +249,7 @@ export class Base3d {
    * settling into its place]: from far off to the left, easing out as it comes to rest, its nose dipping as it slows.
    */
   private entry: { t0: number | null; dur: number } | null = null;
+  private calm = 0;
   /** Held off to the left (`go` false) until the scene is shown, then flown in (`arrive(dur, true)`). */
   arrive(dur: number, go = true) {
     this.entry = { t0: go ? this.time() : null, dur };
@@ -368,7 +378,9 @@ export class Base3d {
     if (z === 'captain') return { target: sub3(this.spot('captain'), [0, -0.14, 0]), yaw: 1.0, pitch: 0.02, dist: 2.0 / narrow, off: 0 };
     // (A companion as the Captain is: in the middle, low, their tree above and round them.)
     if (z && z !== 'hangar' && z !== 'research') return { target: sub3(this.spot(z), [0, -0.14, 0]), yaw: 1.0, pitch: 0.02, dist: 2.0 / narrow, off: 0 };
-    if (z === 'hangar') return { target: this.spot('hangar'), yaw: -0.45, pitch: 0.48, dist: 9 / narrow, off: -0.3 };
+    // (The ship from above [direction: a birdseye view of the actual ship, where parts are attached to it directly]:
+    // its nose to the right, a little from astern and to port, on the left of the screen beside the hangar's page.)
+    if (z === 'hangar') return { target: apply(scale(Base3d.SHIP_SCALE), B(20, 12, 5)), yaw: 0, pitch: 1.25, dist: 11.5 / narrow, off: -0.15 * narrow };
     // (Enlightenment is the Stellari, out on the land: the camera turns from the ship, which slides away to the left.)
     if (z === 'research') return { target: [7, 1.4, -2], yaw: -0.52, pitch: 0.1, dist: 6, off: 0 };
     // The whole ship, side on and a little from ahead and below (as the art has it), all of it in view.
@@ -394,7 +406,9 @@ export class Base3d {
     const S = Base3d.SHIP_SCALE;
     // (Handing over to the campaign, it settles still, as the campaign's first frame has it.)
     const ho = this.handOver ? Math.max(0, Math.min(1, this.handOver.k())) : 0;
-    const sway = 1 - ho;
+    // (In the hangar, looked down on as parts are fitted, it rides almost still: its slots held under the finger.)
+    this.calm += ((this.focused === 'hangar' ? 1 : 0) - this.calm) * Math.min(1, Math.max(0, t - this.lastT) * 2.6);
+    const sway = (1 - ho) * (1 - 0.8 * this.calm);
     // (Flying in [direction: drifting in slowly whilst bobbing]: off to the left, drifting gently to its place, rising
     // and falling as it comes, the bob settling into its idle one.)
     let ex = 0, ey = 0, tip = 0;
