@@ -138,13 +138,16 @@ const GROUND_FRAG = `
 #extension GL_OES_standard_derivatives : enable
 precision highp float;
 varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist; varying float vRest;
-uniform vec3 uPaper; uniform vec3 uEye; uniform float uFront; uniform float uFade; uniform float uTime; uniform float uGalaxy; uniform float uBeam; uniform float uSoft;
+uniform vec3 uPaper; uniform vec3 uEye; uniform float uFront; uniform float uFade; uniform float uTime; uniform float uGalaxy; uniform float uBeam; uniform float uSoft; uniform float uPass;
 ${NOISE}
 void main() {
   if (vFall > 2.0) discard;
   // (The campaign menu's land: what falls fades out as it goes, and nothing is marked red before it does.)
   float keep = uSoft > 0.5 ? 1.0 - smoothstep(0.0, 1.1, vFall) : 1.0;
   if (keep < 0.01) discard;
+  // (Soft, drawn in two passes: the land at rest, writing its depth; then the falling shards over it, not, so a
+  // fading shard never hides the land or another shard behind it.)
+  if (uPass > 0.5 && (vFall > 0.0) != (uPass > 1.5)) discard;
   if (uFront > 0.5 && vWorld.y * uEye.y <= 0.0) discard;
   vec3 n = normalize(vNorm);
   if (dot(n, uEye - vWorld) < 0.0) n = -n;
@@ -208,7 +211,7 @@ void main() {
   float near = 1.0 - smoothstep(5.0, 11.0, vDist);
   c = mix(c, vec3(0.45, 0.51, 0.64), mesh * 0.32 * near);
   // Cracks along the shards' borders, glowing with the colours beneath.
-  if (vCrack > 0.5 && !(uSoft > 0.5 && vFall <= 0.0)) {
+  if (vCrack > 0.5 && uSoft < 0.5) {
     vec3 b = vBary + (1.0 - vEdge) * 9.0;
     float d = min(b.x, min(b.y, b.z));
     float w = fwidth(d) * 1.8;
@@ -562,14 +565,23 @@ class Layer {
     }
     if (this.groundCount) {
       // (Soft, the falling shards are see-through as they fade: blended over what lies beneath.)
+      done = use(this.groundProg, this.groundBuf, GROUND_ATTRS);
+      const pass = gl.getUniformLocation(this.groundProg, 'uPass');
       if (this.soft) {
+        gl.uniform1f(pass, 1);
+        gl.drawArrays(gl.TRIANGLES, 0, this.groundCount);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.depthMask(false);
+        gl.uniform1f(pass, 2);
+        gl.drawArrays(gl.TRIANGLES, 0, this.groundCount);
+        gl.depthMask(true);
+        gl.disable(gl.BLEND);
+      } else {
+        gl.uniform1f(pass, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, this.groundCount);
       }
-      done = use(this.groundProg, this.groundBuf, GROUND_ATTRS);
-      gl.drawArrays(gl.TRIANGLES, 0, this.groundCount);
       done();
-      gl.disable(gl.BLEND);
     }
     // What lies under the galaxy.
     this.galaxy?.drawGalaxy(cam, time, fade, look, beam);
