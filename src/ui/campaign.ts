@@ -1727,7 +1727,8 @@ export class CampaignView {
     const run = this.newRun();
     const me = flagship(run.state, run.state.playerId);
     const at = me ? run.state.nodes.find((n) => n.id === me.nodeId) : undefined;
-    if (!page || !scene || !base || !world || !start || !at || run.state.rift) {
+    // (Motion reduced: no pan; the menu's scenes would not be driven to its end.)
+    if (!page || !scene || !base || !world || !start || !at || run.state.rift || reducedMotion()) {
       this.beginRun(run, canNebula() && !reducedMotion());
       return;
     }
@@ -1827,8 +1828,25 @@ export class CampaignView {
           window.setTimeout(() => veil.remove(), 2500);
         },
       };
+      // (The pan is driven by the menu's land drawing its frames: should those stall (a slow or power-saving device),
+      // it is ended on the clock all the same, so the menu's scenes never stay up drawing under the run.)
+      const pan = this.menuPan;
+      window.setTimeout(() => {
+        if (this.menuPan !== pan || pan.done) return;
+        pan.done = true;
+        pan.e = 1;
+        pan.end();
+      }, (LAUNCH_PAN + 1.5) * 1000);
     };
     requestAnimationFrame(go);
+    // (And should the map never come in at all, the menu's scenes are taken away all the same.)
+    window.setTimeout(() => {
+      if (!document.body.contains(veil) || this.menuPan) return;
+      this.launching = false;
+      this.menuWorld = null;
+      if (this.nebula) this.nebula.hold = false;
+      veil.remove();
+    }, (LAUNCH_PAN + 8) * 1000);
   }
 
   /** The commander's experience in all: what is banked, and what this run has earned and not yet banked. */
@@ -2257,7 +2275,7 @@ export class CampaignView {
           .join('')}</div></footer>`
       : `<footer class="hp-detail hp-hint">${have.length ? 'Pick a part, then its slot.' : 'Parts are found on runs: every boss leaves one.'}</footer>`;
     return `
-      <div class="up-shop hangar-panel">
+      <div class="up-shop hangar-panel${onShip ? ' hangar-3d' : ''}">
         <header class="up-head up-head-tree">
           <div class="up-left"><button class="up-back" data-act="cmp-hangar" aria-label="Back">‹ back</button></div>
           <div class="up-title-big"><h3>ship</h3><span class="up-xp"><b>${have.length}</b><small>of ${SHIP_PARTS.length} parts found</small></span></div>

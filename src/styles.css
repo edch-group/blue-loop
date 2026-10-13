@@ -7447,7 +7447,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .card.kind-command:not(.card-big) .card-sing { margin-top: 0.15em; padding-top: 0.15em; }
 
 /* ---------- The hangar on the ship itself [direction: a birdseye view of the actual ship, parts attached directly] ---------- */
-.cs-captain-page .up-shop.hangar-panel:has(.hg-body-3d) { left: 58%; }
+.cs-captain-page .up-shop.hangar-panel.hangar-3d { left: 58%; }
 .hg-body-3d { grid-template-columns: minmax(0, 1fr); width: 100%; align-items: start; }
 .hg-body-3d .hg-parts { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .hg-part .part-3d { width: 64px; height: 64px; }
