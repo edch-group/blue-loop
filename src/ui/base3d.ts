@@ -400,9 +400,11 @@ export class Base3d {
     let ex = 0, ey = 0, tip = 0;
     if (this.entry) {
       const k = this.entry.t0 === null ? 0 : Math.min(1, (t - this.entry.t0) / this.entry.dur);
+      // (Starting just in view, so it shows near at once, bobbing from the first frame [direction: bobbing in right
+      // from the start, slower still, visible near-instantly].)
       const left = 1 - Math.sin((Math.PI / 2) * k);
-      const ride = Math.sin(Math.PI * Math.min(1, k * 1.15));
-      ex = -14 * left;
+      const ride = 1 - Math.max(0, Math.min(1, (k - 0.6) / 0.4)) ** 2;
+      ex = -4 * left;
       ey = 0.4 * left + 0.12 * Math.sin(t * 1.5) * ride;
       tip = -0.03 * left + 0.025 * Math.cos(t * 1.5) * ride;
       if (k >= 1) this.entry = null;
