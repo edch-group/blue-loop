@@ -7428,13 +7428,22 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   background: radial-gradient(closest-side, rgba(255, 255, 255, 1), rgba(232, 240, 252, 0.7) 50%, rgba(214, 226, 246, 0) 100%); animation: loot-glow-breathe 2.6s ease-in-out infinite; }
 /* A Hero's singularity [direction: hero ultimates, "singularities"]: its charge a slim gauge beside the Hero, filling
    from the foot, a star over it; blazing (white light pulsing) once full. On the card, its block under the abilities. */
-.hero-charge { position: relative; display: grid; justify-items: center; width: calc(var(--tcw) * 0.14); min-width: 10px; height: calc(var(--tcw) * 0.9); border-radius: 999px; background: rgba(40, 46, 66, 0.12); box-shadow: inset 0 0 0 1px rgba(90, 100, 130, 0.28); overflow: visible; cursor: var(--cur); }
-.hero-charge i { position: absolute; left: 2px; right: 2px; bottom: 2px; height: calc((100% - 4px) * var(--k)); border-radius: 999px; background: linear-gradient(180deg, #ffffff, #b9d4f6); box-shadow: 0 0 6px rgba(150, 190, 250, 0.6); transition: height 0.5s ease-out; }
-.hero-charge b { position: absolute; top: calc(-1 * var(--tcw) * 0.16); font-size: calc(var(--tcw) * 0.13); line-height: 1; color: #8292b4; }
-.hero-charge-full { background: rgba(120, 160, 230, 0.2); box-shadow: inset 0 0 0 1px rgba(150, 190, 250, 0.7), 0 0 12px rgba(160, 200, 255, 0.8); animation: hero-charge-blaze 1.4s ease-in-out infinite; }
-.hero-charge-full b { color: #4f7fd0; text-shadow: 0 0 6px rgba(160, 200, 255, 0.9); }
-@keyframes hero-charge-blaze { 50% { box-shadow: inset 0 0 0 1px rgba(190, 215, 255, 0.9), 0 0 20px rgba(170, 210, 255, 1); } }
-@media (prefers-reduced-motion: reduce) { .hero-charge-full { animation: none; } }
+.hero-charge { position: relative; display: grid; justify-items: center; width: calc(var(--tcw) * 0.14); min-width: 10px; height: calc(var(--tcw) * 0.9); border-radius: 999px; background: rgba(120, 30, 20, 0.1); box-shadow: inset 0 0 0 1px rgba(170, 60, 40, 0.3); overflow: visible; cursor: var(--cur); }
+.hero-charge i { position: absolute; left: 2px; right: 2px; bottom: 2px; height: calc((100% - 4px) * var(--k)); border-radius: 999px; background: linear-gradient(180deg, #ffb08a, #e2361f 45%, #a8180e); box-shadow: 0 0 6px rgba(230, 60, 30, 0.6); transition: height 0.5s ease-out; }
+.hero-charge b { position: absolute; top: calc(-1 * var(--tcw) * 0.16); font-size: calc(var(--tcw) * 0.13); line-height: 1; color: #b4685a; }
+.hero-charge-full { background: rgba(230, 70, 30, 0.2); box-shadow: inset 0 0 0 1px rgba(255, 120, 70, 0.8), 0 0 12px rgba(255, 80, 30, 0.8); animation: hero-charge-blaze 1.4s ease-in-out infinite; }
+.hero-charge-full b { color: #e2361f; text-shadow: 0 0 6px rgba(255, 120, 60, 0.9); }
+@keyframes hero-charge-blaze { 50% { box-shadow: inset 0 0 0 1px rgba(255, 170, 110, 0.95), 0 0 20px rgba(255, 90, 30, 1); } }
+/* A Hero whose singularity is full, ablaze [direction: a red flaming border round the card]: a red rim, flames licking
+   out round it in uneven tongues that flicker and climb. */
+.card.card-table.card-ablaze { border-color: #e2361f; box-shadow: 0 0 0 1.5px #e2361f, 0 0 6px 2px rgba(255, 70, 20, 0.85), 0 -6px 14px 2px rgba(255, 110, 30, 0.6), 0 0 26px 6px rgba(220, 40, 10, 0.4); animation: card-ablaze 0.9s steps(6, jump-none) infinite alternate; }
+@keyframes card-ablaze {
+  0% { box-shadow: 0 0 0 1.5px #e2361f, 0 0 6px 2px rgba(255, 70, 20, 0.85), -3px -6px 14px 2px rgba(255, 110, 30, 0.6), 0 0 26px 6px rgba(220, 40, 10, 0.4); }
+  35% { box-shadow: 0 0 0 1.5px #ff4a26, 0 0 8px 3px rgba(255, 90, 20, 0.9), 2px -9px 16px 3px rgba(255, 140, 40, 0.65), 0 -2px 30px 7px rgba(230, 50, 10, 0.45); }
+  70% { box-shadow: 0 0 0 1.5px #d42a15, 0 0 5px 2px rgba(255, 60, 20, 0.8), 4px -5px 12px 2px rgba(255, 120, 30, 0.55), 0 0 22px 5px rgba(210, 40, 10, 0.4); }
+  100% { box-shadow: 0 0 0 1.5px #ff5a2e, 0 0 9px 3px rgba(255, 100, 30, 0.9), -2px -11px 18px 3px rgba(255, 150, 50, 0.6), 0 -3px 32px 8px rgba(235, 55, 10, 0.45); }
+}
+@media (prefers-reduced-motion: reduce) { .hero-charge-full, .card.card-table.card-ablaze { animation: none; } }
 .hero-pick-sing { background: linear-gradient(135deg, #1d2236, #2d3756); color: #eef3ff; box-shadow: 0 0 0 1px rgba(150, 190, 250, 0.6), 0 0 14px rgba(150, 190, 250, 0.55); }
 .hero-pick-sing:hover { background: linear-gradient(135deg, #252c46, #36426a); }
 .hero-pick-sing .hero-pick-words span { color: #c6d2ea; }

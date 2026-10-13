@@ -982,6 +982,17 @@ class SoundBoard {
     this.voice(55, { dur: 1.8, attack: 0.5, gain: 0.12, to: 110, type: 'triangle', cutoff: 400 });
   }
   /** Heat fired at a rival or a card: the recorded laser, slowed a little (the strike, as it lands, is the blow). */
+  /**
+   * A Hero's singularity full [direction: a sound like they're catching fire]: a match struck (a sharp hiss), the
+   * flame taking with a deep rising whoomph, and its crackle settling.
+   */
+  ignite() {
+    this.breath({ dur: 0.12, freq: 4200, type: 'highpass', q: 0.8, gain: 0.07, attack: 0.005 });
+    this.clip(SFX.heatFire, 0.6, 0.78, true);
+    this.breath({ dur: 1.3, freq: 220, to: 1800, type: 'bandpass', q: 0.9, gain: 0.14, attack: 0.18, delay: 0.06 });
+    this.voice(70, { dur: 0.9, attack: 0.08, gain: 0.07, to: 110, type: 'triangle', cutoff: 400, delay: 0.06 });
+    for (let i = 0; i < 9; i++) this.breath({ dur: 0.03 + Math.random() * 0.03, freq: 2200 + Math.random() * 3000, type: 'bandpass', q: 3, gain: 0.05 * (1 - i / 12), attack: 0.002, delay: 0.35 + i * 0.09 + Math.random() * 0.05 });
+  }
   launch() {
     this.clip(SFX.heatFire, 0.55, 1, true);
   }

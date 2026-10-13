@@ -848,6 +848,12 @@ function savedStatsRec(mark: string): GameStats | null {
   }
 }
 
+/** A Hero in play whose singularity is full: its card ablaze. */
+function heroAblaze(c: CardInstance): boolean {
+  const k = cardDef(c.defId).kind === 'command' ? singularityOf(c.defId) : undefined;
+  return !!k && (c.charge ?? 0) >= k.need;
+}
+
 export class App {
   private screen: Screen = 'menu';
   /** Which page of the front end is showing: title → hub (campaign · quickplay · options) → setup. */
@@ -6186,7 +6192,7 @@ export class App {
     const aimHeat = blow ? Math.max(0, blow.sun, ...blow.cards.map((x) => x.heat)) : 0;
     const actionTag = aimHeat ? `<b class="boss-aim-heat">${symbolIcon('heat')}<span>${aimHeat}</span></b>` : '';
     return `
-      <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}${opts.tableau && c.frozen ? ' card-frozen' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
+      <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}${opts.tableau && c.frozen ? ' card-frozen' : ''}${opts.tableau && heroAblaze(c) ? ' card-ablaze' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${growth}${resonance}${fusedTags}${stats}${actionTag}${opts.hand && me && hasPower(me, 'freeCards') && cardCost(c.defId) > 0 ? `<b class="card-discount" title="Costs 0 now (Zero-Point Core)">−${cardCost(c.defId)}</b>` : opts.hand && c.discount ? `<b class="card-discount" title="Costs ${handCost(c)} now (a Bargain)">−${c.discount}</b>` : ''}${opts.tableau && c.shields ? `<b class="card-shields" title="Shields: they take heat before its defence does, and fade at its owner's dawn">${symbolIcon('shield')}<span>${c.shields}</span></b>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
@@ -6351,12 +6357,21 @@ export class App {
    * Beside a Hero in its slot: the boons its card carries (skills and gear). Its abilities are not marked here, at
    * any size (they were too small to read or tap on a phone): tap your Hero for them, large, with what each does.
    */
+  /** Heroes whose singularity is full (each caught fire once, as it filled). */
+  private ablaze = new Set<string>();
   private heroRail(_p: PlayerState, hero: CardInstance, side: 'mine' | 'rival'): string {
     const boons = hero.boons?.length ? this.boonMarks(hero.boons, 'boon-mark hero-boon') : '';
     // Its singularity's charge [direction: hero ultimates, "singularities"]: a slim gauge beside it, filling with
     // what charges it, blazing once full.
     const k = singularityOf(hero.defId);
     const n = Math.min(k?.need ?? 0, hero.charge ?? 0);
+    // (Filled just now: it catches fire [direction: a sound like catching fire, a red flaming border round the card].)
+    if (k && n >= k.need) {
+      if (!this.ablaze.has(hero.uid)) {
+        this.ablaze.add(hero.uid);
+        sound.ignite();
+      }
+    } else this.ablaze.delete(hero.uid);
     const gauge = k
       ? `<span class="hero-charge${n >= k.need ? ' hero-charge-full' : ''}" style="--k:${(n / k.need).toFixed(3)}" title="${esc(`${k.name}: ${n >= k.need ? 'charged' : `${n}/${k.need}`} · ${CHARGE_TEXT[k.charge](k.need)}`)}"><i></i><b>✦</b></span>`
       : '';
