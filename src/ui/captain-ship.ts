@@ -3,7 +3,8 @@
  * deck) and on the map (nebula-objects.ts, flying between systems) [direction: the hero's ship on the map the same
  * model as the campaign menu's]. Box units as the ships' (ship3d.ts): 40 to the model's 1, x along, y across, z up.
  */
-import { Mesh, type CaptainShipSpec, type RGB, type ShipModel, type V3 } from './ship3d';
+import { captainModel, streamerModel } from './captain-model';
+import { Mesh, SHIP_STRIDE, type CaptainShipSpec, type RGB, type ShipModel, type V3 } from './ship3d';
 
 /** A point of the box (x along, y across, z up) in the model's own axes. */
 const B = (x: number, y: number, z: number): V3 => [(x - 20) / 40, z / 40, (y - 12) / 40];
@@ -264,12 +265,39 @@ export function captainShipModel(spec: CaptainShipSpec): { mesh: Float32Array; s
 const mapModels = new Map<string, ShipModel & { smoke: V3[] }>();
 
 /** The ship as the map flies it (built once for each fitting). */
+/**
+ * The ship with the Captain standing on its foredeck, as the menu shows him (base3d.ts: there his coat's tails stream
+ * in the wind; here they are still): at the rail, facing ahead and a little out, his height 0.7 of the menu ship's 4.2.
+ */
+function withCaptain(ship: Float32Array, deck: number): Float32Array {
+  const at = B(32, 12, deck), mid = B(20, 12, 0);
+  const k = 0.7 / 4.2, c = Math.cos(1.3), sn = Math.sin(1.3);
+  const parts = [captainModel(), streamerModel()];
+  const out = new Float32Array(ship.length + parts.reduce((n, p) => n + p.length, 0));
+  out.set(ship);
+  let o = ship.length;
+  for (const p of parts) {
+    for (let i = 0; i < p.length; i += SHIP_STRIDE) {
+      const x = (p[i] - mid[0]) * k, y = p[i + 1] * k, z = (p[i + 2] - mid[2]) * k;
+      out[o + i] = at[0] + c * x + sn * z;
+      out[o + i + 1] = at[1] + y;
+      out[o + i + 2] = at[2] - sn * x + c * z;
+      out[o + i + 3] = c * p[i + 3] + sn * p[i + 5];
+      out[o + i + 4] = p[i + 4];
+      out[o + i + 5] = -sn * p[i + 3] + c * p[i + 5];
+      for (let j = 6; j < SHIP_STRIDE; j++) out[o + i + j] = p[i + j];
+    }
+    o += p.length;
+  }
+  return out;
+}
+
 export function captainShipMap(spec: CaptainShipSpec): ShipModel & { smoke: V3[] } {
   const key = JSON.stringify(spec);
   let m = mapModels.get(key);
   if (!m) {
     const s = captainShipModel(spec);
-    m = { mesh: s.mesh, engines: s.engines, glow: ENGINE, suns: [], smoke: s.smoke };
+    m = { mesh: withCaptain(s.mesh, s.deck), engines: s.engines, glow: ENGINE, suns: [], smoke: s.smoke };
     mapModels.set(key, m);
   }
   return m;
