@@ -323,7 +323,8 @@ export class Base3d {
   private goal(aspect: number, half: number): Pose {
     const z = this.focused;
     const narrow = Math.min(1, aspect / 1.6);
-    if (z === 'captain') return { target: sub3(this.spot('captain'), [0, -0.05, 0]), yaw: 1.0, pitch: 0.02, dist: 1.55 / narrow, off: -0.24 };
+    // (The Captain in the middle of the screen, low, his skill tree starting above his head and wrapping round him.)
+    if (z === 'captain') return { target: sub3(this.spot('captain'), [0, -0.14, 0]), yaw: 1.0, pitch: 0.02, dist: 2.0 / narrow, off: 0 };
     if (z === 'hangar') return { target: this.spot('hangar'), yaw: -0.45, pitch: 0.48, dist: 9 / narrow, off: -0.3 };
     // (Enlightenment is the Stellari, out on the land: the camera turns from the ship, which slides away to the left.)
     if (z === 'research') return { target: [7, 1.4, -2], yaw: -0.52, pitch: 0.1, dist: 6, off: 0 };

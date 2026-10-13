@@ -7250,7 +7250,16 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
    carried into battle (or the lead led with) ringed in its colour. */
 .hp-tree-wrap { position: relative; min-height: 0; }
 .hp-tree-wrap > .up-sky { width: 100%; }
-.hp-tree-wrap .up-sky > * { --R: min(47cqw, calc((94cqh - 70px) / 1.32)); --cy: calc(100% - 34px); }
+/* (Over the whole page, the Captain in its middle: a soft veil only, so he shows through.) */
+.cs-captain-page .up-shop.hero-panel { left: 0; background: radial-gradient(ellipse 60% 70% at 50% 55%, rgba(251, 251, 252, 0) 30%, rgba(251, 251, 252, 0.55) 100%); -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* Its root just over his head (--cy), across in the page's half-width (--Rx), down in the room beneath (--Ry). */
+.hp-tree-wrap .up-sky > * { --Rx: min(44cqw, 620px); --cy: 23cqh; --Ry: calc(77cqh - 34px); }
+.hp-tree-wrap .up-wheel > .up-node, .hp-tree-wrap .up-wheel > .up-arc-label { left: calc(50% + var(--Rx) * var(--x)); top: calc(var(--cy) + var(--Ry) * var(--y)); }
+.hp-tree-wrap .up-line {
+  --px: calc(var(--Rx) * (var(--x2) - var(--x1)));
+  --py: calc(var(--Ry) * (var(--y2) - var(--y1)));
+  left: calc(50% + var(--Rx) * var(--x1)); top: calc(var(--cy) + var(--Ry) * var(--y1));
+}
 .up-wheel > .hp-root { position: absolute; left: 50%; top: var(--cy); width: 62px; height: 62px; transform: translate(-50%, -50%); display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 38% 30%, #fff 0, #f4f5f8 45%, #e2e5eb 100%); box-shadow: inset 0 1.5px 1px #fff, inset 0 -2px 3px rgba(70, 80, 105, 0.16), 0 0 0 1.5px #fff, 0 0 0 3px #dde0e7, 0 6px 16px rgba(70, 76, 100, 0.16); }
 .up-wheel > .hp-root .cs-emblem { width: 34px; height: 34px; fill: #b7bfcd; filter: drop-shadow(0.5px 0.8px 0 #fff) drop-shadow(-0.4px -0.5px 0.2px rgba(52, 62, 88, 0.35)); }
 .up-wheel > .up-arc-label { left: calc(50% + var(--R) * var(--x)); top: calc(var(--cy) + var(--R) * var(--y)); }
@@ -7342,7 +7351,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
    page's own header and footer put away; the skill tree over the whole of it, the ship showing through. */
 .cs-captain-page.cs-focus > .setup-top, .cs-captain-page.cs-focus > .setup-foot { visibility: hidden; }
 .cs-captain-page.cs-focus .cs-base-label { opacity: 0; pointer-events: none; }
-.cs-captain-page .up-shop.hero-panel, .cs-captain-page .up-shop.hangar-panel { left: 40%; background: linear-gradient(90deg, rgba(251, 251, 252, 0), rgba(251, 251, 252, 0.88) 9%, rgba(251, 251, 252, 0.94)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.cs-captain-page .up-shop.hangar-panel { left: 40%; background: linear-gradient(90deg, rgba(251, 251, 252, 0), rgba(251, 251, 252, 0.88) 9%, rgba(251, 251, 252, 0.94)); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .cs-captain-page .cs-base-label { transition: opacity 0.3s, box-shadow 0.18s, background 0.18s, transform 0.18s; }
 
 .cmp-stage.cmp-grabbing, .cmp-stage.cmp-grabbing * { cursor: var(--cur-grabbing) !important; }

@@ -1722,18 +1722,24 @@ export class CampaignView {
     // Captain's emblem at the foot of the sky: a branch for each of what the Captain can learn fanning up from it, each
     // skill a mote of light in its branch's colour (lit once learnt, a dashed ring turning round what can be learnt
     // now), lines joining each to what it needs; its tip on a hover, and a tap shows it below to learn, carry or lead.
+    // [direction: the tree starting above his head, wrapping round him to use the page]: its root just over the
+    // Captain's head, its branches curving down the page on either side of him, his body clear beneath it (angles
+    // clockwise on screen from straight right; up is drawn shallower, the page's head being close above).
     const BR = {
-      attack: { dir: 190, colour: '#d0675a', name: 'attack' },
-      cheaper: { dir: 212, colour: '#d9a441', name: 'cost' },
-      stability: { dir: 234, colour: '#5f9fdc', name: 'stability' },
-      slots: { dir: 256, colour: '#8a7fd0', name: 'ability slots' },
-      abilities: { dir: 296, colour: '#4fae9b', name: 'abilities' },
-      leads: { dir: 346, colour: '#c98a4b', name: 'leads' },
+      attack: { dir: 118, colour: '#d0675a', name: 'attack' },
+      cheaper: { dir: 140, colour: '#d9a441', name: 'cost' },
+      stability: { dir: 162, colour: '#5f9fdc', name: 'stability' },
+      slots: { dir: 186, colour: '#8a7fd0', name: 'ability slots' },
+      abilities: { dir: 270, colour: '#4fae9b', name: 'abilities' },
+      leads: { dir: 22, colour: '#c98a4b', name: 'leads' },
     } as const;
-    // (Taller than it is wide, to fill its panel: up in R a third more than across.)
-    const SY = 1.32;
-    const at = (deg: number, k: number): [number, number] => [k * Math.cos((deg * Math.PI) / 180), SY * k * Math.sin((deg * Math.PI) / 180)];
-    const ROOT = 0.11;
+    // (Across in the page's half-width; down in the room below the root; up a little only.)
+    const UP = 0.27;
+    const at = (deg: number, k: number): [number, number] => {
+      const sn = Math.sin((deg * Math.PI) / 180);
+      return [k * Math.cos((deg * Math.PI) / 180), k * sn * (sn < 0 ? UP : 1)];
+    };
+    const ROOT = 0.07;
     const line = (a: [number, number], b: [number, number], lit: boolean, colour: string) =>
       `<span class="up-line ${lit ? 'lit' : ''}" style="--x1:${a[0].toFixed(4)};--y1:${a[1].toFixed(4)};--x2:${b[0].toFixed(4)};--y2:${b[1].toFixed(4)};--bc:${colour}"></span>`;
     const lines: string[] = [];
@@ -1751,7 +1757,7 @@ export class CampaignView {
     };
     // The stats and the ability slots: each a chain, out along its branch, each step needing the one before.
     const chain = (b: { dir: number; colour: string; name: string }, steps: { key: string; owned: boolean; buy: CaptainBuy | null; title: string; text: string }[]) => {
-      const reach = (i: number) => 0.3 + (0.62 * i) / Math.max(4, steps.length);
+      const reach = (i: number) => 0.28 + (0.6 * i) / Math.max(4, steps.length);
       let prev = at(b.dir, ROOT);
       steps.forEach((st, i) => {
         const p = at(b.dir, reach(i + (steps.length < 4 ? 0.5 : 0)));
@@ -1774,12 +1780,12 @@ export class CampaignView {
     ]);
     // The abilities and the leads: none needs another, each hung from its branch's fork, fanned in two rows (each
     // row its own span of the sky, its skills spaced so none crowds the next).
-    const fan = (b: { dir: number; colour: string; name: string }, rows: [number, number, number][], items: { key: string; owned: boolean; on: boolean; buy: CaptainBuy; title: string; text: string; note: string }[]) => {
-      const fork = at(b.dir, 0.3);
+    const fan = (b: { dir: number; colour: string; name: string }, rows: [number, number, number, number][], items: { key: string; owned: boolean; on: boolean; buy: CaptainBuy; title: string; text: string; note: string }[]) => {
+      const fork = at(b.dir, 0.24);
       lines.push(line(at(b.dir, ROOT), fork, items.some((x) => x.owned), b.colour));
       let n = 0;
-      for (const [k, from, to] of rows) {
-        const row = items.slice(n, n + Math.ceil((items.length - n) / (rows.length - rows.indexOf(rows.find((r) => r[0] === k)!))));
+      for (const [k, from, to, count] of rows) {
+        const row = items.slice(n, n + count);
         n += row.length;
         row.forEach((it, i) => {
           const p = at(row.length > 1 ? from + ((to - from) * i) / (row.length - 1) : (from + to) / 2, k);
@@ -1788,11 +1794,13 @@ export class CampaignView {
           node(it.key, p, b.colour, { owned: it.owned, can: !it.owned && can(it.buy), locked: false, on: it.on }, it.title, it.text, it.owned ? it.note : cost !== null ? `${cost} skill point${cost === 1 ? '' : 's'}` : '');
         });
       }
-      label(b.dir, Math.max(...rows.map((r) => r[0])) + 0.1, b.name);
+      // (Named past the end of its outer row, clear of the page's title.)
+      const outer = rows[rows.length - 1];
+      label(outer[2] + 10, outer[0] + 0.06, b.name);
     };
     fan(
       BR.abilities,
-      [[0.62, 268, 324], [0.92, 271, 321]],
+      [[0.56, 238, 302, 4], [0.9, 212, 328, 6]],
       CAPTAIN_ABILITIES.map((a) => {
         const owned = c.abilities.includes(a.id), on = c.equipped.includes(a.id);
         return { key: `ability:${a.id}`, owned, on, buy: { kind: 'ability', id: a.id } as CaptainBuy, title: a.ability.name.toLowerCase(), text: `${[a.ability.cost ? `${a.ability.cost} energy` : '', a.ability.pay?.stability ? `−${a.ability.pay.stability} stability` : '', a.ability.pay?.selfHeat ? `{heat:${a.ability.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ').replace(/^(.+)$/, '$1: ')}${a.ability.text} Once a day.`, note: on ? 'carried' : 'learnt · not carried' };
@@ -1800,7 +1808,7 @@ export class CampaignView {
     );
     fan(
       BR.leads,
-      [[0.62, 336, 354], [0.92, 338, 352]],
+      [[0.5, 4, 40, 2], [0.82, 8, 36, 2]],
       CAPTAIN_LEADS.map((l) => {
         const owned = c.leads.includes(l.id), on = c.lead === l.id;
         return { key: `lead:${l.id}`, owned, on, buy: { kind: 'lead', id: l.id } as CaptainBuy, title: l.name.toLowerCase(), text: l.text, note: on ? 'leading' : 'learnt · not leading' };
