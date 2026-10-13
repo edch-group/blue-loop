@@ -243,6 +243,37 @@ function streamerModel(): Float32Array {
   return new Float32Array(m.out);
 }
 
+// ---- Planets in the sky ----
+/** The planets going past: how far off (behind the ship), how high, how wide their pass, how long it takes, how big. */
+const PLANETS = [
+  { far: 40, up: 10, span: 30, period: 240, phase: 0.15, r: 2.2, tilt: 0.3, ring: false },
+  { far: 56, up: 17, span: 40, period: 340, phase: 0.62, r: 3.4, tilt: -0.25, ring: true },
+];
+/** A planet: banded, soft (its cloud belts in a cool blue-grey and a warm sand, a pale cap), 1 across. */
+function planetModel(): Float32Array {
+  const m = new Mesh();
+  const bands: RGB[] = [[0.78, 0.82, 0.88], [0.82, 0.8, 0.76], [0.74, 0.79, 0.86], [0.84, 0.81, 0.77], [0.77, 0.81, 0.87], [0.9, 0.91, 0.94]];
+  const rings = 24, segs = 40;
+  for (let i = 0; i < rings; i++) {
+    const a0 = -Math.PI / 2 + (i / rings) * Math.PI, a1 = -Math.PI / 2 + ((i + 1) / rings) * Math.PI;
+    const col = bands[Math.floor(((i + 0.5) / rings) * bands.length) % bands.length];
+    for (let j = 0; j < segs; j++) {
+      const b0 = (j / segs) * Math.PI * 2, b1 = ((j + 1) / segs) * Math.PI * 2;
+      const pt = (a: number, b: number): V3 => B(20 + 20 * Math.cos(a) * Math.cos(b), 12 + 20 * Math.cos(a) * Math.sin(b), 20 * Math.sin(a));
+      m.tri(pt(a0, b0), pt(a1, b1), pt(a0, b1), col, 3, [0, 0, 0]);
+      m.tri(pt(a0, b0), pt(a1, b0), pt(a1, b1), col, 3, [0, 0, 0]);
+    }
+  }
+  return new Float32Array(m.out);
+}
+/** A planet's ring: a thin pale band round it. */
+function ringModel(): Float32Array {
+  const m = new Mesh();
+  m.ring(20, 12, 0, 34, 2.2, 0, [0.88, 0.84, 0.76], 1);
+  m.ring(20, 12, 0, 29, 1.2, 0, [0.76, 0.74, 0.7], 1);
+  return new Float32Array(m.out);
+}
+
 // ---- Particles: dust going by, smoke, the engines' glow, the blade's light ----
 const SPRITE_VERT = `
 attribute vec3 aPos; attribute vec2 aCorner; attribute vec4 aColor; attribute float aSize;
@@ -286,6 +317,10 @@ export class Base3d {
   private tailBuf: WebGLBuffer;
   private tailCount: number;
   private spriteBuf: WebGLBuffer;
+  private planetBuf: WebGLBuffer;
+  private planetCount: number;
+  private ringBuf: WebGLBuffer;
+  private ringCount: number;
   private smoke: V3[] = [];
   private engines: V3[] = [];
   private deck = 8;
@@ -317,6 +352,11 @@ export class Base3d {
     this.tailBuf = this.buffer(tail);
     this.tailCount = tail.length / SHIP_STRIDE;
     this.spriteBuf = gl.createBuffer()!;
+    const planet = planetModel(), ring = ringModel();
+    this.planetBuf = this.buffer(planet);
+    this.planetCount = planet.length / SHIP_STRIDE;
+    this.ringBuf = this.buffer(ring);
+    this.ringCount = ring.length / SHIP_STRIDE;
     const r = seq(11);
     for (let i = 0; i < 90; i++) this.dust.push({ p: [(r() - 0.5) * 16, (r() - 0.5) * 7, (r() - 0.5) * 9 - 1], s: 0.008 + r() * 0.02, a: 0.15 + r() * 0.3 });
     this.setShip(ship);
@@ -472,7 +512,7 @@ export class Base3d {
     const dir: V3 = [Math.sin(yaw) * Math.cos(p.pitch), Math.sin(p.pitch), Math.cos(yaw) * Math.cos(p.pitch)];
     this.eye = [p.target[0] + dir[0] * p.dist, p.target[1] + dir[1] * p.dist, p.target[2] + dir[2] * p.dist];
     this.view = lookAt(this.eye, p.target);
-    this.proj = perspective(fov, aspect, 0.05, 80);
+    this.proj = perspective(fov, aspect, 0.05, 140);
     // (Set off centre by shearing the projection: the subject moves aside, its perspective unchanged.)
     this.proj[8] = -p.off * 2;
 
@@ -510,6 +550,18 @@ export class Base3d {
     drawMesh(this.shipBuf, this.shipCount, this.shipM);
     drawMesh(this.capBuf, this.capCount, this.capM);
     drawMesh(this.tailBuf, this.tailCount, tailM);
+    // Planets far off in the sky, going slowly past as the ship flies on [direction: planets going past slowly in the
+    // background]: along a line far behind the ship, right to left, each in its turn.
+    {
+      const yaw = -0.52, fwd: V3 = [-Math.sin(yaw), 0, -Math.cos(yaw)], right: V3 = [Math.cos(yaw), 0, -Math.sin(yaw)];
+      for (const pl of PLANETS) {
+        const k = (((t / pl.period + pl.phase) % 1) + 1) % 1;
+        const across = (0.5 - k) * 2 * pl.span;
+        const at: V3 = [fwd[0] * pl.far + right[0] * across, pl.up, fwd[2] * pl.far + right[2] * across];
+        drawMesh(this.planetBuf, this.planetCount, mul(translate(at[0], at[1], at[2]), mul(rotY(t * 0.02 + pl.phase * 6), mul(rotZ(pl.tilt), scale(pl.r)))));
+        if (pl.ring) drawMesh(this.ringBuf, this.ringCount, mul(translate(at[0], at[1], at[2]), mul(rotZ(pl.tilt + 0.35), mul(rotX(0.25), scale(pl.r)))));
+      }
+    }
     locs.forEach((l) => l >= 0 && gl.disableVertexAttribArray(l));
 
     this.drawSprites(t);

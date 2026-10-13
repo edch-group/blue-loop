@@ -1556,6 +1556,9 @@ export class CampaignView {
       `<button class="cs-base-label" data-zone="${zone}" data-act="${act}"><b>${title}</b><small>${sub}</small></button>`;
     const body = canNebula()
       ? `<div class="cs-base">
+          <canvas class="cs-world cs-world-back" aria-hidden="true"></canvas>
+          <div class="cs-sunrise" aria-hidden="true"></div>
+          <canvas class="cs-world cs-world-front" aria-hidden="true"></canvas>
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
           ${label('hangar', 'cmp-hangar', 'ship', 'fit parts')}
           ${label('captain', 'cmp-hero', 'the captain', `${XP_MARK}${pointsLeft(meta)} skill points`)}
@@ -2346,7 +2349,45 @@ export class CampaignView {
         const l = (e.target as Element).closest<HTMLElement>('.cs-base-label');
         if (l) hover(l.dataset.zone as BaseZone, (e as PointerEvent).pointerType);
       });
+      // The land beneath it [direction: the menu's ship over the terrain, the Stellari small and to the right, always
+      // turning, as if the ship flies toward it, a bright sunrise on the horizon just behind it; the land falling away
+      // behind the ship to reveal a full colour galaxy, as the map's instability does]: the map's own landscape, the
+      // camera flying low along a valley toward the Stellari, the land breaking away a little behind it.
+      const back = box.querySelector<HTMLCanvasElement>('canvas.cs-world-back'), front = box.querySelector<HTMLCanvasElement>('canvas.cs-world-front');
+      const world = back && front ? nebulaOn(back, front) : null;
+      const sunrise = box.querySelector<HTMLElement>('.cs-sunrise');
+      // (The Stellari keeps ahead of the flight, to the right on the horizon: the ship always flying toward it.)
+      const AHEAD: [number, number] = [7, -0.2];
+      let stellari: [number, number] = [AHEAD[0] - 3.6, AHEAD[1]];
+      const LOOP = 150;
+      const flight = (time: number) => {
+        const k = (time % LOOP) / LOOP;
+        return { x: -3.6 + 6 * k, k };
+      };
+      if (world) {
+        const line: [number, number][] = Array.from({ length: 13 }, (_, i) => [-6 + i, 0]);
+        world.show(77017, { nodes: line, routes: line.slice(1).map((q, i) => [line[i][0], line[i][1], q[0], q[1]]) });
+        world.drive((time) => {
+          const f = flight(time);
+          world.setCollapse(f.x - 0.5, f.x + 0.1);
+          stellari = [f.x + AHEAD[0], AHEAD[1]];
+          world.setObjects([{ x: stellari[0], z: stellari[1], heart: true, seed: 3 }]);
+          // (Faded out and back as the flight comes round to its start: the land whole again.)
+          const edge = Math.min(f.k, 1 - f.k) * LOOP;
+          const shown = Math.min(1, edge / 1.5).toFixed(3);
+          if (back) back.style.opacity = shown;
+          if (front) front.style.opacity = shown;
+          if (sunrise) sunrise.style.opacity = shown;
+          return { x: f.x, y: PLANE_Y, z: 0.15, yaw: -1.05, pitch: 0.2, dist: 3.4 };
+        });
+      }
       base.onFrame = () => {
+        // The sunrise: on the horizon, behind the Stellari, wherever it stands on screen now.
+        const at = world?.toScreen(stellari[0], PLANE_Y + 0.3, stellari[1]);
+        if (sunrise && at) {
+          sunrise.style.left = `${at.x.toFixed(1)}px`;
+          sunrise.style.top = `${at.y.toFixed(1)}px`;
+        }
         for (const l of box.querySelectorAll<HTMLElement>('.cs-base-label')) {
           const at = base.labelAt(l.dataset.zone as BaseZone);
           if (!at) continue;

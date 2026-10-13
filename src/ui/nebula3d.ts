@@ -366,7 +366,7 @@ function perspective(fov: number, aspect: number, near: number, far: number) {
 const GROUND_ATTRS: [string, number][] = [['aPos', 3], ['aNorm', 3], ['aBary', 3], ['aEdge', 3], ['aShard', 4], ['aProg', 1]];
 
 /** Where the camera is: what it looks at, from which way, how far off. */
-interface Pose { x: number; y: number; z: number; yaw: number; pitch: number; dist: number }
+export interface Pose { x: number; y: number; z: number; yaw: number; pitch: number; dist: number }
 
 /** The camera as drawn this frame: its matrices, where it is, its axes, and the canvas's size in CSS pixels. */
 export interface Camera {
@@ -881,6 +881,16 @@ export class Nebula {
     this.wake();
   }
 
+  /**
+   * Hand the camera to someone else (the campaign menu's flight [direction: the terrain beneath the menu's ship, the
+   * land falling away behind it]): told the time, it says where the camera is, every frame (null hands it back).
+   */
+  private driver: ((time: number) => Pose) | null = null;
+  drive(f: ((time: number) => Pose) | null) {
+    this.driver = f;
+    this.wake();
+  }
+
   /** Where a point on the canvas (CSS pixels) falls on the map's plane (world x, z), if it does. */
   onPlane(sx: number, sy: number): [number, number] | null {
     const cam = this.camera;
@@ -965,6 +975,14 @@ export class Nebula {
         this.glide = null;
         this.glideRate = 5;
       }
+      this.moved = true;
+    }
+    // Driven from outside (the campaign menu's flight over the land): the camera where it is told, every frame.
+    if (this.driver && live) {
+      this.pose = this.driver(this.time);
+      this.glide = null;
+      this.cine = null;
+      this.homed = true;
       this.moved = true;
     }
     const cam = this.makeCamera();
