@@ -7392,6 +7392,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-node .up-node-disc { width: 42px; height: 42px; flex: none; color: #3a4256; background: radial-gradient(circle at 38% 30%, #fff 0, #f4f5f8 45%, #e2e5eb 100%); box-shadow: inset 0 1.5px 1px #fff, inset 0 -2px 3px rgba(70, 80, 105, 0.16), 0 0 0 1.5px #fff, 0 0 0 3px #dde0e7, 0 4px 12px rgba(70, 76, 100, 0.16); }
 /* (Its mark a soft slate, pressed into the white: easier to make out than white on white.) */
 .cs-node .up-node-disc .cs-emblem { width: 27px; height: 27px; fill: #b7bfcd; stroke: none; filter: drop-shadow(0.5px 0.8px 0 #fff) drop-shadow(-0.4px -0.5px 0.2px rgba(52, 62, 88, 0.35)); }
+/* A section with nothing in it yet: greyed out, not to be opened (its name and line faint, its emblem flat). */
+.cs-base-label.cs-node.cs-node-shut, .cs-tab.cs-node-shut { cursor: default; pointer-events: none; }
+.cs-node.cs-node-shut .up-node-disc { opacity: 0.5; filter: grayscale(1); box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px #e6e8ed; }
+.cs-node.cs-node-shut .cs-node-text, .cs-tab.cs-node-shut { opacity: 0.4; }
 /* (Disc and mark one layer, so they move as one.) */
 .cs-base-label.cs-node { will-change: transform; }
 .cs-node .up-node-disc .cur { width: 15px; height: 15px; margin: 0; vertical-align: 0; }

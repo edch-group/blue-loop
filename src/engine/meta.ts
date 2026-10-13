@@ -104,6 +104,35 @@ export interface MetaState {
   /** Ship parts found (parts.ts), kept for good; and which is fitted in each of the ship's slots. */
   hangar?: string[];
   fitted?: Partial<Record<PartSlot, string>>;
+  /** The campaign menu's sections opened up so far (each once there was first something in it to spend). */
+  opened?: Partial<Record<MenuSection, boolean>>;
+}
+
+/** The campaign menu's sections: the Captain's skills, the ship's parts, the Stellari's skill tree. */
+export type MenuSection = 'captain' | 'ship' | 'stellari';
+
+/**
+ * Whether a section of the campaign menu is open [direction: the menu's items greyed out until points or parts are
+ * available for the first time]: once there is first something in it (a skill point, a part, a petal), and from then
+ * on for good.
+ */
+export function sectionOpen(meta: MetaState, s: MenuSection): boolean {
+  if (meta.opened?.[s]) return true;
+  if (s === 'captain') return pointsLeft(meta) > 0 || captainPointsSpent(meta) > 0;
+  if (s === 'ship') return (meta.hangar?.length ?? 0) > 0;
+  return meta.petals > 0 || treePetalsSpent(meta) > 0;
+}
+
+/** The sections open now, marked open for good. */
+export function openSections(meta: MetaState): MetaState {
+  const opened = { ...(meta.opened ?? {}) };
+  let changed = false;
+  for (const s of ['captain', 'ship', 'stellari'] as MenuSection[])
+    if (!opened[s] && sectionOpen(meta, s)) {
+      opened[s] = true;
+      changed = true;
+    }
+  return changed ? { ...meta, opened } : meta;
 }
 
 /** Fit a part from the hangar into a slot of its kind (taking it from any other slot it was in), or empty a slot. */

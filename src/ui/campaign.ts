@@ -118,6 +118,9 @@ import {
   type CaptainBuy,
   type CaptainMeta,
   type CaptainStat,
+  type MenuSection,
+  openSections,
+  sectionOpen,
 } from '../engine';
 import { account, markDirty } from './account';
 import { profile } from './profile';
@@ -1784,19 +1787,26 @@ export class CampaignView {
   }
 
   private renderSetup(): string {
-    const meta = loadMeta();
+    // (Sections opened for good once there is first something in them.)
+    const was = loadMeta();
+    const meta = openSections(was);
+    if (meta !== was) saveMeta(meta);
+    const shut = (sec: MenuSection) => !sectionOpen(meta, sec);
     const captain = captainCard(meta);
     // [direction: every run begins with the Captain, a nameless human with very few abilities; petals make the
     // Captain, experience buys the skill tree, found parts fit out the ship]
     const tile = (act: string, title: string, sub: string, icon: string) =>
-      `<button class="cs-tab" data-act="${act}"><span class="cs-tab-icon">${icon}</span><b>${title}</b><small>${sub}</small></button>`;
+      `<button class="cs-tab${shut(act === 'cmp-hero' ? 'captain' : act === 'cmp-hangar' ? 'ship' : 'stellari') ? ' cs-node-shut' : ''}" data-act="${act}"${shut(act === 'cmp-hero' ? 'captain' : act === 'cmp-hangar' ? 'ship' : 'stellari') ? ' disabled' : ''}><span class="cs-tab-icon">${icon}</span><b>${title}</b><small>${sub}</small></button>`;
     // [direction: the campaign's sections spread out like a base, all 3D: a hangar holding the ship, the hero sitting,
     // and a research panel where the general upgrades are taken] (Without WebGL, the tiles as they were.)
     // [direction: the sections styled as the skill tree's nodes, angular lines connecting them to the relevant part of
     // the ship; research named Enlightenment, at the Stellari, its line to it]: each a node's disc and its name, a
     // stem from it to its place, bent at a right angle as the tree's are.
+    // (A section with nothing in it yet is greyed out, and can't be opened [direction: the menu's items greyed out until
+    // points or parts are available for the first time].)
+    const sectionOf: Record<BaseZone, MenuSection> = { captain: 'captain', hangar: 'ship', research: 'stellari' };
     const label = (zone: BaseZone, act: string, title: string, sub: string, mark: string) =>
-      `<button class="cs-base-label cs-node" data-zone="${zone}" data-act="${act}"><span class="up-node-disc">${mark}</span><span class="cs-node-text"><b>${title}</b><small>${sub}</small></span></button>`;
+      `<button class="cs-base-label cs-node${shut(sectionOf[zone]) ? ' cs-node-shut' : ''}" data-zone="${zone}" data-act="${act}"${shut(sectionOf[zone]) ? ' disabled aria-disabled="true"' : ''}><span class="up-node-disc">${mark}</span><span class="cs-node-text"><b>${title}</b><small>${sub}</small></span></button>`;
     const body = canNebula()
       ? `<div class="cs-base">
           <div class="cs-sunrise" aria-hidden="true"></div>
@@ -2615,7 +2625,8 @@ export class CampaignView {
       // (The Stellari's option has nothing of its own on the ship.)
       const zoneHere = (e: PointerEvent): BaseZone | null => {
         const z = zoneAt(e);
-        return z && z !== 'research' ? z : null;
+        // (Nor a section not yet open.)
+        return z && z !== 'research' && !box.querySelector(`.cs-base-label[data-zone="${z}"][disabled]`) ? z : null;
       };
       canvas.addEventListener('pointermove', (e) => hover(zoneHere(e), e.pointerType));
       canvas.addEventListener('pointerleave', (e) => hover(null, e.pointerType));
