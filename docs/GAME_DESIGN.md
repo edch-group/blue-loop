@@ -1314,7 +1314,7 @@ Each node shows its effect in the card's own marks; about 52 points buy everythi
 | Boosters | Ion Boosters: sun cools 1 each jump | Fusion Thrusters: 2 | Afterburners: one more jump a turn, cools 1 |
 | Warp drive | | Warp Coil: jump to unlinked systems within 1.5 routes' length | Fold Drive: within 2.3 |
 
-Every boss (Overlord or Lost Race ruler) leaves one; a slain hero half the time, a solved dream 35%, a broken relic cache 30%; always one not yet in the hangar, rarer the deeper the run (a boss's a step rarer). A part found shows in the loot cache in its own shape.
+Every boss (Overlord or Lost Race ruler) leaves one; a slain hero half the time, a solved dream 35%, a broken relic cache 30%; always one not yet in the hangar, rarer the deeper the run (a boss's a step rarer). A part found shows in the loot cache as a thing, turning slowly on its gold glow (loot3d.ts: an armour plate, a shield emitter's drum and lens, a twin-barrelled turret, a booster nacelle, a warp coil, each in its rarity's colours), and petals as a Stellari petal, swinging to and fro [direction: ship parts and petals 3D objects too], lit as the menu's ship is.
 
 **The ship tab**: a blueprint schematic of the ship from above (nose to the right), every slot outlined in the very shape of its part (dashed while empty), and the hangar's parts beside it, each drawn as that shape in its rarity's colour (steel, gold, violet). Pick a part and the slots it fits light up; tap one (or the detail's fit / port / starboard) to fit it; a part sits in one slot at a time; pick a fitted part to remove it.
 

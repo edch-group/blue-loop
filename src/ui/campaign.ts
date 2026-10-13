@@ -152,6 +152,7 @@ import { canNebula, nebulaOn, NEBULA_FOV, PLANE_Y, poseView, STRIP_WIDTH, type C
 import { FLY_SECONDS, WARP_SECONDS } from './nebula-objects';
 import type { CaptainShipSpec } from './ship3d';
 import { Base3d, type BaseZone } from './base3d';
+import { mountLoot3d } from './loot3d';
 
 const KEY = 'blue-loop:campaign:v6';
 
@@ -3015,6 +3016,7 @@ export class CampaignView {
     // (In development, reachable from the console.)
     if (import.meta.env.DEV) (window as unknown as { campaignView?: CampaignView }).campaignView = this;
     this.showBase(root);
+    mountLoot3d(root);
     // The Captain's tree: opened at its foot, then kept where it was scrolled to as it is drawn afresh.
     const hp = root.querySelector<HTMLElement>('.hp-scroll');
     if (hp) {
@@ -3730,10 +3732,11 @@ export class CampaignView {
       // an emblem its badge, its name, what it does; a card itself.)
       const items = [
         l.materials ? `<div class="loot-tile loot-res" title="Materials"><span class="loot-glow">${MATERIALS}</span><b>+${l.materials}</b></div>` : '',
-        l.petals ? `<div class="loot-tile loot-res" title="Stellari petals"><span class="loot-glow">${PETAL}</span><b>+${l.petals}</b></div>` : '',
+        // (Petals and ship parts as things, turning: loot3d.ts.)
+        l.petals ? `<div class="loot-tile loot-res" title="Stellari petals"><span class="loot-glow">${canNebula() ? '<canvas class="loot-3d" data-loot3d="petal"></canvas>' : PETAL}</span><b>+${l.petals}</b></div>` : '',
         ...l.relics.map((r) => `<div class="loot-tile loot-emblem"><span class="loot-glow"><span class="cmp-relic">${relicMark(r.name, r.slot)}</span></span><b>${esc(r.name.toLowerCase())}</b><small>${esc(relicText(r))}</small></div>`),
         ...l.cards.map((id) => `<div class="loot-tile loot-card"><span class="loot-glow">${cardHtml(id)}</span></div>`),
-        ...(l.parts ?? []).map((id) => `<div class="loot-tile loot-part" title="Ship part"><span class="loot-glow">${partShape(id)}</span><b>${esc(shipPart(id)?.name.toLowerCase() ?? '')}</b></div>`),
+        ...(l.parts ?? []).map((id) => `<div class="loot-tile loot-part" title="Ship part"><span class="loot-glow">${canNebula() && shipPart(id) ? `<canvas class="loot-3d" data-loot3d="${shipPart(id)!.kind}:${shipPart(id)!.rarity}"></canvas>` : partShape(id)}</span><b>${esc(shipPart(id)?.name.toLowerCase() ?? '')}</b></div>`),
       ].filter(Boolean);
       // (The experience first, top middle; the rewards after it, one at a time.)
       const first = l.xp ? 1 : 0;

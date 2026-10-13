@@ -584,3 +584,6 @@ function program(gl: WebGLRenderingContext, vs: string, fs: string): WebGLProgra
   gl.linkProgram(p);
   return p;
 }
+
+// (The matrix helpers and shader set-up, for the other small scenes drawn with the ship's materials: loot3d.ts.)
+export { lookAt, mul, perspective, program, rotX, rotY, rotZ, scale, translate, type M4 };

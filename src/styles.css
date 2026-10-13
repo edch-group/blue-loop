@@ -7418,3 +7418,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-nodes { transition: opacity 0.6s ease-out; }
 .cs-nodes.cs-nodes-wait { opacity: 0; pointer-events: none; }
 .cs-nodes.cs-nodes-wait * { pointer-events: none !important; }
+/* Petals and ship parts in the loot, as turning things (loot3d.ts). */
+.loot-3d { width: 128px; height: 128px; display: block; }
+@media (max-height: 520px) { .loot-3d { width: 92px; height: 92px; } }
