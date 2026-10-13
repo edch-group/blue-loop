@@ -122,6 +122,17 @@ describe('the AI and singularities', () => {
     expect(chooseAIAction(s)).toMatchObject({ type: 'playCard', enemyUid: 'h1' });
   });
 
+  it('still attacks a Captain whose singularity charges from the damage he takes', () => {
+    const s = createGame({ seed: 3, players: [{ name: 'Ada', isAI: true, deck: TEST_DECKS[0].cards }, { name: 'Bo', isAI: false, deck: TEST_DECKS[1].cards }] });
+    const me = s.players[0], rival = s.players[1];
+    me.hand = [];
+    me.playsLeft = 0;
+    me.tableau.push({ uid: 'a1', defId: 'coronal_lance', slot: 1, health: 9, attackBonus: 2 });
+    // (Back to the Wall, nearly full: any damage he takes charges it.)
+    rival.tableau.push({ uid: 'h1', defId: CAPTAIN, slot: COMMAND_SLOT, health: 6, charge: 8 });
+    expect(chooseAIAction(s).type).toBe('attack');
+  });
+
   it('but a card that would burn its sun out next day is the bigger threat, charged Hero or not', () => {
     const s = createGame({ seed: 3, players: [{ name: 'Ada', isAI: true, deck: TEST_DECKS[0].cards }, { name: 'Bo', isAI: false, deck: TEST_DECKS[1].cards }] });
     const me = s.players[0], rival = s.players[1];

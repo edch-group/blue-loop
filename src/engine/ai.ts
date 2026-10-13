@@ -401,11 +401,19 @@ function evaluate(state: GameState, meId: string): number {
  * Hero down (its charge lost with it) is worth a good deal more; still well under a kill shot coming (LETHAL_WEIGHT).
  */
 export const SINGULARITY_THREAT = 5;
+/**
+ * The rival Heroes' charge as the AI's day's move is weighed, by card: what its own move adds to a rival's charge is not
+ * held against it [direction: the AI randomly not attacking, with no reason to hold back] (an attack on a Captain whose
+ * singularity charges from the damage he takes would otherwise look worse than doing nothing). Beating the Hero down,
+ * or its charge lost, still counts.
+ */
+let chargeFloor: Map<string, number> | null = null;
 function singularityThreat(o: PlayerState): number {
   const hero = commandCard(o);
   const k = hero && singularityOf(hero.defId);
   if (!hero || !k) return 0;
-  const f = Math.min(1, (hero.charge ?? 0) / k.need);
+  const was = chargeFloor?.get(hero.uid);
+  const f = Math.min(1, Math.min(hero.charge ?? 0, was ?? Infinity) / k.need);
   return SINGULARITY_THREAT * (0.25 + 0.75 * f * f) + (f >= 1 ? 2 : 0);
 }
 /**
@@ -630,6 +638,7 @@ export function chooseAIAction(state: GameState): Action {
   // The best gain any move makes, before charging its energy: energy left unspent at day's end is lost, so
   // ending the day only beats moving when every move hurts in itself.
   let bestRaw = -Infinity;
+  chargeFloor = new Map(view.players.filter((p) => p.id !== me.id).flatMap((p) => (commandCard(p) ? [[commandCard(p)!.uid, commandCard(p)!.charge ?? 0] as const] : [])));
   for (const action of [...attacks, ...abilities, ...candidatePlays(view, me)]) {
     let next: GameState;
     try {
@@ -685,8 +694,12 @@ export function chooseAIAction(state: GameState): Action {
     } catch {
       // (The plain way stands as it is.)
     }
-    if (combo.score > plain + 0.5) return combo.action;
+    if (combo.score > plain + 0.5) {
+      chargeFloor = null;
+      return combo.action;
+    }
   }
+  chargeFloor = null;
   // Holding a card is only better than playing it when every play would hurt.
   aiLastDecision.baseline = baseline;
   aiLastDecision.best = best?.score ?? null;
