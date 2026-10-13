@@ -2390,7 +2390,7 @@ export class CampaignView {
         world.show(77017, { nodes: line, routes: line.slice(1).map((q, i) => [line[i][0], line[i][1], q[0], q[1]]) });
         world.drive((time) => {
           const f = flight(time);
-          world.setCollapse(f.x - 0.5, f.x + 0.1);
+          world.setCollapse(f.x - 1.1, f.x - 0.5);
 
           // (Faded out and back as the flight comes round to its start: the land whole again.)
           const edge = Math.min(f.k, 1 - f.k) * LOOP;
@@ -2405,8 +2405,8 @@ export class CampaignView {
           lastT = time;
           toward += ((this.shopOpen ? 1 : 0) - toward) * (1 - Math.exp(-dt * 2.4));
           const e = toward * toward * (3 - 2 * toward);
-          const from = { x: f.x, y: PLANE_Y, z: 0.15, yaw: -1.05, pitch: 0.2, dist: 3.4 };
-          const to = { x: stellari[0], y: PLANE_Y + 0.42, z: stellari[1], yaw: -1.05, pitch: 0.08, dist: 1.5 };
+          const from = { x: f.x, y: PLANE_Y, z: 0.15, yaw: -0.85, pitch: 0.2, dist: 3.4 };
+          const to = { x: stellari[0], y: PLANE_Y + 0.42, z: stellari[1], yaw: -0.85, pitch: 0.08, dist: 1.5 };
           return {
             x: from.x + (to.x - from.x) * e,
             y: from.y + (to.y - from.y) * e,
