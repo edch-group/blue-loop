@@ -209,6 +209,20 @@ const STRUGGLE_ARRIVE_MS = 1600;
 const SHIP_ICON =
   '<svg class="cur cur-ship" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10c0-1.6 1.6-2.6 3.6-2.7L13 7c2.4 0 4 1.3 4.6 3-.6 1.7-2.2 3-4.6 3l-6.9-.3C4.1 12.6 2.5 11.6 2.5 10Z" fill="#dfe8f6" stroke="#6b7590" stroke-width=".9" stroke-linejoin="round"/><path d="M7 7.2 9.5 4.5h2L10.4 7M7 12.8l2.5 2.7h2l-1.1-2.5" fill="none" stroke="#6b7590" stroke-width=".9" stroke-linejoin="round"/><circle cx="12.6" cy="10" r="1.2" fill="#6b7590"/></svg>';
 
+/**
+ * The campaign menu's options as white emblems [direction: all three buttons white/embossed emblems]: each mark white on
+ * its white disc, raised from it (light above, shadow below: styles.css .cs-emblem). Near-symmetrical.
+ */
+const emblem = (body: string) => `<svg class="cs-emblem" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
+const MENU_EMBLEM: Record<'captain' | 'ship' | 'stellari', string> = {
+  // A captain's rank: two chevrons under a star.
+  captain: emblem('<path d="M12 2.4l1.1 2.3 2.5.3-1.8 1.7.5 2.5L12 8l-2.3 1.2.5-2.5-1.8-1.7 2.5-.3Z"/><path d="M4.8 14.2 12 9.6l7.2 4.6v2.6L12 12.2l-7.2 4.6Z"/><path d="M4.8 19 12 14.4l7.2 4.6v2.6L12 17l-7.2 4.6Z"/>'),
+  // The ship from above, nose up: its hull, its swept fins, its engines.
+  ship: emblem('<path d="M12 1.8c2.2 2.3 3 5.6 3 9.4v6.6l-1.6 2.1h-2.8l-1.6-2.1v-6.6c0-3.8.8-7.1 3-9.4Z"/><path d="M9 10.6 3.6 16.2v2.2L9 16.2Z"/><path d="M15 10.6l5.4 5.6v2.2L15 16.2Z"/><path d="M9.9 20.6h1.5v1.8H9.9ZM12.6 20.6h1.5v1.8h-1.5Z"/>'),
+  // The Stellari, open: six petals round its heart.
+  stellari: emblem(`${Array.from({ length: 6 }, (_, i) => `<ellipse cx="12" cy="6.6" rx="2.5" ry="4.6" transform="rotate(${i * 60} 12 12)"/>`).join('')}<circle cx="12" cy="12" r="2.4"/>`),
+};
+
 /** Each of the Captain's abilities and leads at a glance, for the hero panel's discs: its mark and its amount. */
 const CAP_MARKS: Record<string, [string, string]> = {
   brace: ['shield', '1'], patch: ['cool', '1'], scout: ['draw', '1'], volley: ['heat', '2'], bulwark: ['shield', '3'], vent: ['cool', '2'],
@@ -1519,7 +1533,7 @@ export class CampaignView {
       const m = Math.min(left, right, top);
       const [dx, dy] = m === top ? [(x - W / 2) * 0.3, -(y + r.height + 80)] : m === left ? [-(x + r.width + 80), -H * 0.18] : [right + r.width + 80, -H * 0.18];
       node.style.transition = `transform 0.7s cubic-bezier(0.5, 0, 0.85, 0.4) ${i * 0.06}s, opacity 0.6s ease-in ${i * 0.06 + 0.1}s`;
-      node.style.transform = `translate(-15px, -50%) translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px)`;
+      node.style.transform = `translate(-21px, -50%) translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px)`;
       node.style.opacity = '0';
     });
     base.launch();
@@ -1639,9 +1653,9 @@ export class CampaignView {
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
           <div class="cs-nodes">
             <svg class="cs-arc" aria-hidden="true"><path/></svg>
-            ${label('captain', 'cmp-hero', 'the captain', `${pointsLeft(meta)} skill points`, XP_MARK)}
-            ${label('hangar', 'cmp-hangar', 'the ship', 'fit parts', SHIP_ICON)}
-            ${label('research', 'cmp-shop', 'the stellari', `${meta.petals} petals`, PETAL)}
+            ${label('captain', 'cmp-hero', 'the captain', `${pointsLeft(meta)} skill points`, MENU_EMBLEM.captain)}
+            ${label('hangar', 'cmp-hangar', 'the ship', 'fit parts', MENU_EMBLEM.ship)}
+            ${label('research', 'cmp-shop', 'the stellari', `${meta.petals} petals`, MENU_EMBLEM.stellari)}
           </div>
         </div>`
       : `<div class="cs-body cs-captain-body">
@@ -2487,8 +2501,9 @@ export class CampaignView {
           sunrise.style.top = `${at.y.toFixed(1)}px`;
         }
         // The options, arced round the ship's bow in a half circle [direction: the menu options arced round the front
-        // of the ship in a semicircle, following the ship's angle so as to look natural]: the half circle stands on
-        // the ship, upright and along it, so it rolls and pitches with it. (Setting out, they fly off on their own.)
+        // of the ship in a semicircle, following the ship's angle so as to look natural; not following its bobbing,
+        // just arced]: the half circle stands upright along the ship as it lies at rest, still as it bobs.
+        // (Setting out, they fly off on their own.)
         if (box.closest('.cs-launching, .cs-launch-veil')) return;
         const r = canvas.getBoundingClientRect(), zoom = r.width / (canvas.clientWidth || r.width) || 1;
         const W = window.innerWidth / zoom;

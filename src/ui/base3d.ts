@@ -269,9 +269,12 @@ export class Base3d {
     if (this.launchedAt < 0) this.launchedAt = this.time();
   }
 
-  /** Where a point on the ship (box units: x along, y across, z up) is on the canvas (CSS pixels, as laid out). */
+  /**
+   * Where a point by the ship (box units: x along, y across, z up) is on the canvas (CSS pixels, as laid out): where
+   * the ship lies at rest, not as it bobs and rolls.
+   */
   shipScreen(x: number, y: number, z: number): { x: number; y: number } | null {
-    return this.toScreen(apply(this.shipM, B(x, y, z)));
+    return this.toScreen(apply(scale(Base3d.SHIP_SCALE), B(x, y, z)));
   }
 
   /** Where a section is on the canvas (CSS pixels, as laid out): the point its node's stem runs to. */

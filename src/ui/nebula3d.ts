@@ -85,7 +85,7 @@ float fbm(vec2 p) { return 0.5 * vnoise(p) + 0.25 * vnoise(p * 2.03 + 7.1) + 0.1
  */
 const GROUND_VERT = `
 attribute vec3 aPos; attribute vec3 aNorm; attribute vec3 aBary; attribute vec3 aEdge; attribute vec4 aShard; attribute float aProg;
-uniform mat4 uView; uniform mat4 uProj; uniform float uGone; uniform float uCrack; uniform float uTime; uniform float uGalaxy;
+uniform mat4 uView; uniform mat4 uProj; uniform float uGone; uniform float uCrack; uniform float uTime; uniform float uGalaxy; uniform float uSoft;
 varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist; varying float vRest;
 // A supermassive black hole's well (uGalaxy 1): the land sinks toward it, under the middle of the strip.
 const vec2 HOLE = vec2(0.0, -0.7);
@@ -112,10 +112,13 @@ void main() {
   float fall = (uGone - aProg) / 1.6 + aShard.w * 0.45;
   if (fall > 0.0) {
     float t = min(fall, 2.2);
-    mat3 r = rot(vec3(aShard.w - 0.5, 0.3, 0.5 - fract(aShard.w * 7.0)), t * (0.8 + aShard.w * 1.6));
+    // (Soft, as on the campaign menu, whose camera rides low: drifting down slowly, tumbling gently, as it fades, so
+    // it is seen to go rather than dropping straight out of the view.)
+    float soft = uSoft > 0.5 ? 1.0 : 0.0;
+    mat3 r = rot(vec3(aShard.w - 0.5, 0.3, 0.5 - fract(aShard.w * 7.0)), t * (0.8 + aShard.w * 1.6) * (1.0 - 0.6 * soft));
     p = mid + r * (p - mid);
     n = r * n;
-    p.y -= 3.2 * t * t;
+    p.y -= mix(3.2, 0.35, soft) * t * t;
     p.xz += mid.xz * 0.04 * t;
   }
   vec4 v = uView * vec4(p, 1.0);
