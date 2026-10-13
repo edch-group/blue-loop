@@ -7381,6 +7381,8 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-sunrise::after { content: ''; position: absolute; left: 0; top: 0; width: min(150vmin, 1400px); height: 10px; transform: translate(-50%, -50%); border-radius: 50%;
   background: radial-gradient(closest-side, rgba(255, 255, 255, 0.95), rgba(255, 236, 200, 0.5) 45%, rgba(255, 230, 190, 0) 100%); filter: blur(1px); }
 .cs-base-canvas { z-index: 1; }
+/* (The ship's canvas fills the page too, so the planets drifting by aren't cut at its edge.) */
+.cs-base .cs-base-canvas { position: fixed; }
 .cs-base-label { z-index: 2; }
 /* (The world fills the whole page, behind it: the page's own header and footer over it.) */
 .cs-captain-page > .setup-top, .cs-captain-page > .setup-foot { position: relative; z-index: 3; }

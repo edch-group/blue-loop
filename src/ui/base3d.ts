@@ -473,7 +473,7 @@ export class Base3d {
     // (Enlightenment is the Stellari, out on the land: the camera turns from the ship, which slides away to the left.)
     if (z === 'research') return { target: [7, 1.4, -2], yaw: -0.52, pitch: 0.1, dist: 6, off: 0 };
     // The whole ship, side on and a little from ahead and below (as the art has it), all of it in view.
-    const dist = Math.max(3.1 / (half * aspect), 1.85 / half);
+    const dist = Math.max(3.7 / (half * aspect), 2.4 / half);
     return { target: [-0.3, 0.74, 0], yaw: -0.52, pitch: 0.1, dist, off: 0 };
   }
 
