@@ -235,6 +235,15 @@ export class Base3d {
     this.dish = s.dish;
   }
 
+  /**
+   * The ship flying in [direction: on first opening the campaign menu, the ship flying in from the left before
+   * settling into its place]: from far off to the left, easing out as it comes to rest, its nose dipping as it slows.
+   */
+  private entry: { t0: number; dur: number } | null = null;
+  arrive(dur: number) {
+    this.entry = { t0: this.time(), dur };
+  }
+
   /** The companions aboard (each drawn where it stands; built once). */
   setCrew(ids: CompanionId[]) {
     if (ids.join() === this.crew.map((c) => c.id).join()) return;
@@ -381,7 +390,17 @@ export class Base3d {
     // (Handing over to the campaign, it settles still, as the campaign's first frame has it.)
     const ho = this.handOver ? Math.max(0, Math.min(1, this.handOver.k())) : 0;
     const sway = 1 - ho;
-    this.shipM = mul(translate(0, 0.05 * Math.sin(t * 0.7) * sway, 0), mul(rotX(0.035 * Math.sin(t * 0.5) * sway), mul(rotZ(0.025 * Math.sin(t * 0.6 + 1) * sway), scale(S))));
+    // (Flying in: off to the left, easing out to its place.)
+    let ex = 0, ey = 0, tip = 0;
+    if (this.entry) {
+      const k = Math.min(1, (t - this.entry.t0) / this.entry.dur);
+      const left = Math.pow(1 - k, 3);
+      ex = -16 * left;
+      ey = 0.6 * left;
+      tip = -0.06 * Math.sin(Math.PI * k) * (1 - k);
+      if (k >= 1) this.entry = null;
+    }
+    this.shipM = mul(translate(ex, ey + 0.05 * Math.sin(t * 0.7) * sway, 0), mul(rotZ(tip), mul(rotX(0.035 * Math.sin(t * 0.5) * sway), mul(rotZ(0.025 * Math.sin(t * 0.6 + 1) * sway), scale(S)))));
     // The Captain on the foredeck, facing ahead and a little toward us.
     const at = B(STAND.x, STAND.y, this.deck);
     this.capM = mul(this.shipM, mul(translate(at[0], at[1], at[2]), mul(rotY(1.3), mul(scale(0.7 / S), translate(-B(20, 12, 0)[0], 0, -B(20, 12, 0)[2])))));
@@ -478,7 +497,7 @@ export class Base3d {
       const local = mul(rotY(pl.turn), mul(scale(k), translate(-o[0], -o[1], -o[2])));
       c.m =
         pl.on === 'air'
-          ? mul(scale(S), mul(translate(at[0], at[1], at[2]), mul(rotX(0.06 * Math.sin(t * 0.61)), mul(rotZ(0.07 * Math.sin(t * 0.83 + 2.6)), local))))
+          ? mul(translate(ex, ey, 0), mul(scale(S), mul(translate(at[0], at[1], at[2]), mul(rotX(0.06 * Math.sin(t * 0.61)), mul(rotZ(0.07 * Math.sin(t * 0.83 + 2.6)), local)))))
           : mul(this.shipM, mul(translate(at[0], at[1], at[2]), local));
       drawMesh(c.buf, c.count, c.m);
     }

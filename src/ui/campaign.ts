@@ -638,6 +638,8 @@ export class CampaignView {
 
   /** Open the new-campaign screen. */
   openSetup() {
+    // (Opened afresh: the scene comes in once its land is ready, the ship flying in.)
+    this.menuIntro = 'loading';
     this.state = null;
     this.sheet = null;
     this.ships.clear();
@@ -1666,6 +1668,13 @@ export class CampaignView {
     }
   }
 
+  /**
+   * Opening the campaign menu [direction: the scene loads, then fades in once the terrain is loaded, the ship flying in
+   * from the left before settling into its place]: hidden while its land is made, then faded in as the ship flies in;
+   * its options come in once the ship has settled.
+   */
+  private menuIntro: 'loading' | 'arriving' | null = null;
+
   /** Whether the run is setting out from the menu (its options flying away, the ship surging off). */
   private launching = false;
   /** Set out from the menu: the campaign is being made under the menu's pan (its land shown whole at once). */
@@ -1906,11 +1915,11 @@ export class CampaignView {
       .map((id) => label(id, 'cmp-comp', esc(companionDef(id).name.toLowerCase()), `${companionPoints(meta, id)} skill point${companionPoints(meta, id) === 1 ? '' : 's'}`, MENU_EMBLEM[id], id))
       .join('');
     const body = canNebula()
-      ? `<div class="cs-base">
+      ? `<div class="cs-base${this.menuIntro === 'loading' ? ' cs-base-hidden' : ''}">
           <div class="cs-sunrise" aria-hidden="true"></div>
           <canvas class="cs-world cs-world-back" aria-hidden="true"></canvas>
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
-          <div class="cs-nodes">
+          <div class="cs-nodes${this.menuIntro ? ' cs-nodes-wait' : ''}">
             <svg class="cs-arc" aria-hidden="true"><path/></svg>
             ${label('captain', 'cmp-hero', 'the captain', `${pointsLeft(meta)} skill points`, MENU_EMBLEM.captain)}
             ${crew}
@@ -2831,10 +2840,36 @@ export class CampaignView {
         return { x: -4.6 + 3 * k, k };
       };
       let last: Pose = { x: -4.6, y: PLANE_Y, z: 0.15, yaw: -0.85, pitch: 0.2, dist: 3.4 };
+      // (No land to wait for: shown at once.)
+      if (!world && this.menuIntro) {
+        this.menuIntro = null;
+        box.classList.remove('cs-base-hidden');
+        box.querySelector('.cs-nodes')?.classList.remove('cs-nodes-wait');
+      }
       if (world) {
         this.menuWorld = world;
         world.setPixelBudget(1.8e6);
-        world.show(MENU_LAND.seed, MENU_LAND.strip);
+        world.show(MENU_LAND.seed, MENU_LAND.strip, { instant: this.menuIntro === 'loading' });
+        // Opened afresh: shown once the land is made and drawn, fading in as the ship flies in from the left; the
+        // options after it, once it has settled.
+        if (this.menuIntro === 'loading') {
+          const ENTRY = 3.2;
+          let drawn = 0;
+          const ready = () => {
+            if (!box.isConnected || this.menuIntro !== 'loading') return;
+            if (world.landed) drawn++;
+            if (drawn < 3) return void requestAnimationFrame(ready);
+            this.menuIntro = 'arriving';
+            box.classList.remove('cs-base-hidden');
+            base.arrive(ENTRY);
+            window.setTimeout(() => {
+              if (this.menuIntro !== 'arriving') return;
+              this.menuIntro = null;
+              box.querySelector('.cs-nodes')?.classList.remove('cs-nodes-wait');
+            }, (ENTRY - 0.6) * 1000);
+          };
+          requestAnimationFrame(ready);
+        }
         world.drive((time) => {
           // Setting out [direction: the ship moving forwards, away from the crumbling terrain, the camera panning out
           // and right to the campaign's starting view, one continuous shot]: the land's breaking held where it is, the
