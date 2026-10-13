@@ -77,7 +77,8 @@ export interface MapShip {
   /** Its race (its model), or -1 for a Lost Races derelict. */
   race: number;
   /** Flying in from here (world x, z), taking this long (seconds): a ship arriving from off screen. */
-  arrive?: { from: [number, number]; dur: number; cruise?: boolean };
+  /** (`surge`: cruising, it first surges forward this far over this long, easing in and out, then cruises on.) */
+  arrive?: { from: [number, number]; dur: number; cruise?: boolean; surge?: { dist: number; dur: number } };
   /** The Captain's ship: built from what it is fitted with (in place of its race's model). */
   captain?: CaptainShipSpec;
   /** Bound somewhere new by flying there (the Captain's jumps without the warp drive), not warping. */
@@ -488,7 +489,7 @@ export class MapObjects {
   /** Each race's model, uploaded the first time a ship of it is drawn. */
   private shipBufs = new Map<number, { buf: WebGLBuffer; count: number; engines: number[][]; glow: number[]; suns: { at: number[]; r: number }[] }>();
   /** Each ship as it flies: where it set out from and is bound, since when, and which way it faces. */
-  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number; fromY: number; toY: number; warp?: boolean; captain?: CaptainShipSpec }>();
+  private ships = new Map<string, { from: [number, number]; to: [number, number]; t0: number; dur: number; heading: number; colour: [number, number, number]; race: number; cruise?: number; surge?: { dist: number; dur: number }; fromY: number; toY: number; warp?: boolean; captain?: CaptainShipSpec }>();
   private routeProg: WebGLProgram;
   private routeBuf: WebGLBuffer;
   private routeCount = 0;
@@ -590,8 +591,8 @@ export class MapObjects {
         const from: [number, number] = a ? a.from : [sh.x, sh.z];
         const heading = a ? Math.atan2(sh.z - from[1], sh.x - from[0]) : 0;
         // (Cruising: it flies slowly in, never quite arriving, until it is let go: see release.)
-        const cruise = a?.cruise ? (Math.hypot(sh.x - from[0], sh.z - from[1]) * 0.85) / a.dur : undefined;
-        this.ships.set(sh.id, { from, to: [sh.x, sh.z], t0: now, dur: a?.dur ?? 0, heading, colour: sh.colour, race: sh.race, cruise, fromY: sh.y ?? 0, toY: sh.y ?? 0, captain: sh.captain });
+        const cruise = a?.cruise ? Math.max(0.01, Math.hypot(sh.x - from[0], sh.z - from[1]) * 0.85 - (a.surge?.dist ?? 0)) / a.dur : undefined;
+        this.ships.set(sh.id, { from, to: [sh.x, sh.z], t0: now, dur: a?.dur ?? 0, heading, colour: sh.colour, race: sh.race, cruise, ...(a?.cruise && a.surge ? { surge: a.surge } : {}), fromY: sh.y ?? 0, toY: sh.y ?? 0, captain: sh.captain });
         continue;
       }
       was.colour = sh.colour;
@@ -618,6 +619,12 @@ export class MapObjects {
     }
   }
 
+  /** A cruising ship's flight begun again from now (made ready ahead of time, it sets off when it is seen). */
+  restart(id: string) {
+    const sh = this.ships.get(id);
+    if (sh?.cruise) sh.t0 = performance.now() / 1000;
+  }
+
   /** A cruising ship let go: it flies the rest of the way in, taking `dur` seconds. */
   release(id: string, dur: number) {
     const sh = this.ships.get(id);
@@ -625,6 +632,7 @@ export class MapObjects {
     const now = performance.now() / 1000;
     sh.from = this.shipAt(sh, now);
     sh.cruise = undefined;
+    sh.surge = undefined;
     sh.t0 = now;
     sh.dur = dur;
   }
@@ -827,10 +835,11 @@ export class MapObjects {
   }
 
   /** Where a ship is at a moment (world x, z). */
-  private shipAt(sh: { from: [number, number]; to: [number, number]; t0: number; dur: number; cruise?: number }, now: number): [number, number] {
+  private shipAt(sh: { from: [number, number]; to: [number, number]; t0: number; dur: number; cruise?: number; surge?: { dist: number; dur: number } }, now: number): [number, number] {
     if (sh.cruise) {
       const len = Math.hypot(sh.to[0] - sh.from[0], sh.to[1] - sh.from[1]) || 1;
-      const d = Math.min(len * 0.85, sh.cruise * (now - sh.t0));
+      const k = sh.surge ? Math.min(1, Math.max(0, now - sh.t0) / sh.surge.dur) : 0;
+      const d = Math.min(len * 0.85, sh.cruise * Math.max(0, now - sh.t0) + (sh.surge ? sh.surge.dist * k * k * (3 - 2 * k) : 0));
       return [sh.from[0] + ((sh.to[0] - sh.from[0]) * d) / len, sh.from[1] + ((sh.to[1] - sh.from[1]) * d) / len];
     }
     const t = sh.dur > 0 ? Math.min(1, (now - sh.t0) / sh.dur) : 1;

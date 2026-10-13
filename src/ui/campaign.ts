@@ -1679,6 +1679,8 @@ export class CampaignView {
   private launching = false;
   /** Set out from the menu: the campaign is being made under the menu's pan (its land shown whole at once). */
   private launchHeld = false;
+  /** Set out from the menu: where the flagship sets out from over the land, and how far it surges as the camera pans. */
+  private launchFrom: { from: [number, number]; surge: number } | null = null;
   /** How far east the menu's land had broken away when the run set out (it stays gone on the first map). */
   private menuGone: number | null = null;
   /** The menu's land, its camera as last drawn, and (setting out) its pan to where the run opens. */
@@ -1717,7 +1719,6 @@ export class CampaignView {
       node.style.transform = `translate(-21px, -50%) translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px)`;
       node.style.opacity = '0';
     });
-    sound.whoosh(0.05);
     // Where the campaign's opening shot begins [direction: the camera panned from the menu outwards to match the start
     // of the campaign's intro; one shot, no fading ship, no cutting camera; the ship moving forward as soon as the
     // camera starts panning; no freeze at the switch]: the campaign is made at once, under the menu (lifted out of the
@@ -1725,10 +1726,14 @@ export class CampaignView {
     // The land's camera eases from the menu's to the campaign's ride camera beside that flagship as it goes, and the
     // menu's own camera with it, so the menu's ship comes to lie exactly where the campaign's flagship is drawn, moving
     // with it: there the campaign takes over, on the very same frame, and its opening plays on.
+    // (The flagship sets out from where the menu's ship is over the land, heading for its first system: it surges
+    // forward as the camera pans, well clear of the breaking land by the time the pan is done, then cruises on.)
     const node: [number, number] = [(at.x - MAP_WIDTH / 2) * MAP_K, (at.y - MAP_HEIGHT / 2) * MAP_K];
-    const from: [number, number] = [node[0] - 3.4, node[1] + 2.5];
+    const from: [number, number] = [start.x, start.z];
     const heading = Math.atan2(node[1] - from[1], node[0] - from[0]);
+    this.launchFrom = { from, surge: Math.hypot(node[0] - from[0], node[1] - from[1]) * 0.5 };
     const still = { x: from[0], y: PLANE_Y + 0.13 + 0.05, z: from[1], heading };
+    world.rideNear = start.yaw;
     const fallback = world.rideAt(still, 0);
     const veil = document.createElement('div');
     veil.className = 'cs-launch-veil';
@@ -1739,8 +1744,12 @@ export class CampaignView {
     this.launchHeld = true;
     this.beginRun(run, true, LAUNCH_PAN);
     this.launchHeld = false;
-    if (this.nebula) this.nebula.hold = true;
-    world.smooth = true;
+    this.launchFrom = null;
+    const map = this.nebula;
+    if (map) {
+      map.hold = true;
+      map.rideNear = start.yaw;
+    }
     // (The campaign's flagship, 0.2 long, against the menu's, 4.2: the menu's scene seen as the campaign's camera sees
     // its flagship, scaled to it, so the two draw alike.)
     const k = 0.2 / Base3d.SHIP_SCALE;
@@ -1753,31 +1762,48 @@ export class CampaignView {
       for (const c of [0, 4, 8, 12]) for (const r of [0, 1, 2]) v[c + r] /= k;
       return new Float32Array(v);
     };
-    base.handTo(view, NEBULA_FOV, () => this.menuPan?.e ?? 1);
-    this.menuPan = {
-      from: start,
-      to: () => ride().pose,
-      t0: -1,
-      dur: LAUNCH_PAN,
-      e: 0,
-      end: () => {
-        // The campaign takes over: drawn from this frame on (its camera already where the menu's has come to), the
-        // menu's scene over it taken away the moment it has drawn.
-        this.launching = false;
-        this.menuPan = null;
-        this.menuWorld = null;
-        if (this.nebula) this.nebula.hold = false;
-        let frames = 0;
-        const wait = () => {
-          if (this.nebula?.landed) frames++;
-          if (frames >= 2 || !document.body.contains(veil)) return veil.remove();
+    // Nothing moves until the map is made [direction: the map preloaded before the ship starts moving]: its land in,
+    // drawn once, and a few quiet frames after; then the ship sets off and the camera pans, with nothing left to load.
+    let quiet = 0;
+    const began = performance.now();
+    const go = () => {
+      if (!document.body.contains(veil)) return;
+      if (map?.ready) quiet++;
+      if (quiet < 4 && performance.now() - began < 4000) return void requestAnimationFrame(go);
+      const mine = flagship(run.state, run.state.playerId);
+      if (mine) map?.restartShip(mine.id);
+      // (The opening shot's length, and the hero's words, from now.)
+      window.clearTimeout(this.cineTimer);
+      this.cineTimer = window.setTimeout(() => this.endRide(), (CINE_RIDE_MAX + LAUNCH_PAN) * 1000);
+      world.smooth = true;
+      base.handTo(view, NEBULA_FOV, () => this.menuPan?.e ?? 1);
+      sound.whoosh(0.05);
+      this.menuPan = {
+        from: start,
+        to: () => ride().pose,
+        t0: -1,
+        dur: LAUNCH_PAN,
+        e: 0,
+        end: () => {
+          // The campaign takes over: drawn from this frame on (its camera already where the menu's has come to), the
+          // menu's scene over it taken away the moment it has drawn.
+          this.launching = false;
+          this.menuPan = null;
+          this.menuWorld = null;
+          if (this.nebula) this.nebula.hold = false;
+          let frames = 0;
+          const wait = () => {
+            if (this.nebula?.landed) frames++;
+            if (frames >= 2 || !document.body.contains(veil)) return veil.remove();
+            requestAnimationFrame(wait);
+          };
           requestAnimationFrame(wait);
-        };
-        requestAnimationFrame(wait);
-        // (Never left up, whatever happens.)
-        window.setTimeout(() => veil.remove(), 2500);
-      },
+          // (Never left up, whatever happens.)
+          window.setTimeout(() => veil.remove(), 2500);
+        },
+      };
     };
+    requestAnimationFrame(go);
   }
 
   /** The commander's experience in all: what is banked, and what this run has earned and not yet banked. */
@@ -2748,6 +2774,8 @@ export class CampaignView {
       }
       this.cine = 'done';
       this.host.render();
+      // (The map's layer laid where the camera now is: it was let be through the shots.)
+      if (this.nebula?.camera) this.layPlane(this.nebula.camera);
       this.host.banner('galaxy 1', 'reach the wormhole');
       this.cineTimer = window.setTimeout(() => {
         this.cine = null;
@@ -3183,7 +3211,11 @@ export class CampaignView {
     const back = root.querySelector<HTMLCanvasElement>('canvas.cmp-nebula');
     this.nebula = back ? nebulaOn(back, root.querySelector<HTMLCanvasElement>('canvas.cmp-nebula-front')) : null;
     if (!this.nebula) return;
-    this.nebula.onCamera = (cam) => this.layPlane(cam);
+    // (Through the opening shots the map's own layer is hidden: not laid out again every frame of them.)
+    this.nebula.onCamera = (cam) => {
+      if (this.cine === 'start' || this.cine === 'ride' || this.cine === 'reveal') return;
+      this.layPlane(cam);
+    };
     this.nebula.onThrust = (on) => sound.thrust(on);
     const world = (x: number, y: number): [number, number] => [(x - MAP_WIDTH / 2) * MAP_K, (y - MAP_HEIGHT / 2) * MAP_K];
     const at = new Map(s.nodes.map((n) => [n.id, world(n.x, n.y)]));
@@ -3273,7 +3305,7 @@ export class CampaignView {
         const k = this.advance?.land ? 1 : 0.5;
         // A new campaign: the flagship flies in from off screen, behind the strip's near end.
         // (In the opening shot it cruises in from further off, slowly, until the hero has had their say.)
-        const arrive = arriving && a.id === mine?.id ? (this.cine === 'start' ? { from: [x - 3.4, z + 2.5] as [number, number], dur: CINE_RIDE_MAX + 4, cruise: true } : { from: [x - 2.6, z + 1.9] as [number, number], dur: ARRIVAL_FLIGHT }) : undefined;
+        const arrive = arriving && a.id === mine?.id ? (this.cine === 'start' ? (this.launchFrom ? { from: this.launchFrom.from, dur: CINE_RIDE_MAX + 4, cruise: true, surge: { dist: this.launchFrom.surge, dur: LAUNCH_PAN } } : { from: [x - 3.4, z + 2.5] as [number, number], dur: CINE_RIDE_MAX + 4, cruise: true }) : { from: [x - 2.6, z + 1.9] as [number, number], dur: ARRIVAL_FLIGHT }) : undefined;
         const y0 = lift.get(a.nodeId) ?? 0, y1 = adv ? lift.get(this.advance!.toId) ?? 0 : y0;
         // (The Captain's ship: built from its fitted parts, and flying from star to star unless it warps.)
         const captain = a.id === mine?.id && campaignPlayer(s).human ? this.captainSpec(a.general) : undefined;

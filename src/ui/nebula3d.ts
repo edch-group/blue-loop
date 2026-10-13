@@ -777,6 +777,16 @@ export class Nebula {
     this.wake();
   }
 
+  /** Made ready while held: its land in and drawn once (its shaders built, everything sent to the GPU). */
+  get ready(): boolean {
+    return this.warmed;
+  }
+
+  /** A cruising ship's flight begun again from now (see MapObjects.restart). */
+  restartShip(id: string) {
+    this.layers[this.layers.length - 1].objects?.restart(id);
+  }
+
   /** The opening shot's camera this frame and the ship it rides beside (null: no shot playing). */
   rideNow(): { pose: Pose; ship: { x: number; y: number; z: number; heading: number } } | null {
     const sh = this.cine && this.layers[this.layers.length - 1].objects?.shipPose(this.cine.id, this.time);
@@ -796,6 +806,9 @@ export class Nebula {
   }
 
   /** The opening shot's camera beside a ship here (world x, y, z, facing `heading`), at this time into the shot. */
+  /** The opening shot keeps to the side of the ship nearest this yaw (null: the side away from the camera's rest). */
+  rideNear: number | null = null;
+
   rideAt(sh: { x: number; y: number; z: number; heading: number }, time = 0): Pose {
     // (Off its side and a little ahead: the side away from where the camera will come to rest, so the turn out to
     // the map is a wide one.)
@@ -803,7 +816,10 @@ export class Nebula {
     const side = (k: number) => Math.atan2(-fz * k + fx * 0.7, fx * k + fz * 0.7);
     const home = this.home().yaw;
     const turn = (y: number) => Math.abs(Math.atan2(Math.sin(y - home), Math.cos(y - home)));
-    const yaw = (turn(side(1)) > turn(side(-1)) ? side(1) : side(-1)) + 0.12 * Math.sin(time * 0.25);
+    // (Or, set out from the campaign menu, the side its camera was already on, so the pan onto it never swings round.)
+    const near = this.rideNear;
+    const by = (y: number) => (near === null ? -turn(y) : Math.abs(Math.atan2(Math.sin(y - near), Math.cos(y - near))));
+    const yaw = (by(side(1)) < by(side(-1)) ? side(1) : side(-1)) + 0.12 * Math.sin(time * 0.25);
     // (Looking a little to the ship's left, so it sits right of centre, clear of the hero's words.)
     const off = 0.13;
     return { x: sh.x - Math.cos(yaw) * off, y: sh.y, z: sh.z + Math.sin(yaw) * off, yaw, pitch: 0.2 + 0.04 * Math.sin(time * 0.18), dist: 0.5 };
@@ -1112,8 +1128,8 @@ export class Nebula {
       const busy = this.moved || !!this.glide || !!this.cine || this.fade < 1 || this.gone !== this.goneTarget || !!objects?.shipsUnderway || !!objects?.hoverMoving || this.forceDraw;
       // (Driven, it is always moving a little: 30 frames a second, never every one the screen can show.)
       const due = (busy && (!this.driver || this.smooth)) || t - this.drawn >= 33;
-      if (due && !document.hidden && (!this.hold || !this.warmed)) {
-        this.warmed = true;
+      if (due && !document.hidden && (!this.hold || (!this.warmed && this.landed))) {
+        if (this.landed) this.warmed = true;
         this.drawn = t;
         this.forceDraw = false;
         for (const l of this.layers) l.draw(cam, this.time, fade, this.gone, this.crack, this.look, this.dark);
