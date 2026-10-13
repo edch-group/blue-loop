@@ -467,6 +467,47 @@ function cardBlowSound(prev: GameState, next: GameState, uid: string) {
   if (lost > 0 || !now || (now.dented ?? 0) <= (was.dented ?? 0)) sound.clash(Math.max(1, lost));
 }
 
+/** What a move changed on a card in play (it stays in play): each change, and whether it hurt the card. */
+type Shift = { text: string; tone: 'hot' | 'cool' | 'block' | 'buff'; bad: boolean };
+function cardShift(prev: GameState, next: GameState, uid: string): Shift[] {
+  const find = (st: GameState) => {
+    for (const p of st.players) {
+      const c = p.tableau.find((x) => x.uid === uid);
+      if (c) return { st, p, c };
+    }
+    return null;
+  };
+  const a = find(prev), b = find(next);
+  if (!a || !b) return [];
+  const out: Shift[] = [];
+  const dh = (b.c.health ?? 0) - (a.c.health ?? 0);
+  if (dh) out.push({ text: `${dh > 0 ? '+' : '−'}${Math.abs(dh)}`, tone: dh > 0 ? 'buff' : 'hot', bad: dh < 0 });
+  const dd = cardDefence(b.p, b.c) - cardDefence(a.p, a.c);
+  if (dd) out.push({ text: `⛨${dd > 0 ? '+' : '−'}${Math.abs(dd)}`, tone: dd > 0 ? 'buff' : 'block', bad: dd < 0 });
+  const da = cardAttack(b.st, b.p, b.c) - cardAttack(a.st, a.p, a.c);
+  if (da) out.push({ text: `⚔${da > 0 ? '+' : '−'}${Math.abs(da)}`, tone: da > 0 ? 'buff' : 'hot', bad: da < 0 });
+  const ds = (b.c.shields ?? 0) - (a.c.shields ?? 0);
+  if (ds > 0) out.push({ text: `⬡+${ds}`, tone: 'block', bad: false });
+  if (b.c.frozen && !a.c.frozen) out.push({ text: '❄', tone: 'cool', bad: true });
+  if (b.c.slot !== a.c.slot && b.p.id === a.p.id) out.push({ text: '⇄', tone: 'block', bad: true });
+  return out;
+}
+/** A card's changes floated up over it, one above the next, as the blow or the light lands. */
+function cardShiftNumbers(shift: Shift[], at: DOMRect, delay: number) {
+  if (!shift.length || reducedMotion()) return;
+  window.setTimeout(() => {
+    shift.forEach((x, i) => {
+      const el = document.createElement('div');
+      el.className = `dmg dmg-card dmg-${x.tone}`;
+      el.textContent = x.text;
+      el.style.left = `${at.left + at.width / 2}px`;
+      el.style.top = `${at.top + at.height * (0.42 - i * 0.2)}px`;
+      document.body.appendChild(el);
+      window.setTimeout(() => el.remove(), 1400);
+    });
+  }, delay);
+}
+
 function floatNumber(at: DOMRect, text: string, tone: 'hot' | 'cool' | 'block', row: number) {
   const el = document.createElement('div');
   el.className = `dmg dmg-${tone}`;
@@ -2632,8 +2673,14 @@ export class App {
     const playedId = action.type === 'playCard' ? playedDefId(prev, next, actor.id, action.cardUid) : '';
     const playedDef = playedId ? cardDef(playedId) : null;
     // A Hero's ability: its heat flies from the Hero's card, as a played card's does from that card.
-    const heroCard = action.type === 'heroAbility' ? commandCard(prev.players.find((p) => p.id === actor.id)!) : undefined;
-    const ability = heroCard ? heroAbilities(prev.players.find((p) => p.id === actor.id)!, heroCard)[action.type === 'heroAbility' ? action.index : 0] : undefined;
+    // (And its singularity [direction: hero abilities animated, never cards just losing stats unexplained].)
+    const heroMove = action.type === 'heroAbility' || action.type === 'singularity';
+    const heroCard = heroMove ? commandCard(prev.players.find((p) => p.id === actor.id)!) : undefined;
+    const ability = heroCard
+      ? action.type === 'singularity'
+        ? singularityOf(heroCard.defId)
+        : heroAbilities(prev.players.find((p) => p.id === actor.id)!, heroCard)[action.type === 'heroAbility' ? action.index : 0]
+      : undefined;
     const heroFrom = heroCard
       ? () => {
           const el = this.root.querySelector(`.tableau [data-uid="${heroCard.uid}"]`);
@@ -2642,12 +2689,13 @@ export class App {
       : null;
     if (heroCard) {
       const el = root.querySelector<HTMLElement>(`.tableau [data-uid="${heroCard.uid}"]`);
-      if (el) pulse(el, 'fx-trigger', 0);
+      if (el) pulse(el, action.type === 'singularity' ? 'fx-unleash' : 'fx-trigger', 0);
     }
     // Where this move's heat comes from (a played card or a Hero's ability), and whether it heats at all.
     const shotFrom = playedFrom ?? heroFrom;
-    const shotHeats = (playedDef?.onPlay ?? ability?.effects ?? []).some((e) => e.type === 'heat');
-    const shotAim = action.type === 'playCard' || action.type === 'heroAbility' ? action.aimUid : undefined;
+    const shotEffects = playedDef?.onPlay ?? ability?.effects ?? [];
+    const shotHeats = shotEffects.some((e) => e.type === 'heat' || (heroMove && (e.type === 'strikeAll' || e.type === 'strikeBest' || e.type === 'blast')));
+    const shotAim = action.type === 'playCard' || action.type === 'heroAbility' || action.type === 'singularity' ? action.aimUid : undefined;
 
     // --- Card movement -----------------------------------------------------
     const inHand = new Set(vNext.hand.map((c) => c.uid));
@@ -2660,12 +2708,12 @@ export class App {
     const removalAt = new Map<string, number>();
     const shown = this.aimShown;
     this.aimShown = null;
-    if (action.type === 'playCard' || action.type === 'heroAbility') {
+    if (action.type === 'playCard' || heroMove) {
       const rivalCards = (st: GameState) => new Map(st.players.filter((p) => p.id !== actor.id).flatMap((p) => p.tableau.map((c) => [c.uid, c] as const)));
       const was = rivalCards(prev);
       const now = rivalCards(next);
       const hitCards = [...was]
-        .filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.health ?? 0) < (c.health ?? 0) || (now.get(uid)!.dented ?? 0) > (c.dented ?? 0))
+        .filter(([uid, c]) => !now.has(uid) || (now.get(uid)!.health ?? 0) < (c.health ?? 0) || (now.get(uid)!.dented ?? 0) > (c.dented ?? 0) || (heroMove && cardShift(prev, next, uid).length > 0))
         .map(([uid]) => uid);
       const from = shotFrom!;
       const heats = shotHeats;
@@ -2678,7 +2726,8 @@ export class App {
         // Heat aimed at a card: flying from the card played to the card it strikes, whose numbers change as
         // it lands. (Removal, below, is a white arc.)
         const wasC = was.get(uid)!, nowC = now.get(uid);
-        const byHeat = heats && uid !== enemyUid && (uid === shotAim || (nowC?.dented ?? 0) > (wasC.dented ?? 0));
+        // (A Hero's heat that strikes several cards at once flies to each; what it ejects is still a white arc.)
+        const byHeat = heats && uid !== enemyUid && (uid === shotAim || (nowC?.dented ?? 0) > (wasC.dented ?? 0) || (heroMove && (nowC ? (nowC.health ?? 0) < (wasC.health ?? 0) : !shotEffects.some((e) => e.type === 'bounce'))));
         if (byHeat) {
           const land = projectile(from, () => (el?.isConnected ? pageRect(el) : to), HOT, { delay, size: 30, duration: 560 });
           removalAt.set(uid, land);
@@ -2686,17 +2735,50 @@ export class App {
             pulse(el, 'fx-hit-card', land);
             this.holdCardStats(el, before.cards.get(uid)?.html, land);
           }
+          if (heroMove) cardShiftNumbers(cardShift(prev, next, uid), to, land);
           window.setTimeout(() => sound.launch(), delay);
           window.setTimeout(() => sound.whoosh(0, !nowC), land - 60);
           window.setTimeout(() => cardBlowSound(prev, next, uid), land);
           return;
         }
         // (A card whose aim was shown while it waited to be confirmed already pointed here.)
-        removalAt.set(uid, uid === shown ? 160 : tether(from, to, { delay }));
+        const reach = uid === shown ? 160 : tether(from, to, { delay });
+        removalAt.set(uid, reach);
+        // (A Hero's: what it did to the card shown as the arc reaches it, its numbers held till then.)
+        if (heroMove && nowC) {
+          if (el) {
+            pulse(el, 'fx-hit-card', reach);
+            this.holdCardStats(el, before.cards.get(uid)?.html, reach);
+          }
+          cardShiftNumbers(cardShift(prev, next, uid), to, reach);
+        }
         // The beam whooshes onto the card (and, if it takes it, sweeps it away).
         const gone = !next.players.some((p) => p.tableau.some((c) => c.uid === uid));
         window.setTimeout(() => sound.whoosh(0, gone), delay);
       });
+    }
+
+    // A Hero's ability or singularity on its own side: a beam of light from the Hero to each card it changes (the
+    // Hero itself glowing), and what changed shown on it as the light lands.
+    if (heroMove && heroCard) {
+      const mine = next.players.find((p) => p.id === actor.id)!;
+      let i = 0;
+      for (const c of mine.tableau) {
+        const shift = cardShift(prev, next, c.uid);
+        if (!shift.length || !prev.players.some((p) => p.tableau.some((x) => x.uid === c.uid))) continue;
+        const el = root.querySelector<HTMLElement>(`.tableau [data-uid="${c.uid}"]`);
+        const to = before.cards.get(c.uid)?.rect ?? (el ? pageRect(el) : null);
+        const from = heroFrom!();
+        if (!to || !from) continue;
+        const delay = (actor.isAI ? 600 : 420) + i++ * 140;
+        const land = c.uid === heroCard.uid ? delay : beam(from, to, 'plain', { delay, duration: 380 });
+        if (el) {
+          pulse(el, shift.some((x) => x.bad) ? 'fx-hit-card' : 'fx-upgrade', land);
+          this.holdCardStats(el, before.cards.get(c.uid)?.html, land);
+        }
+        cardShiftNumbers(shift, to, land);
+        window.setTimeout(() => (shift.some((x) => x.bad) ? sound.clash(1) : sound.shield()), land);
+      }
     }
 
     root.querySelectorAll<HTMLElement>('[data-uid]').forEach((el) => {

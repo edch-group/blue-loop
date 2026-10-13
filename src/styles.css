@@ -2497,6 +2497,12 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .dmg-hot { color: #e2461f; }
 .dmg-cool { color: #3d8fd8; }
 .dmg-block { color: #5b7bb3; font-size: clamp(16px, calc(4.2 * var(--vh)), 30px); }
+/* A card's own changes, over it: smaller than a sun's; what a Hero gave it in gold. */
+.dmg-card { font-size: clamp(15px, calc(3.6 * var(--vh)), 26px); }
+.dmg-buff { color: #c99a2e; }
+/* A Hero unleashing its singularity: a burst of red fire off its card. */
+.fx-unleash { animation: unleash 1s ease-out; }
+@keyframes unleash { 0% { box-shadow: 0 0 0 0 rgba(255, 90, 30, 0); transform: scale(1); } 25% { box-shadow: 0 0 0 6px rgba(255, 90, 30, 0.95), 0 0 46px 12px rgba(255, 60, 20, 0.9); transform: scale(1.08); } 100% { box-shadow: 0 0 0 0 rgba(255, 90, 30, 0); transform: scale(1); } }
 @keyframes dmg-rise {
   0% { opacity: 0; transform: translate(-50%, -30%) scale(0.5); }
   15% { opacity: 1; transform: translate(-50%, -60%) scale(1.35); }
