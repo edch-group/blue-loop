@@ -2377,19 +2377,24 @@ export class CampaignView {
       const AHEAD: [number, number] = [7, -0.2];
       let stellari: [number, number] = [AHEAD[0] - 3.6, AHEAD[1]];
       const LOOP = 150;
-      let toward = 0, lastT = 0;
+      let toward = 0, lastT = 0, placedAt = -99;
       const flight = (time: number) => {
         const k = (time % LOOP) / LOOP;
         return { x: -3.6 + 6 * k, k };
       };
       if (world) {
         const line: [number, number][] = Array.from({ length: 13 }, (_, i) => [-6 + i, 0]);
+        world.setPixelBudget(1.8e6);
         world.show(77017, { nodes: line, routes: line.slice(1).map((q, i) => [line[i][0], line[i][1], q[0], q[1]]) });
         world.drive((time) => {
           const f = flight(time);
           world.setCollapse(f.x - 0.5, f.x + 0.1);
           stellari = [f.x + AHEAD[0], AHEAD[1]];
-          world.setObjects([{ x: stellari[0], z: stellari[1], heart: true, seed: 3 }]);
+          // (Moved on only now and then: it drifts slowly, and each move rebuilds the scene's list.)
+          if (Math.abs(stellari[0] - placedAt) > 0.01) {
+            placedAt = stellari[0];
+            world.setObjects([{ x: stellari[0], z: stellari[1], heart: true, seed: 3 }]);
+          }
           // (Faded out and back as the flight comes round to its start: the land whole again.)
           const edge = Math.min(f.k, 1 - f.k) * LOOP;
           const shown = Math.min(1, edge / 1.5).toFixed(3);

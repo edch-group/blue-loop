@@ -481,8 +481,9 @@ export class Base3d {
     const gl = this.gl, c = this.canvas;
     const lw = c.clientWidth, lh = c.clientHeight;
     if (!lw || !lh) return;
-    let dpr = Math.min(2, window.devicePixelRatio || 1) * uiZoom();
-    if (lw * lh * dpr * dpr > 4.6e6) dpr = Math.sqrt(4.6e6 / (lw * lh));
+    // (Over the land's own scene: within about a 1440p screen's pixels in all.)
+    let dpr = Math.min(1.5, window.devicePixelRatio || 1) * uiZoom();
+    if (lw * lh * dpr * dpr > 3e6) dpr = Math.sqrt(3e6 / (lw * lh));
     const w = Math.round(lw * dpr), h = Math.round(lh * dpr);
     if (c.width !== w || c.height !== h) {
       c.width = w;

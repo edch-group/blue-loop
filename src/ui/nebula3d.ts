@@ -403,6 +403,9 @@ class Layer {
   /** What lies under the galaxy (a black hole, a pulsar): on the layer behind the map. */
   galaxy: MapObjects | null = null;
 
+  /** The most pixels it draws (the menu's backdrop draws fewer: it sits behind the ship, softly). */
+  maxPixels = 4.6e6;
+
   constructor(readonly canvas: HTMLCanvasElement, readonly front: boolean) {
     const gl = canvas.getContext('webgl', front ? { antialias: true, alpha: true, premultipliedAlpha: true, depth: true } : { antialias: true, alpha: false, depth: true, stencil: true });
     if (!gl) throw new Error('no webgl');
@@ -475,7 +478,7 @@ class Layer {
     // (Kept within about a 1440p screen's pixels at 1.5, so a huge screen doesn't swamp the GPU.)
     const lw = c.clientWidth, lh = c.clientHeight;
     let dpr = Math.min(1.5, window.devicePixelRatio || 1) * uiZoom();
-    const most = 4.6e6;
+    const most = this.maxPixels;
     if (lw * lh * dpr * dpr > most) dpr = Math.sqrt(most / (lw * lh));
     const w = Math.round(lw * dpr), h = Math.round(lh * dpr);
     if (!w || !h) return;
@@ -886,6 +889,10 @@ export class Nebula {
    * land falling away behind it]): told the time, it says where the camera is, every frame (null hands it back).
    */
   private driver: ((time: number) => Pose) | null = null;
+  /** Draw no more than this many pixels on each layer. */
+  setPixelBudget(n: number) {
+    for (const l of this.layers) l.maxPixels = n;
+  }
   drive(f: ((time: number) => Pose) | null) {
     this.driver = f;
     this.wake();
@@ -983,7 +990,6 @@ export class Nebula {
       this.glide = null;
       this.cine = null;
       this.homed = true;
-      this.moved = true;
     }
     const cam = this.makeCamera();
     if (cam) {
@@ -995,7 +1001,8 @@ export class Nebula {
       // way, hover swelling, land falling away): at most 30 frames a second, not every one the screen can show.
       const objects = this.layers[this.layers.length - 1].objects;
       const busy = this.moved || !!this.glide || !!this.cine || this.fade < 1 || this.gone !== this.goneTarget || !!objects?.shipsUnderway || !!objects?.hoverMoving || this.forceDraw;
-      const due = busy || t - this.drawn >= 33;
+      // (Driven, it is always moving a little: 30 frames a second, never every one the screen can show.)
+      const due = (busy && !this.driver) || t - this.drawn >= 33;
       if (due && !document.hidden) {
         this.drawn = t;
         this.forceDraw = false;
@@ -1013,7 +1020,8 @@ export class Nebula {
       this.onThrust?.(thrust);
     }
     // Keep running while the gas lives (it always does, unless motion is reduced) or the camera glides.
-    if (live || this.glide || this.cine || this.fade < 1 || !cam || this.layers[this.layers.length - 1].objects?.hoverMoving) this.raf = requestAnimationFrame((t2) => this.frame(t2));
+    // (One frame asked for at a time: anything that woke it during this frame has already asked.)
+    if (!this.raf && (live || this.glide || this.cine || this.fade < 1 || !cam || this.layers[this.layers.length - 1].objects?.hoverMoving)) this.raf = requestAnimationFrame((t2) => this.frame(t2));
     else this.last = 0;
   }
 
