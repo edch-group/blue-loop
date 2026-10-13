@@ -441,6 +441,8 @@ export class CampaignView {
   private heroOpen = false;
   /** The Captain's skills learnt this visit to his tree (undo or clear takes them back), and how he was before each. */
   private capPlaced: string[] = [];
+  /** How far the Captain's tree is scrolled (null: not yet, so it opens at the foot, by his emblem). */
+  private hpScroll: number | null = null;
   private capHistory: CaptainMeta[] = [];
   private hangarOpen = false;
   /** The base on the setup page (3D), while it is shown. */
@@ -983,6 +985,7 @@ export class CampaignView {
       }
       case 'cmp-hero':
         this.heroOpen = !this.heroOpen;
+        this.hpScroll = null;
         this.capPlaced = [];
         this.capHistory = [];
         break;
@@ -1828,105 +1831,107 @@ export class CampaignView {
     const c = captainMeta(meta);
     const placed = new Set(this.capPlaced);
     const left = pointsLeft(meta);
-    // [direction: the Captain's skill tree styled like the general skill tree]: drawn as that tree is, round the
-    // Captain's emblem at the foot of the sky: a branch for each of what the Captain can learn fanning up from it, each
-    // skill a mote of light in its branch's colour (lit once learnt, a dashed ring turning round what can be learnt
-    // now), lines joining each to what it needs; its tip on a hover, and a tap learns it (or carries it, or leads).
-    // [direction: the tree starting above his head, wrapping round him to use the page]: its root just over the
-    // Captain's head, its branches curving down the page on either side of him, his body clear beneath it (angles
-    // clockwise on screen from straight right; up is drawn shallower, the page's head being close above).
-    const BR = {
-      attack: { dir: 118, colour: '#d0675a', name: 'attack' },
-      cheaper: { dir: 140, colour: '#d9a441', name: 'cost' },
-      stability: { dir: 162, colour: '#5f9fdc', name: 'stability' },
-      slots: { dir: 186, colour: '#8a7fd0', name: 'ability slots' },
-      abilities: { dir: 270, colour: '#4fae9b', name: 'abilities' },
-      leads: { dir: 22, colour: '#c98a4b', name: 'leads' },
-    } as const;
-    // (Across in the page's half-width; down in the room below the root; up a little only.)
-    const UP = 0.27;
-    const at = (deg: number, k: number): [number, number] => {
-      const sn = Math.sin((deg * Math.PI) / 180);
-      return [k * Math.cos((deg * Math.PI) / 180), k * sn * (sn < 0 ? UP : 1)];
-    };
-    const ROOT = 0.07;
-    const line = (a: [number, number], b: [number, number], lit: boolean, colour: string) =>
-      `<span class="up-line ${lit ? 'lit' : ''}" style="--x1:${a[0].toFixed(4)};--y1:${a[1].toFixed(4)};--x2:${b[0].toFixed(4)};--y2:${b[1].toFixed(4)};--bc:${colour}"></span>`;
-    const lines: string[] = [];
-    const nodes: string[] = [];
-    const labels: string[] = [];
-    // (Learnt this visit: planned, its ring paler, until the tree is left; undo or clear takes it back.)
-    const node = (key: string, p: [number, number], colour: string, st: { owned: boolean; can: boolean; locked: boolean; on?: boolean; big?: boolean }, title: string, text: string, next = '') => {
-      const plan = st.owned && placed.has(key);
-      nodes.push(`<button class="up-node ${st.big ? 'tier-3' : ''} ${st.owned && !plan ? 'owned' : ''} ${plan ? 'planned' : ''} ${st.owned ? 'maxed' : ''} ${st.locked ? 'locked' : ''} ${st.can ? 'afford' : ''} ${st.on ? 'hp-carried' : ''}" style="--x:${p[0].toFixed(4)};--y:${p[1].toFixed(4)};--bc:${colour};--lv:${st.owned ? 1 : 0}" data-act="cmp-cap-pick" data-arg="${esc(key)}" data-up-title="${esc(title)}" data-up-text="${esc(text)}" data-up-next="${esc(next)}" data-up-rich="1" aria-label="${esc(title)}">
-          <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" class="${plan ? 'plan' : st.owned ? 'on' : ''}"/></svg><i class="up-mote" aria-hidden="true"></i></span>
-        </button>`);
-    };
+    // [direction: the Captain's skill tree one big upwards scroll, every skill visibly labelled; styled like the general
+    // skill tree]: his emblem at the foot, each branch climbing from it as a column of skills (its stem bent at right
+    // angles, as the tree's are), each skill a mote of light with its name and what it is beside it; the page opens at
+    // the foot and scrolls up. A tap learns a skill (or carries an ability, or leads with a lead).
+    type Item = { key: string; owned: boolean; can: boolean; locked: boolean; on?: boolean; title: string; sub: string; what?: string };
+    type Branch = { name: string; colour: string; chain: boolean; items: Item[] };
     const price = (buy: CaptainBuy) => captainPrice(meta, buy);
     const can = (buy: CaptainBuy) => !captainBuyProblem(meta, buy);
-    const label = (deg: number, k: number, name: string) => {
-      const [x, y] = at(deg, k);
-      labels.push(`<span class="up-arc-label hp-branch" style="--x:${x.toFixed(4)};--y:${y.toFixed(4)}">${esc(name)}</span>`);
+    const cost = (buy: CaptainBuy | null) => {
+      const n = buy ? price(buy) : null;
+      return n === null ? '' : `${n} skill point${n === 1 ? '' : 's'}`;
     };
-    // The stats and the ability slots: each a chain, out along its branch, each step needing the one before.
-    const chain = (b: { dir: number; colour: string; name: string }, steps: { key: string; owned: boolean; buy: CaptainBuy | null; title: string; text: string }[]) => {
-      const reach = (i: number) => 0.28 + (0.6 * i) / Math.max(4, steps.length);
-      let prev = at(b.dir, ROOT);
-      steps.forEach((st, i) => {
-        const p = at(b.dir, reach(i + (steps.length < 4 ? 0.5 : 0)));
-        const before = i === 0 || steps[i - 1].owned;
-        lines.push(line(prev, p, st.owned, b.colour));
-        const cost = st.buy ? price(st.buy) : null;
-        node(st.key, p, b.colour, { owned: st.owned, can: !st.owned && before && !!st.buy && can(st.buy), locked: !st.owned && !before, big: i === steps.length - 1 }, st.title, st.text, st.owned ? 'learnt' : cost !== null ? `${cost} skill point${cost === 1 ? '' : 's'}` : '');
-        prev = p;
-      });
-      label(b.dir, reach(steps.length - 1 + (steps.length < 4 ? 0.5 : 0)) + 0.1, b.name);
+    const statBranch = (k: CaptainStat, name: string, colour: string, say: (n: number) => string): Branch => ({
+      name,
+      colour,
+      chain: true,
+      items: CAPTAIN_STAT_PRICES[k].map((_, i) => {
+        const owned = i < c[k], next = i === c[k];
+        const buy: CaptainBuy = { kind: 'stat', stat: k };
+        return { key: `stat:${k}:${i}`, owned, can: next && can(buy), locked: i > c[k], title: say(i + 1), sub: owned ? 'learnt' : next ? cost(buy) : 'after the one below' };
+      }),
+    });
+    const slots: Branch = {
+      name: 'ability slots',
+      colour: '#8a7fd0',
+      chain: true,
+      items: [
+        { key: 'slot:base', owned: true, can: false, locked: false, title: '1 ability slot', sub: 'learnt' },
+        ...CAPTAIN_SLOT_PRICES.map((_, i) => {
+          const owned = i < c.slots, next = i === c.slots;
+          const buy: CaptainBuy = { kind: 'slot' };
+          return { key: `slot:${i}`, owned, can: next && can(buy), locked: i > c.slots, title: `${i + 2} ability slots`, sub: owned ? 'learnt' : next ? cost(buy) : 'after the one below' };
+        }),
+      ],
     };
-    const stat = (k: CaptainStat, say: (n: number) => string, text: (n: number) => string) =>
-      chain(BR[k], CAPTAIN_STAT_PRICES[k].map((_, i) => ({ key: `stat:${k}:${i}`, owned: i < c[k], buy: i === c[k] ? { kind: 'stat', stat: k } : null, title: `${BR[k].name} ${say(i + 1)}`, text: text(i + 1) })));
-    stat('attack', (n) => `+${n}`, (n) => `+${n} attack.`);
-    stat('cheaper', (n) => `−${n}`, (n) => `Costs ${n} less to play.`);
-    stat('stability', (n) => `+${n * CAPTAIN_STABILITY_STEP}`, (n) => `+${n * CAPTAIN_STABILITY_STEP} stability.`);
-    chain(BR.slots, [
-      { key: 'slot:base', owned: true, buy: null, title: 'ability slot 1', text: 'Carry 1 ability into battle.' },
-      ...CAPTAIN_SLOT_PRICES.map((_, i) => ({ key: `slot:${i}`, owned: i < c.slots, buy: i === c.slots ? ({ kind: 'slot' } as CaptainBuy) : null, title: `ability slot ${i + 2}`, text: `Carry ${i + 2} abilities into battle.` })),
-    ]);
-    // The abilities and the leads: none needs another, each hung from its branch's fork, fanned in two rows (each
-    // row its own span of the sky, its skills spaced so none crowds the next).
-    const fan = (b: { dir: number; colour: string; name: string }, rows: [number, number, number, number][], items: { key: string; owned: boolean; on: boolean; buy: CaptainBuy; title: string; text: string; note: string }[]) => {
-      const fork = at(b.dir, 0.24);
-      lines.push(line(at(b.dir, ROOT), fork, items.some((x) => x.owned), b.colour));
-      let n = 0;
-      for (const [k, from, to, count] of rows) {
-        const row = items.slice(n, n + count);
-        n += row.length;
-        row.forEach((it, i) => {
-          const p = at(row.length > 1 ? from + ((to - from) * i) / (row.length - 1) : (from + to) / 2, k);
-          lines.push(line(fork, p, it.owned, b.colour));
-          const cost = price(it.buy);
-          node(it.key, p, b.colour, { owned: it.owned, can: !it.owned && can(it.buy), locked: false, on: it.on }, it.title, it.text, it.owned ? it.note : cost !== null ? `${cost} skill point${cost === 1 ? '' : 's'}` : '');
-        });
-      }
-      // (Named past the end of its outer row, clear of the page's title.)
-      const outer = rows[rows.length - 1];
-      label(outer[2] + 10, outer[0] + 0.06, b.name);
-    };
-    fan(
-      BR.abilities,
-      [[0.56, 238, 302, 4], [0.9, 212, 328, 6]],
-      CAPTAIN_ABILITIES.map((a) => {
+    const full = c.equipped.length >= captainSlots(c.slots);
+    const pay = (a: (typeof CAPTAIN_ABILITIES)[number]) =>
+      [a.ability.cost ? `${a.ability.cost} energy` : '', a.ability.pay?.stability ? `−${a.ability.pay.stability} stability` : '', a.ability.pay?.selfHeat ? `{heat:${a.ability.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ');
+    const abilities: Branch = {
+      name: 'abilities',
+      colour: '#4fae9b',
+      chain: false,
+      items: CAPTAIN_ABILITIES.map((a) => {
         const owned = c.abilities.includes(a.id), on = c.equipped.includes(a.id);
-        return { key: `ability:${a.id}`, owned, on, buy: { kind: 'ability', id: a.id } as CaptainBuy, title: a.ability.name.toLowerCase(), text: `${[a.ability.cost ? `${a.ability.cost} energy` : '', a.ability.pay?.stability ? `−${a.ability.pay.stability} stability` : '', a.ability.pay?.selfHeat ? `{heat:${a.ability.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ').replace(/^(.+)$/, '$1: ')}${a.ability.text} Once a day.`, note: on ? 'carried · tap to leave it behind' : c.equipped.length >= captainSlots(c.slots) ? 'learnt · every ability slot full' : 'learnt · tap to carry it' };
+        const buy: CaptainBuy = { kind: 'ability', id: a.id };
+        const what = `${pay(a) ? `${pay(a)}: ` : ''}${a.ability.text}`;
+        return { key: `ability:${a.id}`, owned, on, can: !owned && can(buy), locked: false, title: a.ability.name.toLowerCase(), what, sub: owned ? (on ? 'carried' : full ? 'learnt · slots full' : 'learnt · tap to carry') : cost(buy) };
       }),
-    );
-    fan(
-      BR.leads,
-      [[0.5, 4, 40, 2], [0.82, 8, 36, 2]],
-      CAPTAIN_LEADS.map((l) => {
+    };
+    const leads: Branch = {
+      name: 'leads',
+      colour: '#c98a4b',
+      chain: false,
+      items: CAPTAIN_LEADS.map((l) => {
         const owned = c.leads.includes(l.id), on = c.lead === l.id;
-        return { key: `lead:${l.id}`, owned, on, buy: { kind: 'lead', id: l.id } as CaptainBuy, title: l.name.toLowerCase(), text: l.text, note: on ? 'leading · tap to stop' : 'learnt · tap to lead with it' };
+        const buy: CaptainBuy = { kind: 'lead', id: l.id };
+        return { key: `lead:${l.id}`, owned, on, can: !owned && can(buy), locked: false, title: l.name.toLowerCase(), what: l.text, sub: owned ? (on ? 'leading' : 'learnt · tap to lead') : cost(buy) };
       }),
-    );
+    };
+    const branches: Branch[] = [
+      statBranch('attack', 'attack', '#d0675a', (n) => `+${n} attack`),
+      statBranch('cheaper', 'cost', '#d9a441', (n) => `costs ${n} less`),
+      statBranch('stability', 'stability', '#5f9fdc', (n) => `+${n * CAPTAIN_STABILITY_STEP} stability`),
+      slots,
+      abilities,
+      leads,
+    ];
+    // Laid out on a sheet 1000 wide: its columns side by side (on a phone, two at a time, each pair a tier further up),
+    // a row of 92 a skill, his emblem at the foot.
+    // (Narrower than a desktop's, as a phone held sideways: three a tier, so every name has room.)
+    const narrow = window.innerWidth < 1000;
+    const tiers = narrow ? [branches.slice(0, 3), branches.slice(3)] : [branches];
+    const cols = tiers[0].length;
+    const ROW = 92, FOOT = window.innerHeight < 520 ? 104 : 150, GAP = 70, TOP = 70;
+    const tierH = tiers.map((t) => Math.max(...t.map((b) => b.items.length)) * ROW + GAP);
+    const H = FOOT + tierH.reduce((a2, b2) => a2 + b2, 0) + TOP;
+    const rootY = H - (FOOT < 150 ? 48 : 70);
+    const paths: string[] = [];
+    const nodes: string[] = [];
+    let base = rootY - FOOT + 40;
+    tiers.forEach((tier, ti) => {
+      tier.forEach((br, i) => {
+        const x = 40 + (i * 920) / tier.length;
+        const lit = br.items.some((it) => it.owned);
+        // (The stem: up from the emblem, across, and up into the column, at right angles.)
+        const elbow = base + 20 - ti * 6;
+        paths.push(`<path class="${lit ? 'lit' : ''}" style="--bc:${br.colour}" d="M${500 + (i - (tier.length - 1) / 2) * 6} ${rootY - 34} V${elbow} H${x} V${base}"/>`);
+        // (Named at its foot, just over its stem.)
+        nodes.push(`<span class="hp-branch" style="left:${(x / 10).toFixed(2)}%;top:${base + 1}px;--bc:${br.colour}">${esc(br.name)}</span>`);
+        br.items.forEach((it, k) => {
+          const y = base - 30 - k * ROW;
+          paths.push(`<path class="${it.owned ? 'lit' : ''}" style="--bc:${br.colour}" d="M${x} ${k ? y + ROW : base} V${y}"/>`);
+          const plan = it.owned && placed.has(it.key);
+          nodes.push(`<button class="up-node hp-skill ${it.owned && !plan ? 'owned' : ''} ${plan ? 'planned' : ''} ${it.owned ? 'maxed' : ''} ${it.locked ? 'locked' : ''} ${it.can ? 'afford' : ''} ${it.on ? 'hp-carried' : ''}" style="left:${(x / 10).toFixed(2)}%;top:${y}px;--bc:${br.colour};--lv:${it.owned ? 1 : 0}" data-act="cmp-cap-pick" data-arg="${esc(it.key)}" aria-label="${esc(it.title)}">
+            <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" class="${plan ? 'plan' : it.owned ? 'on' : ''}"/></svg><i class="up-mote" aria-hidden="true"></i></span>
+            <span class="hp-label"><b>${esc(it.title)}</b>${it.what ? `<span class="hp-what">${cardTextHtml(it.what, undefined, true)}</span>` : ''}<small>${esc(it.sub)}</small></span>
+          </button>`);
+        });
+      });
+      base -= tierH[ti];
+    });
     return `
       <div class="up-shop hero-panel">
         <header class="up-head up-head-tree">
@@ -1938,14 +1943,11 @@ export class CampaignView {
           <div class="up-title-big"><h3>the captain</h3><span class="up-xp">${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small></span></div>
           <span></span>
         </header>
-        <div class="hp-tree-wrap up-tree">
-          <div class="up-sky">
-            <div class="up-wheel">
-              <span class="hp-root" aria-hidden="true">${MENU_EMBLEM.captain}</span>
-              ${lines.join('')}
-              ${labels.join('')}
-              ${nodes.join('')}
-            </div>
+        <div class="hp-scroll up-tree">
+          <div class="hp-sheet" style="height:${H}px;--cols:${cols}">
+            <svg class="hp-lines" viewBox="0 0 1000 ${H}" preserveAspectRatio="none" aria-hidden="true">${paths.join('')}</svg>
+            <span class="hp-root" style="top:${rootY}px" aria-hidden="true">${MENU_EMBLEM.captain}</span>
+            ${nodes.join('')}
           </div>
         </div>
       </div>`;
@@ -2748,6 +2750,12 @@ export class CampaignView {
     // (In development, reachable from the console.)
     if (import.meta.env.DEV) (window as unknown as { campaignView?: CampaignView }).campaignView = this;
     this.showBase(root);
+    // The Captain's tree: opened at its foot, then kept where it was scrolled to as it is drawn afresh.
+    const hp = root.querySelector<HTMLElement>('.hp-scroll');
+    if (hp) {
+      hp.scrollTop = this.hpScroll ?? hp.scrollHeight;
+      hp.addEventListener('scroll', () => (this.hpScroll = hp.scrollTop), { passive: true });
+    }
     if (this.afterStruggle) window.setTimeout(() => this.openAfterStruggle(), 0);
     const stage = root.querySelector<HTMLElement>('.cmp-stage');
     this.stageEl = stage;
