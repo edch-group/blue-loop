@@ -1560,7 +1560,6 @@ export class CampaignView {
     const body = canNebula()
       ? `<div class="cs-base">
           <div class="cs-sunrise" aria-hidden="true"></div>
-          <div class="cs-stellari" aria-hidden="true">${stellariaFlower()}</div>
           <canvas class="cs-world cs-world-back" aria-hidden="true"></canvas>
           <canvas class="cs-world cs-world-front" aria-hidden="true"></canvas>
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
@@ -2373,7 +2372,6 @@ export class CampaignView {
       // camera flying low along a valley toward the Stellari, the land breaking away a little behind it.
       const back = box.querySelector<HTMLCanvasElement>('canvas.cs-world-back'), front = box.querySelector<HTMLCanvasElement>('canvas.cs-world-front');
       const world = back && front ? nebulaOn(back, front, { clearSky: true }) : null;
-      const flower = box.querySelector<HTMLElement>('.cs-stellari');
       const sunrise = box.querySelector<HTMLElement>('.cs-sunrise');
       // (The Stellari stands at the land's far end, to the right on the horizon, the land in front of its foot: as the
       // flight goes on it draws nearer, the ship flying toward it.)
@@ -2398,7 +2396,9 @@ export class CampaignView {
           if (back) back.style.opacity = shown;
           if (front) front.style.opacity = shown;
           if (sunrise) sunrise.style.opacity = shown;
-          if (flower) flower.style.opacity = shown;
+          // The Stellari, white and fully open [direction: the white fully open Stellari, cut off by the landscape,
+          // just in front of the sunrise; a 3D object turned to face the ship]: standing on the land's far end.
+          world.setBloom({ x: stellari[0], y: PLANE_Y - 0.12, z: stellari[1], size: 0.62, face: [f.x - stellari[0], 0.15 - stellari[1]], alpha: Number(shown) });
           // Enlightenment open: the camera glides down to the Stellari, set at the foot of the screen, where the
           // skill tree's own Stellari comes in over it.
           const dt = Math.max(0, Math.min(0.1, time - lastT));
@@ -2423,15 +2423,6 @@ export class CampaignView {
         if (sunrise && at) {
           sunrise.style.left = `${at.x.toFixed(1)}px`;
           sunrise.style.top = `${at.y.toFixed(1)}px`;
-        }
-        // The Stellari, white and fully open [direction: the white fully open Stellari, not the campaign map's; cut off
-        // by the landscape, just in front of the sunrise]: standing on the horizon behind the land, its size its
-        // distance (it grows as the camera glides to it for Enlightenment).
-        const foot = world?.toScreen(stellari[0], PLANE_Y - 0.12, stellari[1]);
-        if (flower && foot) {
-          flower.style.left = `${foot.x.toFixed(1)}px`;
-          flower.style.top = `${foot.y.toFixed(1)}px`;
-          flower.style.setProperty('--fs', `${Math.min(1100, 1700 / Math.max(0.5, foot.depth)).toFixed(1)}px`);
         }
         // Each section's node, off to one side of its place, its stem running to it: down (or up), then across.
         // (In the page's own pixels: the ship's canvas sits in the page, the land's fills it.)

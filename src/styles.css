@@ -7409,11 +7409,3 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-captain-page .up-shop.up-tree { animation: up-in 0.7s ease-out 0.9s both; }
 /* The menu's Stellari: white and fully open, as on the home screen, standing on the horizon behind the land (the land
    cuts off its foot), the sunrise behind it; its petals turning one way, its spikes the other. */
-.cs-stellari { position: fixed; z-index: 0; left: -999px; top: 0; width: var(--fs, 120px); aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; filter: drop-shadow(0 0 1.2px rgba(70, 82, 112, 0.6)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.9)); }
-.cs-stellari .stellaria-flower { width: 100%; height: 100%; overflow: visible; }
-.cs-stellari .stellaria-flower ellipse, .cs-stellari .stellaria-flower path { fill: rgba(255, 255, 255, 0.85); stroke: #fff; stroke-width: 6; }
-.cs-stellari .petal-outer, .cs-stellari .petal-inner { transform-box: view-box; transform-origin: 500px 170px; }
-.cs-stellari .petal-outer { animation: cs-stellari-turn 60s linear infinite; }
-.cs-stellari .petal-inner { animation: cs-stellari-turn 90s linear infinite reverse; }
-@keyframes cs-stellari-turn { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .cs-stellari .petal-outer, .cs-stellari .petal-inner { animation: none; } }

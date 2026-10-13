@@ -18,7 +18,7 @@
  */
 
 import { buildNebula, GROUND_STRIDE, type Geometry, type Strip } from './nebula-geometry';
-import { MapObjects, type GalaxyLook, type MapObject, type MapRoute, type MapShip } from './nebula-objects';
+import { MapObjects, type Bloom, type GalaxyLook, type MapObject, type MapRoute, type MapShip } from './nebula-objects';
 import { uiZoom } from './viewport';
 
 export type { Strip, MapObject, MapRoute, MapShip, GalaxyLook };
@@ -563,6 +563,7 @@ class Layer {
     }
     // What lies under the galaxy.
     this.galaxy?.drawGalaxy(cam, time, fade, look, beam);
+    this.galaxy?.drawBloom(cam, time, fade);
     // The stars and comets over it, see-through (hidden behind the hills).
     if (!this.front) {
       gl.enable(gl.BLEND);
@@ -641,6 +642,11 @@ export class Nebula {
       top.objects = null;
     }
     this.wake();
+  }
+
+  /** The white Stellari standing on the land (the campaign menu's), or none. (Set from a driver, so drawn as it draws.) */
+  setBloom(b: Bloom | null) {
+    if (this.layers[0].galaxy) this.layers[0].galaxy.bloom = b;
   }
 
   /** Which universe's nebula to show (built once per seed, with channels cleared for the strip). */

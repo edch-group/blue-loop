@@ -159,6 +159,14 @@ void main() {
   } else if (uKind < 3.5) {
     float a = pow(1.0 - vL.x, 1.5) * 0.55 * uAlpha;
     gl_FragColor = vec4(uColor * a, a);
+  } else if (uKind > 5.5) {
+    // The white Stellari, fully open: near-opaque white petals, a fine pale-ink line round each, lit a touch.
+    float r = vL.x;
+    float w = max(fwidth(r), 1e-4);
+    float line = 1.0 - smoothstep(w * 0.6, w * 1.8, 1.0 - r);
+    vec3 c = mix(vec3(1.0, 1.0, 1.0), vec3(0.5, 0.56, 0.7), line * 0.85);
+    float a = (0.8 + 0.2 * line) * uAlpha;
+    gl_FragColor = vec4(c * a, a);
   } else if (uKind > 4.5) {
     // A Stellari petal, as the battle board draws its star: a wireframe, a fine silver line round each petal
     // over the faintest pale fill (vL.x: 0 at the petal's middle, 1 at its edge).
@@ -462,7 +470,11 @@ function model(x: number, y: number, z: number, rx: number, ry: number, s: numbe
   ]);
 }
 
+/** The white Stellari standing in the scene, open: its middle, its petals' half-length, the way it faces (xz). */
+export interface Bloom { x: number; y: number; z: number; size: number; face: [number, number]; alpha: number }
+
 export class MapObjects {
+  bloom: Bloom | null = null;
   private solid: WebGLProgram;
   private sprite: WebGLProgram;
   private sphereBuf: WebGLBuffer;
@@ -1192,6 +1204,39 @@ export class MapObjects {
     gl.enable(gl.DEPTH_TEST);
   }
 
+
+  /**
+   * The white Stellari, fully open (as the menus draw it), standing upright and facing `bloom.face`: its twelve
+   * petals turning one way, its eighteen spikes the other, a little in front. Depth-tested, so the land cuts it off.
+   */
+  drawBloom(cam: Camera, time: number, fade: number) {
+    const b = this.bloom;
+    if (!b || b.alpha <= 0.001) return;
+    const gl = this.gl;
+    const fl = Math.hypot(b.face[0], b.face[1]) || 1;
+    const N = [b.face[0] / fl, 0, b.face[1] / fl];
+    const R = [-N[2], 0, N[0]];
+    const part = (a: number, s: number, ahead: number) => {
+      const U = [Math.sin(a) * R[0], Math.cos(a), Math.sin(a) * R[2]];
+      const W = [Math.cos(a) * R[0], -Math.sin(a), Math.cos(a) * R[2]];
+      const o = [b.x + N[0] * ahead, b.y, b.z + N[2] * ahead];
+      return new Float32Array([W[0] * s, W[1] * s, W[2] * s, 0, U[0] * s, U[1] * s, U[2] * s, 0, N[0] * s, N[1] * s, N[2] * s, 0, o[0], o[1], o[2], 1]);
+    };
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    const sprite = this.sprites(cam, time, fade);
+    sprite.draw(b.x, b.y, b.z, b.size * 2.6, 0, [1, 1, 1], 0.45 * b.alpha);
+    sprite.done();
+    const solid = this.solids(cam, time, fade);
+    const turn = (time * 2 * Math.PI) / 60;
+    for (let i = 0; i < 6; i++) solid.draw(this.petalBuf, this.counts.petal, part(turn + (i * Math.PI) / 6, b.size, 0), 6, [1, 1, 1], 0.9 * b.alpha);
+    for (let i = 0; i < 18; i++) solid.draw(this.spikeBuf, this.counts.spike, part(-turn * 0.66 + ((i * 20 + 10) * Math.PI) / 180, b.size, b.size * 0.04), 6, [1, 1, 1], b.alpha);
+    solid.done();
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
 
   /**
    * What lies under the galaxy, on the layer behind the map: a black hole at the bottom of its well, its
