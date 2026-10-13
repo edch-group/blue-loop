@@ -6721,8 +6721,11 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 @keyframes xp-lv { 50% { transform: scale(1.5); color: #c9a24e; } }
 /* (A phone on its side: the cards in a cache a little smaller, so everything fits above "take it".) */
 @media (max-height: 560px) { .loot-items { padding: 10px 14px; } .loot-emblem small { font-size: 0.6rem; } .loot-emblem b { font-size: 0.52rem; } }
-/* (An emblem's name and power each kept to two lines, so a long name never spills out of its tile.) */
-.loot-emblem b, .loot-emblem small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 100%; }
+/* (An emblem's name kept to two lines; its power shown whole [direction: emblems often cut off]: the tile grows
+   to hold it, from a card's height.) */
+.loot-emblem { width: calc(var(--lw) * 1.5); height: auto; min-height: var(--lh); }
+.loot-emblem .cmp-relic { width: calc(var(--lw) * 0.54); height: calc(var(--lw) * 0.54); }
+.loot-emblem b, .loot-emblem small { max-width: 100%; }
 
 /* The cache's core lock breathing with light, and its status lights winking in turn. */
 .loot-cache-core { animation: loot-core 1.8s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
