@@ -6617,18 +6617,18 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .loot-cache-glow { animation: loot-glow 2.2s ease-in-out infinite; transform-origin: 60px 56px; }
 .loot-cache-seam { animation: loot-seam 1.6s ease-in-out infinite; }
 .loot-cache-lid { transform-box: fill-box; transform-origin: 50% 100%; }
-.loot-cache-tap { font-family: var(--display); font-size: 0.72rem; letter-spacing: 0.24em; text-transform: uppercase; color: #9a7429; }
+.loot-cache-tap { font-family: var(--display); font-size: 0.72rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft); }
 @media (hover: hover) { .loot-cache:hover .loot-cache-lid { transform: translateY(-2px) rotate(-2deg); } }
 @keyframes loot-float { 50% { transform: translateY(-6px); } }
 @keyframes loot-glow { 50% { opacity: 0.55; transform: scale(1.08); } }
-@keyframes loot-seam { 50% { stroke: #fff4cf; opacity: 0.6; } }
-/* Burst: a flash of gold light flung out from the middle, then the rewards one by one. */
+@keyframes loot-seam { 50% { stroke: #ffffff; opacity: 0.6; } }
+/* Burst: a flash of white light flung out from the middle, then the rewards one by one [direction: white, not gold: futuristic loot, not treasure]. */
 .loot-burst { position: fixed; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle, rgba(255, 246, 214, 1), rgba(255, 214, 110, 0.7) 40%, transparent 70%);
-  box-shadow: 0 0 60px 30px rgba(255, 220, 140, 0.6);
+  background: radial-gradient(circle, rgba(255, 255, 255, 1), rgba(226, 236, 252, 0.75) 40%, transparent 70%);
+  box-shadow: 0 0 60px 30px rgba(236, 243, 255, 0.7);
   animation: loot-burst 0.9s cubic-bezier(.2,.8,.2,1) both; }
 .loot-burst::before { content: ''; position: absolute; inset: -400%; border-radius: 50%;
-  background: repeating-conic-gradient(from 0deg, rgba(255, 226, 150, 0.55) 0 4deg, transparent 4deg 18deg);
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.75) 0 4deg, transparent 4deg 18deg);
   -webkit-mask: radial-gradient(circle, #000 20%, transparent 70%); mask: radial-gradient(circle, #000 20%, transparent 70%);
   animation: loot-rays 0.9s ease-out both; }
 @keyframes loot-burst { 0% { transform: scale(0.2); opacity: 1; } 60% { opacity: 1; } 100% { transform: scale(60); opacity: 0; } }
@@ -6641,20 +6641,20 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .loot-row { display: flex; justify-content: center; gap: var(--gap); }
 .loot-row + .loot-row { transform: translateX(calc(var(--lw) * 0.3)); }
 .loot-item { transform: translateY(var(--y, 0px)) rotate(var(--r, 0deg)); }
-/* Each reward: the same size (a card's), no box, a living gold glow behind it (a soft treasure light breathing,
-   faint rays turning slowly through it). */
+/* Each reward: the same size (a card's), no box, a living white glow behind it (a soft light breathing, faint rays
+   turning slowly through it), its edge a cold blue-white so it shows on the pale page. */
 .loot-item { position: relative; animation: loot-in 0.55s cubic-bezier(.2,1.4,.4,1) both; animation-delay: calc(450ms + var(--i) * 420ms); }
 .loot-tile { --lh: calc(var(--lw) * 1.4); position: relative; isolation: isolate; width: var(--lw); height: var(--lh); display: grid; justify-items: center; align-content: center; gap: 6px; text-align: center; }
 .loot-glow { position: relative; display: grid; place-items: center; isolation: isolate; }
 /* (The glow behind the reward itself, never its number or words.) */
 .loot-glow::before { content: ''; position: absolute; left: 50%; top: 50%; width: 190%; height: 190%; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(255, 226, 140, 0.8), rgba(246, 200, 96, 0.38) 50%, rgba(240, 190, 80, 0) 100%);
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 1), rgba(236, 242, 252, 0.75) 45%, rgba(214, 226, 246, 0.35) 70%, rgba(214, 226, 246, 0) 100%);
   animation: loot-glow-breathe 2.6s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -0.4s); }
 .loot-glow::after { content: ''; position: absolute; left: 50%; top: 50%; width: 230%; aspect-ratio: 1; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; border-radius: 50%;
-  background: repeating-conic-gradient(from 0deg, rgba(255, 236, 170, 0.5) 0 5deg, transparent 5deg 24deg);
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.9) 0 5deg, transparent 5deg 24deg);
   -webkit-mask: radial-gradient(closest-side, #000 15%, transparent 72%); mask: radial-gradient(closest-side, #000 15%, transparent 72%);
   animation: loot-rays-turn 18s linear infinite; opacity: 0.7; }
-.loot-res svg { position: relative; width: calc(var(--lw) * 0.58); height: calc(var(--lw) * 0.58); filter: drop-shadow(0 2px 6px rgba(150, 110, 30, 0.35)); }
+.loot-res svg { position: relative; width: calc(var(--lw) * 0.58); height: calc(var(--lw) * 0.58); filter: drop-shadow(0 2px 6px rgba(60, 70, 100, 0.25)); }
 .loot-res b { font-family: var(--display); font-size: 0.95rem; letter-spacing: 0.08em; color: var(--ink); }
 .loot-emblem { align-content: start; padding-top: 4px; }
 .loot-emblem .cmp-relic { width: calc(var(--lw) * 0.62); height: calc(var(--lw) * 0.62); padding: calc(var(--lw) * 0.08); animation: none; }
@@ -7421,3 +7421,8 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* Petals and ship parts in the loot, as turning things (loot3d.ts). */
 .loot-3d { width: 128px; height: 128px; display: block; }
 @media (max-height: 520px) { .loot-3d { width: 92px; height: 92px; } }
+.loot-cache-3d { width: min(220px, 38vh); height: min(220px, 38vh); }
+/* (A white halo under the cache, breathing.) */
+.loot-cache { position: relative; }
+.loot-cache-halo { position: absolute; left: 50%; top: min(110px, 19vh); width: min(300px, 52vh); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 1), rgba(232, 240, 252, 0.7) 50%, rgba(214, 226, 246, 0) 100%); animation: loot-glow-breathe 2.6s ease-in-out infinite; }

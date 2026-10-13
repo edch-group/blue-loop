@@ -344,6 +344,12 @@ void main() {
     gl_FragColor = vec4(min(c, vec3(1.0)) * uAlpha, uAlpha);
     return;
   }
+  if (m > 6.5) {
+    // Pearl: smooth and unmarked (no panels, no grime), glossy, a cold blue-white sheen at its edges.
+    c = vCol * (0.52 + 0.48 * diff) + vec3(0.72, 0.84, 1.0) * fres * 0.55 + vec3(1.0) * pow(max(dot(n, h), 0.0), 60.0) * 0.55;
+    gl_FragColor = vec4(min(c, vec3(1.0)) * uAlpha, uAlpha);
+    return;
+  }
   if (m > 5.5) {
     // Molten: an ember hull, its glow welling through darker crust, moving.
     float lava = n3(vL * 18.0 + vec3(uTime * 0.6, 0.0, 0.0)) * 0.6 + n3(vL * 46.0 - vec3(0.0, uTime, 0.0)) * 0.4;

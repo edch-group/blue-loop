@@ -339,9 +339,9 @@ const LOOT_CACHE = `<svg class="loot-cache-art" viewBox="0 0 120 110" aria-hidde
   <defs>
     <linearGradient id="lcBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdfcf9"/><stop offset=".55" stop-color="#ecebe6"/><stop offset="1" stop-color="#d4d2ca"/></linearGradient>
     <linearGradient id="lcSide" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e2e0d8"/><stop offset="1" stop-color="#c9c6bc"/></linearGradient>
-    <linearGradient id="lcGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3d58a"/><stop offset=".5" stop-color="#c99a3e"/><stop offset="1" stop-color="#f0cf7e"/></linearGradient>
-    <radialGradient id="lcGlow"><stop offset="0" stop-color="#fff6d8"/><stop offset="1" stop-color="#ffd772" stop-opacity="0"/></radialGradient>
-    <radialGradient id="lcCore"><stop offset="0" stop-color="#fffbe9"/><stop offset=".45" stop-color="#ffe39a"/><stop offset="1" stop-color="#d9a74a"/></radialGradient>
+    <linearGradient id="lcGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e6ecf6"/><stop offset=".5" stop-color="#9fb0c8"/><stop offset="1" stop-color="#dde5f2"/></linearGradient>
+    <radialGradient id="lcGlow"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e6eefc" stop-opacity="0"/></radialGradient>
+    <radialGradient id="lcCore"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#cfe6ff"/><stop offset="1" stop-color="#7fa6d6"/></radialGradient>
   </defs>
   <ellipse cx="60" cy="102" rx="46" ry="6" fill="#3b3a4a" opacity=".14"/>
   <circle class="loot-cache-glow" cx="60" cy="62" r="54" fill="url(#lcGlow)"/>
@@ -357,7 +357,7 @@ const LOOT_CACHE = `<svg class="loot-cache-art" viewBox="0 0 120 110" aria-hidde
     <circle class="loot-cache-led" cx="28" cy="84" r="1.8" fill="#7fb6e6"/>
     <circle class="loot-cache-led" cx="92" cy="84" r="1.8" fill="#e8c46a"/>
   </g>
-  <path class="loot-cache-seam" d="M14 56h92" stroke="#ffe7a3" stroke-width="2.5" stroke-linecap="round"/>
+  <path class="loot-cache-seam" d="M14 56h92" stroke="#e8f2ff" stroke-width="2.5" stroke-linecap="round"/>
   <g class="loot-cache-lid">
     <path d="M12 56l6-14h84l6 14z" fill="url(#lcBody)" stroke="#b7b2a5" stroke-width="1.2"/>
     <path d="M32 42l5-9h46l5 9z" fill="url(#lcBody)" stroke="#b7b2a5" stroke-width="1.1"/>
@@ -3756,7 +3756,7 @@ export class CampaignView {
       const rows = [items.slice(0, split), items.slice(split)].filter((r) => r.length);
       const cols = Math.max(...rows.map((r) => r.length));
       if (!this.lootOpen)
-        return `<div class="overlay overlay-soft loot-overlay"><button class="loot-cache" data-act="cmp-loot-open" aria-label="Open the cache">${LOOT_CACHE}<span class="loot-cache-tap">${l.won ? 'victory · tap to open' : 'what was saved · tap to open'}</span></button></div>`;
+        return `<div class="overlay overlay-soft loot-overlay"><button class="loot-cache" data-act="cmp-loot-open" aria-label="Open the cache">${canNebula() ? '<span class="loot-cache-halo" aria-hidden="true"></span><canvas class="loot-cache-art loot-cache-3d" data-loot3d="cache"></canvas>' : LOOT_CACHE}<span class="loot-cache-tap">${l.won ? 'victory · tap to open' : 'what was saved · tap to open'}</span></button></div>`;
       return `<div class="overlay overlay-soft loot-overlay loot-opened">
         <div class="loot-burst" aria-hidden="true"></div>
         ${l.xp ? `<div class="loot-item loot-top" style="--i:0">${this.xpGauge(this.commanderXp() - l.xp, l.xp)}</div>` : ''}
