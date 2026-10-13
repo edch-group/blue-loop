@@ -42,20 +42,24 @@ const CRIMSON: RGB = [0.52, 0.12, 0.12];
 const CRIMSON_DARK: RGB = [0.36, 0.08, 0.09];
 const LANCE_LIGHT: RGB = [1, 0.8, 0.38];
 const EYE: RGB = [0.1, 0.14, 0.32];
+/** How far Kaelen slouches forward over his lap. */
+const SLOUCH = 0.26;
 
 /**
- * Kaelen, sitting: his seat at (20, 12, 20), thighs out over the rail ahead of him (+y), shins hanging straight down,
- * one swung a little forward; leaning back a touch on his hands, set on the rail either side; his lance leant against
- * his right shoulder, its foot on the deck behind him; his cape falling behind him onto the deck.
+ * Kaelen, sitting easy on the rail [direction: more relaxed, slouched, spear facing down, one leg on the railing]: his
+ * seat at (20, 12, 20), the left leg hanging over the side, the right drawn up with its foot on the rail, his forearm
+ * over that knee; slouched forward, head low; the lance held loosely at his left side, its blade pointing down over the
+ * side; his cape falling behind him onto the deck.
  */
 function lancerModel(): Float32Array {
   const m = new Mesh();
   // Legs: white plate over a dark undersuit; a gold-rimmed knee cop; long greaves; pointed sabatons.
-  const legs: [V3, V3, V3][] = [
-    [[18.5, 12.6, 20.4], [18.3, 22, 20.7], [18.1, 23.6, 8.6]],
-    [[21.5, 12.6, 20.4], [21.7, 21.8, 20.5], [22.1, 22.4, 8.4]],
+  // (The left hangs over the side; the right is drawn up, its foot set on the rail beside him, toes along it.)
+  const legs: [V3, V3, V3, V3][] = [
+    [[18.5, 12.6, 20.4], [18.3, 22, 20.7], [18.1, 23.6, 8.6], [0, 2.6, -1.4]],
+    [[21.5, 12.6, 20.6], [24, 16.4, 29], [27.6, 12.6, 21.4], [2.8, 0.3, -0.5]],
   ];
-  for (const [hip, knee, ankle] of legs) {
+  for (const [hip, knee, ankle, toeDir] of legs) {
     lim(m, [hip, knee, ankle], 1.2, 0.9, UNDERSUIT, SOFT);
     // Cuisse over the thigh, its top edge rolled in gold.
     plate(m, lerp(hip, knee, 0.08), lerp(hip, knee, 0.86), 1.5, 1.3, IVORY, METAL);
@@ -67,8 +71,8 @@ function lancerModel(): Float32Array {
     plate(m, lerp(knee, ankle, 0.1), lerp(knee, ankle, 0.94), 1.3, 1.15, IVORY, METAL);
     plate(m, lerp(knee, ankle, 0.14), lerp(knee, ankle, 0.9), 0.22, 1.22, GOLD, METAL);
     // Sabaton: lames over the foot, pointed at the toe (the foot hanging, toes down a little).
-    const toe: V3 = [ankle[0], ankle[1] + 2.6, ankle[2] - 1.4];
-    plate(m, [ankle[0], ankle[1] - 0.4, ankle[2] - 0.2], toe, 1.05, 0.8, IVORY_SHADE, METAL);
+    const toe: V3 = [ankle[0] + toeDir[0], ankle[1] + toeDir[1], ankle[2] + toeDir[2]];
+    plate(m, [ankle[0] - toeDir[0] * 0.15, ankle[1] - toeDir[1] * 0.15, ankle[2] - 0.2], toe, 1.05, 0.8, IVORY_SHADE, METAL);
     m.ball(ankle[0], ankle[1], ankle[2], 1.1, IVORY, METAL, 14, 9);
   }
   // Hips: a fauld of overlapping lames, tassets over the thighs, a gold belt with a sun boss.
@@ -77,8 +81,8 @@ function lancerModel(): Float32Array {
   for (const sd of [-1, 1]) plate(m, [20 + sd * 1.8, 13.4, 21.6], [20 + sd * 1.9, 17.2, 21.2], 1.55, 0.45, IVORY, METAL, 0, 4);
   m.rbox(20, 12.4, 23.8, 3.6, 2.55, 0.5, GOLD, METAL, 2.6, 6);
   m.ball(20, 14.95, 23.8, 0.55, LANCE_LIGHT, GLOW, 10, 6);
-  // Leaning back a little on his hands: the body above the hips turned back about them.
-  turned(m, [20, 12.2, 22], 'x', -0.12, () => {
+  // Slouched: the body above the hips rounded forward over his lap.
+  turned(m, [20, 12.2, 22], 'x', SLOUCH, () => {
     // The cuirass: a narrow waist, the chest swelling over it, sculpted plates, a gold sunburst between.
     m.rbox(20, 12.2, 26, 2.4, 1.8, 2.4, IVORY_SHADE, METAL, 2.6, 2.6);
     m.rbox(20, 12.3, 29.8, 3.2, 2.2, 3.2, IVORY, METAL, 2.4, 2.4);
@@ -101,21 +105,9 @@ function lancerModel(): Float32Array {
         });
       }
     }
-    // Arms down to the rail at his sides, hands on it: vambraces with gold bands, gauntlets.
-    for (const sd of [-1, 1]) {
-      const sh: V3 = [20 + sd * 3.6, 12.2, 31.6], el: V3 = [20 + sd * 4.7, 11.2, 26.4], wr: V3 = [20 + sd * 4.6, 12.4, 21.6];
-      lim(m, [sh, el, wr], 0.9, 0.75, UNDERSUIT, SOFT);
-      plate(m, lerp(sh, el, 0.15), lerp(sh, el, 0.9), 1.1, 1.05, IVORY, METAL);
-      plate(m, lerp(el, wr, 0.1), lerp(el, wr, 0.92), 1, 0.95, IVORY, METAL);
-      plate(m, lerp(el, wr, 0.75), lerp(el, wr, 0.9), 1.06, 1.01, GOLD, METAL);
-      m.rbox(el[0], el[1] - 0.4, el[2], 0.8, 0.55, 0.9, IVORY, METAL, 2.4, 2.4);
-      // (A gauntlet gripping the rail, the fingers curled over its front.)
-      m.rbox(wr[0], wr[1] + 0.4, wr[2] - 1, 0.7, 1.05, 0.7, IVORY_SHADE, METAL, 2.6, 2.6);
-      m.rbox(wr[0], wr[1] + 1.35, wr[2] - 1.7, 0.65, 0.45, 0.8, IVORY_SHADE, METAL, 2.6, 2.6);
-    }
     // A long slim grey neck; the head, smooth and long, its crown swept back; one great eye; a narrow lipless face.
     m.cyl([20, 12.2, 33.4], [20, 12.5, 35.6], 0.8, 0.72, ALIEN, SOFT, 14);
-    turned(m, [20, 12.5, 35.8], 'x', 0.12, () => {
+    turned(m, [20, 12.5, 35.8], 'x', 0.28, () => {
       turned(m, [20, 12.3, 37.6], 'x', -0.5, () => m.rbox(20, 11.6, 38.6, 1.75, 2.9, 1.95, ALIEN, SOFT, 2, 2, 30, 18));
       m.rbox(20, 13, 37.2, 1.6, 1.45, 2.1, ALIEN, SOFT, 2, 2, 28, 16);
       m.rbox(20, 13.4, 35.6, 0.95, 1, 1, ALIEN_SHADE, SOFT, 2, 2, 18, 10);
@@ -149,11 +141,33 @@ function lancerModel(): Float32Array {
     grid.push(row);
   }
   cloth(m, grid, CRIMSON, CRIMSON_DARK);
-  // The lance, leant on his right shoulder, its foot on the deck behind: a white shaft, gold collars, its leaf of light.
-  const foot: V3 = [25.6, 8.6, 14.4], top: V3 = [23.2, 14.6, 49];
-  m.cyl(foot, top, 0.3, 0.26, IVORY, METAL, 12);
-  for (const t of [0.02, 0.5, 0.97]) m.cyl(lerp(foot, top, t - 0.012), lerp(foot, top, t + 0.012), 0.44, 0.44, GOLD, METAL, 12);
-  m.shard(top, sub(top, foot), 7, 1.05, LANCE_LIGHT, GLOW);
+  // Arms, from where his shoulders went as he slouched: the right forearm laid over the raised knee, the hand hanging
+  // loose past it; the left down at his side, holding the lance loosely, its blade pointing down over the side.
+  const slouch = (p: V3): V3 => {
+    const c = Math.cos(SLOUCH), sn = Math.sin(SLOUCH), dy = p[1] - 12.2, dz = p[2] - 22;
+    return [p[0], 12.2 + dy * c + dz * sn, 22 - dy * sn + dz * c];
+  };
+  const arm = (sh: V3, el: V3, wr: V3) => {
+    lim(m, [sh, el, wr], 0.9, 0.75, UNDERSUIT, SOFT);
+    plate(m, lerp(sh, el, 0.15), lerp(sh, el, 0.9), 1.1, 1.05, IVORY, METAL);
+    plate(m, lerp(el, wr, 0.1), lerp(el, wr, 0.92), 1, 0.95, IVORY, METAL);
+    plate(m, lerp(el, wr, 0.75), lerp(el, wr, 0.9), 1.06, 1.01, GOLD, METAL);
+    m.rbox(el[0], el[1] - 0.4, el[2], 0.8, 0.55, 0.9, IVORY, METAL, 2.4, 2.4);
+  };
+  const rw: V3 = [23.6, 19.4, 27.2];
+  arm(slouch([23.6, 12.2, 31.6]), [24.6, 15.2, 29.6], rw);
+  m.rbox(rw[0], rw[1] + 0.6, rw[2] - 0.9, 0.65, 0.8, 1, ALIEN, SOFT, 2.4, 2.4);
+  const lw: V3 = [15.2, 15.4, 21.8];
+  arm(slouch([16.4, 12.2, 31.6]), [15.2, 12.8, 26.6], lw);
+  m.rbox(lw[0], lw[1] + 0.1, lw[2], 0.85, 0.9, 0.95, IVORY_SHADE, METAL, 2.6, 2.6);
+  // The lance through that hand, its butt up behind his shoulder, its leaf of light hanging down past the hull.
+  const d: V3 = [0.05, 0.42, -1];
+  const dl = Math.hypot(d[0], d[1], d[2]);
+  const at = (k: number): V3 => [lw[0] + (d[0] / dl) * k, lw[1] + (d[1] / dl) * k, lw[2] + (d[2] / dl) * k];
+  const butt = at(-10), head = at(22);
+  m.cyl(butt, head, 0.28, 0.26, IVORY, METAL, 12);
+  for (const t of [0.02, 0.5, 0.97]) m.cyl(lerp(butt, head, t - 0.012), lerp(butt, head, t + 0.012), 0.44, 0.44, GOLD, METAL, 12);
+  m.shard(head, d, 7, 1.05, LANCE_LIGHT, GLOW);
   return new Float32Array(m.out);
 }
 
@@ -262,7 +276,8 @@ const SCRAP: RGB = [0.27, 0.28, 0.33];
  */
 function defectorModel(): Float32Array {
   const m = new Mesh();
-  const sh = (base: V3, dir: V3, l: number, r: number, col: RGB = SHARD, roll = 0) => m.shard(base, dir, l, r, col, GLASS, roll);
+  // (Heavy shards, as the art's: broad slabs of crystal, not splinters.)
+  const sh = (base: V3, dir: V3, l: number, r: number, col: RGB = SHARD, roll = 0) => m.shard(base, dir, l * 1.05, r * 1.85, col, GLASS, roll);
   turned(m, [20, 12, 24], 'x', 0.8, () => {
     m.ball(20, 12.4, 28, 1.6, CORE, GLOW, 16, 10);
     // Ribs of shards curving out and back from the core, a gap between each; a breastbone; shoulders.
@@ -271,6 +286,9 @@ function defectorModel(): Float32Array {
       sh([20 + sd * 2.4, 12, 32.6], [sd, -0.3, 0.25], 3.2, 1.25, SHARD, sd);
     }
     sh([20, 13.4, 31.6], [0, 0.25, 1], 2.4, 0.7, SHARD_DEEP);
+    // A breastplate of slabs over the core, and a broad back.
+    for (const [dx, dz, c] of [[-1.6, 30.6, SHARD], [1.6, 30.6, SHARD_PALE], [-1.4, 26.4, SHARD_DEEP], [1.4, 26.4, SHARD]] as const) sh([20 + dx * 0.4, 13.2, dz], [dx, 0.9, (dz - 28.5) * 0.3], 2.6, 1, c);
+    m.rbox(20, 10.8, 29.4, 3, 1.4, 3.2, SHARD_DEEP, GLASS, 3, 3);
     sh([20, 13.2, 26.2], [0, 0.15, -1], 2.4, 0.9, SHARD);
     // Back shards, like folded wings.
     for (const sd of [-1, 1]) sh([20 + sd * 1.2, 10.4, 30.6], [sd * 0.4, -1, 0.5], 4.6, 0.9, SHARD_DEEP, sd);
