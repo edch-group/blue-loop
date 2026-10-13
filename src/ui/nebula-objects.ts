@@ -160,13 +160,11 @@ void main() {
     float a = pow(1.0 - vL.x, 1.5) * 0.55 * uAlpha;
     gl_FragColor = vec4(uColor * a, a);
   } else if (uKind > 5.5) {
-    // The white Stellari, fully open: near-opaque white petals, a fine pale-ink line round each, lit a touch.
-    float r = vL.x;
-    float w = max(fwidth(r), 1e-4);
-    float line = 1.0 - smoothstep(w * 0.6, w * 1.8, 1.0 - r);
-    // (No blue line round them: only the faintest warm shade at each petal's edge, so it reads against the sky.)
-    vec3 c = mix(vec3(1.0), vec3(0.84, 0.82, 0.8), line * 0.7);
-    float a = (0.8 + 0.2 * line) * uAlpha;
+    // The white Stellari, fully open: white petals, no line round them at all [direction: its border dispels the
+    // ethereal effect], each softening toward its edge so it melts into the light (vL.x: 0 at its middle, 1 at its edge).
+    // (Its form from a faint pearly shade down each petal's middle, brightening to white as it fades out.)
+    vec3 c = mix(vec3(0.84, 0.85, 0.89), vec3(1.0), smoothstep(0.0, 0.85, vL.x));
+    float a = (0.82 - 0.6 * smoothstep(0.5, 1.0, vL.x)) * uAlpha;
     gl_FragColor = vec4(c * a, a);
   } else if (uKind > 4.5) {
     // A Stellari petal, as the battle board draws its star: a wireframe, a fine silver line round each petal
