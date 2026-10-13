@@ -85,8 +85,8 @@ float fbm(vec2 p) { return 0.5 * vnoise(p) + 0.25 * vnoise(p * 2.03 + 7.1) + 0.1
  */
 const GROUND_VERT = `
 attribute vec3 aPos; attribute vec3 aNorm; attribute vec3 aBary; attribute vec3 aEdge; attribute vec4 aShard; attribute float aProg;
-uniform mat4 uView; uniform mat4 uProj; uniform float uGone; uniform float uCrack; uniform float uTime; uniform float uGalaxy; uniform float uSoft;
-varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist; varying float vRest;
+uniform mat4 uView; uniform mat4 uProj; uniform float uGone; uniform float uCrack; uniform float uTime; uniform float uGalaxy; uniform float uSoft; uniform float uSoftBelow;
+varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist; varying float vRest; varying float vSoft;
 // A supermassive black hole's well (uGalaxy 1): the land sinks toward it, under the middle of the strip.
 const vec2 HOLE = vec2(0.0, -0.7);
 float well(vec2 p) { p -= HOLE; return uGalaxy > 0.5 && uGalaxy < 1.5 ? 0.8 * exp(-dot(p, p) / 0.75) : 0.0; }
@@ -110,11 +110,13 @@ void main() {
     n = normalize(n - vec3(slope.x, 0.0, slope.y));
   }
   float fall = (uGone - aProg) / 1.6 + aShard.w * 0.45;
+  // (Soft: all of it, on the campaign menu; or, on the first map, the land the menu had already broken away.)
+  float soft = uSoft > 0.5 || aProg < uSoftBelow ? 1.0 : 0.0;
+  vSoft = soft;
   if (fall > 0.0) {
     float t = min(fall, 2.2);
     // (Soft, as on the campaign menu, whose camera rides low: drifting down slowly, tumbling gently, as it fades, so
     // it is seen to go rather than dropping straight out of the view.)
-    float soft = uSoft > 0.5 ? 1.0 : 0.0;
     mat3 r = rot(vec3(aShard.w - 0.5, 0.3, 0.5 - fract(aShard.w * 7.0)), t * (0.8 + aShard.w * 1.6) * (1.0 - 0.6 * soft));
     p = mid + r * (p - mid);
     n = r * n;
@@ -141,12 +143,12 @@ const GROUND_FRAG = `
 #extension GL_OES_standard_derivatives : enable
 precision highp float;
 varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist; varying float vRest;
-uniform vec3 uPaper; uniform vec3 uEye; uniform float uFront; uniform float uFade; uniform float uTime; uniform float uGalaxy; uniform float uBeam; uniform float uSoft; uniform float uPass;
+uniform vec3 uPaper; uniform vec3 uEye; uniform float uFront; uniform float uFade; uniform float uTime; uniform float uGalaxy; uniform float uBeam; uniform float uSoft; uniform float uPass; varying float vSoft;
 ${NOISE}
 void main() {
   if (vFall > 2.0) discard;
   // (The campaign menu's land: what falls fades out as it goes, and nothing is marked red before it does.)
-  float keep = uSoft > 0.5 ? 1.0 - smoothstep(0.0, 1.1, vFall) : 1.0;
+  float keep = vSoft > 0.5 ? 1.0 - smoothstep(0.0, 1.1, vFall) : 1.0;
   if (keep < 0.01) discard;
   // (Soft, drawn in two passes: the land at rest, writing its depth; then the falling shards over it, not, so a
   // fading shard never hides the land or another shard behind it.)
@@ -214,7 +216,7 @@ void main() {
   float near = 1.0 - smoothstep(5.0, 11.0, vDist);
   c = mix(c, vec3(0.45, 0.51, 0.64), mesh * 0.32 * near);
   // Cracks along the shards' borders, glowing with the colours beneath.
-  if (vCrack > 0.5 && uSoft < 0.5) {
+  if (vCrack > 0.5 && vSoft < 0.5) {
     vec3 b = vBary + (1.0 - vEdge) * 9.0;
     float d = min(b.x, min(b.y, b.z));
     float w = fwidth(d) * 1.8;
@@ -238,13 +240,13 @@ void main() {
  */
 const MASK_VERT = `
 attribute vec3 aPos; attribute vec4 aShard; attribute float aProg;
-uniform mat4 uView; uniform mat4 uProj; uniform float uGone; uniform float uSoft;
+uniform mat4 uView; uniform mat4 uProj; uniform float uGone; uniform float uSoft; uniform float uSoftBelow;
 void main() {
   float fall = (uGone - aProg) / 1.6 + aShard.w * 0.45;
   // (Soft, as on the campaign menu: right where it lay. Its camera rides so low that, set below, the far edge of each
   // hole showed neither land nor sky beneath, a gap the page showed through, looking like a pale shard that vanished
   // as the next shard went.)
-  gl_Position = fall > 0.0 ? uProj * uView * vec4(aPos.x, aPos.y - (uSoft > 0.5 ? 0.0 : 0.12), aPos.z, 1.0) : vec4(2.0, 2.0, 2.0, 1.0);
+  gl_Position = fall > 0.0 ? uProj * uView * vec4(aPos.x, aPos.y - (uSoft > 0.5 || aProg < uSoftBelow ? 0.0 : 0.12), aPos.z, 1.0) : vec4(2.0, 2.0, 2.0, 1.0);
 }`;
 const MASK_FRAG = `
 precision mediump float;
@@ -418,6 +420,8 @@ class Layer {
   /** The most pixels it draws (the menu's backdrop draws fewer: it sits behind the ship, softly). */
   maxPixels = 4.6e6;
 
+  /** Land lying west of this (world x) drawn soft though the rest is not: the first map's, where the campaign menu had broken it. */
+  softBelow = -1e9;
   constructor(readonly canvas: HTMLCanvasElement, readonly front: boolean, readonly clearSky = false, readonly soft = false) {
     // (A clear sky: see-through where no land is, so what lies behind the canvas shows over the horizon, cut off by it.)
     const gl = canvas.getContext('webgl', front ? { antialias: true, alpha: true, premultipliedAlpha: true, depth: true } : { antialias: true, alpha: clearSky, premultipliedAlpha: true, depth: true, stencil: true });
@@ -526,6 +530,7 @@ class Layer {
       gl.uniform1f(u('uGalaxy'), galaxy);
       gl.uniform1f(u('uBeam'), beam);
       gl.uniform1f(u('uSoft'), this.soft ? 1 : 0);
+      gl.uniform1f(u('uSoftBelow'), this.softBelow);
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       const stride = attrs.reduce((s, [, n]) => s + n, 0) * 4;
       let off = 0;
@@ -573,7 +578,7 @@ class Layer {
       // (Soft, the falling shards are see-through as they fade: blended over what lies beneath.)
       done = use(this.groundProg, this.groundBuf, GROUND_ATTRS);
       const pass = gl.getUniformLocation(this.groundProg, 'uPass');
-      if (this.soft) {
+      if (this.soft || this.softBelow > -1e8) {
         gl.uniform1f(pass, 1);
         gl.drawArrays(gl.TRIANGLES, 0, this.groundCount);
         gl.enable(gl.BLEND);
@@ -619,6 +624,19 @@ class Layer {
     this.gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
 }
+
+/** The view matrix of a camera pose (as the nebula's own camera has it): where it looks from, along what. */
+export function poseView(p: Pose): Float32Array {
+  const cp = Math.cos(p.pitch), sp = Math.sin(p.pitch), cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
+  const eye = [p.x + sy * cp * p.dist, p.y + sp * p.dist, p.z + cy * cp * p.dist];
+  const forward = [-sy * cp, -sp, -cy * cp];
+  const right = [cy, 0, -sy];
+  const up = [right[1] * forward[2] - right[2] * forward[1], right[2] * forward[0] - right[0] * forward[2], right[0] * forward[1] - right[1] * forward[0]];
+  const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  return new Float32Array([right[0], up[0], -forward[0], 0, right[1], up[1], -forward[1], 0, right[2], up[2], -forward[2], 0, -dot(right, eye), -dot(up, eye), dot(forward, eye), 1]);
+}
+/** The nebula's camera's field of view (vertical). */
+export const NEBULA_FOV = FOV;
 
 export class Nebula {
   private layers: Layer[];
@@ -759,16 +777,21 @@ export class Nebula {
   private ridePose(): Pose | null {
     const sh = this.cine && this.layers[this.layers.length - 1].objects?.shipPose(this.cine.id, this.time);
     if (!sh) return null;
+    return this.rideAt(sh, this.time);
+  }
+
+  /** The opening shot's camera beside a ship here (world x, y, z, facing `heading`), at this time into the shot. */
+  rideAt(sh: { x: number; y: number; z: number; heading: number }, time = 0): Pose {
     // (Off its side and a little ahead: the side away from where the camera will come to rest, so the turn out to
     // the map is a wide one.)
     const fx = Math.cos(sh.heading), fz = Math.sin(sh.heading);
     const side = (k: number) => Math.atan2(-fz * k + fx * 0.7, fx * k + fz * 0.7);
     const home = this.home().yaw;
     const turn = (y: number) => Math.abs(Math.atan2(Math.sin(y - home), Math.cos(y - home)));
-    const yaw = (turn(side(1)) > turn(side(-1)) ? side(1) : side(-1)) + 0.12 * Math.sin(this.time * 0.25);
+    const yaw = (turn(side(1)) > turn(side(-1)) ? side(1) : side(-1)) + 0.12 * Math.sin(time * 0.25);
     // (Looking a little to the ship's left, so it sits right of centre, clear of the hero's words.)
     const off = 0.13;
-    return { x: sh.x - Math.cos(yaw) * off, y: sh.y, z: sh.z + Math.sin(yaw) * off, yaw, pitch: 0.2 + 0.04 * Math.sin(this.time * 0.18), dist: 0.5 };
+    return { x: sh.x - Math.cos(yaw) * off, y: sh.y, z: sh.z + Math.sin(yaw) * off, yaw, pitch: 0.2 + 0.04 * Math.sin(time * 0.18), dist: 0.5 };
   }
 
   /** The whole strip at once, from the near end to the wormhole and the Stellari past it: where the pull back ends. */
@@ -877,6 +900,12 @@ export class Nebula {
     const p = this.home();
     const cp = Math.cos(p.pitch), sp = Math.sin(p.pitch), cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
     return [p.x + sy * cp * p.dist, p.y + sp * p.dist, p.z + cy * cp * p.dist];
+  }
+
+  /** The land west of world x drawn soft (as the campaign menu draws it): the first map's, where the menu broke it. */
+  setSoftBelow(x: number | null) {
+    for (const l of this.layers) l.softBelow = x ?? -1e9;
+    this.wake();
   }
 
   /** Whether its land has come (and so is drawn from the next frame). */

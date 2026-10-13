@@ -133,7 +133,7 @@ import { playerAvatar, raceRow, cardArtLite, cardStock, cardBodyHtml, cardTextHt
 import { sound } from './sound';
 import { reducedMotion } from './fx';
 import { voices } from './voice';
-import { canNebula, nebulaOn, PLANE_Y, STRIP_WIDTH, type Camera, type MapObject, type Nebula, type Pose } from './nebula3d';
+import { canNebula, nebulaOn, NEBULA_FOV, PLANE_Y, poseView, STRIP_WIDTH, type Camera, type MapObject, type Nebula, type Pose } from './nebula3d';
 import { FLY_SECONDS, WARP_SECONDS } from './nebula-objects';
 import type { CaptainShipSpec } from './ship3d';
 import { Base3d, type BaseZone } from './base3d';
@@ -1589,7 +1589,7 @@ export class CampaignView {
   /** The menu's land, its camera as last drawn, and (setting out) its pan to where the run opens. */
   private menuWorld: Nebula | null = null;
   private menuPose: Pose | null = null;
-  private menuPan: { from: Pose; to: Pose; t0: number; dur: number; done?: boolean; end: () => void } | null = null;
+  private menuPan: { from: Pose; to: Pose; t0: number; dur: number; e: number; done?: boolean; end: () => void } | null = null;
 
   /**
    * Setting out from the menu [direction: no fade between the two screens; the ship moving forwards, away from the
@@ -1601,11 +1601,11 @@ export class CampaignView {
   private launch() {
     const page = document.querySelector<HTMLElement>('.cs-captain-page');
     const scene = page?.querySelector<HTMLElement>('.cs-base');
-    const base = this.base, world = this.menuWorld, from = this.menuPose;
+    const base = this.base, world = this.menuWorld, start = this.menuPose;
     const run = this.newRun();
     const me = flagship(run.state, run.state.playerId);
     const at = me ? run.state.nodes.find((n) => n.id === me.nodeId) : undefined;
-    if (!page || !scene || !base || !world || !from || !at || run.state.rift) {
+    if (!page || !scene || !base || !world || !start || !at || run.state.rift) {
       this.beginRun(run, canNebula() && !reducedMotion());
       return;
     }
@@ -1622,21 +1622,35 @@ export class CampaignView {
       node.style.transform = `translate(-21px, -50%) translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px)`;
       node.style.opacity = '0';
     });
-    base.launch();
     sound.whoosh(0.05);
-    // (The ship gone ahead, its sky's planets and dust go too: what is left is the land, the map's own.)
-    base.canvas.style.transition = 'opacity 1s ease 0.9s';
-    base.canvas.style.opacity = '0';
-    const to = world.restPose((at.x - MAP_WIDTH / 2) * MAP_K, (at.y - MAP_HEIGHT / 2) * MAP_K);
+    // Where the campaign's opening shot begins [direction: the camera panned from the menu outwards to match the start
+    // of the campaign's intro; one shot, no fading ship, no cutting camera]: the flagship cruising in from off the
+    // route's near end toward its first system, the camera close beside it. The land's camera eases there, and the
+    // menu's own camera with it, so its ship comes to lie exactly where the campaign's flagship will be drawn: there the
+    // campaign takes over, on the very same frame, and its opening plays on.
+    const node: [number, number] = [(at.x - MAP_WIDTH / 2) * MAP_K, (at.y - MAP_HEIGHT / 2) * MAP_K];
+    const from: [number, number] = [node[0] - 3.4, node[1] + 2.5];
+    const heading = Math.atan2(node[1] - from[1], node[0] - from[0]);
+    const ship = { x: from[0], y: PLANE_Y + 0.13 + 0.05, z: from[1], heading };
+    const to = world.rideAt(ship, 0);
+    // (The campaign's flagship, 0.2 long, against the menu's, 4.2: the menu's scene seen as the campaign's camera sees
+    // its flagship, scaled to it, so the two draw alike.)
+    const k = 0.2 / Base3d.SHIP_SCALE;
+    const fx = Math.cos(heading), fz = Math.sin(heading);
+    const place = [fx * k, 0, fz * k, 0, 0, k, 0, 0, -fz * k, 0, fx * k, 0, ship.x, ship.y, ship.z, 1];
+    const view = mul4(Array.from(poseView(to)), place);
+    for (const c of [0, 4, 8, 12]) for (const r of [0, 1, 2]) view[c + r] /= k;
+    base.handTo(new Float32Array(view), NEBULA_FOV, () => this.menuPan?.e ?? 1);
     this.menuPan = {
-      from,
+      from: start,
       to,
       t0: -1,
-      dur: 2.8,
+      dur: 3.4,
+      e: 0,
       end: () =>
         window.setTimeout(() => {
-          // The menu's scene, lifted out of the page as it is, over the map as it comes up on the same frame; taken
-          // away the moment the map has drawn it.
+          // The menu's scene, lifted out of the page as it is, over the campaign as it comes up on the same frame;
+          // taken away the moment the campaign has drawn it.
           const veil = document.createElement('div');
           veil.className = 'cs-launch-veil';
           veil.appendChild(scene);
@@ -1646,7 +1660,7 @@ export class CampaignView {
           this.menuPan = null;
           this.menuWorld = null;
           this.launchCut = to;
-          this.beginRun(run, false);
+          this.beginRun(run, true);
           let frames = 0;
           const wait = () => {
             if (this.nebula?.landed) frames++;
@@ -2644,11 +2658,14 @@ export class CampaignView {
           // Setting out [direction: the ship moving forwards, away from the crumbling terrain, the camera panning out
           // and right to the campaign's starting view, one continuous shot]: the land's breaking held where it is, the
           // camera easing from where it was to where the run opens.
+          // (Handed over: held just as it was, under the campaign coming up over it, until it is taken away.)
+          if (this.menuWorld !== world) return last;
           const pan = this.menuPan;
           if (pan) {
             if (pan.t0 < 0) pan.t0 = time;
             const k = Math.min(1, (time - pan.t0) / pan.dur);
             const e = k * k * (3 - 2 * k);
+            pan.e = e;
             const a = pan.from, b = pan.to;
             const dy = Math.atan2(Math.sin(b.yaw - a.yaw), Math.cos(b.yaw - a.yaw));
             last = { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, z: a.z + (b.z - a.z) * e, yaw: a.yaw + dy * e, pitch: a.pitch + (b.pitch - a.pitch) * e, dist: a.dist + (b.dist - a.dist) * e };
@@ -3086,6 +3103,8 @@ export class CampaignView {
         return a + (b - a) * f;
       };
       const floor = this.menuGone ?? -50;
+      // (What the menu broke away goes as the menu drew it, soft; the shards still falling as it handed over among it.)
+      this.nebula.setSoftBelow(this.menuGone === null ? null : this.menuGone + 0.8);
       this.nebula.setCollapse(Math.max(colX(gone), floor), Math.max(colX(crack), floor));
     } else this.nebula.setCollapse(gone, crack);
     if (this.nebula.camera) this.layPlane(this.nebula.camera);

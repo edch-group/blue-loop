@@ -165,8 +165,12 @@ export class Base3d {
   private shipKey = '';
   private shipM: M4 = IDENTITY;
   private capM: M4 = IDENTITY;
-  /** When the run began (the ship surging away ahead), if it has. */
-  private launchedAt = -1;
+  /**
+   * Setting out [direction: one shot from the menu into the campaign's opening, no fading ship, no cutting camera]:
+   * the camera the menu hands over on (as a view matrix and field of view: the campaign's first frame, seen in this
+   * scene's own units), how far the hand-over has come (0 to 1, the land's pan's own), and where it set out from.
+   */
+  private handOver: { view: M4; fov: number; k: () => number; from?: { eye: V3; target: V3; fov: number; off: number } } | null = null;
   private dust: { p: V3; s: number; a: number }[] = [];
   /** Told after each frame (to lay the labels by their places). */
   onFrame: (() => void) | null = null;
@@ -236,7 +240,7 @@ export class Base3d {
   }
 
   /** The ship's size on the canvas: 4.2 long. Where each section is, on the ship (its own units, before placing). */
-  private static readonly SHIP_SCALE = 4.2;
+  static readonly SHIP_SCALE = 4.2;
   private spot(zone: BaseZone): V3 {
     if (zone === 'captain') return apply(this.capM, B(20, 12, 30));
     if (zone === 'research') return apply(this.shipM, B(5.5, 12, 12));
@@ -264,9 +268,9 @@ export class Base3d {
     return best;
   }
 
-  /** The run begins: the ship surges away ahead. */
-  launch() {
-    if (this.launchedAt < 0) this.launchedAt = this.time();
+  /** The run begins: the camera eases to `view` (a rigid view of this scene) and `fov`, as `k` goes from 0 to 1. */
+  handTo(view: M4, fov: number, k: () => number) {
+    this.handOver = { view, fov, k };
   }
 
   /**
@@ -349,9 +353,10 @@ export class Base3d {
     const t = this.time();
     // The ship drifts on: rising and falling, rolling and pitching a little.
     const S = Base3d.SHIP_SCALE;
-    // (Launched: surging away ahead, faster and faster, rising a little.)
-    const go = this.launchedAt < 0 ? 0 : Math.max(0, t - this.launchedAt);
-    this.shipM = mul(translate(go * go * 3.2, 0.05 * Math.sin(t * 0.7) + go * go * 0.35, 0), mul(rotX(0.035 * Math.sin(t * 0.5)), mul(rotZ(0.025 * Math.sin(t * 0.6 + 1)), scale(S))));
+    // (Handing over to the campaign, it settles still, as the campaign's first frame has it.)
+    const ho = this.handOver ? Math.max(0, Math.min(1, this.handOver.k())) : 0;
+    const sway = 1 - ho;
+    this.shipM = mul(translate(0, 0.05 * Math.sin(t * 0.7) * sway, 0), mul(rotX(0.035 * Math.sin(t * 0.5) * sway), mul(rotZ(0.025 * Math.sin(t * 0.6 + 1) * sway), scale(S))));
     // The Captain on the foredeck, facing ahead and a little toward us.
     const at = B(STAND.x, STAND.y, this.deck);
     this.capM = mul(this.shipM, mul(translate(at[0], at[1], at[2]), mul(rotY(1.3), mul(scale(0.7 / S), translate(-B(20, 12, 0)[0], 0, -B(20, 12, 0)[2])))));
@@ -377,10 +382,27 @@ export class Base3d {
     const yaw = p.yaw + 0.03 * Math.sin(t * 0.17);
     const dir: V3 = [Math.sin(yaw) * Math.cos(p.pitch), Math.sin(p.pitch), Math.cos(yaw) * Math.cos(p.pitch)];
     this.eye = [p.target[0] + dir[0] * p.dist, p.target[1] + dir[1] * p.dist, p.target[2] + dir[2] * p.dist];
-    this.view = lookAt(this.eye, p.target);
-    this.proj = perspective(fov, aspect, 0.05, 140);
+    let target: V3 = p.target, fovNow = fov, off = p.off;
+    const hand = this.handOver;
+    if (hand) {
+      // From where it was to the campaign's first frame: the eye and what it looks at eased along, the lens and the
+      // framing with them; at the end, exactly the view handed over.
+      if (!hand.from) hand.from = { eye: [...this.eye] as V3, target: [...p.target] as V3, fov, off: p.off };
+      const v = hand.view;
+      const r: V3 = [v[0], v[4], v[8]], u: V3 = [v[1], v[5], v[9]], f: V3 = [-v[2], -v[6], -v[10]];
+      const eye1: V3 = [0, 1, 2].map((i) => -v[12] * r[i] - v[13] * u[i] + v[14] * f[i]) as V3;
+      const d = Math.hypot(eye1[0], eye1[1], eye1[2]) || 1;
+      const target1: V3 = [eye1[0] + f[0] * d, eye1[1] + f[1] * d, eye1[2] + f[2] * d];
+      const lerp = (a: V3, b: V3): V3 => [a[0] + (b[0] - a[0]) * ho, a[1] + (b[1] - a[1]) * ho, a[2] + (b[2] - a[2]) * ho];
+      this.eye = lerp(hand.from.eye, eye1);
+      target = lerp(hand.from.target, target1);
+      fovNow = hand.from.fov + (hand.fov - hand.from.fov) * ho;
+      off = hand.from.off * (1 - ho);
+    }
+    this.view = lookAt(this.eye, target);
+    this.proj = perspective(fovNow, aspect, 0.05, 140);
     // (Set off centre by shearing the projection: the subject moves aside, its perspective unchanged.)
-    this.proj[8] = -p.off * 2;
+    this.proj[8] = -off * 2;
 
     gl.viewport(0, 0, w, h);
     gl.clearColor(0, 0, 0, 0);
@@ -424,8 +446,11 @@ export class Base3d {
         const k = (((t / pl.period + pl.phase) % 1) + 1) % 1;
         const across = (0.5 - k) * 2 * pl.span;
         const at: V3 = [fwd[0] * pl.far + right[0] * across, pl.up, fwd[2] * pl.far + right[2] * across];
-        drawMesh(this.planetBuf, this.planetCount, mul(translate(at[0], at[1], at[2]), mul(rotY(t * 0.02 + pl.phase * 6), mul(rotZ(pl.tilt), scale(pl.r)))));
-        if (pl.ring) drawMesh(this.ringBuf, this.ringCount, mul(translate(at[0], at[1], at[2]), mul(rotZ(pl.tilt + 0.35), mul(rotX(0.25), scale(pl.r)))));
+        // (Handing over to the campaign, they dwindle away: its sky has none.)
+        const pr = pl.r * (1 - ho);
+        if (pr < 0.01) continue;
+        drawMesh(this.planetBuf, this.planetCount, mul(translate(at[0], at[1], at[2]), mul(rotY(t * 0.02 + pl.phase * 6), mul(rotZ(pl.tilt), scale(pr)))));
+        if (pl.ring) drawMesh(this.ringBuf, this.ringCount, mul(translate(at[0], at[1], at[2]), mul(rotZ(pl.tilt + 0.35), mul(rotX(0.25), scale(pr)))));
       }
     }
     locs.forEach((l) => l >= 0 && gl.disableVertexAttribArray(l));
@@ -443,12 +468,10 @@ export class Base3d {
     // Dust: drifting past astern (the ship flies on ahead), wrapping round.
     for (const d of this.dust) {
       const x = ((((d.p[0] - t * 0.9 * (0.6 + d.s * 30)) % 16) + 24) % 16) - 8;
-      quad([x, d.p[1] + 0.5, d.p[2]], d.s, [0.42, 0.47, 0.6, d.a]);
+      quad([x, d.p[1] + 0.5, d.p[2]], d.s, [0.42, 0.47, 0.6, d.a * (1 - (this.handOver ? Math.max(0, Math.min(1, this.handOver.k())) : 0))]);
     }
     // Engines: a soft glow behind each bell.
-    // (Launched, they burn up bright.)
-    const burn = this.launchedAt < 0 ? 0 : Math.min(1, (t - this.launchedAt) * 3);
-    for (const e of this.engines) quad(apply(this.shipM, [e[0] - 0.01, e[1], e[2]]), (0.17 + 0.01 * Math.sin(t * 9)) * (1 + burn * 1.4), [1, 0.78, 0.48, 0.55 + burn * 0.4]);
+    for (const e of this.engines) quad(apply(this.shipM, [e[0] - 0.01, e[1], e[2]]), 0.17 + 0.01 * Math.sin(t * 9), [1, 0.78, 0.48, 0.55]);
     // Smoke: puffs leaving each wound, drifting astern and up, swelling and fading.
     for (const s of this.smoke) {
       const from = apply(this.shipM, s);
