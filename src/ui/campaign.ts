@@ -1070,38 +1070,14 @@ export class CampaignView {
         break;
       }
       case 'cmp-start': {
-        const meta = loadMeta();
-        // (Every run is the Captain's, as petals have made them.)
-        const hero = captainCard(meta);
-        saveMeta({ ...meta, runs: meta.runs + 1 });
-        this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, captain: hero, run: runBonuses(meta) });
-        this.arriving = true;
-        this.introFlight = true;
-        // (In 3D and with motion: the opening shot, alongside the flagship as its hero speaks; see showNebula.)
-        this.cine = canNebula() && !reducedMotion() ? 'start' : null;
-        this.selected = null;
-        this.view = null;
-        // The hero's arrival comes first: whatever else the opening brought on waits its turn behind it.
-        const story = this.state.story;
-        this.state = { ...this.state, story: { ...story, queue: [...story.queue.filter((sc) => sc.id === 'intro'), ...story.queue.filter((sc) => sc.id !== 'intro')] } };
-        if (this.state.story.queue[0]?.id !== 'intro') this.skipSilentScenes();
-        saveCampaign(this.state);
-        sound.objective();
-        this.army = null;
-        this.storyLine = 0;
-        // The map is up: announce the run (the setup page before it gets none).
-        this.host.render();
-        if (this.cine) {
-          // The hero speaks as the flagship cruises in; the map is shown once they are done (or after a while).
-          voices.arrive(hero, 900);
-          window.clearTimeout(this.cineTimer);
-          this.cineTimer = window.setTimeout(() => this.endRide(), CINE_RIDE_MAX * 1000);
-        } else {
-          this.host.banner('galaxy 1', 'reach the wormhole');
-          // The hero speaks as the flagship comes to rest (their words on the guide, spoken if recorded).
-          voices.arrive(hero, ARRIVAL_FLIGHT * 1000);
+        // [direction: on start run the menu items animate up and out toward the nearest side of the screen, and the
+        // ship transitions naturally into the start of the campaign without going to another screen]
+        if (this.launching) return true;
+        if (this.base && canNebula() && !reducedMotion()) {
+          this.launch();
+          return true;
         }
-        return true;
+        return this.startRun();
       }
       case 'cmp-boon':
         if (!this.apply({ type: 'takeBoon', pick: arg === 'health' ? 'health' : 'cool' })) return true;
@@ -1481,6 +1457,88 @@ export class CampaignView {
     requestAnimationFrame(step);
   }
 
+  /** A new run: the Captain's, as petals have made them, the map up and the opening shot under way. */
+  private startRun(): boolean {
+    const meta = loadMeta();
+    // (Every run is the Captain's, as petals have made them.)
+    const hero = captainCard(meta);
+    saveMeta({ ...meta, runs: meta.runs + 1 });
+    this.state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, captain: hero, run: runBonuses(meta) });
+    this.arriving = true;
+    this.introFlight = true;
+    // (In 3D and with motion: the opening shot, alongside the flagship as its hero speaks; see showNebula.)
+    this.cine = canNebula() && !reducedMotion() ? 'start' : null;
+    this.selected = null;
+    this.view = null;
+    // The hero's arrival comes first: whatever else the opening brought on waits its turn behind it.
+    const story = this.state.story;
+    this.state = { ...this.state, story: { ...story, queue: [...story.queue.filter((sc) => sc.id === 'intro'), ...story.queue.filter((sc) => sc.id !== 'intro')] } };
+    if (this.state.story.queue[0]?.id !== 'intro') this.skipSilentScenes();
+    saveCampaign(this.state);
+    sound.objective();
+    this.army = null;
+    this.storyLine = 0;
+    // The map is up: announce the run (the setup page before it gets none).
+    this.host.render();
+    if (this.cine) {
+      // The hero speaks as the flagship cruises in; the map is shown once they are done (or after a while).
+      voices.arrive(hero, 900);
+      window.clearTimeout(this.cineTimer);
+      this.cineTimer = window.setTimeout(() => this.endRide(), CINE_RIDE_MAX * 1000);
+    } else {
+      this.host.banner('galaxy 1', 'reach the wormhole');
+      // The hero speaks as the flagship comes to rest (their words on the guide, spoken if recorded).
+      voices.arrive(hero, ARRIVAL_FLIGHT * 1000);
+    }
+    return true;
+  }
+
+  /** Whether the run is setting out from the menu (its options flying away, the ship surging off). */
+  private launching = false;
+
+  /**
+   * Setting out from the menu: each option flies up and away toward the side of the screen nearest it, the page's
+   * header and footer fade, and the ship surges away ahead; then the run begins under the menu's scene, which fades
+   * away over the opening shot alongside the flagship (no other screen between).
+   */
+  private launch() {
+    const page = document.querySelector<HTMLElement>('.cs-captain-page');
+    const scene = page?.querySelector<HTMLElement>('.cs-base');
+    const base = this.base;
+    if (!page || !scene || !base) {
+      this.startRun();
+      return;
+    }
+    this.launching = true;
+    page.classList.add('cs-launching');
+    const W = window.innerWidth, H = window.innerHeight;
+    page.querySelectorAll<HTMLElement>('.cs-node').forEach((node, i) => {
+      const r = node.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const left = x, right = W - x, top = y;
+      const m = Math.min(left, right, top);
+      const [dx, dy] = m === top ? [(x - W / 2) * 0.3, -(y + r.height + 80)] : m === left ? [-(x + r.width + 80), -H * 0.18] : [right + r.width + 80, -H * 0.18];
+      node.style.transition = `transform 0.7s cubic-bezier(0.5, 0, 0.85, 0.4) ${i * 0.06}s, opacity 0.6s ease-in ${i * 0.06 + 0.1}s`;
+      node.style.transform = `translate(-15px, -50%) translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px)`;
+      node.style.opacity = '0';
+    });
+    base.launch();
+    sound.whoosh(0.05);
+    window.setTimeout(() => {
+      // The menu's scene, lifted out of the page as it is, over the map as it comes up, fading away.
+      const veil = document.createElement('div');
+      veil.className = 'cs-launch-veil';
+      veil.appendChild(scene);
+      document.body.appendChild(veil);
+      this.base = null;
+      this.launching = false;
+      this.startRun();
+      requestAnimationFrame(() => requestAnimationFrame(() => veil.classList.add('gone')));
+      // (Gone, its scenes stop drawing and let go of their contexts: they see they are no longer on the page.)
+      window.setTimeout(() => veil.remove(), 1700);
+    }, 750);
+  }
+
   /** The commander's experience in all: what is banked, and what this run has earned and not yet banked. */
   private commanderXp(): number {
     const s = this.state;
@@ -1580,6 +1638,7 @@ export class CampaignView {
           <canvas class="cs-world cs-world-front" aria-hidden="true"></canvas>
           <canvas class="cs-base-canvas" aria-hidden="true"></canvas>
           <div class="cs-nodes">
+            <svg class="cs-arc" aria-hidden="true"><path/></svg>
             ${label('captain', 'cmp-hero', 'the captain', `${pointsLeft(meta)} skill points`, XP_MARK)}
             ${label('hangar', 'cmp-hangar', 'the ship', 'fit parts', SHIP_ICON)}
             ${label('research', 'cmp-shop', 'the stellari', `${meta.petals} petals`, PETAL)}
@@ -2355,16 +2414,10 @@ export class CampaignView {
         canvas.style.cursor = zone ? 'var(--cur-pointer)' : '';
         if (zone && pointer !== 'touch') sound.hover();
       };
-      // (Enlightenment is the Stellari, on the land beyond the ship: a pointer near it is on it.)
-      const nearStellari = (e: PointerEvent) => {
-        const q = world?.toScreen(stellari[0], PLANE_Y + 0.3, stellari[1]);
-        if (!q || !back) return false;
-        const r = back.getBoundingClientRect(), z = r.width / (back.clientWidth || r.width) || 1;
-        return Math.hypot((e.clientX - r.left) / z - q.x, (e.clientY - r.top) / z - q.y) < 46;
-      };
+      // (The Stellari's option has nothing of its own on the ship.)
       const zoneHere = (e: PointerEvent): BaseZone | null => {
         const z = zoneAt(e);
-        return z && z !== 'research' ? z : nearStellari(e) ? 'research' : null;
+        return z && z !== 'research' ? z : null;
       };
       canvas.addEventListener('pointermove', (e) => hover(zoneHere(e), e.pointerType));
       canvas.addEventListener('pointerleave', (e) => hover(null, e.pointerType));
@@ -2407,9 +2460,6 @@ export class CampaignView {
           if (back) back.style.opacity = shown;
           if (front) front.style.opacity = shown;
           if (sunrise) sunrise.style.opacity = shown;
-          // The Stellari, white and fully open [direction: the white fully open Stellari, cut off by the landscape,
-          // just in front of the sunrise; a 3D object turned to face the ship]: standing on the land's far end.
-          world.setBloom({ x: stellari[0], y: PLANE_Y - 0.12, z: stellari[1], size: 0.62, face: [f.x - stellari[0], 0.15 - stellari[1]], alpha: Number(shown) });
           // Enlightenment open: the camera glides down to the Stellari, set at the foot of the screen, where the
           // skill tree's own Stellari comes in over it.
           const dt = Math.max(0, Math.min(0.1, time - lastT));
@@ -2428,12 +2478,38 @@ export class CampaignView {
           };
         });
       }
+      const arc = box.querySelector<SVGPathElement>('.cs-arc path');
       base.onFrame = () => {
-        // The sunrise: on the horizon, behind the Stellari, wherever it stands on screen now.
+        // The sunrise: on the horizon ahead, wherever it stands on screen now.
         const at = world?.toScreen(stellari[0], PLANE_Y + 0.3, stellari[1]);
         if (sunrise && at) {
           sunrise.style.left = `${at.x.toFixed(1)}px`;
           sunrise.style.top = `${at.y.toFixed(1)}px`;
+        }
+        // The options, arced round the ship's bow in a half circle [direction: the menu options arced round the front
+        // of the ship in a semicircle, following the ship's angle so as to look natural]: the half circle stands on
+        // the ship, upright and along it, so it rolls and pitches with it. (Setting out, they fly off on their own.)
+        if (box.closest('.cs-launching, .cs-launch-veil')) return;
+        const r = canvas.getBoundingClientRect(), zoom = r.width / (canvas.clientWidth || r.width) || 1;
+        const W = window.innerWidth / zoom;
+        const BOW = [36.5, 5], R = 13;
+        const on = (deg: number) => {
+          const q = base.shipScreen(BOW[0] + R * Math.cos((deg * Math.PI) / 180), 12, BOW[1] + R * Math.sin((deg * Math.PI) / 180));
+          return q ? { x: q.x + r.left / zoom, y: q.y + r.top / zoom } : null;
+        };
+        if (arc) {
+          const pts = Array.from({ length: 19 }, (_, i) => on(-90 + i * 10)).filter((q): q is { x: number; y: number } => !!q);
+          arc.setAttribute('d', pts.map((q, i) => `${i ? 'L' : 'M'}${q.x.toFixed(1)} ${q.y.toFixed(1)}`).join(''));
+        }
+        const ANGLE: Record<BaseZone, number> = { captain: 52, hangar: 0, research: -52 };
+        for (const zone of ['captain', 'hangar', 'research'] as BaseZone[]) {
+          const node = box.querySelector<HTMLElement>(`.cs-node[data-zone="${zone}"]`);
+          const q = on(ANGLE[zone]);
+          if (!node || !q) continue;
+          // (Kept on screen, its name and all.)
+          const x = Math.min(q.x, W - node.offsetWidth - 4);
+          node.style.left = `${x.toFixed(1)}px`;
+          node.style.top = `${q.y.toFixed(1)}px`;
         }
       };
     }

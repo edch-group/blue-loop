@@ -165,6 +165,8 @@ export class Base3d {
   private shipKey = '';
   private shipM: M4 = IDENTITY;
   private capM: M4 = IDENTITY;
+  /** When the run began (the ship surging away ahead), if it has. */
+  private launchedAt = -1;
   private dust: { p: V3; s: number; a: number }[] = [];
   /** Told after each frame (to lay the labels by their places). */
   onFrame: (() => void) | null = null;
@@ -262,6 +264,16 @@ export class Base3d {
     return best;
   }
 
+  /** The run begins: the ship surges away ahead. */
+  launch() {
+    if (this.launchedAt < 0) this.launchedAt = this.time();
+  }
+
+  /** Where a point on the ship (box units: x along, y across, z up) is on the canvas (CSS pixels, as laid out). */
+  shipScreen(x: number, y: number, z: number): { x: number; y: number } | null {
+    return this.toScreen(apply(this.shipM, B(x, y, z)));
+  }
+
   /** Where a section is on the canvas (CSS pixels, as laid out): the point its node's stem runs to. */
   anchorAt(zone: BaseZone): { x: number; y: number } | null {
     return this.toScreen(this.spot(zone));
@@ -303,7 +315,8 @@ export class Base3d {
     if (z === 'research') return { target: [7, 1.4, -2], yaw: -0.52, pitch: 0.1, dist: 6, off: 0 };
     // The whole ship, side on and a little from ahead and below (as the art has it), all of it in view.
     const dist = Math.max(3.7 / (half * aspect), 2.4 / half);
-    return { target: [-0.3, 0.74, 0], yaw: -0.52, pitch: 0.1, dist, off: 0 };
+    // (A little to the left, the menu's options arcing round its bow on the right.)
+    return { target: [-0.3, 0.74, 0], yaw: -0.52, pitch: 0.1, dist, off: -0.1 };
   }
 
   private draw() {
@@ -321,7 +334,9 @@ export class Base3d {
     const t = this.time();
     // The ship drifts on: rising and falling, rolling and pitching a little.
     const S = Base3d.SHIP_SCALE;
-    this.shipM = mul(translate(0, 0.05 * Math.sin(t * 0.7), 0), mul(rotX(0.035 * Math.sin(t * 0.5)), mul(rotZ(0.025 * Math.sin(t * 0.6 + 1)), scale(S))));
+    // (Launched: surging away ahead, faster and faster, rising a little.)
+    const go = this.launchedAt < 0 ? 0 : Math.max(0, t - this.launchedAt);
+    this.shipM = mul(translate(go * go * 3.2, 0.05 * Math.sin(t * 0.7) + go * go * 0.35, 0), mul(rotX(0.035 * Math.sin(t * 0.5)), mul(rotZ(0.025 * Math.sin(t * 0.6 + 1)), scale(S))));
     // The Captain on the foredeck, facing ahead and a little toward us.
     const at = B(STAND.x, STAND.y, this.deck);
     this.capM = mul(this.shipM, mul(translate(at[0], at[1], at[2]), mul(rotY(1.3), mul(scale(0.7 / S), translate(-B(20, 12, 0)[0], 0, -B(20, 12, 0)[2])))));
@@ -416,7 +431,9 @@ export class Base3d {
       quad([x, d.p[1] + 0.5, d.p[2]], d.s, [0.42, 0.47, 0.6, d.a]);
     }
     // Engines: a soft glow behind each bell.
-    for (const e of this.engines) quad(apply(this.shipM, [e[0] - 0.01, e[1], e[2]]), 0.17 + 0.01 * Math.sin(t * 9), [1, 0.78, 0.48, 0.55]);
+    // (Launched, they burn up bright.)
+    const burn = this.launchedAt < 0 ? 0 : Math.min(1, (t - this.launchedAt) * 3);
+    for (const e of this.engines) quad(apply(this.shipM, [e[0] - 0.01, e[1], e[2]]), (0.17 + 0.01 * Math.sin(t * 9)) * (1 + burn * 1.4), [1, 0.78, 0.48, 0.55 + burn * 0.4]);
     // Smoke: puffs leaving each wound, drifting astern and up, swelling and fading.
     for (const s of this.smoke) {
       const from = apply(this.shipM, s);
