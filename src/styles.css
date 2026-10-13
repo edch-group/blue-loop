@@ -6680,18 +6680,18 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* A system on a rise or in a dip of the land: its marks stand at its height (the plane's own up, in map units). */
 .cmp-3d .cmp-n3 { transform: translateZ(var(--h, 0px)); }
 
-/* The galaxy's name and what it does (or a rift's name and what it is like), written on the land past the systems,
-   up the screen: big, light letters lying flat, the words under them. */
+/* The galaxy's name and what it does (or a rift's name and what it is like), standing on the land past the systems,
+   up the screen, like a sign facing the camera as it rests: big, light letters, the words under them. */
 .cmp-galaxy.cmp-galaxy-land {
-  position: absolute; transform: translate(-50%, -50%) translateZ(var(--h, 0px)) rotate(var(--a, 0deg));
-  display: grid; justify-items: center; gap: 18px; width: 1640px; height: auto; border-radius: 0; box-sizing: border-box; padding: 0; border: 0;
+  position: absolute; transform-origin: 50% 100%; transform: translate(-50%, -100%) translateZ(var(--h, 0px)) rotate(var(--face, 0deg)) rotateX(-90deg);
+  display: grid; justify-items: center; gap: 18px; width: 1240px; height: auto; border-radius: 0; box-sizing: border-box; padding: 0; border: 0;
   background: none; box-shadow: none; color: rgba(70, 78, 104, 0.62); pointer-events: none;
   font-family: var(--display); text-transform: uppercase; text-align: center;
 }
 .cmp-galaxy-title { display: flex; align-items: center; gap: 22px; font-size: 70px; white-space: nowrap; }
 .cmp-galaxy.cmp-galaxy-land svg { width: 76px; height: 76px; stroke-width: 1.2; }
 .cmp-galaxy.cmp-galaxy-land b { font-weight: 400; letter-spacing: 0.32em; }
-.cmp-galaxy.cmp-galaxy-land p { margin: 0; max-width: 1500px; font-family: var(--body, inherit); font-size: 44px; line-height: 1.3; letter-spacing: 0.03em; text-transform: none; color: rgba(70, 78, 104, 0.58); }
+.cmp-galaxy.cmp-galaxy-land p { margin: 0; max-width: 1180px; font-family: var(--body, inherit); font-size: 44px; line-height: 1.3; letter-spacing: 0.03em; text-transform: none; color: rgba(70, 78, 104, 0.58); }
 
 /* (In the Dark Galaxy, pale on the dark.) */
 .cmp-galaxy.cmp-galaxy-land.cmp-galaxy-dark, .cmp-galaxy.cmp-galaxy-land.cmp-galaxy-dark p { color: rgba(214, 220, 238, 0.6); }

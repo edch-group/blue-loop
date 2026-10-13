@@ -1571,8 +1571,9 @@ export class CampaignView {
 
   /**
    * The galaxy's name and what it does to every battle in it, written on the land itself [direction: the galaxy mod's
-   * title and description always above the map; a rift's name placed the same way, never over the nodes]: out past
-   * the systems on the side that is up the screen as the camera rests, running along the way, read the right way up.
+   * title and description always above the map; a rift's name placed the same way, never over the nodes; stood up so
+   * it is legible]: out past the systems on the side that is up the screen as the camera rests, standing on the land
+   * like a sign, facing the camera as it rests.
    * A rift's galaxy has no mods: there, its name and what it is like.
    */
   private renderGalaxy(): string {
@@ -1596,23 +1597,40 @@ export class CampaignView {
     const along = (n: { x: number; y: number }) => n.x * d[0] + n.y * d[1];
     const out = (n: { x: number; y: number }) => n.x * nrm[0] + n.y * nrm[1];
     // (Its size in map units: the name's big letters, and the words under it, wrapped.)
-    const HALF_W = 820, HALF_H = 175;
+    const HALF_W = 620;
     // Where along: a strip's, over its first few columns (in view as a run begins); any other, its middle.
-    const early = strip ? nodes.filter((n) => (n.col ?? 0) >= 2 && (n.col ?? 0) <= 5) : nodes;
+    const early = strip ? nodes.filter((n) => (n.col ?? 0) >= 1 && (n.col ?? 0) <= 3) : nodes;
     const pick = early.length ? early : nodes;
     const mid = pick.reduce((t, n) => t + along(n), 0) / pick.length;
     // Out past every system it lies beside (and their rings), so it never covers one.
     const beside = nodes.filter((n) => Math.abs(along(n) - mid) < HALF_W + 260);
     if (strip && beside.length && beside.every((n) => n.collapsed)) return '';
     const edge = Math.max(...(beside.length ? beside : nodes).map(out));
-    const o = edge + 230 + HALF_H;
+    // Standing up, it hides what lies behind it from the camera as it rests: out past every system, and on out
+    // until no system is hidden behind it (a sight line from the eye to it passing through the sign).
+    const right = [-up[1], up[0]];
+    const SIGN_H = 380, PAD = 130;
+    const eyeW = this.nebula?.restEye();
+    const eye = eyeW ? [eyeW[0] / MAP_K + MAP_WIDTH / 2, eyeW[2] / MAP_K + MAP_HEIGHT / 2, eyeW[1] / MAP_K] : null;
+    const hides = (cx: number, cy: number) =>
+      nodes.some((n) => {
+        const dot = (vx: number, vy: number, w: readonly number[]) => vx * w[0] + vy * w[1];
+        const b = dot(n.x - cx, n.y - cy, up);
+        if (b < -PAD) return false;
+        if (!eye) return Math.abs(dot(n.x - cx, n.y - cy, right)) < HALF_W + PAD && b < 900;
+        // (Where its sight line crosses the sign's plane, and how high.)
+        const be = dot(eye[0] - cx, eye[1] - cy, up);
+        const t = Math.max(0, Math.min(1, -be / (b - be || 1)));
+        const h = eye[2] + t * ((n.h ?? 0) - eye[2]);
+        const a = dot(eye[0] - cx, eye[1] - cy, right) + t * dot(n.x - eye[0], n.y - eye[1], right);
+        return h < SIGN_H + PAD && Math.abs(a) < HALF_W + PAD;
+      });
+    let o = edge + 260;
+    for (let i = 0; i < 40 && hides(d[0] * mid + nrm[0] * o, d[1] * mid + nrm[1] * o); i++) o += 80;
     const x = d[0] * mid + nrm[0] * o, y = d[1] * mid + nrm[1] * o;
     const near = (beside.length ? beside : nodes).reduce((b, n) => (out(n) > out(b) ? n : b));
-    let angle = (Math.atan2(d[1], d[0]) * 180) / Math.PI;
-    if (angle > 90) angle -= 180;
-    if (angle < -90) angle += 180;
     const glyph = rift ? '' : `<svg viewBox="0 0 24 24" aria-hidden="true">${GALAXY_GLYPH[kind!]}</svg>`;
-    return `<div class="cmp-galaxy cmp-galaxy-land${s.rift?.kind === 'dark' ? ' cmp-galaxy-dark' : ''}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--a:${angle.toFixed(1)}deg;--h:${(near.h ?? 0).toFixed(0)}px" aria-label="${esc(`${title}: ${text}`)}"><span class="cmp-galaxy-title">${glyph}<b>${esc(title.toLowerCase())}</b></span><p>${esc(text)}</p></div>`;
+    return `<div class="cmp-galaxy cmp-galaxy-land${s.rift?.kind === 'dark' ? ' cmp-galaxy-dark' : ''}" style="left:${x.toFixed(0)}px;top:${y.toFixed(0)}px;--face:${((-YAW * 180) / Math.PI).toFixed(1)}deg;--h:${(near.h ?? 0).toFixed(0)}px" aria-label="${esc(`${title}: ${text}`)}"><span class="cmp-galaxy-title">${glyph}<b>${esc(title.toLowerCase())}</b></span><p>${esc(text)}</p></div>`;
   }
 
   /**

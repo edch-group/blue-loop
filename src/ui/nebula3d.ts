@@ -867,6 +867,13 @@ export class Nebula {
     return { x, y: PLANE_Y, z: 0.1 + f[1] * 0.35, yaw: -0.95, pitch: 0.62, dist };
   }
 
+  /** Where the camera's eye is as it rests (world units), for laying things out to be seen from there. */
+  restEye(): [number, number, number] {
+    const p = this.home();
+    const cp = Math.cos(p.pitch), sp = Math.sin(p.pitch), cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
+    return [p.x + sy * cp * p.dist, p.y + sp * p.dist, p.z + cy * cp * p.dist];
+  }
+
   /** A galaxy turning slowly round its heart (a spiral arm's): how far it has turned, and whether it turns at all. */
   private spin = 0;
   private spinning = false;
