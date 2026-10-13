@@ -2553,9 +2553,10 @@ export class CampaignView {
           const q = on(ANGLE[zone]);
           if (!node || !q) continue;
           // (Kept on screen, its name and all.)
-          const x = Math.min(q.x, W - node.offsetWidth - 4);
-          node.style.left = `${x.toFixed(1)}px`;
-          node.style.top = `${q.y.toFixed(1)}px`;
+          // (On whole pixels, and only when it moves: a disc and its mark always drawn together, never shimmering apart.)
+          const x = Math.round(Math.min(q.x, W - node.offsetWidth - 4)), y = Math.round(q.y);
+          if (node.style.left !== `${x}px`) node.style.left = `${x}px`;
+          if (node.style.top !== `${y}px`) node.style.top = `${y}px`;
         }
       };
     }
