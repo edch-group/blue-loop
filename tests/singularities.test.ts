@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseAIAction } from '../src/engine/ai';
 import { cardDef } from '../src/engine/cards';
 import { captainDef, CAPTAIN } from '../src/engine/captain';
-import { activePlayer, applyAction, baseHealth, COMMAND_SLOT, createGame, singularityProblem } from '../src/engine/game';
+import { activePlayer, applyAction, baseHealth, COMMAND_SLOT, createGame, singularityProblem, supernovaThreshold } from '../src/engine/game';
 import { CHARGE_TEXT, SINGULARITIES, singularityOf } from '../src/engine/singularities';
 import { buyCaptain, captainCard, emptyMeta, setCaptainSingularity, xpForLevel } from '../src/engine/meta';
 import { captainId } from '../src/engine/captain';
@@ -120,5 +120,17 @@ describe('the AI and singularities', () => {
     rival.tableau.push({ uid: 'h1', defId: 'ignition_protocol', slot: COMMAND_SLOT, health: 5, charge: 5 });
     rival.tableau.push({ uid: 'p1', defId: 'coronal_lance', slot: 2, health: baseHealth('coronal_lance') });
     expect(chooseAIAction(s)).toMatchObject({ type: 'playCard', enemyUid: 'h1' });
+  });
+
+  it('but a card that would burn its sun out next day is the bigger threat, charged Hero or not', () => {
+    const s = createGame({ seed: 3, players: [{ name: 'Ada', isAI: true, deck: TEST_DECKS[0].cards }, { name: 'Bo', isAI: false, deck: TEST_DECKS[1].cards }] });
+    const me = s.players[0], rival = s.players[1];
+    me.hand = [{ uid: 'sb', defId: 'star_breaker' }];
+    me.playsLeft = 9;
+    me.heat = supernovaThreshold(me) - 4;
+    me.shields = 0;
+    rival.tableau.push({ uid: 'h1', defId: 'tide_regent', slot: COMMAND_SLOT, health: 5, charge: SINGULARITIES.tide_regent.need - 1 });
+    rival.tableau.push({ uid: 'p1', defId: 'focusing_array', slot: 2, health: baseHealth('focusing_array') });
+    expect(chooseAIAction(s)).toMatchObject({ type: 'playCard', enemyUid: 'p1' });
   });
 });

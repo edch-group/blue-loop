@@ -395,17 +395,18 @@ function evaluate(state: GameState, meId: string): number {
 }
 
 /**
- * A rival Hero's singularity charging [direction: singularities make heroes a much higher priority target, and the AI
- * should recognise that]: the fuller, the more it threatens (rising steeply toward full, most of all once charged), so
- * beating that Hero down (its charge lost with it) is worth a great deal, more the nearer it is.
+ * A rival Hero's singularity charging [direction: singularities raise a Hero's threat quite a bit, for removal and
+ * attacks; not necessarily the main target: a card that would burn this sun out next day is obviously the bigger
+ * threat]: the fuller, the more it threatens (rising steeply toward full, most of all once charged), so beating that
+ * Hero down (its charge lost with it) is worth a good deal more; still well under a kill shot coming (LETHAL_WEIGHT).
  */
-export const SINGULARITY_THREAT = 7;
+export const SINGULARITY_THREAT = 5;
 function singularityThreat(o: PlayerState): number {
   const hero = commandCard(o);
   const k = hero && singularityOf(hero.defId);
   if (!hero || !k) return 0;
   const f = Math.min(1, (hero.charge ?? 0) / k.need);
-  return SINGULARITY_THREAT * (0.25 + 0.75 * f * f) + (f >= 1 ? 3 : 0);
+  return SINGULARITY_THREAT * (0.25 + 0.75 * f * f) + (f >= 1 ? 2 : 0);
 }
 /**
  * Its own Hero's singularity on its way: worth keeping its Hero alive for (and charging). Unleashing it gives this back
