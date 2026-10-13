@@ -2371,7 +2371,7 @@ export class CampaignView {
       // behind the ship to reveal a full colour galaxy, as the map's instability does]: the map's own landscape, the
       // camera flying low along a valley toward the Stellari, the land breaking away a little behind it.
       const back = box.querySelector<HTMLCanvasElement>('canvas.cs-world-back'), front = box.querySelector<HTMLCanvasElement>('canvas.cs-world-front');
-      const world = back && front ? nebulaOn(back, front, { clearSky: true }) : null;
+      const world = back && front ? nebulaOn(back, front, { clearSky: true, soft: true }) : null;
       const sunrise = box.querySelector<HTMLElement>('.cs-sunrise');
       // (The Stellari stands at the land's far end, to the right on the horizon, the land in front of its foot: as the
       // flight goes on it draws nearer, the ship flying toward it.)

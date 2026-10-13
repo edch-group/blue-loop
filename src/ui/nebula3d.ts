@@ -138,10 +138,13 @@ const GROUND_FRAG = `
 #extension GL_OES_standard_derivatives : enable
 precision highp float;
 varying vec3 vWorld; varying vec3 vNorm; varying vec3 vBary; varying vec3 vEdge; varying float vFall; varying float vCrack; varying float vDist; varying float vRest;
-uniform vec3 uPaper; uniform vec3 uEye; uniform float uFront; uniform float uFade; uniform float uTime; uniform float uGalaxy; uniform float uBeam;
+uniform vec3 uPaper; uniform vec3 uEye; uniform float uFront; uniform float uFade; uniform float uTime; uniform float uGalaxy; uniform float uBeam; uniform float uSoft;
 ${NOISE}
 void main() {
   if (vFall > 2.0) discard;
+  // (The campaign menu's land: what falls fades out as it goes, and nothing is marked red before it does.)
+  float keep = uSoft > 0.5 ? 1.0 - smoothstep(0.0, 1.1, vFall) : 1.0;
+  if (keep < 0.01) discard;
   if (uFront > 0.5 && vWorld.y * uEye.y <= 0.0) discard;
   vec3 n = normalize(vNorm);
   if (dot(n, uEye - vWorld) < 0.0) n = -n;
@@ -205,7 +208,7 @@ void main() {
   float near = 1.0 - smoothstep(5.0, 11.0, vDist);
   c = mix(c, vec3(0.45, 0.51, 0.64), mesh * 0.32 * near);
   // Cracks along the shards' borders, glowing with the colours beneath.
-  if (vCrack > 0.5) {
+  if (vCrack > 0.5 && !(uSoft > 0.5 && vFall <= 0.0)) {
     vec3 b = vBary + (1.0 - vEdge) * 9.0;
     float d = min(b.x, min(b.y, b.z));
     float w = fwidth(d) * 1.8;
@@ -220,7 +223,7 @@ void main() {
   float edge = min(min(vWorld.x + 7.0, 7.0 - vWorld.x), min(vWorld.z + 5.5, 4.0 - vWorld.z));
   float away = max(1.0 - smoothstep(0.0, 1.8, edge), smoothstep(7.0, 20.0, vDist));
   if (vFall <= 0.0) c = mix(c, uPaper, away);
-  gl_FragColor = uFront > 0.5 ? vec4(c, 1.0) * uFade : vec4(mix(uPaper, c, uFade), 1.0);
+  gl_FragColor = (uFront > 0.5 ? vec4(c, 1.0) * uFade : vec4(mix(uPaper, c, uFade), 1.0)) * keep;
 }`;
 
 /**
@@ -406,7 +409,7 @@ class Layer {
   /** The most pixels it draws (the menu's backdrop draws fewer: it sits behind the ship, softly). */
   maxPixels = 4.6e6;
 
-  constructor(readonly canvas: HTMLCanvasElement, readonly front: boolean, readonly clearSky = false) {
+  constructor(readonly canvas: HTMLCanvasElement, readonly front: boolean, readonly clearSky = false, readonly soft = false) {
     // (A clear sky: see-through where no land is, so what lies behind the canvas shows over the horizon, cut off by it.)
     const gl = canvas.getContext('webgl', front ? { antialias: true, alpha: true, premultipliedAlpha: true, depth: true } : { antialias: true, alpha: clearSky, premultipliedAlpha: true, depth: true, stencil: true });
     if (!gl) throw new Error('no webgl');
@@ -513,6 +516,7 @@ class Layer {
       gl.uniform1f(u('uFront'), this.front ? 1 : 0);
       gl.uniform1f(u('uGalaxy'), galaxy);
       gl.uniform1f(u('uBeam'), beam);
+      gl.uniform1f(u('uSoft'), this.soft ? 1 : 0);
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       const stride = attrs.reduce((s, [, n]) => s + n, 0) * 4;
       let off = 0;
@@ -557,9 +561,15 @@ class Layer {
       gl.disable(gl.STENCIL_TEST);
     }
     if (this.groundCount) {
+      // (Soft, the falling shards are see-through as they fade: blended over what lies beneath.)
+      if (this.soft) {
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      }
       done = use(this.groundProg, this.groundBuf, GROUND_ATTRS);
       gl.drawArrays(gl.TRIANGLES, 0, this.groundCount);
       done();
+      gl.disable(gl.BLEND);
     }
     // What lies under the galaxy.
     this.galaxy?.drawGalaxy(cam, time, fade, look, beam);
@@ -623,11 +633,11 @@ export class Nebula {
   private thrusting = false;
   camera: Camera | null = null;
 
-  constructor(readonly back: HTMLCanvasElement, readonly front: HTMLCanvasElement | null, opts: { clearSky?: boolean } = {}) {
-    this.layers = [new Layer(back, false, !!opts.clearSky)];
+  constructor(readonly back: HTMLCanvasElement, readonly front: HTMLCanvasElement | null, opts: { clearSky?: boolean; soft?: boolean } = {}) {
+    this.layers = [new Layer(back, false, !!opts.clearSky, !!opts.soft)];
     if (front) {
       try {
-        this.layers.push(new Layer(front, true));
+        this.layers.push(new Layer(front, true, false, !!opts.soft));
       } catch {
         // (Without the layer over the map, the gas simply never hides a system.)
       }
@@ -1067,7 +1077,7 @@ export function canNebula(): boolean {
 }
 
 /** The nebula on its canvases (made the first time; null where WebGL is unavailable, and the map simply goes without). */
-export function nebulaOn(back: HTMLCanvasElement, front: HTMLCanvasElement | null, opts: { clearSky?: boolean } = {}): Nebula | null {
+export function nebulaOn(back: HTMLCanvasElement, front: HTMLCanvasElement | null, opts: { clearSky?: boolean; soft?: boolean } = {}): Nebula | null {
   if (!nebulae.has(back)) {
     let n: Nebula | null = null;
     try {
