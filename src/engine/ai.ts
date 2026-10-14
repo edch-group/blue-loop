@@ -51,6 +51,7 @@ import {
   heroAbilities,
   handCost,
   overdrivable,
+  slotClosed,
 } from './game';
 import type { Action, CardInstance, Effect, GameState, HeroAbility, PlayerState } from './types';
 
@@ -487,7 +488,7 @@ function candidatePlays(state: GameState, me: PlayerState): Action[] {
           // Shift: each slot the chosen card could move into (its tableau's other four).
           const shifts = shiftEffect(card.defId);
           const moved = shifts === 'mine' ? me.tableau.find((c) => c.uid === allyUid) : shifts === 'rival' ? state.players.flatMap((pl) => pl.tableau).find((c) => c.uid === enemyUid) : undefined;
-          const tos: (number | undefined)[] = moved ? shiftSlots(moved) : [undefined];
+          const tos: (number | undefined)[] = moved ? shiftSlots(moved, shifts === 'mine' ? me : state.players.find((pl) => pl.tableau.includes(moved))) : [undefined];
           for (const slot of here) for (const recoverUid of recovers) for (const aimUid of aims) for (const hostUid of hosts) for (const shiftTo of tos) if (!hostUid || slot === here[0]) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot, allyUid, recoverUid, aimUid, ...(hostUid ? { hostUid } : {}), ...(shiftTo !== undefined ? { shiftTo } : {}) });
           // (A card that cools may chill a rival card instead: once each, placed as it would be first.)
           for (const chillUid of chills) plays.push({ type: 'playCard', cardUid: card.uid, choice, enemyUid, slot: here[0], allyUid, recoverUid: recovers[0], aimUid: aims[0], chillUid, ...(tos[0] !== undefined ? { shiftTo: tos[0] } : {}) });
@@ -879,14 +880,14 @@ function dawnPick(state: GameState, me: PlayerState): Action {
   else if (dawn.kind === 'displace')
     for (const c of rival?.tableau ?? []) {
       if (c.slot === COMMAND_SLOT) continue;
-      for (let to = 0; to < BALANCE.tableauSlots; to++) if (to !== c.slot) options.push({ type: 'dawnChoice', enemyUid: c.uid, shiftTo: to });
+      for (let to = 0; to < BALANCE.tableauSlots; to++) if (to !== c.slot && !(rival && slotClosed(rival, to))) options.push({ type: 'dawnChoice', enemyUid: c.uid, shiftTo: to });
     }
   else if (dawn.kind === 'empower' || dawn.kind === 'renew' || dawn.kind === 'ward') for (const c of me.tableau) { if (dawn.kind !== 'empower' || overdrivable(c, dawn.amount ?? 1)) options.push({ type: 'dawnChoice', allyUid: c.uid }); }
   else
     for (const c of me.tableau) {
       if (c.slot === COMMAND_SLOT) continue;
       if (dawn.kind !== 'shift') options.push({ type: 'dawnChoice', allyUid: c.uid });
-      else for (let to = 0; to < BALANCE.tableauSlots; to++) if (to !== c.slot) options.push({ type: 'dawnChoice', allyUid: c.uid, shiftTo: to });
+      else for (let to = 0; to < BALANCE.tableauSlots; to++) if (to !== c.slot && !slotClosed(me, to)) options.push({ type: 'dawnChoice', allyUid: c.uid, shiftTo: to });
     }
   // (Aimed heat always goes somewhere: their sun is the choice of none. Anything else may be let go, a little worse.)
   let best: Action = { type: 'dawnChoice' };

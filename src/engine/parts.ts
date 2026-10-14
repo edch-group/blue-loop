@@ -36,6 +36,8 @@ export interface ShipPartDef {
   march?: number;
   /** How far the warp drive reaches (in routes' lengths). */
   warp?: number;
+  /** A travelling merchant's mysterious device, working (encounters): never found anywhere else. */
+  curio?: boolean;
 }
 
 /** The slots: which part kind each takes. */
@@ -65,6 +67,13 @@ export const SHIP_PARTS: ShipPartDef[] = [
   { id: 'afterburners', name: 'Afterburners', kind: 'booster', rarity: 'anomaly', cool: 1, march: 1, text: 'One more jump every turn. Your sun cools 1 on every jump.' },
   { id: 'warp_coil', name: 'Warp Coil', kind: 'warp', rarity: 'stellar', warp: 1.5, text: 'Jump to systems close by, linked or not.' },
   { id: 'fold_drive', name: 'Fold Drive', kind: 'warp', rarity: 'anomaly', warp: 2.3, text: 'Jump to systems further off, linked or not.' },
+  // A travelling merchant's devices, when they work [direction: a powerful ship part, for any slot, just shy of top
+  // tier loot]: each a step past its kind's stellar part, short of its anomaly.
+  { id: 'xeno_carapace', name: 'Xeno Carapace', kind: 'armour', rarity: 'stellar', curio: true, health: 5, text: '+5 max health on your sun.' },
+  { id: 'whisper_shroud', name: 'Whisper Shroud', kind: 'shield', rarity: 'stellar', curio: true, shields: 3, text: 'Start every battle with 3 shields.' },
+  { id: 'hum_cannon', name: 'Hum Cannon', kind: 'weapon', rarity: 'stellar', curio: true, guns: 1, opening: 2, text: "+1 attack on that side's two slots. Heat 2 on the enemy sun as battle begins." },
+  { id: 'drift_sails', name: 'Drift Sails', kind: 'booster', rarity: 'stellar', curio: true, cool: 3, text: 'Your sun cools 3 on every jump.' },
+  { id: 'blink_engine', name: 'Blink Engine', kind: 'warp', rarity: 'stellar', curio: true, warp: 1.9, text: 'Jump to systems a little further off, linked or not.' },
 ];
 export const shipPart = (id: string | undefined) => SHIP_PARTS.find((p) => p.id === id);
 
@@ -118,6 +127,12 @@ export function partRarity(universe: number, roll: number, boss = false): PartRa
   return roll < anomaly ? 'anomaly' : roll < anomaly + stellar ? 'stellar' : 'dwarf';
 }
 
+/** A merchant's device that works: one not yet in the hangar (null if every one is had). */
+export function newCurio(have: readonly string[], pick: number): string | null {
+  const pool = SHIP_PARTS.filter((p) => p.curio && !have.includes(p.id));
+  return pool.length ? pool[Math.floor(pick * pool.length) % pool.length].id : null;
+}
+
 /**
  * A part not yet in the hangar, of a rarity (or the nearest there is), or null if every part is had. `pick` chooses
  * among them (a number from 0 to 1).
@@ -125,7 +140,7 @@ export function partRarity(universe: number, roll: number, boss = false): PartRa
 export function newPart(have: readonly string[], rarity: PartRarity, pick: number): string | null {
   const order: PartRarity[] = rarity === 'anomaly' ? ['anomaly', 'stellar', 'dwarf'] : rarity === 'stellar' ? ['stellar', 'anomaly', 'dwarf'] : ['dwarf', 'stellar', 'anomaly'];
   for (const r of order) {
-    const pool = SHIP_PARTS.filter((p) => p.rarity === r && !have.includes(p.id));
+    const pool = SHIP_PARTS.filter((p) => p.rarity === r && !p.curio && !have.includes(p.id));
     if (pool.length) return pool[Math.floor(pick * pool.length) % pool.length].id;
   }
   return null;

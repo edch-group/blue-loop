@@ -5981,6 +5981,8 @@ export class App {
       const g = ghostAt(i);
       if (g) return g;
       if (c) return withYield(this.renderCard(c, { tableau: side, owner: p, preview: preview.get(c.uid), targeted: targeted.has(c.uid) }), yieldMarks(st, p, c, side));
+      // (A wrecked slot, the campaign's: closed, nothing can stand in it.)
+      if (p.closedSlots?.includes(i)) return `<div class="slot-empty slot-wrecked" data-slot="${i}" title="Wrecked: no card can stand here until a space station mends it"><small>wrecked</small></div>`;
       // A slot keeps the wear of the card that stood in it (mending 1 a day).
       const full = BALANCE.slotDefence[i] + (p.rooms?.defence[i] ?? 0);
       const wear = p.slotWear?.[i] ?? 0;

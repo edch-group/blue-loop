@@ -112,6 +112,8 @@ export interface MetaState {
   companions?: Partial<Record<CompanionId, CompanionMeta>>;
   /** Beaten heroes spared in Power Struggles, every run (what brings the defector). */
   spared?: number;
+  /** Stages of Kaelen's hunters beaten, in all runs (encounters.ts): three, and they never come for him again. */
+  hunters?: number;
 }
 
 /** A companion as kept: their experience (from what they did in battle) and their build. */
@@ -158,7 +160,8 @@ export function buyCompanion(meta: MetaState, id: CompanionId, buy: CompanionBuy
  * What a run brings back for the companions: those who joined (found for good, from a plain build), the experience
  * each earnt, and beaten heroes spared.
  */
-export function bankCompanions(meta: MetaState, freed: CompanionId[], xp: Partial<Record<CompanionId, number>>, spared: number): MetaState {
+export function bankCompanions(meta: MetaState, freed: CompanionId[], xp: Partial<Record<CompanionId, number>>, spared: number, hunters = 0): MetaState {
+  if (hunters > 0) meta = { ...meta, hunters: (meta.hunters ?? 0) + hunters };
   if (!freed.length && !spared && !Object.values(xp).some((n) => (n ?? 0) > 0)) return meta;
   const companions = { ...(meta.companions ?? {}) };
   for (const id of freed) companions[id] ??= { ...plainCompanion(id), xp: 0 };
@@ -581,6 +584,8 @@ export interface RunBonuses {
   /** The Captain's companions' cards (companions.ts), as their trees have made them; beaten heroes spared so far. */
   companions?: string[];
   spared?: number;
+  /** Stages of Kaelen's hunters beaten in runs before (encounters.ts). */
+  hunters?: number;
   /** The races the Captain's rewards lean to (Kinship, Fellowship), and how far. */
   affinity?: { primary?: number; primaryBoost: number; secondary?: number; secondaryBoost: number };
   /** A share more experience (Study), cards more in every card reward (Wide offers), petals more from every Overlord (Overlord's tithe), and cards more in its hoard (Overlord's vault). */
@@ -697,6 +702,7 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
     // (The Captain's companions found so far, their cards as their trees have made them; and beaten heroes spared.)
     companions: meta ? companionCards(meta) : [],
     spared: meta?.spared ?? 0,
+    hunters: meta?.hunters ?? 0,
     ...(l('kinship') || l('fellowship')
       ? { affinity: { primary: meta?.affinity?.primary, primaryBoost: KINSHIP_BOOST[l('kinship')] ?? 0, secondary: meta?.affinity?.secondary, secondaryBoost: FELLOWSHIP_BOOST[l('fellowship')] ?? 0 } }
       : {}),

@@ -137,6 +137,18 @@ import {
   type CompanionBuy,
   type CompanionMeta,
   type CompanionStat,
+  COMPANION_IDS,
+  hasCompanion,
+  closingLines,
+  encounterChoices,
+  encounterProblem,
+  openingLines,
+  visitorName,
+  visitorLook,
+  type EncounterLine,
+  type EncounterSpeaker,
+  CAPTAIN,
+  type Station,
 } from '../engine';
 import { account, markDirty } from './account';
 import { profile } from './profile';
@@ -155,7 +167,7 @@ import { voices } from './voice';
 import { canNebula, nebulaOn, NEBULA_FOV, PLANE_Y, poseView, STRIP_WIDTH, type Camera, type MapObject, type Nebula, type Pose } from './nebula3d';
 import { FLY_SECONDS, WARP_SECONDS } from './nebula-objects';
 import type { CaptainShipSpec } from './ship3d';
-import { Base3d, type BaseZone } from './base3d';
+import { Base3d, type BaseZone, type Visitor } from './base3d';
 import { mountLoot3d } from './loot3d';
 
 const KEY = 'blue-loop:campaign:v6';
@@ -893,8 +905,10 @@ export class CampaignView {
     const freed = (s?.freed ?? []).slice(s?.freedBanked ?? 0);
     const spared = (s?.spared ?? 0) - (s?.sparedBanked ?? 0);
     const learnt = Object.values(s?.companionXp ?? {}).some((n) => (n ?? 0) > 0);
-    if (!s || (s.petals <= s.petalsBanked && xp <= 0 && stars <= 0 && !parts.length && !freed.length && spared <= 0 && !learnt)) return;
-    const meta = bankCompanions(stowParts(loadMeta(), parts), freed, s.companionXp ?? {}, Math.max(0, spared));
+    // (Kaelen's hunters beaten too: his arc goes on from there in the next run.)
+    const hunted = (s?.hunted ?? 0) - (s?.huntedBanked ?? 0);
+    if (!s || (s.petals <= s.petalsBanked && xp <= 0 && stars <= 0 && !parts.length && !freed.length && spared <= 0 && !learnt && hunted <= 0)) return;
+    const meta = bankCompanions(stowParts(loadMeta(), parts), freed, s.companionXp ?? {}, Math.max(0, spared), Math.max(0, hunted));
     const race = campaignPlayer(s)?.race;
     const conquests = race !== undefined && stars > 0 ? { ...meta.conquests, [race]: raceConquests(meta, race) + stars } : meta.conquests;
     saveMeta({ ...meta, petals: meta.petals + (s.petals - s.petalsBanked), xp: (meta.xp ?? 0) + Math.max(0, xp), best: Math.max(meta.best, s.universe - 1), ...(conquests ? { conquests } : {}) });
@@ -1480,6 +1494,17 @@ export class CampaignView {
       case 'cmp-slay':
         if (this.apply({ type: 'struggleChoice', recruit: act === 'cmp-recruit' })) act === 'cmp-recruit' ? sound.upgrade() : sound.buy();
         break;
+      case 'cmp-enc': {
+        // A story encounter's choice (a fight goes straight into battle), or flying on once it is decided.
+        const kind = this.state?.encounter?.kind;
+        if (!this.apply({ type: 'encounter', choice: arg })) break;
+        const out = this.state?.encounter?.outcome;
+        if (arg === 'done') sound.hover();
+        else if (out === 'good') sound.upgrade();
+        else if (out === 'bad') sound.ignite();
+        else if (arg === 'pay' || (arg === 'buy' && kind === 'merchant')) sound.buy();
+        break;
+      }
       case 'cmp-struggle':
         this.apply({ type: 'struggle' });
         break;
@@ -3141,6 +3166,7 @@ export class CampaignView {
     // (In development, reachable from the console.)
     if (import.meta.env.DEV) (window as unknown as { campaignView?: CampaignView }).campaignView = this;
     this.showBase(root);
+    this.showScene(root);
     mountLoot3d(root);
     // The Captain's tree: opened at its foot, then kept where it was scrolled to as it is drawn afresh.
     const hp = root.querySelector<HTMLElement>('.hp-scroll');
@@ -3889,6 +3915,8 @@ export class CampaignView {
         <button class="btn-primary loot-take" style="--i:${items.length + first}" data-act="cmp-loot-ok">take it</button>
       </div>`;
     }
+    // A story encounter: whoever came alongside, and the Captain's choice (once a fight is over, how it ended).
+    if (s.encounter && !s.battle && !s.cardRewards.length) return this.renderEncounter();
     // A Power Struggle: a hero of your own race, come for your command while your sun runs overheated.
     // (A card found in the same system is chosen first: the struggle waits for it.)
     if (s.struggle && !s.battle && !s.cardRewards.length) {
@@ -4198,6 +4226,7 @@ export class CampaignView {
   private renderResearch(nodeId: string): string {
     const s = this.state!;
     const me = campaignPlayer(s);
+    if (me.human) return this.renderLab(nodeId);
     const n = nodeById(s, nodeId);
     if (n.station?.kind !== 'research') return '';
     const st = n.station;
@@ -4235,6 +4264,120 @@ export class CampaignView {
         <div class="ar-act">${action}</div>
         ${done.length ? `<footer class="rs-carried"><small>carried</small>${done.map((x) => `<span>${esc(x!.name.toLowerCase())}</span>`).join('')}</footer>` : ''}
       </div>`;
+  }
+
+  /** Who is aboard to speak in a scene (the Captain's companions on this run). */
+  private sceneCrew() {
+    const s = this.state!;
+    return COMPANION_IDS.filter((id) => hasCompanion(s, id));
+  }
+
+  /**
+   * A story scene [direction: these scenes actually show the ship and crew, with other ships or entities flying up
+   * alongside the ship to speak and interact with the crew]: the ship in 3D across the top, whoever is alongside
+   * coming up beside it; beneath, what is said, a line at a time (each its speaker's name over it), and what the
+   * Captain may do.
+   */
+  private scene(o: { kicker: string; title: string; visitor: Visitor; speaker: string; lines: EncounterLine[]; body?: string; actions: string }): string {
+    const who = (w: EncounterSpeaker) => (w === 'visitor' ? o.speaker : w === 'captain' ? 'the captain' : companionDef(w).name.toLowerCase());
+    const face = (w: EncounterSpeaker) => (w === 'captain' ? portrait(CAPTAIN) : w === 'visitor' ? '' : portrait(companionDef(w).card));
+    const lines = o.lines
+      .map((l, i) => `<div class="enc-line enc-${l.who === 'visitor' ? 'them' : 'us'}" style="--i:${i}">${face(l.who)}<div><small>${esc(who(l.who))}</small><p>${esc(l.text)}</p></div></div>`)
+      .join('');
+    return `<div class="overlay enc enc-${o.visitor}">
+      <canvas class="enc-3d" data-visitor="${o.visitor}"></canvas>
+      <header class="enc-head"><small>${esc(o.kicker)}</small><h3>${esc(o.title.toLowerCase())}</h3></header>
+      <div class="enc-talk">
+        <div class="enc-lines">${lines}</div>
+        ${o.body ?? ''}
+        <div class="enc-acts" style="--i:${o.lines.length}">${o.actions}</div>
+      </div>
+    </div>`;
+  }
+
+  /** A story encounter (encounters.ts): its opening and its choices, or (decided) its closing and flying on. */
+  private renderEncounter(): string {
+    const s = this.state!;
+    const e = s.encounter!;
+    const crew = this.sceneCrew();
+    const me = campaignPlayer(s);
+    const title = visitorName(e.kind, e.stage);
+    const base = { kicker: e.kind === 'hunters' ? 'bounty hunters' : 'encounter', title, visitor: visitorLook(e.kind).ship as Visitor, speaker: title.toLowerCase() };
+    if (!e.outcome) {
+      const acts = encounterChoices(e.kind, e.price, e.stage)
+        .map((c) => {
+          const why = encounterProblem(s, c.id);
+          const label = c.label.replace(/ · (\d+)$/, ` · ${MATERIALS}$1`);
+          return `<button class="${c.id === 'fight' || c.id === 'buy' ? 'btn-primary' : 'btn'}" data-act="cmp-enc" data-arg="${c.id}" ${why ? `disabled title="${esc(why)}"` : ''}>${label}</button>`;
+        })
+        .join('');
+      return this.scene({ ...base, lines: openingLines(e.kind, e.price, e.stage, crew), actions: `${acts}<span class="enc-purse">${MATERIALS}<b>${me.materials}</b></span>` });
+    }
+    // What came of it: the part that works, or the slot that blew.
+    const part = e.part ? shipPart(e.part) : undefined;
+    const body = part
+      ? `<div class="enc-result"><span class="loot-glow">${canNebula() ? `<canvas class="loot-3d" data-loot3d="${part.kind}:${part.rarity}"></canvas>` : partShape(part.id)}</span><b>${esc(part.name.toLowerCase())}</b><small>${esc(part.text)}</small></div>`
+      : e.outcome === 'bad' && e.slot !== undefined
+        ? `<div class="enc-result enc-bad"><b>slot ${e.slot + 1} wrecked</b><small>until a space station</small></div>`
+        : '';
+    return this.scene({ ...base, lines: closingLines(e.kind, e.outcome, e.stage, crew), body, actions: `<button class="btn-primary" data-act="cmp-enc" data-arg="done">fly on</button>` });
+  }
+
+  /**
+   * A research station, on the Captain's runs [direction: research centres as story scenes; experimental, each a big
+   * game changing upside with a massive downside]: its lab comes alongside, its scientist offers three experiments.
+   */
+  private renderLab(nodeId: string): string {
+    const s = this.state!;
+    const me = campaignPlayer(s);
+    const n = nodeById(s, nodeId);
+    const st = n.station as Extract<Station, { kind: 'research' }>;
+    const taken = st.takenBy;
+    const pick = this.rsPick && st.options.includes(this.rsPick) && !taken ? this.rsPick : null;
+    const offers = st.options
+      .filter((id) => !RETIRED_RESEARCH.has(id))
+      .map((id, i) => {
+        const p = researchProject(id);
+        if (!p) return '';
+        const why = taken ? null : researchProblem(s, me, n, id);
+        const state = taken ? (st.project === id ? 'chosen' : 'gone') : why ? 'gone' : pick === id ? 'picked' : '';
+        const attrs = taken || why ? `aria-disabled="true" ${why ? `title="${esc(why)}"` : ''}` : `data-act="cmp-rs-pick" data-arg="${esc(id)}"`;
+        return `<button class="enc-offer ${state}" ${attrs} style="--i:${i + 2}">
+          <span class="rs-mark">${RESEARCH_MARK()[p.icon] ?? RESEARCH_ICON}</span>
+          <b>${esc(p.name.toLowerCase())}</b>
+          ${p.boon ? `<span class="enc-boon">${esc(p.boon)}</span><span class="enc-bane">${esc(p.bane ?? '')}</span>` : `<span class="enc-boon">${esc(p.text)}</span>`}
+        </button>`;
+      })
+      .join('');
+    const lines: EncounterLine[] = taken
+      ? [{ who: 'visitor', text: 'The experiment is done, Captain. There is nothing left here to try.' }]
+      : [
+          { who: 'visitor', text: 'Captain! Volunteers, at last. Everything we make here works. Mostly. There is always a price.' },
+          { who: 'captain', text: 'Show us what you have.' },
+        ];
+    const actions = taken
+      ? `<button class="btn-primary" data-act="cmp-research" data-arg="${n.id}">fly on</button>`
+      : `<button class="btn" data-act="cmp-research" data-arg="${n.id}">not today</button><button class="btn-primary" data-act="cmp-research" data-arg="${n.id}" ${pick ? `data-project="${esc(pick)}"` : 'disabled'}>volunteer</button>`;
+    return this.scene({ kicker: 'research station', title: n.name, visitor: 'lab', speaker: 'the scientist', lines, body: taken ? '' : `<div class="enc-offers">${offers}</div>`, actions });
+  }
+
+  /** A scene's ship in 3D: mounted on its canvas, the crew aboard and whoever is alongside (put away with it). */
+  private enc3d: Base3d | null = null;
+  private showScene(root: HTMLElement) {
+    const canvas = root.querySelector<HTMLCanvasElement>('canvas.enc-3d');
+    if (!canvas || !canNebula()) {
+      this.enc3d?.destroy();
+      this.enc3d = null;
+      return;
+    }
+    if (this.enc3d?.canvas !== canvas) {
+      this.enc3d?.destroy();
+      const s = this.state!;
+      const army = flagship(s, s.playerId);
+      this.enc3d = Base3d.mount(canvas, { ...this.captainSpec(army?.general ?? CAPTAIN), crew: this.sceneCrew() });
+    }
+    this.enc3d?.setCrew(this.sceneCrew());
+    this.enc3d?.setVisitor(canvas.dataset.visitor as Visitor);
   }
 
   private modal(title: string, body: string, closable = false, tabs = '', cls = 'modal-wide'): string {

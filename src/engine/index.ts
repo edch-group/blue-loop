@@ -27,3 +27,4 @@ export * from './captain';
 export * from './parts';
 export * from './companions';
 export * from './singularities';
+export * from './encounters';

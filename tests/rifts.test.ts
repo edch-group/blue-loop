@@ -146,7 +146,10 @@ describe('Rifts', () => {
   });
 
   it('fights its race at its strongest, and its ruler at the end', () => {
-    let s = enter(withRift('dark'));
+    // (A seed whose rift has a battle a jump from its arrival.)
+    let seed = 7;
+    while (!armyMoves(enter(withRift('dark', seed)), ship(enter(withRift('dark', seed)))).some((m) => m.battle)) seed++;
+    let s = enter(withRift('dark', seed));
     const fight = armyMoves(s, ship(s)).find((m) => m.battle)!;
     s = applyCampaignAction(s, { type: 'move', armyId: ship(s).id, toId: fight.toId });
     const foe = s.battle!.game.players[1];

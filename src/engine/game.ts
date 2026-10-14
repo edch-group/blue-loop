@@ -140,11 +140,12 @@ export function createGame(setup: GameSetup): GameState {
       ...(ps.hero ? { hero: ps.hero } : {}),
       ...(ps.heroStats ? { heroStats: { ...ps.heroStats } } : {}),
       ...(ps.rooms ? { rooms: { defence: [...ps.rooms.defence], attack: [...ps.rooms.attack], command: ps.rooms.command, ...(ps.rooms.boons ? { boons: ps.rooms.boons.map((b) => [...b]) } : {}) } } : {}),
+      ...(ps.closedSlots?.length ? { closedSlots: [...ps.closedSlots] } : {}),
     };
     p.heat = Math.max(BALANCE.minHeat, Math.min(p.heat, supernovaThreshold(p) - 1));
     // A garrison takes the safest slots first; a Hero already in play (a campaign hero's Herald) leads from the
     // Hero slot, taken out of the deck if a copy is there.
-    const safest = slotsBySafety();
+    const safest = slotsBySafety().filter((i) => !slotClosed(p, i));
     for (const id of (ps.tableau ?? []).filter(persists)) {
       const k = p.deck.findIndex((c) => c.defId === id);
       const card = k >= 0 && cardDef(id).kind === 'command' ? p.deck.splice(k, 1)[0] : newCard(state, id);
@@ -357,7 +358,7 @@ export function inSlots(defId: string): boolean {
 }
 
 export function tableauFull(p: PlayerState): boolean {
-  return p.tableau.filter((c) => c.slot !== COMMAND_SLOT).length >= BALANCE.tableauSlots;
+  return p.tableau.filter((c) => c.slot !== COMMAND_SLOT).length + (p.closedSlots?.length ?? 0) >= BALANCE.tableauSlots;
 }
 
 /** The global card in play, if any, and whose tableau it is in. */
@@ -708,8 +709,8 @@ export function shiftEffect(defId: string): 'mine' | 'rival' | null {
 }
 
 /** The slots a shifted card may move into: any of its tableau's five but its own (a card there swaps places). */
-export function shiftSlots(card: CardInstance): number[] {
-  return Array.from({ length: BALANCE.tableauSlots }, (_, i) => i).filter((i) => i !== card.slot);
+export function shiftSlots(card: CardInstance, owner?: PlayerState): number[] {
+  return Array.from({ length: BALANCE.tableauSlots }, (_, i) => i).filter((i) => i !== card.slot && !(owner && slotClosed(owner, i)));
 }
 
 /** Cards in your discard pile this card could recover (empty if it has no recover). */
@@ -732,10 +733,15 @@ export function boostable(defId: string): boolean {
   return [...(def.onPlay ?? []), ...(def.onTurn ?? []), ...(def.choices ?? []).flatMap((c) => c.onTurn)].some((e) => e.type === 'heat' || e.type === 'cool' || e.type === 'shield');
 }
 
-/** Your empty tableau slots, left to right. */
+/** Whether a tableau slot is closed (wrecked, in the campaign: no card can stand in it). */
+export function slotClosed(p: PlayerState, slot: number): boolean {
+  return !!p.closedSlots?.includes(slot);
+}
+
+/** Your empty tableau slots, left to right (a closed one is never empty). */
 export function freeSlots(p: PlayerState): number[] {
   const taken = new Set(p.tableau.map((c) => c.slot));
-  return Array.from({ length: BALANCE.tableauSlots }, (_, i) => i).filter((i) => !taken.has(i));
+  return Array.from({ length: BALANCE.tableauSlots }, (_, i) => i).filter((i) => !taken.has(i) && !slotClosed(p, i));
 }
 
 /** Slots from safest (the middle) to least safe (the edges). */
@@ -1561,7 +1567,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         const owner = e.enemy ? (ctx.against ?? targetOf(state, p)) : p;
         const moved = owner?.tableau.find((c) => c.uid === (e.enemy ? ctx.enemyUid : ctx.allyUid) && c.slot !== COMMAND_SLOT);
         const to = ctx.shiftTo;
-        if (!owner || !moved || to === undefined || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots) break;
+        if (!owner || !moved || to === undefined || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots || slotClosed(owner, to)) break;
         const other = owner.tableau.find((c) => c.slot === to);
         if (other) other.slot = moved.slot;
         moved.slot = to;
@@ -2788,7 +2794,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   // Shift: the card chosen moves into another slot of its tableau.
   const shifts = shiftEffect(def.id);
   const shifted = shifts === 'rival' ? target?.tableau.find((c) => c.uid === action.enemyUid) : shifts === 'mine' ? p.tableau.find((c) => c.uid === action.allyUid) : undefined;
-  if (shifted && (action.shiftTo === undefined || !shiftSlots(shifted).includes(action.shiftTo))) throw new GameError('Choose a slot to move it into.');
+  if (shifted && (action.shiftTo === undefined || !shiftSlots(shifted, shifts === 'rival' ? target : p).includes(action.shiftTo))) throw new GameError('Choose a slot to move it into.');
 
   if (action.aimUid && aimable(def.id) && !aimChoices(state, p).cards.some((c) => c.uid === action.aimUid)) throw new GameError('Pick a rival card or their sun');
   if (action.chillUid && (!chillable(def.id) || !chillChoices(state, p).some((c) => c.uid === action.chillUid))) throw new GameError('Pick a rival card with attack, or your sun');
@@ -2964,7 +2970,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
           break;
         }
         const to = action.shiftTo;
-        if (to === undefined || to === victim.slot || to < 0 || to >= BALANCE.tableauSlots) throw new GameError("Move it to another of your rival's slots.");
+        if (to === undefined || to === victim.slot || to < 0 || to >= BALANCE.tableauSlots || slotClosed(rival, to)) throw new GameError("Move it to another of your rival's slots.");
         log(state, `${p.name}'s ${name}: ${rival.name}'s ${cardDef(victim.defId).name} is moved.`);
         resolveEffects(state, p, source, [{ type: 'shift', enemy: true }], 'turn', { enemyUid: victim.uid, shiftTo: to });
         break;
@@ -3010,7 +3016,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
       }
       const moved = p.tableau.find((c) => c.uid === action.allyUid && c.slot !== COMMAND_SLOT);
       const to = action.shiftTo;
-      if (!moved || to === undefined || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots) throw new GameError('Move one of your cards (not your Hero) to another of your slots.');
+      if (!moved || to === undefined || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots || slotClosed(p, to)) throw new GameError('Move one of your cards (not your Hero) to another of your slots.');
       log(state, `${p.name}'s ${name}: dawn shift.`);
       resolveEffects(state, p, source, [{ type: 'shift' }], 'turn', { allyUid: moved.uid, shiftTo: to });
       break;
@@ -3046,7 +3052,7 @@ export function applyAction(prev: GameState, action: Action): GameState {
         const moved = p.tableau.find((c) => c.uid === action.duskShift!.uid && c.slot !== COMMAND_SLOT);
         const to = action.duskShift.to;
         if (!relic) throw new GameError('Only a Dusk Shift emblem moves a card as the day ends.');
-        if (!moved || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots) throw new GameError('Move one of your cards (not your Hero) to another of your slots.');
+        if (!moved || to === moved.slot || to < 0 || to >= BALANCE.tableauSlots || slotClosed(p, to)) throw new GameError('Move one of your cards (not your Hero) to another of your slots.');
         log(state, `${p.name}'s ${relic.name}: dusk shift.`);
         resolveEffects(state, p, { uid: `relic:${relic.name}`, defId: 'circular_refraction' }, [{ type: 'shift' }], 'turn', { allyUid: moved.uid, shiftTo: to });
       }

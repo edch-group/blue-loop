@@ -488,6 +488,8 @@ export interface TurnStats {
 }
 
 export interface PlayerState {
+  /** Tableau slots closed for this battle (a campaign flagship's wrecked one): no card can stand in them. */
+  closedSlots?: number[];
   /**
    * Dawn choices waiting on this player (a dawn Recall or Shift of their own), in order, each with the card that
    * gave it: answered one by one before anything else that day.
@@ -723,6 +725,8 @@ export interface PlayerSetup {
   hero?: string;
   /** Campaign battles: the ship's rooms, upgraded (extra defence and attack by tableau slot, and the command room's). */
   rooms?: ShipRooms;
+  /** Campaign battles: tableau slots wrecked (a faulty device that blew up aboard): no card can stand in them. */
+  closedSlots?: number[];
   /** Campaign battles: the hero's own training (extra attack and defence on their card). */
   heroStats?: { attack: number; defence: number };
 }

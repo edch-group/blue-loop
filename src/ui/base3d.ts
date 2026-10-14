@@ -18,10 +18,19 @@ import type { PartSlot } from '../engine/parts';
 import { captainModel, streamerModel } from './captain-model';
 import { COMPANION_PLACES, companionModel } from './companion-models';
 import type { CompanionId } from '../engine/companions';
-import { Mesh, SHIP_STRIDE, type CaptainShipSpec, type RGB, type V3 } from './ship3d';
+import { Mesh, propModel3d, shipModel3d, SHIP_STRIDE, type CaptainShipSpec, type RGB, type V3 } from './ship3d';
 import { uiZoom } from './viewport';
 
 export type BaseZone = 'hangar' | 'captain' | 'research' | CompanionId;
+/** Who comes alongside in a story scene: the merchant's ship, pirates', Aureline hunters', or a research station's lab. */
+export type Visitor = 'merchant' | 'pirate' | 'hunter' | 'lab';
+/** Each visitor's model (a race's ship, the derelict, the lab's test tube), its colour, and how big it is drawn. */
+const VISITORS: Record<Visitor, { mesh: () => Float32Array; colour: RGB; size: number; upright?: boolean }> = {
+  merchant: { mesh: () => shipModel3d(2).mesh, colour: [0.32, 0.72, 0.68], size: 3.2 },
+  pirate: { mesh: () => shipModel3d(-1).mesh, colour: [0.72, 0.26, 0.2], size: 3.4 },
+  hunter: { mesh: () => shipModel3d(0).mesh, colour: [0.95, 0.76, 0.34], size: 3.1 },
+  lab: { mesh: () => propModel3d('lab'), colour: [0.4, 0.62, 1], size: 2.2, upright: true },
+};
 export const BASE_ZONES: BaseZone[] = ['hangar', 'captain', 'research'];
 
 // ---- Matrices (column-major, as WebGL takes them) ----
@@ -269,6 +278,28 @@ export class Base3d {
     });
   }
 
+  /**
+   * A story scene [direction: these scenes show the ship and crew, other ships or entities flying up alongside the
+   * ship to speak with the crew]: the visitor overtakes from astern and holds beside the ship, a little behind it from
+   * the camera, bobbing on its own; the camera draws back to take in both. (null: no one, the ship's own framing.)
+   */
+  setVisitor(kind: Visitor | null) {
+    if (kind === (this.visitor?.kind ?? null)) return;
+    if (this.visitor) this.gl.deleteBuffer(this.visitor.buf);
+    this.visitor = null;
+    if (!kind) return;
+    const v = VISITORS[kind];
+    const data = v.mesh();
+    // (Centred on its own middle, and scaled to its size along its length.)
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < data.length; i += SHIP_STRIDE) for (let k = 0; k < 3; k++) (lo[k] = Math.min(lo[k], data[i + k])), (hi[k] = Math.max(hi[k], data[i + k]));
+    const centre: V3 = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2];
+    const k = v.size / Math.max(1e-6, hi[0] - lo[0]);
+    const local = mul(v.upright ? rotZ(Math.PI / 2) : IDENTITY, mul(scale(k), translate(-centre[0], -centre[1], -centre[2])));
+    this.visitor = { kind, buf: this.buffer(data), count: data.length / SHIP_STRIDE, colour: v.colour, local, t0: this.time() };
+  }
+  private visitor: { kind: Visitor; buf: WebGLBuffer; count: number; colour: RGB; local: M4; t0: number } | null = null;
+
   /** (A section under the pointer: its label lights, on the page; the scene itself is left as it is.) */
   hover(_zone: BaseZone | null) {}
 
@@ -404,6 +435,9 @@ export class Base3d {
     if (z === 'hangar') return { target: apply(scale(Base3d.SHIP_SCALE), B(20, 12, 5)), yaw: 0, pitch: 1.25, dist: 11.5 / narrow, off: -0.15 * narrow };
     // (Enlightenment is the Stellari, out on the land: the camera turns from the ship, which slides away to the left.)
     if (z === 'research') return { target: [7, 1.4, -2], yaw: -0.52, pitch: 0.1, dist: 6, off: 0 };
+    // (A story scene: drawn back to take in the ship and whoever is alongside, both in the upper part of the screen,
+    // the talk beneath them.)
+    if (this.visitor) return { target: [2.1, 1.25, -1.5], yaw: -0.36, pitch: 0.14, dist: Math.max(7 / (half * aspect), 3.6 / half), off: 0 };
     // The whole ship, side on and a little from ahead and below (as the art has it), all of it in view.
     const dist = Math.max(3.7 / (half * aspect), 2.4 / half);
     // (A little to the left, the menu's options arcing round its bow on the right.)
@@ -543,6 +577,19 @@ export class Base3d {
           ? mul(translate(ex, ey, 0), mul(scale(S), mul(translate(at[0], at[1], at[2]), mul(rotX(0.06 * Math.sin(t * 0.61)), mul(rotZ(0.07 * Math.sin(t * 0.83 + 2.6)), local)))))
           : mul(this.shipM, mul(translate(at[0], at[1], at[2]), local));
       drawMesh(c.buf, c.count, c.m);
+    }
+    // Whoever is alongside (a story scene): overtaking from astern and slowing to hold beside the ship, bobbing and
+    // rolling a little on its own.
+    if (this.visitor) {
+      const v = this.visitor;
+      const k = Math.min(1, (t - v.t0) / 3.2);
+      const come = 1 - (1 - k) ** 3;
+      const at: V3 = [-14 + (4.9 + 14) * come, 1.35 + 0.07 * Math.sin(t * 0.8 + 1), -3.2];
+      gl.uniform3f(u('uColor'), v.colour[0], v.colour[1], v.colour[2]);
+      gl.uniform1f(u('uBurn'), 0.4 + 0.6 * (1 - k));
+      drawMesh(v.buf, v.count, mul(translate(at[0], at[1], at[2]), mul(rotX(0.04 * Math.sin(t * 0.6)), mul(rotZ(0.03 * Math.sin(t * 0.7 + 2) - 0.06 * (1 - k)), v.local))));
+      gl.uniform3f(u('uColor'), 0.86, 0.62, 0.26);
+      gl.uniform1f(u('uBurn'), 0.6);
     }
     // Planets far off in the sky, going slowly past as the ship flies on [direction: planets going past slowly in the
     // background]: along a line far behind the ship, right to left, each in its turn.

@@ -35,6 +35,9 @@ export interface ResearchProject {
   effect: ResearchEffect;
   /** A Lost Race's own: offered only in its rift's galaxy (rifts.ts), never anywhere else. */
   race?: number;
+  /** An experiment (what research stations offer now): what it gives, and what it costs, in words. */
+  boon?: string;
+  bane?: string;
 }
 
 export const RESEARCH_BRANCHES = ['power', 'armour', 'command', 'navigation'] as const;
@@ -79,11 +82,29 @@ const RACE_PROJECTS: ResearchProject[] = [
   { id: 'ser_stillness', race: 6, name: 'Stilled Hour', text: 'Your sun cools 1 every day of battle.', cost: 0, turns: 0, icon: 'cool', effect: { mods: { coolPerTurn: 1 } } },
 ].map((p) => ({ ...p, branch: 0 as const, tier: 1 as const }) as ResearchProject);
 
+/**
+ * Experiments: what research stations offer now [direction: research centres more experimental, what you get from
+ * them a big, game changing upside with a massive downside, a decision on whether it is right for the player's
+ * deck]. Each is both at once, for the rest of the run; a station offers three.
+ */
+type X = { id: string; name: string; icon: ResearchProject['icon']; boon: string; bane: string; effect: ResearchEffect };
+const EXPERIMENT_LIST: X[] = [
+  { id: 'x_reactor', name: 'Overclocked Reactor', icon: 'energy', boon: '+2 energy every day.', bane: 'Your sun heats 2 every day.', effect: { mods: { extraPlays: 2, heatPerTurn: 2 } } },
+  { id: 'x_archive', name: 'Deep Archive', icon: 'draw', boon: '+2 cards every day.', bane: '−6 max health on your sun.', effect: { mods: { extraDraw: 2, maxHealthDelta: -6 } } },
+  { id: 'x_cryo', name: 'Cryostasis Field', icon: 'cool', boon: 'Your sun cools 3 every day.', bane: 'No card drawn at dawn.', effect: { mods: { coolPerTurn: 3, extraDraw: -1 } } },
+  { id: 'x_blitz', name: 'Blitz Doctrine', icon: 'march', boon: 'Your attackers can attack the day they come into play.', bane: 'Your sun starts every battle 6 hotter.', effect: { mods: { darkspeed: 1, startingHeat: 6 } } },
+  { id: 'x_aegis', name: 'Aegis Lattice', icon: 'hull', boon: '+3 shields every day.', bane: '2 cards fewer in your opening hand.', effect: { mods: { shieldPerTurn: 3, openingHand: -2 } } },
+  { id: 'x_bastion', name: 'Bastion Protocol', icon: 'mend', boon: 'Your Guards have +4 defence.', bane: 'Your sun heats 1 every day.', effect: { mods: { guardDefence: 4, heatPerTurn: 1 } } },
+];
+export const EXPERIMENTS: ResearchProject[] = EXPERIMENT_LIST.map((x) => ({ ...x, text: `${x.boon} ${x.bane}`, cost: 0, turns: 0, branch: 0, tier: 1 }));
+export const isExperiment = (id: string) => EXPERIMENTS.some((x) => x.id === id);
+
 export const RESEARCH: ResearchProject[] = [
   ...BRANCHES.flatMap((list, b) =>
     list.map((p, i) => ({ ...p, branch: b as ResearchProject['branch'], tier: (i + 1) as ResearchProject['tier'], ...(i ? { needs: list[i - 1].id } : {}) })),
   ),
   ...RACE_PROJECTS,
+  ...EXPERIMENTS,
 ];
 
 const BY_ID = new Map(RESEARCH.map((r) => [r.id, r]));
@@ -99,7 +120,8 @@ export interface ResearchState {
 export function supersededResearch(done: string[], id: string): boolean {
   const p = researchProject(id);
   // (Retired upgrades, kept by older saves, add up as they always did.)
-  return !!p && !RETIRED_RESEARCH.has(id) && p.race === undefined && done.some((o) => o !== id && researchProject(o)?.race === undefined && researchProject(o)?.icon === p.icon && researchProject(o)!.tier > p.tier);
+  // (Experiments stand on their own: each adds its all, boon and bane.)
+  return !!p && !RETIRED_RESEARCH.has(id) && p.race === undefined && !p.boon && done.some((o) => o !== id && researchProject(o)?.race === undefined && !researchProject(o)?.boon && researchProject(o)?.icon === p.icon && researchProject(o)!.tier > p.tier);
 }
 
 /** Everything a faction's research gives each of its armies. */

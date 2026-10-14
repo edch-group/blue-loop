@@ -7508,3 +7508,45 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
   background: linear-gradient(170deg, rgba(210, 235, 255, 0.32), rgba(210, 235, 255, 0) 45%);
   box-shadow: inset 0 0 0 1.5px rgba(150, 200, 245, 0.8), inset 0 0 10px rgba(170, 215, 255, 0.55);
 }
+
+/* ---------- Story scenes: the ship in 3D across the top, whoever is alongside beside it; the talk beneath ---------- */
+.overlay.enc { display: block; padding: 0; overflow: hidden; background: linear-gradient(180deg, #faf9f6, var(--paper) 55%, #e6e5e1); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.enc-3d { position: absolute; left: 0; top: 0; width: 100%; height: 64%; display: block; }
+.enc-head { position: absolute; top: max(14px, var(--pad-t, 0px)); left: 0; right: 0; display: grid; justify-items: center; gap: 2px; pointer-events: none; animation: run-over-in 0.8s ease both; }
+.enc-head small { font-size: 0.5rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-soft); }
+.enc-head h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(0.9rem, 2.6vh, 1.2rem); letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); }
+.enc-talk { position: absolute; left: 50%; bottom: max(14px, var(--pad-b, 0px)); transform: translateX(-50%); width: min(720px, calc(100% - 32px)); max-height: 52%; display: grid; gap: 10px; overflow-y: auto; scrollbar-width: thin; }
+.enc-lines { display: grid; gap: 8px; }
+.enc-line { display: flex; align-items: flex-start; gap: 10px; animation: run-over-in 0.6s ease both; animation-delay: calc(0.9s + var(--i) * 1.1s); }
+.enc-line .cmp-portrait { flex: none; width: 34px; height: 34px; }
+.enc-line > div { display: grid; gap: 1px; min-width: 0; }
+.enc-line small { font-size: 0.48rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-soft); }
+.enc-line p { margin: 0; font-size: clamp(0.82rem, 2.2vh, 0.98rem); line-height: 1.45; color: var(--ink); }
+.enc-them p { font-style: italic; }
+.enc-them { padding-left: 44px; }
+.enc-acts { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; padding-top: 4px; animation: run-over-in 0.6s ease both; animation-delay: calc(0.9s + var(--i) * 1.1s); }
+.enc-purse { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--ink-soft); }
+.enc-purse svg { width: 14px; height: 14px; }
+.enc-result { display: grid; justify-items: center; gap: 4px; text-align: center; animation: run-over-in 0.6s ease 0.9s both; }
+.enc-result .loot-glow { width: 84px; height: 84px; }
+.enc-result .loot-3d { width: 84px; height: 84px; }
+.enc-result b { font-family: var(--display); font-weight: 400; font-size: 0.78rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink); }
+.enc-result small { font-size: 0.78rem; color: var(--ink-soft); }
+.enc-bad b { color: #b5503a; }
+/* A research station's experiments: each its mark, its name, what it gives and what it costs. */
+.enc-offers { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.enc-offer { display: grid; justify-items: center; align-content: start; gap: 5px; width: 190px; padding: 10px 8px; border: 0; border-radius: 14px; background: rgba(255, 255, 255, 0.55); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08); cursor: var(--cur-pointer); text-align: center; animation: run-over-in 0.6s ease both; animation-delay: calc(0.9s + var(--i) * 1.1s); transition: transform 0.2s, box-shadow 0.2s; }
+.enc-offer .rs-mark { width: 52px; height: 52px; }
+.enc-offer .rs-mark svg { width: 26px; height: 26px; }
+.enc-offer b { font-family: var(--display); font-weight: 400; font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); }
+.enc-boon { font-size: 0.78rem; line-height: 1.35; color: #2f7d55; }
+.enc-bane { font-size: 0.78rem; line-height: 1.35; color: #b5503a; }
+.enc-offer.picked { transform: translateY(-3px); box-shadow: 0 0 0 2px #3a4256, 0 10px 24px rgba(60, 70, 110, 0.18); }
+.enc-offer.gone { opacity: 0.4 !important; cursor: default; }
+.enc-offer.chosen { box-shadow: 0 0 0 2px #3a4256; }
+@media (hover: hover) { .enc-offer:not(.gone):hover { transform: translateY(-2px); } }
+@media (max-width: 640px) { .enc-offer { width: calc(50% - 6px); } .enc-3d { height: 48%; } .enc-talk { max-height: 60%; } }
+@media (prefers-reduced-motion: reduce) { .enc-line, .enc-acts, .enc-offer, .enc-result { animation-delay: 0s; animation-duration: 0.01s; } }
+/* A wrecked slot (a merchant's device that blew): scorched shut, nothing can stand in it. */
+.slot-empty.slot-wrecked { border-style: solid; border-color: rgba(181, 80, 58, 0.35); background: repeating-linear-gradient(135deg, rgba(120, 90, 80, 0.12) 0 6px, transparent 6px 12px), rgba(60, 50, 48, 0.06); }
+.slot-empty.slot-wrecked small { color: #b5503a; letter-spacing: 0.18em; text-transform: uppercase; font-size: 0.45rem; }

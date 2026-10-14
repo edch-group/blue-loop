@@ -26,11 +26,12 @@ import type { BattleModifiers, GameState, PlayerSetup, ShipRooms } from './types
 import { LOST_LORDS, OVERLORDS, overlordById, overlordHealth } from './cards-bosses';
 import type { RelicInPlay } from './relics';
 import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type HeroState, type Item, type ItemRarity, type Relic, type SlotKind } from './heroes';
-import { RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, supersededResearch, type ResearchState } from './research';
+import { EXPERIMENTS, RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, supersededResearch, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
 import { isCaptain } from './captain';
 import { COMPANION_IDS, companionDef, DEFECTOR_SPARED, ENGINEER_PARTS, xpFromActs, type CompanionId } from './companions';
-import { newPart, partRarity, partSlots, shipFit, shipPart, type PartSlot } from './parts';
+import { newCurio, newPart, partRarity, partSlots, shipFit, shipPart, type PartSlot } from './parts';
+import { CURIO_GOOD, ENCOUNTERS_PER_GALAXY, encounterChoices, encounterPrice, HUNTER_STAGES, visitorName, type EncounterKind, type EncounterOutcome } from './encounters';
 import { RIFT_JUMPS, RIFT_KINDS, RIFTS, markedId, marksFor, NYX_MARKS, type NyxMark, type RiftKind } from './rifts';
 const NYX_MARK_NAME = (Object.fromEntries(Object.entries(NYX_MARKS).map(([k, v]) => [k, v.name])) as Record<NyxMark, string>);
 import { RELIC_POWERS, SEREN_POWERS } from './relics';
@@ -307,6 +308,8 @@ export interface CampaignNode {
   dream?: boolean;
   /** A rival hero waits here (the Captain's runs): flown into, they come for the Captain's ship (a Power Struggle). */
   rival?: string;
+  /** A story encounter waits here, unseen (the Captain's runs: encounters.ts): flown into, it plays, no battle unless chosen. */
+  encounter?: EncounterKind;
   /** Time Dense Space: the ring it turns on (1 innermost; the arrival the outermost) and its place round it. */
   spinRing?: number;
   spinSlot?: number;
@@ -633,6 +636,8 @@ export interface BattleContext {
   dream?: { id: string; damage: number };
   /** The crystal holding Kaelen, and the flagship's sun before it (a loss leaves it as it was). */
   crystal?: { damage: number };
+  /** A fight chosen in a story encounter (pirates, Kaelen's hunters): its kind, its stage, and what was at stake. */
+  encounter?: { kind: EncounterKind; stage: number; price: number };
 }
 
 export interface CampaignLogEntry {
@@ -715,6 +720,16 @@ export interface CampaignState {
   struggle?: { nodeId: string; hero: string; ambush?: boolean };
   /** A rival hero beaten in a Power Struggle (the Captain's runs), waiting on the Captain: recruit them, or slay them. */
   beaten?: { nodeId: string; hero: string };
+  /**
+   * A story encounter playing (encounters.ts): where, what, its price and stage; once chosen, what came of it (its
+   * closing lines shown until the Captain flies on), and the part it gave or the slot it wrecked.
+   */
+  encounter?: { nodeId: string; kind: EncounterKind; price: number; stage: number; outcome?: EncounterOutcome; part?: string; slot?: number };
+  /** A tableau slot of the flagship's wrecked (a merchant's device that blew): closed in every battle until a space station mends it. */
+  wreckedSlot?: number;
+  /** Stages of Kaelen's hunters beaten this run, and how many of them are already kept on the account. */
+  hunted?: number;
+  huntedBanked?: number;
   /** Heroes slain in this run (the Captain's): they come for no one again. */
   slain?: string[];
   /** Ship parts found this run (parts.ts), and those already put in the hangar for good (see partsBanked). */
@@ -833,6 +848,8 @@ export type CampaignAction =
   | { type: 'chooseEmblem'; index: number }
   /** Face the Power Struggle waiting (the battle begins). */
   | { type: 'struggle' }
+  /** A story encounter's choice (encounterChoices), or (`done`) flying on once it is decided. */
+  | { type: 'encounter'; choice: string }
   | { type: 'struggleChoice'; recruit: boolean }
   | { type: 'swapPart'; nodeId: string; slot: PartSlot; partId: string | null }
   /** Drift into the Dream of the Lost waiting (its puzzle begins). */
@@ -1757,11 +1774,12 @@ export function buildUniverse(s: CampaignState, universe: number, layout?: MapLa
   const extras = rollExtras(s, universe);
   placeChallenges(s, extras.secret);
   placeRivals(s, extras.rival);
+  placeEncounters(s);
   // Dreams of the Lost, unseen, in a system of any kind.
-  for (const n of shuffleInPlace(s, s.nodes.filter((x) => !x.home && !x.heart && !x.challenge && !x.rival)).slice(0, extras.dream)) n.dream = true;
+  for (const n of shuffleInPlace(s, s.nodes.filter((x) => !x.home && !x.heart && !x.challenge && !x.rival && !x.encounter)).slice(0, extras.dream)) n.dream = true;
   // Relic caches: now and then a neutral system's battlefield holds a sealed Reliquary Obelisk (one relic, now and
   // then two).
-  for (const n of s.nodes.filter((x) => open(x) && !x.station && !x.cache && !x.challenge && (x.col ?? 0) >= 1)) {
+  for (const n of s.nodes.filter((x) => open(x) && !x.station && !x.cache && !x.challenge && !x.encounter && (x.col ?? 0) >= 1)) {
     if (nextRandom(s) < CAMPAIGN.vaultChance) n.vault = nextRandom(s) < CAMPAIGN.vaultTwoChance ? 2 : 1;
   }
   clog(s, universe === 1 ? `The run begins. ${me.name} holds ${home.name}, at the near end of the strip.` : `${me.name} comes through into galaxy ${universe}, at ${home.name}.`);
@@ -2275,6 +2293,142 @@ function resolveStruggle(s: CampaignState, game: GameState) {
   clog(s, `${cardDef(hero).name} is beaten, and bends the knee: they join ${f.name}'s flagship.`, b.nodeId, f.id);
 }
 
+// ---------------------------------------------------------------------------
+// Story encounters (encounters.ts): the Captain's runs
+// ---------------------------------------------------------------------------
+
+/** The stage Kaelen's hunters have reached: those beaten in runs before, and in this one. */
+export const huntersStage = (s: CampaignState): number => (s.run?.hunters ?? 0) + (s.hunted ?? 0);
+
+/**
+ * A galaxy's story encounters, unseen on its strip: a merchant and pirates by turns, and (while Kaelen flies with the
+ * Captain and his hunters still hunt him) the hunters in every galaxy.
+ */
+function placeEncounters(s: CampaignState) {
+  const me = campaignPlayer(s);
+  if (!me.human || s.rift) return;
+  const C = Math.max(...s.nodes.map((n) => n.col ?? 0));
+  const open = s.nodes.filter((n) => !n.home && !n.heart && !n.challenge && !n.station && !n.prophet && !n.rival && !n.cache && !n.dream && (n.col ?? 0) >= 1 && (n.col ?? 0) <= C - 1);
+  const kinds: EncounterKind[] = shuffleInPlace(s, ['merchant', 'pirates'] as EncounterKind[]);
+  if (hasCompanion(s, 'lancer') && huntersStage(s) < HUNTER_STAGES) kinds.unshift('hunters');
+  for (const [i, n] of shuffleInPlace(s, open).slice(0, ENCOUNTERS_PER_GALAXY).entries()) {
+    n.encounter = kinds[i % kinds.length];
+  }
+}
+
+/** The flagship comes to a system where an encounter waits: it plays (the scene opens on it). */
+function meetEncounter(s: CampaignState, f: Faction, n: CampaignNode) {
+  const kind = n.encounter!;
+  n.encounter = undefined;
+  n.owner = f.id;
+  n.yield = { materials: 0 };
+  const stage = kind === 'hunters' ? huntersStage(s) : 0;
+  s.encounter = { nodeId: n.id, kind, price: encounterPrice(kind, s.universe, stage), stage };
+  clog(s, `${visitorName(kind, stage)} come${kind === 'merchant' ? 's' : ''} alongside at ${n.name}.`, n.id, f.id);
+}
+
+/** Why a choice can't be made in the encounter playing (null if it can). */
+export function encounterProblem(s: CampaignState, choice: string): string | null {
+  const e = s.encounter;
+  if (!e) return 'There is no one alongside.';
+  if (choice === 'done') return e.outcome ? null : 'Decide first.';
+  if (e.outcome) return 'That is decided.';
+  if (!encounterChoices(e.kind, e.price, e.stage).some((c) => c.id === choice)) return 'That is not on offer.';
+  if ((choice === 'buy' || choice === 'pay') && campaignPlayer(s).materials < e.price) return 'Not enough materials';
+  if (choice === 'fight' && !flagship(s, s.playerId)) return 'You have no flagship.';
+  return null;
+}
+
+/** A choice made in an encounter: bought, paid, turned down, or fought (the battle starts). */
+function chooseEncounter(s: CampaignState, choice: string) {
+  const why = encounterProblem(s, choice);
+  if (why) throw new GameError(why);
+  const e = s.encounter!;
+  const f = campaignPlayer(s);
+  if (choice === 'done') {
+    s.encounter = undefined;
+    return;
+  }
+  if (choice === 'fight') return startEncounterFight(s);
+  if (choice === 'leave') {
+    e.outcome = 'declined';
+    return;
+  }
+  f.materials -= e.price;
+  if (choice === 'pay') {
+    e.outcome = 'paid';
+    clog(s, `${f.name} pays ${visitorName(e.kind, e.stage)} ${e.price} materials.`, e.nodeId, f.id);
+    return;
+  }
+  // The merchant's device: it works 2 times in 5 (a ship part just shy of the best), or blows up aboard.
+  const part = nextRandom(s) < CURIO_GOOD ? newCurio([...(s.run?.hangar ?? []), ...(s.partsFound ?? [])], nextRandom(s)) : null;
+  if (part) {
+    e.outcome = 'good';
+    e.part = part;
+    (s.partsFound ??= []).push(part);
+    clog(s, `The merchant's device works: ${shipPart(part)!.name}.`, e.nodeId, f.id);
+    return;
+  }
+  // (Not the Hero's: one of the five card slots, wrecked until a space station mends it.)
+  e.outcome = 'bad';
+  e.slot = randomInt(s, BALANCE.tableauSlots);
+  s.wreckedSlot = e.slot;
+  clog(s, `The merchant's device explodes aboard: slot ${e.slot + 1} is wrecked until a space station.`, e.nodeId, f.id);
+}
+
+/** Pirates or hunters fought: their deck a tier stronger than the system's (the hunters', Aureline), a stage harder each time. */
+function startEncounterFight(s: CampaignState) {
+  const e = s.encounter!;
+  const f = campaignPlayer(s);
+  const army = flagship(s, f.id)!;
+  const n = nodeById(s, e.nodeId);
+  const tier = Math.max(1, n.tier + 1 + (e.kind === 'hunters' ? e.stage : 0));
+  const at = { ...n, tier, heart: false, owner: null, station: undefined, vault: undefined, garrison: [], fortification: 0, damage: 0, star: undefined };
+  const [me] = battleSetup(s, army, at);
+  const foe: PlayerSetup = {
+    name: visitorName(e.kind, e.stage),
+    isAI: true,
+    deck: stationDeck(s, at, e.kind === 'hunters' ? 0 : undefined),
+    rooms: stationRooms(at),
+    modifiers: sunBase(at),
+  };
+  const game = createGame({ seed: Math.floor(nextRandom(s) * 2 ** 31), players: [me, foe], campaign: true, mode: s.mode });
+  clog(s, `${f.name} fights ${visitorName(e.kind, e.stage)}.`, n.id, f.id);
+  s.battle = { attacker: f.id, defender: null, fromId: n.id, nodeId: n.id, armyId: army.id, defenderArmyId: null, game, encounter: { kind: e.kind, stage: e.stage, price: e.price } };
+}
+
+/**
+ * An encounter's fight over. Won against pirates: their hold (the toll they asked); against the hunters: a stage of
+ * Kaelen's arc done for good, and his share of the glory. Lost: the pirates take their toll (or all there is); the
+ * hunters go, empty-handed, and come again.
+ */
+function resolveEncounterFight(s: CampaignState, game: GameState) {
+  const b = s.battle!;
+  s.battle = null;
+  const f = campaignPlayer(s);
+  const army = s.armies.find((a) => a.id === b.armyId);
+  const won = !isDraw(game) && game.winnerId === game.players[0].id;
+  if (army) army.damage = Math.min(CAMPAIGN.maxDamage, Math.max(BALANCE.minHeat, game.players[0].heat));
+  gainXp(s, won ? CAMPAIGN.xpChallenge : CAMPAIGN.xpBattleLost);
+  const { kind, stage, price } = b.encounter!;
+  if (s.encounter) s.encounter.outcome = won ? 'won' : 'lost';
+  if (kind === 'pirates') {
+    const before = lootMark(s);
+    if (won) f.materials += price;
+    else f.materials = Math.max(0, f.materials - price);
+    if (won) s.loot = lootSince(s, before, true);
+    clog(s, won ? `${f.name} beats the pirates and takes their hold: ${price} materials.` : `The pirates take ${f.name}'s materials.`, b.nodeId, f.id);
+    return;
+  }
+  if (!won) {
+    clog(s, `${visitorName(kind, stage)} fall back. They will come for Kaelen again.`, b.nodeId, f.id);
+    return;
+  }
+  s.hunted = (s.hunted ?? 0) + 1;
+  (s.companionXp ??= {}).lancer = (s.companionXp.lancer ?? 0) + 40 * (stage + 1);
+  clog(s, stage >= HUNTER_STAGES - 1 ? 'The Solarch\'s Executioner falls. No one will come for Kaelen again.' : `${visitorName(kind, stage)} are beaten.`, b.nodeId, f.id);
+}
+
 /** The chance of a ship part from each kind of event (the Captain's runs); a boss always gives one. */
 export const PART_CHANCE = { slay: 0.5, dream: 0.35, vault: 0.3 };
 
@@ -2565,19 +2719,15 @@ function armoryStock(s: CampaignState, n: CampaignNode): string[] {
 }
 
 /**
- * A research station's upgrades to pick from: up to the galaxy's own tier, none already taken or
+ * A research station's experiments to pick from (a rift's: its race's own upgrades), none already taken or
  * offered elsewhere while they last (topped up from the rest when they run short).
  */
 function pickResearch(s: CampaignState, taken: Set<string>): string[] {
-  // (A rift's galaxy offers its race's own upgrades; nowhere else does.)
+  // (A rift's galaxy offers its race's own upgrades; nowhere else does. Everywhere else: experiments, each a big
+  // upside and a massive downside.)
   const race = riftRace(s);
-  // [direction: research too strong for the early game (+1 energy etc.)]: a galaxy offers nothing above its own
-  // number's tier, so the first gives only the gentle ones; the newest tier it allows first.
-  const top = Math.min(4, s.universe);
-  const free = RESEARCH.filter((r) => !taken.has(r.id) && !RETIRED_RESEARCH.has(r.id) && r.race === race && (race !== undefined || r.tier <= top));
-  const fits = shuffleInPlace(s, free.filter((r) => r.tier === top));
-  const rest = shuffleInPlace(s, free.filter((r) => !fits.includes(r)));
-  return [...fits, ...rest].slice(0, CAMPAIGN.researchOptions).map((r) => r.id);
+  const free = (race === undefined ? EXPERIMENTS : RESEARCH.filter((r) => r.race === race)).filter((r) => !taken.has(r.id) && !RETIRED_RESEARCH.has(r.id));
+  return shuffleInPlace(s, [...free]).slice(0, CAMPAIGN.researchOptions).map((r) => r.id);
 }
 
 /** Whether a system lies in the last third of its strip (its stations better stocked). */
@@ -2801,6 +2951,7 @@ function battleSetup(s: CampaignState, army: Army, target: CampaignNode): Player
       ...(atk.boons.length ? { heroBoons: { hero: army.general, boons: atk.boons } } : {}),
       ...(atk.relics.powers.length ? { relics: atk.relics.powers } : {}),
       ...atkShip,
+      ...(army.owner === s.playerId && s.wreckedSlot !== undefined ? { closedSlots: [s.wreckedSlot] } : {}),
       conditions: [...(fx?.conditions ?? []), ...(target.star === 'white' || target.star === 'neutron' ? starCond : []), ...(def?.foeConditions ?? [])],
     },
     {
@@ -2863,10 +3014,17 @@ function moveArmy(s: CampaignState, army: Army, toId: string) {
   }
   // A space station or research station is a pit stop [direction: neither should ever have a battle]: flown into
   // freely (while no other ship is docked there), never fought over, never taken.
-  if (target.owner === f.id || target.station || ((target.ruined || target.cache || target.prophet) && !target.owner && !armyAt(s, toId))) {
+  if (target.owner === f.id || target.station || ((target.ruined || target.cache || target.prophet || target.encounter) && !target.owner && !armyAt(s, toId))) {
     if (armyAt(s, toId)) throw new GameError(`${target.station ? 'A ship is already docked at' : 'An army already stands in'} ${target.name}.`);
     army.nodeId = toId;
     if (target.cache && !army.lost) takeCache(s, f, target, army);
+    // A story encounter: it plays as the flagship arrives (the Captain's; anyone else passes it by).
+    if (target.encounter && f.id === s.playerId && f.human && !army.lost) meetEncounter(s, f, target);
+    // (A space station mends a slot a merchant's device wrecked.)
+    if (target.station?.kind === 'armory' && f.id === s.playerId && s.wreckedSlot !== undefined) {
+      clog(s, `${target.name}'s station crews mend the wrecked slot.`, target.id, f.id);
+      s.wreckedSlot = undefined;
+    }
     // A Dark Prophet: three of the flagship's cards, offered a Nyxari mark (one to take, for good).
     if (target.prophet && f.id === s.playerId) {
       target.prophet = false;
@@ -3168,6 +3326,7 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   if (b.crystal) return resolveCrystal(s, game);
   if (b.challenge) return resolveChallenge(s, game);
   if (b.struggle) return resolveStruggle(s, game);
+  if (b.encounter) return resolveEncounterFight(s, game);
   if (b.dream) return resolveDream(s, game);
   const salvageable = salvageOptions(s, game);
   if (salvage && !salvageable.includes(salvage)) throw new GameError('That card is not there to salvage.');
@@ -3688,6 +3847,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     s.partsBanked = s.partsFound?.length ?? 0;
     s.freedBanked = s.freed?.length ?? 0;
     s.sparedBanked = s.spared ?? 0;
+    s.huntedBanked = s.hunted ?? 0;
     s.companionXp = {};
     return s;
   }
@@ -3696,6 +3856,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
   if (s.battle && action.type !== 'finishBattle') throw new GameError('Finish the battle first.');
   if (s.phase === 'ai' && action.type !== 'finishBattle' && action.type !== 'chooseCard' && action.type !== 'aiStep') throw new GameError('Wait for the other factions to finish their turns.');
   if (s.conquest && action.type !== 'conquer') throw new GameError('Decide the fate of the conquered system first.');
+  if (s.encounter && !s.battle && !['encounter', 'chooseCard', 'dismissLoot', 'finishBattle', 'aiStep', 'petalsBanked'].includes(action.type)) throw new GameError('Someone is alongside: answer them first.');
   if (s.cardRewards.length && !['chooseCard', 'finishBattle', 'conquer', 'aiStep', 'dismissLoot'].includes(action.type)) throw new GameError('Choose your card first');
 
   switch (action.type) {
@@ -3814,6 +3975,9 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     case 'struggle':
       if (!s.struggle) throw new GameError('No one has come for your command.');
       startStruggle(s);
+      break;
+    case 'encounter':
+      chooseEncounter(s, action.choice);
       break;
     case 'swapPart': {
       const n = nodeById(s, action.nodeId);
