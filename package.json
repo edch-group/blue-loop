@@ -36,6 +36,7 @@
     "record-builds": "vite-node scripts/record-builds.ts",
     "record-growth": "vite-node scripts/record-growth.ts",
     "record-meta": "vite-node scripts/record-meta.ts",
+    "record-models": "vite-node scripts/record-models.ts",
     "record-runs": "vite-node scripts/record-runs.ts",
     "record-world": "vite-node scripts/record-world.ts"
   },

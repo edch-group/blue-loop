@@ -202,5 +202,13 @@ WorldChecks.Run(Check);
     }
 }
 
+// The procedural 3D models (ships, stations, the Captain and his crew, his ship, the campaign's land), each built here as
+// the TypeScript builds it (npx vite-node scripts/record-models.ts).
+{
+    var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/models.json");
+    if (!System.IO.File.Exists(path)) Check("models", false, "no recording: run npm run record-models");
+    else ModelChecks.Run(Check, Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(path)));
+}
+
 Console.WriteLine(failed == 0 ? "All passed." : $"{failed} failed.");
 return failed == 0 ? 0 : 1;

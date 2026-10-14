@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../BlueLoop.Engine.csproj" />
+    <ProjectReference Include="../Models/BlueLoop.Models.csproj" />
   </ItemGroup>
 </Project>
