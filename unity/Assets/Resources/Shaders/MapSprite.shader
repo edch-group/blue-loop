@@ -1,5 +1,6 @@
 // A disc facing the camera (nebula-objects.ts's SPRITE_FRAG): a soft glow (kind 0), a fine ring (1), a dashed ring
-// turning (3), or rings of ink going out from it one after another (4: it pulses). Drawn on a quad of corners -1 to 1,
+// turning (3), or rings of ink going out from it one after another (4: it pulses); or a picture (5: the stellar gem's
+// sun, its corona and disc, turned by _Seed radians). Drawn on a quad of corners -1 to 1,
 // stood up to face the eye about the object's middle, as wide either way as the object is scaled (world units).
 Shader "BlueLoop/MapSprite"
 {
@@ -9,6 +10,7 @@ Shader "BlueLoop/MapSprite"
         _Kind ("Kind", Float) = 0
         _Alpha ("Alpha", Float) = 1
         _Seed ("Seed", Float) = 0
+        _MainTex ("Picture", 2D) = "black" {}
         [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("Depth test", Float) = 4
     }
     SubShader
@@ -27,6 +29,7 @@ Shader "BlueLoop/MapSprite"
             #include "UnityCG.cginc"
             fixed4 _Color;
             float _Kind, _Alpha, _Seed;
+            sampler2D _MainTex;
             struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
             v2f vert (appdata_base v)
             {
@@ -46,6 +49,14 @@ Shader "BlueLoop/MapSprite"
                 float a;
                 if (_Kind < 0.5) a = exp(-r * r * 5.0) * (1.0 - smoothstep(0.8, 1.0, r)) * 0.55;
                 else if (_Kind < 1.5) a = (1.0 - smoothstep(0.0, w * 1.6, abs(r - 0.82))) * 0.95;
+                else if (_Kind > 4.5)
+                {
+                    // A picture (its alpha laid over its colour here), turned: the stellar gem's sun, as the cards show it.
+                    float c = cos(_Seed), sn = sin(_Seed);
+                    float2 uv = float2(c * i.uv.x - sn * i.uv.y, sn * i.uv.x + c * i.uv.y) * 0.5 + 0.5;
+                    fixed4 t = tex2Dlod(_MainTex, float4(uv, 0, 0));
+                    return fixed4(t.rgb * t.a, t.a) * _Alpha;
+                }
                 else if (_Kind > 3.5)
                 {
                     a = 0.0;

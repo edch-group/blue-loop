@@ -851,7 +851,10 @@ public partial class CampaignView
         public float? TurnFrom;
         public float TurnFor;
         public List<Vector3> Engines = new List<Vector3>(), Smoke = new List<Vector3>();
-        public readonly List<Spr> Flames = new List<Spr>(), Puffs = new List<Spr>(), Streak = new List<Spr>();
+        /// <summary>The suns it carries (the Aureline's captive sun): where, in its own axes, how big; each its corona and its disc.</summary>
+        public List<Vector3> SunAt = new List<Vector3>();
+        public List<float> SunR = new List<float>();
+        public readonly List<Spr> Flames = new List<Spr>(), Puffs = new List<Spr>(), Streak = new List<Spr>(), Coronas = new List<Spr>(), SunDiscs = new List<Spr>();
         public Spr Tear, Flash;
         public bool Hidden;
     }
@@ -1023,9 +1026,14 @@ public partial class CampaignView
         tr.M.SetFloat("_Flip", -1);
         tr.Engines = model.Engines.Select(e => new Vector3((float)e.X, (float)e.Y, (float)e.Z)).ToList();
         tr.Smoke = (model.Smoke ?? new List<BlueLoop.Models.V3>()).Select(e => new Vector3((float)e.X, (float)e.Y, (float)e.Z)).ToList();
+        var suns = model.Suns ?? new List<BlueLoop.Models.CarriedSun>();
+        tr.SunAt = suns.Select(c => new Vector3((float)c.At.X, (float)c.At.Y, (float)c.At.Z)).ToList();
+        tr.SunR = suns.Select(c => (float)c.R).ToList();
         tr.Flames.Clear();
         tr.Puffs.Clear();
         tr.Streak.Clear();
+        tr.Coronas.Clear();
+        tr.SunDiscs.Clear();
         // (Its glow and trails hang off the ship's own object, so they go with it; placed in the map's space.)
         var fx = new GameObject("Light").transform;
         fx.SetParent(tr.T, false);
@@ -1036,9 +1044,32 @@ public partial class CampaignView
             for (int i = 0; i < 6; i++) tr.Puffs.Add(Disc(fx, "Smoke", 0, new Color(0.42f, 0.43f, 0.47f), 0));
         var tint = new Color(0.75f + sh.Colour.r * 0.25f, 0.85f + sh.Colour.g * 0.15f, 1);
         for (int i = 0; i <= 18; i++) tr.Streak.Add(Disc(fx, "Streak", 0, tint, 0));
+        // A captive sun: the stellar gem's pictures, its corona and its disc over it.
+        for (int i = 0; i < tr.SunAt.Count; i++)
+        {
+            tr.Coronas.Add(Picture(fx, "Sun corona", SunCorona, 3001));
+            tr.SunDiscs.Add(Picture(fx, "Sun disc", SunDisc, 3002));
+        }
         tr.Tear = Disc(fx, "Tear", 0, tint, 0);
         tr.Flash = Disc(fx, "Flash", 0, tint, 0);
         Show(tr, !tr.Hidden);
+    }
+
+    static Texture2D sunDisc, sunCorona;
+    static Texture2D SunDisc => sunDisc != null ? sunDisc : (sunDisc = Clamped(Resources.Load<Texture2D>("Sun/sun-disc")));
+    static Texture2D SunCorona => sunCorona != null ? sunCorona : (sunCorona = Clamped(Resources.Load<Texture2D>("Sun/sun-corona")));
+    static Texture2D Clamped(Texture2D t)
+    {
+        if (t != null) t.wrapMode = TextureWrapMode.Clamp;
+        return t;
+    }
+
+    /// <summary>A picture facing the camera (MapSprite's kind 5), turned by its seed.</summary>
+    static Spr Picture(Transform parent, string name, Texture2D tex, int queue)
+    {
+        var d = Disc(parent, name, 5, Color.white, 1, 0, queue);
+        d.M.SetTexture("_MainTex", tex);
+        return d;
     }
 
     static void Show(ShipTrack tr, bool on)
@@ -1207,6 +1238,25 @@ public partial class CampaignView
                     SetWorldSize(puff, 0.012f + age * 0.03f);
                     puff.Alpha(0.32f * (1 - age) * Mathf.Min(1, age * 6));
                 }
+            }
+            // A captive sun radiates heat round itself (its corona several times its size): the disc fills 0.58 of the
+            // pictures' width, sized so it just covers the sun in its cradle, and drawn at its near face, so the sphere
+            // doesn't hide it while the cradle in front still does.
+            for (int i = 0; i < sh.SunAt.Count && i < sh.Coronas.Count; i++)
+            {
+                var sunAt = sh.T.TransformPoint(sh.SunAt[i]);
+                float sunSize = sh.SunR[i] * L * 2;
+                var toEye = Cam.transform.position - sunAt;
+                if (toEye.sqrMagnitude > 1e-12f) sunAt += toEye.normalized * (sh.SunR[i] * L * 1.05f * G);
+                // As the stellar gem: the corona breathing (a little larger and brighter, then back, every 5.5 seconds)...
+                float breath = 0.5f - 0.5f * Mathf.Cos((time + i * 1.7f) * 2 * Mathf.PI / 5.5f);
+                sh.Coronas[i].T.position = sunAt;
+                SetWorldSize(sh.Coronas[i], sunSize * (1 + 0.07f * breath));
+                sh.Coronas[i].Alpha(0.85f + 0.15f * breath);
+                // ...and the disc turning slowly inside it (once every 48 seconds).
+                sh.SunDiscs[i].T.position = sunAt;
+                SetWorldSize(sh.SunDiscs[i], sunSize);
+                sh.SunDiscs[i].M.SetFloat("_Seed", -(time + i * 7) * 2 * Mathf.PI / 48);
             }
             // Warps: a streak of light from where the ship leapt to where it is (fading after it lands), a brief tear of
             // light at the star it left as it goes, and a flash where it arrives.
