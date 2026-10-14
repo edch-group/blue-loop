@@ -34,7 +34,12 @@ public class Net : MonoBehaviour
         get
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
-            try { return new System.Uri(Application.absoluteURL).GetLeftPart(System.UriPartial.Authority); }
+            // (The page's own server; none when the page is opened with ?offline, as the game is tested away from it.)
+            try
+            {
+                var page = new System.Uri(Application.absoluteURL);
+                return page.Query.Contains("offline") ? null : page.GetLeftPart(System.UriPartial.Authority);
+            }
             catch { return null; }
 #else
             var set = Store.Get(ServerKey) ?? Resources.Load<TextAsset>("server")?.text;
