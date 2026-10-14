@@ -38,7 +38,8 @@ Shader "BlueLoop/Floor"
                 o.pos = mul(UNITY_MATRIX_VP, float4(w, 1));
                 return o;
             }
-            float grid(float c) { float d = abs(frac(c) - 0.5); float aa = max(fwidth(c), 1e-4); return 1 - smoothstep(0.5 - aa * 1.2, 0.5, d); }
+            // (A line where the cell's edge is: d, the distance from the cell's middle, reaching a half.)
+            float grid(float c) { float d = abs(frac(c) - 0.5); float aa = max(fwidth(c), 1e-4); return smoothstep(0.5 - aa * 1.5, 0.5, d); }
             fixed4 frag (v2f i) : SV_Target
             {
                 float2 q = i.w.xz / _Cell;

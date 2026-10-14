@@ -261,16 +261,17 @@ public partial class CampaignView : MonoBehaviour
     {
         if (state.Galaxy == null || Campaign.D.Galaxies == null || !Campaign.D.Galaxies.TryGetValue(state.Galaxy, out var g)) return;
         var first = state.Nodes.OrderBy(n => n.X).First();
-        var at = NodePos(first.Id) + new Vector3(1.6f, -0.55f, 2.4f);
-        var name = Mats.FlatText("Galaxy", mapRoot, g.Name.ToUpperInvariant(), 7f, Look.InkSoft, true, 400, 30, TextAlignmentOptions.Left);
+        // (Before the strip's start, angled up along it, clear of its routes.)
+        var at = NodePos(first.Id) + new Vector3(-5.2f, -0.55f, 0.9f);
+        var name = Mats.FlatText("Galaxy", mapRoot, g.Name.ToUpperInvariant(), 4.6f, Look.InkSoft, true, 400, 30, TextAlignmentOptions.Left);
         name.rectTransform.sizeDelta = new Vector2(10, 1.2f);
         name.transform.localPosition = at;
         name.transform.localRotation = Quaternion.Euler(90, -28, 0);
-        var text = Mats.FlatText("Galaxy words", mapRoot, g.Text, 2.6f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
+        var text = Mats.FlatText("Galaxy words", mapRoot, g.Text, 2.0f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
         text.fontStyle = FontStyles.Italic;
         text.textWrappingMode = TextWrappingModes.Normal;
-        text.rectTransform.sizeDelta = new Vector2(6.5f, 2.5f);
-        text.transform.localPosition = at + Quaternion.Euler(0, -28, 0) * new Vector3(-1.4f, 0, -1.9f);
+        text.rectTransform.sizeDelta = new Vector2(5f, 2f);
+        text.transform.localPosition = at + Quaternion.Euler(0, -28, 0) * new Vector3(-2.2f, 0, -1.3f);
         text.transform.localRotation = Quaternion.Euler(90, -28, 0);
     }
 
