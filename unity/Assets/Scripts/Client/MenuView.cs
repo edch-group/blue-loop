@@ -15,6 +15,8 @@ public class MenuView : MonoBehaviour
     Canvas canvas;
     RectTransform page;
     string current;
+    GameObject backdrop;
+    CampaignBackdrop scene;
     // Quickplay's seats: whose deck, and whether the AI plays it.
     readonly string[] seatDeck = new string[2];
     readonly bool[] seatAI = { false, true };
@@ -34,7 +36,10 @@ public class MenuView : MonoBehaviour
     /// <summary>The page's own light: white at the top, settling to paper and a soft grey at the foot.</summary>
     void Background()
     {
-        var bg = Hud.Rect(canvas.transform, "Background");
+        backdrop = new GameObject("Backdrop", typeof(RectTransform));
+        backdrop.transform.SetParent(canvas.transform, false);
+        Hud.Fill((RectTransform)backdrop.transform);
+        var bg = Hud.Rect(backdrop.transform, "Background");
         Hud.Fill(bg);
         var img = bg.gameObject.AddComponent<RawImage>();
         var t = new Texture2D(4, 64, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
@@ -47,7 +52,7 @@ public class MenuView : MonoBehaviour
         t.Apply();
         img.texture = t;
         img.raycastTarget = false;
-        var glow = Hud.Rect(canvas.transform, "Glow");
+        var glow = Hud.Rect(backdrop.transform, "Glow");
         Hud.At(glow, new Vector2(0.5f, 1), new Vector2(0, 200), new Vector2(1500, 900));
         var g = glow.gameObject.AddComponent<Image>();
         g.sprite = Hud.Soft;
@@ -62,6 +67,11 @@ public class MenuView : MonoBehaviour
         page = Hud.Rect(canvas.transform, name);
         Hud.Fill(page);
         current = name;
+        // (The campaign's page over its own scene: the land, the ship on it.)
+        bool campaign = name == "campaign";
+        backdrop.SetActive(!campaign);
+        if (campaign && scene == null) scene = CampaignBackdrop.Make(cam, transform);
+        if (!campaign && scene != null) { Mats.Kill(scene.gameObject); scene = null; }
         switch (name)
         {
             case "hub": Hub(); break;

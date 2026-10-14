@@ -79,6 +79,14 @@ public static class BuildScript
             // (Twice: glyphs added to the atlas by later labels would leave the earlier ones' meshes stale.)
             for (int pass = 0; pass < 2; pass++)
                 foreach (var t in menu.GetComponentsInChildren<TMPro.TMP_Text>(true)) t.ForceMeshUpdate(true);
+            // (The campaign's page over its scene: the scene's cameras drawn first, into the same picture.)
+            var scene = menu.GetComponentInChildren<CampaignBackdrop>();
+            if (scene != null)
+            {
+                scene.At = 30;
+                scene.Into(app.MenuCam.targetTexture);
+                foreach (var c in scene.Cameras) c.Render();
+            }
             Shot(app.MenuCam, Path.Combine(dir, $"menu-{page}.png"));
         }
         UnityEngine.Object.DestroyImmediate(app.gameObject);

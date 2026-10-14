@@ -4,7 +4,7 @@
 // molten; pearl. Lit by a key light with a sharp highlight and the paper's light caught at its edges.
 Shader "BlueLoop/Ship"
 {
-    Properties { _Color ("Holder's colour", Color) = (0.36,0.56,0.86,1) _Alpha ("Alpha", Range(0,1)) = 1 _Burn ("Burn", Float) = 0 }
+    Properties { _Color ("Holder's colour", Color) = (0.36,0.56,0.86,1) _Alpha ("Alpha", Range(0,1)) = 1 _Burn ("Burn", Float) = 0 _Flip ("Z flip (a scene in the web's own axes)", Float) = 1 }
     SubShader
     {
         Tags { "Queue"="Geometry" "RenderType"="Opaque" }
@@ -16,7 +16,7 @@ Shader "BlueLoop/Ship"
             #pragma fragment frag
             #include "UnityCG.cginc"
             fixed4 _Color;
-            float _Alpha, _Burn;
+            float _Alpha, _Burn, _Flip;
             struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; float4 color : COLOR; float2 uv : TEXCOORD0; };
             struct v2f { float4 pos : SV_POSITION; float3 n : TEXCOORD0; float3 w : TEXCOORD1; float3 l : TEXCOORD2; float3 ln : TEXCOORD3; float m : TEXCOORD4; float3 c : TEXCOORD5; };
             v2f vert (appdata v)
@@ -50,7 +50,7 @@ Shader "BlueLoop/Ship"
                 float3 n = normalize(i.n);
                 float3 v = normalize(_WorldSpaceCameraPos - i.w);
                 if (dot(n, v) < 0.0) n = -n;
-                float3 l = normalize(float3(0.45, 0.85, 0.3));
+                float3 l = normalize(float3(0.45, 0.85, 0.3 * _Flip));
                 float3 h = normalize(l + v);
                 float diff = max(dot(n, l), 0.0);
                 float ndv = max(dot(n, v), 0.0);

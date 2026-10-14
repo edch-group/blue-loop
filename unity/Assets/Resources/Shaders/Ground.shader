@@ -12,6 +12,7 @@ Shader "BlueLoop/Ground"
         _Crack ("Crack", Float) = -50
         _Galaxy ("Galaxy", Float) = 0
         _G ("World per unit", Float) = 1
+        _Soft ("Soft (the campaign menu's land)", Float) = 0
     }
     SubShader
     {
@@ -25,7 +26,7 @@ Shader "BlueLoop/Ground"
             #pragma target 3.5
             #include "UnityCG.cginc"
             fixed4 _Paper;
-            float _Gone, _Crack, _Galaxy, _G;
+            float _Gone, _Crack, _Galaxy, _G, _Soft;
             struct appdata
             {
                 float4 vertex : POSITION;
@@ -86,10 +87,12 @@ Shader "BlueLoop/Ground"
                 if (fall > 0.0)
                 {
                     float t = min(fall, 2.2);
-                    float3x3 r = rot(float3(v.shard.w - 0.5, 0.3, 0.5 - frac(v.shard.w * 7.0)), t * (0.8 + v.shard.w * 1.6));
+                    // (Soft, as on the campaign menu, whose camera rides low: drifting down slowly, tumbling gently, as
+                    // it fades, so it is seen to go rather than dropping straight out of the view.)
+                    float3x3 r = rot(float3(v.shard.w - 0.5, 0.3, 0.5 - frac(v.shard.w * 7.0)), t * (0.8 + v.shard.w * 1.6) * (1.0 - 0.6 * _Soft));
                     p = mid + mul(p - mid, r);
                     n = mul(n, r);
-                    p.y -= 3.2 * t * t;
+                    p.y -= lerp(3.2, 0.35, _Soft) * t * t;
                     p.xz += mid.xz * 0.04 * t;
                 }
                 o.pos = UnityObjectToClipPos(float4(p, 1));
@@ -106,6 +109,9 @@ Shader "BlueLoop/Ground"
             {
                 float fall = i.more.x, cracked = i.more.y, dist = i.more.z, rest = i.more.w;
                 if (fall > 2.0) discard;
+                // (The campaign menu's land: what falls fades out as it goes, and nothing is marked red before it does.)
+                float keep = _Soft > 0.5 ? 1.0 - smoothstep(0.0, 1.1, fall) : 1.0;
+                if (keep < 0.01) discard;
                 float3 w = i.world;
                 float3 eye = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos, 1)).xyz;
                 float3 n = normalize(i.norm);
@@ -182,7 +188,7 @@ Shader "BlueLoop/Ground"
                 float nearby = 1.0 - smoothstep(5.0, 11.0, dist);
                 c = lerp(c, float3(0.45, 0.51, 0.64), mesh * 0.32 * nearby);
                 // Cracks along the shards' borders, glowing with the colours beneath.
-                if (cracked > 0.5)
+                if (cracked > 0.5 && _Soft < 0.5)
                 {
                     float3 b = i.bary + (1.0 - i.edge) * 9.0;
                     float d = min(b.x, min(b.y, b.z));
@@ -197,7 +203,7 @@ Shader "BlueLoop/Ground"
                 float edge = min(min(w.x + 7.0, 7.0 - w.x), min(w.z + 5.5, 4.0 - w.z));
                 float away = max(1.0 - smoothstep(0.0, 1.8, edge), smoothstep(7.0, 20.0, dist));
                 if (fall <= 0.0) c = lerp(c, _Paper.rgb, away);
-                return fixed4(c, 1);
+                return fixed4(lerp(_Paper.rgb, c, keep), 1);
             }
             ENDCG
         }

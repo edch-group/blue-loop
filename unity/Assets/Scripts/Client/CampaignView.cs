@@ -172,7 +172,7 @@ public partial class CampaignView : MonoBehaviour
         Collapse(menuLand);
     }
 
-    static Mesh GroundMesh(float[] g)
+    public static Mesh GroundMesh(float[] g)
     {
         const int S = BlueLoop.Models.NebulaGeometry.GroundStride;
         int count = g.Length / S;
