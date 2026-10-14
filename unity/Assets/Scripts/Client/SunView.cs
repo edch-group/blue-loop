@@ -40,18 +40,18 @@ public class SunView : MonoBehaviour
         sphere.transform.SetParent(transform, false);
         sphere.transform.localScale = Vector3.one * 1.55f;
         star = sphere.GetComponent<Renderer>();
-        star.material = Mats.Make("Sun");
-        star.material.SetFloat("_Seed", PlayerId.GetHashCode() % 100);
+        star.sharedMaterial = Mats.Make("Sun");
+        star.sharedMaterial.SetFloat("_Seed", PlayerId.GetHashCode() % 100);
         // (The sphere's collider is what a tap on the sun hits.)
         gameObject.AddComponent<SunTag>().PlayerId = PlayerId;
 
         // Its corona, a soft glow on the table under it.
         var glow = Mats.Flat("Corona", transform, Mats.Make("Soft", new Color(1f, 0.6f, 0.25f, 0.35f)), 3.2f, 3.2f, -0.88f);
-        glow.material.SetFloat("_Aspect", 1);
-        glow.material.SetFloat("_Size", 0.12f);
-        glow.material.SetFloat("_Radius", 0.12f);
-        glow.material.SetFloat("_Soft", 0.12f);
-        glow.material.renderQueue = 2960;
+        glow.sharedMaterial.SetFloat("_Aspect", 1);
+        glow.sharedMaterial.SetFloat("_Size", 0.12f);
+        glow.sharedMaterial.SetFloat("_Radius", 0.12f);
+        glow.sharedMaterial.SetFloat("_Soft", 0.12f);
+        glow.sharedMaterial.renderQueue = 2960;
 
         // The heat meter: a faint full ring, and the heat so far over it.
         track = Arc("Track", 1.15f, 0.035f, new Color(0.62f, 0.64f, 0.7f, 0.45f));
@@ -62,12 +62,12 @@ public class SunView : MonoBehaviour
         orbit.SetParent(transform, false);
         orbit.localPosition = new Vector3(0, -0.86f, 0);
         var ring = Mats.Flat("Ring", orbit, Mats.Make("Soft", new Color(0.55f, 0.58f, 0.66f, 0.5f)), 3.1f, 3.1f);
-        ring.material.SetFloat("_Aspect", 1);
-        ring.material.SetFloat("_Size", 0.43f);
-        ring.material.SetFloat("_Radius", 0.43f);
-        ring.material.SetFloat("_Soft", 0.004f);
-        ring.material.SetFloat("_Ring", 1);
-        ring.material.renderQueue = 2965;
+        ring.sharedMaterial.SetFloat("_Aspect", 1);
+        ring.sharedMaterial.SetFloat("_Size", 0.43f);
+        ring.sharedMaterial.SetFloat("_Radius", 0.43f);
+        ring.sharedMaterial.SetFloat("_Soft", 0.004f);
+        ring.sharedMaterial.SetFloat("_Ring", 1);
+        ring.sharedMaterial.renderQueue = 2965;
         for (int i = 0; i < 3; i++)
         {
             var p = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -78,7 +78,7 @@ public class SunView : MonoBehaviour
             p.transform.localPosition = new Vector3(Mathf.Cos(a) * 1.33f, 0.2f, Mathf.Sin(a) * 1.33f);
             p.transform.localScale = Vector3.one * 0.32f;
             var m = Mats.Make("Planet", PlanetColours[i]);
-            p.GetComponent<Renderer>().material = m;
+            p.GetComponent<Renderer>().sharedMaterial = m;
             planets.Add(p.transform);
         }
 
@@ -90,9 +90,9 @@ public class SunView : MonoBehaviour
         planet = Mats.FlatText("Planet", transform, "", 2.4f, Look.Ink, true, 500, 14);
         planet.transform.localPosition = new Vector3(0.6f, -0.85f, -1.95f);
         shield = Mats.Flat("Shields", transform, Mats.Make("Card"), 0.42f, 0.47f, -0.8f);
-        shield.material.SetFloat("_Radius", 0);
-        shield.material.SetFloat("_Aspect", 0.47f / 0.42f);
-        shield.material.renderQueue = 3020;
+        shield.sharedMaterial.SetFloat("_Radius", 0);
+        shield.sharedMaterial.SetFloat("_Aspect", 0.47f / 0.42f);
+        shield.sharedMaterial.renderQueue = 3020;
         shield.transform.localPosition = new Vector3(1.45f, -0.8f, -1.2f);
     }
 
@@ -111,10 +111,10 @@ public class SunView : MonoBehaviour
         go.transform.localPosition = new Vector3(0, -0.85f, 0);
         var f = go.AddComponent<MeshFilter>();
         var r = go.AddComponent<MeshRenderer>();
-        r.material = Mats.Make("Soft", c);
-        r.material.SetFloat("_Size", 0.5f);
-        r.material.SetFloat("_Soft", 0.0001f);
-        r.material.renderQueue = 2970;
+        r.sharedMaterial = Mats.Make("Soft", c);
+        r.sharedMaterial.SetFloat("_Size", 0.5f);
+        r.sharedMaterial.SetFloat("_Soft", 0.0001f);
+        r.sharedMaterial.renderQueue = 2970;
         go.AddComponent<ArcData>().Set(radius, width);
         return f;
     }
@@ -151,14 +151,14 @@ public class SunView : MonoBehaviour
     {
         int max = Game.SupernovaThreshold(p);
         float share = Mathf.Clamp01((p.Heat - Balance.MinHeat) / (float)(max - Balance.MinHeat));
-        star.material.SetFloat("_Hot", Mathf.Clamp01(p.Heat / (float)max));
+        star.sharedMaterial.SetFloat("_Hot", Mathf.Clamp01(p.Heat / (float)max));
         heat.text = p.Heat.ToString();
         most.text = $"/{max}";
         var ad = track.GetComponent<ArcData>();
         track.mesh = ArcMesh(ad.Radius, ad.Width, 0.999f);
         var md = meter.GetComponent<ArcData>();
         meter.mesh = ArcMesh(md.Radius, md.Width, Mathf.Max(0.01f, Mathf.Clamp01(p.Heat / (float)max)));
-        meter.GetComponent<MeshRenderer>().material.color = p.Heat < 0 ? new Color(0.3f, 0.55f, 0.9f, 0.95f) : new Color(0.9f, 0.42f, 0.18f, 0.95f);
+        meter.GetComponent<MeshRenderer>().sharedMaterial.color = p.Heat < 0 ? new Color(0.3f, 0.55f, 0.9f, 0.95f) : new Color(0.9f, 0.42f, 0.18f, 0.95f);
         var now = Game.CurrentPlanet(p, s);
         planet.text = $"{now.ToUpperInvariant()} · {Game.PlanetTurnsLeft(p)}";
         int at = System.Array.IndexOf(PlanetNames, now);
@@ -166,7 +166,7 @@ public class SunView : MonoBehaviour
         orbitGoal = at < 0 ? orbitGoal : -90 - at * 120;
         for (int i = 0; i < planets.Count; i++) planets[i].localScale = Vector3.one * (i == at ? 0.42f : 0.3f);
         shield.gameObject.SetActive(p.Shields > 0);
-        if (p.Shields > 0) shield.material.mainTexture = Faces.Badge("def", p.Shields);
+        if (p.Shields > 0) shield.sharedMaterial.mainTexture = Faces.Badge("def", p.Shields);
         _ = share;
     }
 

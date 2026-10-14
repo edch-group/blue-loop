@@ -65,6 +65,7 @@ public class MenuView : MonoBehaviour
         {
             case "hub": Hub(); break;
             case "quickplay": Quickplay(); break;
+            case "collection": BuilderView.Make(page, this); break;
             default: Title(); break;
         }
     }
@@ -111,7 +112,7 @@ public class MenuView : MonoBehaviour
             var hit = r.gameObject.AddComponent<Image>();
             hit.color = new Color(1, 1, 1, 0);
             b.targetGraphic = hit;
-            b.onClick.AddListener(() => Soon(name));
+            b.onClick.AddListener(() => { if (icon == "collection") Show("collection"); else Soon(name); });
             Picture(r, $"Icons/{icon}-small", new Vector2(0, 0.5f), new Vector2(0, 0), new Vector2(40, 40));
             var t = Hud.Label(r, name.ToUpperInvariant(), 18, Look.InkSoft, true, 500, 12, TextAlignmentOptions.Left);
             t.margin = new Vector4(50, 0, 0, 0);

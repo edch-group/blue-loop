@@ -25,18 +25,18 @@ public class CardView : MonoBehaviour
         v.Uid = uid;
         v.Table = table;
         v.shadow = Mats.Flat("Shadow", go.transform, Mats.Make("Soft", new Color(0.25f, 0.27f, 0.33f, 0.22f)), 1.5f, 1.9f, -0.002f);
-        v.shadow.material.SetFloat("_Aspect", 1.9f / 1.5f);
-        v.shadow.material.SetFloat("_Size", 0.36f);
-        v.shadow.material.SetFloat("_Soft", 0.09f);
+        v.shadow.sharedMaterial.SetFloat("_Aspect", 1.9f / 1.5f);
+        v.shadow.sharedMaterial.SetFloat("_Size", 0.36f);
+        v.shadow.sharedMaterial.SetFloat("_Soft", 0.09f);
         v.shadow.transform.localPosition = new Vector3(0.02f, -0.002f, -0.07f);
-        v.shadow.material.renderQueue = 2990;
+        v.shadow.sharedMaterial.renderQueue = 2990;
         v.rim = Mats.Flat("Rim", go.transform, Mats.Make("Soft", new Color(0, 0, 0, 0)), 1.36f, 1.76f, -0.001f);
-        v.rim.material.SetFloat("_Aspect", 1.76f / 1.36f);
-        v.rim.material.SetFloat("_Size", 0.37f);
-        v.rim.material.SetFloat("_Soft", 0.035f);
-        v.rim.material.renderQueue = 2995;
+        v.rim.sharedMaterial.SetFloat("_Aspect", 1.76f / 1.36f);
+        v.rim.sharedMaterial.SetFloat("_Size", 0.37f);
+        v.rim.sharedMaterial.SetFloat("_Soft", 0.035f);
+        v.rim.sharedMaterial.renderQueue = 2995;
         v.face = Mats.Flat("Face", go.transform, Mats.Make("Card"), 1, 1.4f);
-        v.face.material.renderQueue = 3000;
+        v.face.sharedMaterial.renderQueue = 3000;
         var col = go.AddComponent<BoxCollider>();
         col.size = new Vector3(1, 0.05f, 1.4f);
         v.SetCard(defId);
@@ -47,20 +47,20 @@ public class CardView : MonoBehaviour
     {
         if (defId == DefId) return;
         DefId = defId;
-        face.material.mainTexture = Faces.Of(defId, Table);
+        face.sharedMaterial.mainTexture = Faces.Of(defId, Table);
     }
 
     /// <summary>A card face down (a set trap, a pile).</summary>
-    public void FaceDown() => face.material.mainTexture = Resources.Load<Texture2D>("Board/back");
+    public void FaceDown() => face.sharedMaterial.mainTexture = Resources.Load<Texture2D>("Board/back");
 
-    public void Dimmed(bool on) => face.material.SetFloat("_Grey", on ? 0.75f : 0);
+    public void Dimmed(bool on) => face.sharedMaterial.SetFloat("_Grey", on ? 0.75f : 0);
 
     /// <summary>Its rim: none, or a colour (playable green, picked blue, aimed red), soft or strong.</summary>
     public void Rim(Color? c, float strength = 1)
     {
         var col = c ?? new Color(0, 0, 0, 0);
         if (c != null) col.a = 0.85f * strength;
-        rim.material.color = col;
+        rim.sharedMaterial.color = col;
     }
 
     /// <summary>A badge (atk, atk-dim, stab, stab-low, def, guard) with its value, or none (n null).</summary>
@@ -72,14 +72,14 @@ public class CardView : MonoBehaviour
             if (n == null) return;
             var p = slot == "atk" ? Faces.Where.atk : slot == "stab" ? Faces.Where.stab : kind == "guard" ? Faces.Where.guard : Faces.Where.def;
             r = Mats.Flat(slot, transform, Mats.Make("Card"), p.w, p.h, 0.004f);
-            r.material.SetFloat("_Radius", 0);
-            r.material.SetFloat("_Aspect", p.h / p.w);
-            r.material.renderQueue = 3010;
+            r.sharedMaterial.SetFloat("_Radius", 0);
+            r.sharedMaterial.SetFloat("_Aspect", p.h / p.w);
+            r.sharedMaterial.renderQueue = 3010;
             r.transform.localPosition = new Vector3(-0.5f + p.x + p.w / 2, 0.004f, 0.7f - (p.y + p.h / 2));
             badges[slot] = r;
         }
         r.gameObject.SetActive(n != null);
-        if (n != null) r.material.mainTexture = Faces.Badge(kind, n.Value);
+        if (n != null) r.sharedMaterial.mainTexture = Faces.Badge(kind, n.Value);
     }
 
     public void MoveTo(Vector3 pos, Quaternion rot, float scale = 1, bool snap = false)
