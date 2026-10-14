@@ -33,98 +33,68 @@ public class ChallengesView : MonoBehaviour
         foreach (Transform c in root) Mats.Kill(c.gameObject);
         var solved = Puzzles.ChallengesSolved;
         var all = Puzzles.Challenges;
-        var back = Hud.Pill(root, "‹ Back", () => menu.Show("hub"), 15);
-        Hud.At((RectTransform)back.transform, new Vector2(0, 1), new Vector2(24, -20), new Vector2(92, 40));
-        var small = Hud.Label(root, "DREAMS OF THE LOST", 13, Look.InkFaint, true, 500, 30, TextAlignmentOptions.Top);
-        small.margin = new Vector4(0, 22, 0, 0);
-        var title = Hud.Label(root, "CHALLENGES", 50, Look.Ink, true, 400, 60, TextAlignmentOptions.Top);
-        title.margin = new Vector4(0, 44, 0, 0);
+        MenuView.BackButton(root, () => menu.Show("hub"), 23.2f, 20.3f);
+        Hud.Text(root, "DREAMS OF THE LOST", 0, 20.3f, 1600, 17, 13.9f, Look.InkFaint, true, 400, 30);
+        Hud.Text(root, "CHALLENGES", 0, 40.2f, 1600, 58, 46.4f, Look.Ink, true, 400, 40);
 
-        // The tiers, scrolling between the title and the foot.
+        // The tiers (the web's .ch-tiers: 768.4 tall from 109.8 down, centred in it and scrolling): each its name
+        // (13.9, spaced 0.3em) over its tiles, 133.4 by 116.4, 14.5 apart, ten to a line, each line centred.
         var view = Hud.Rect(root, "Tiers");
-        view.anchorMin = new Vector2(0, 0);
-        view.anchorMax = new Vector2(1, 1);
-        view.offsetMin = new Vector2(0, 120);
-        view.offsetMax = new Vector2(0, -112);
+        Hud.Place(view, 0, 109.8f, 1600, 768.4f);
         view.gameObject.AddComponent<RectMask2D>();
         var content = Hud.Rect(view, "Content");
         content.anchorMin = new Vector2(0, 1);
         content.anchorMax = new Vector2(1, 1);
         content.pivot = new Vector2(0.5f, 1);
-        float y = -8;
-        const float tw = 134, th = 118, step = 147;
-        foreach (var tier in all.Select(c => c.Tier).Distinct())
+        const float tw = 133.4f, th = 116.4f, gap = 14.5f;
+        // (A little room above and below, so the picked tile's lift and the shadows aren't cut.)
+        float y = 12;
+        var tiers = all.Select(c => c.Tier).Distinct().ToList();
+        for (int t = 0; t < tiers.Count; t++)
         {
+            var tier = tiers[t];
             var row = all.Where(c => c.Tier == tier).ToList();
             int days = row[0].Days ?? 1;
-            if (tier > all[0].Tier)
-            {
-                var h = Hud.Label(content, $"TIER {Roman[Mathf.Min(Roman.Length - 1, tier - Puzzles.ChallengeFromTier + 1)]}{(days > 1 ? $" · WIN IN {days}" : "")}", 14, Look.InkSoft, true, 500, 30, TextAlignmentOptions.Top);
-                h.rectTransform.anchorMin = new Vector2(0, 1);
-                h.rectTransform.anchorMax = new Vector2(1, 1);
-                h.rectTransform.pivot = new Vector2(0.5f, 1);
-                h.rectTransform.anchoredPosition = new Vector2(0, y - 8);
-                h.rectTransform.sizeDelta = new Vector2(0, 30);
-                y -= 44;
-            }
+            Hud.Text(content, $"TIER {Roman[Mathf.Clamp(tier - Puzzles.ChallengeFromTier + 1, 0, Roman.Length - 1)]}{(days > 1 ? $" · WIN IN {days}" : "")}", 0, y, 1600, 17, 13.9f, Look.InkFaint, true, 400, 30);
+            y += 28.6f;
             for (int start = 0; start < row.Count; start += 10)
             {
                 var line = row.Skip(start).Take(10).ToList();
+                float x = 800 - (line.Count * tw + (line.Count - 1) * gap) / 2;
                 for (int i = 0; i < line.Count; i++)
                 {
                     var c = line[i];
                     int n = all.IndexOf(c) + 1;
                     bool on = picked == c.Id, isSolved = solved.Contains(c.Id);
-                    var tile = Hud.Glass(content, c.Id, Color.white);
+                    var tile = Hud.Box(content, c.Id, isSolved ? Hud.Rgba(255, 247, 230) : Color.white, 20.3f);
                     var tr = (RectTransform)tile.transform;
-                    Hud.At(tr, new Vector2(0.5f, 1), new Vector2((i - (line.Count - 1) / 2f) * step, y), new Vector2(tw, th));
-                    if (on)
-                    {
-                        var ring = Hud.Rect(tr, "Ring");
-                        Hud.Fill(ring);
-                        ring.offsetMin = new Vector2(-3, -3);
-                        ring.offsetMax = new Vector2(3, 3);
-                        ring.SetSiblingIndex(1);
-                        var ri = ring.gameObject.AddComponent<Image>();
-                        ri.sprite = Hud.Rounded;
-                        ri.type = Image.Type.Sliced;
-                        ri.color = Look.Ink;
-                        var fill = Hud.Rect(tr, "Fill");
-                        Hud.Fill(fill);
-                        fill.SetSiblingIndex(2);
-                        var fi = fill.gameObject.AddComponent<Image>();
-                        fi.sprite = Hud.Rounded;
-                        fi.type = Image.Type.Sliced;
-                        fi.color = Color.white;
-                    }
+                    Hud.Place(tr, x + i * (tw + gap), y - (on ? 4.35f : 0), tw, th);
+                    var ring = on ? new Hud.Drop(Hud.Rgba(58, 66, 86), 0, 0, 3.6f)
+                        : isSolved ? new Hud.Drop(Hud.Rgba(200, 160, 70, 0.5f), 0, 0, 1.4f)
+                        : new Hud.Drop(Hud.Rgba(58, 66, 86, 0.12f), 0, 0, 1.4f);
+                    Hud.Shadow(tile, 20.3f, ring, on ? new Hud.Drop(Hud.Rgba(40, 46, 70, 0.2f), 11.6f, 26.1f) : new Hud.Drop(Hud.Rgba(40, 46, 70, 0.08f), 5.8f, 17.4f));
+                    tile.raycastTarget = true;
                     var em = Hud.Rect(tr, "Emblem");
-                    Hud.At(em, new Vector2(0.5f, 1), new Vector2(0, -12), new Vector2(46, 46));
+                    Hud.Place(em, (tw - 43.5f) / 2, 14.5f, 43.5f, 43.5f);
                     var raw = em.gameObject.AddComponent<RawImage>();
                     raw.texture = Resources.Load<Texture2D>($"Icons/faction-f{c.Race + 1}");
                     raw.raycastTarget = false;
-                    var num = Hud.Label(tr, n.ToString(), 22, Look.Ink, true, 500, 0, TextAlignmentOptions.Top);
-                    num.margin = new Vector4(0, 62, 0, 0);
-                    var g = Hud.Label(tr, Goal(c).ToUpperInvariant(), 11, Look.InkFaint, true, 500, 26, TextAlignmentOptions.Bottom);
-                    g.margin = new Vector4(0, 0, 0, 12);
-                    if (isSolved)
-                    {
-                        var check = Hud.Label(tr, "✓", 16, new Color(0.73f, 0.54f, 0.17f), false, 600, 0, TextAlignmentOptions.TopRight);
-                        check.margin = new Vector4(0, 8, 12, 0);
-                    }
+                    Hud.Text(tr, n.ToString(), 0, 60.9f, tw, 26, 20.9f, Look.Ink, true, 400, 0);
+                    Hud.Text(tr, Goal(c).ToUpperInvariant(), 0, 89.8f, tw, 15, 11.6f, Look.InkFaint, true, 400, 20);
+                    if (isSolved) Hud.Text(tr, "✓", tw - 10.15f - 16, 7.25f, 16, 20, 16.2f, Hud.Rgba(185, 138, 44), false, 600, 0);
                     var id = c.Id;
                     var tb = tile.gameObject.AddComponent<Button>();
                     var cb = tb.colors;
-                    cb.disabledColor = Color.white;
-                    cb.highlightedColor = new Color(0.97f, 0.98f, 1f);
+                    cb.highlightedColor = new Color(0.98f, 0.98f, 1f);
                     tb.colors = cb;
                     tb.onClick.AddListener(() => { Sound.Play("hover"); picked = picked == id ? null : id; Draw(); });
                 }
-                y -= th + 13;
+                y += th + (start + 10 < row.Count ? gap : 0);
             }
-            y -= 8;
+            y += t + 1 < tiers.Count ? 30 : 12;
         }
         content.anchoredPosition = Vector2.zero;
-        content.sizeDelta = new Vector2(0, -y + 10);
+        content.sizeDelta = new Vector2(0, y);
         var hit = content.gameObject.AddComponent<Image>();
         hit.color = new Color(1, 1, 1, 0.001f);
         var scroll = view.gameObject.AddComponent<ScrollRect>();
@@ -133,27 +103,31 @@ public class ChallengesView : MonoBehaviour
         scroll.horizontal = false;
         scroll.movementType = ScrollRect.MovementType.Clamped;
         scroll.scrollSensitivity = 40;
+        // (As the web centres the tiers in their space: begun at their middle when they run over it.)
+        if (y > 768.4f) content.anchoredPosition = new Vector2(0, (y - 768.4f) / 2);
+        else
+        {
+            content.sizeDelta = new Vector2(0, 768.4f);
+            foreach (RectTransform child in content) child.anchoredPosition -= new Vector2(0, (768.4f - y) / 2);
+        }
 
-        // The one picked, waiting to begin; or how many are solved.
+        // The one picked, waiting to begin (as the tutorial's: what, which, and begin beside them); or how many are
+        // solved.
         var pick = picked != null ? Puzzles.ChallengeById(picked) : null;
         if (pick != null)
         {
-            var foot = Hud.Rect(root, "Picked");
-            Hud.At(foot, new Vector2(0.5f, 0), new Vector2(0, 20), new Vector2(600, 100));
-            var t1 = Hud.Label(foot, $"AS THE {Races.RaceNames[pick.Race].ToUpperInvariant()} · {Puzzles.TimeLimit(pick)} S", 11, Look.InkFaint, true, 500, 26, TextAlignmentOptions.TopLeft);
-            t1.margin = new Vector4(90, 6, 0, 0);
-            var t2 = Hud.Label(foot, $"CHALLENGE {all.IndexOf(pick) + 1}", 24, Look.Ink, true, 400, 26, TextAlignmentOptions.Left);
-            t2.margin = new Vector4(90, 0, 0, 6);
-            var t3 = Hud.Label(foot, pick.Goal == "win" ? ((pick.Days ?? 1) > 1 ? $"win within {pick.Days} days" : "win this day") : "survive their day", 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.BottomLeft);
-            t3.margin = new Vector4(90, 0, 0, 10);
+            string small = $"AS THE {Races.RaceNames[pick.Race].ToUpperInvariant()} · {Puzzles.TimeLimit(pick)} S", name = $"CHALLENGE {all.IndexOf(pick) + 1}";
+            string goal = pick.Goal == "win" ? ((pick.Days ?? 1) > 1 ? $"win within {pick.Days} days" : "win this day") : "survive their day";
+            string go = solved.Contains(pick.Id) ? "again" : "begin";
+            float colW = Mathf.Max(Hud.Wide(small, 12.1f, 400, 24, 0), Hud.Wide(name, 23.2f, 400, 24, 0), Hud.Wide(goal, 18.1f, 400, 0, 0, false));
+            float bw = Hud.Wide(go.ToUpperInvariant(), 15.3f, 700, 14, 24.6f), x = 800 - (colW + 26.1f + bw) / 2;
+            Hud.Text(root, small, x, 900.3f, colW + 2, 15, 12.1f, Look.InkFaint, true, 400, 24, TextAlignmentOptions.Left);
+            Hud.Text(root, name, x, 918.2f, colW + 2, 29, 23.2f, Look.Ink, true, 400, 24, TextAlignmentOptions.Left);
+            Hud.Text(root, goal, x, 950.1f, colW + 2, 22, 18.1f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
             var id = pick.Id;
-            var begin = Hud.Pill(foot, solved.Contains(id) ? "Again" : "Begin", () => App.Instance.Puzzle("challenge", id), 16, Color.white);
-            Hud.At((RectTransform)begin.transform, new Vector2(0.5f, 0.5f), new Vector2(190, 0), new Vector2(150, 50));
+            var begin = Hud.Primary(root, go, () => App.Instance.Puzzle("challenge", id));
+            Hud.Place((RectTransform)begin.transform, x + colW + 26.1f, 912.7f, bw, 47.1f);
         }
-        else
-        {
-            var hint = Hud.Label(root, $"{solved.Count} of {all.Count} solved", 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Bottom);
-            hint.margin = new Vector4(0, 0, 0, 44);
-        }
+        else Hud.Text(root, $"{solved.Count} OF {all.Count} SOLVED", 0, 927.2f, 1600, 18, 14.4f, Look.InkFaint, true, 400, 24);
     }
 }
