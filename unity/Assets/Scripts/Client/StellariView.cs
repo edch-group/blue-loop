@@ -56,23 +56,27 @@ public class StellariView : MonoBehaviour
         foreach (Transform c in root) Mats.Kill(c.gameObject);
         var meta = CampaignView.LoadMeta();
         Header(meta);
-        // The sky: a true circle of reach R round the Stellari's heart, at the foot of the page.
+        // The sky (.up-sky, under the header, 1548 by 856 at 1600 x 1000): the Stellari's heart 40 (CSS) up from its foot.
         sky = Hud.Rect(root, "Sky");
-        Hud.At(sky, new Vector2(0.5f, 0), new Vector2(0, 0), new Vector2(1100, Hud.H - 96));
-        // (The branch alone, as large as the sky lets it be: R the rows' scale, G the gap between skills across a row.)
-        R = Mathf.Clamp((Hud.H - 96 - 150) / 1.16f, 96, 620);
-        G = Mathf.Clamp((0.5f * 1100 - 220) * 0.9f, 128, 380);
+        Hud.At(sky, new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(SkyW, SkyH));
+        // (The branch alone, as large as the sky lets it be: R the rows' scale, G the gap between skills across a row;
+        // styles.css's, in CSS pixels, drawn 1.45 times.)
+        R = Mathf.Clamp((SkyH / Z - 150) / 1.16f, 96, 620) * Z;
+        G = Mathf.Clamp((0.5f * SkyW / Z - 220) * 0.9f, 128, 380) * Z;
         Layout();
         Flower(meta);
         Lines(meta);
+        nodeLooks.Clear();
         foreach (var u in Skills.Where(u => u.Group == Shown.g)) Node(meta, u);
         Spin();
-        if (tipFor != null) ShowTip(meta, tipFor);
+        Search();
         if (aff != null) Affinity(meta);
     }
 
+    const float Z = WebLook.Zoom, SkyW = 1548, SkyH = 856;
+
     /// <summary>A point of the sky (pixels from the heart, y down as the web's) on the canvas.</summary>
-    static Vector2 At(Vector2 p) => new Vector2(p.x, 40 - p.y);
+    static Vector2 At(Vector2 p) => new Vector2(p.x, 40 * Z - p.y);
 
     // The branch shown, and how far the flower is turned to bring its petal straight up (degrees, the web's: clockwise).
     static int branch;
@@ -130,21 +134,23 @@ public class StellariView : MonoBehaviour
     /// <summary>The arrows, at the foot: the branch's name between them, in its colour.</summary>
     void Spin()
     {
-        // (As wide as the longest branch's name, whichever is shown: the arrows never move.)
+        // (.up-spin: as wide as the longest branch's name, whichever is shown, so the arrows never move; 40 across,
+        // 14 from the name, 10 up from the foot.)
         var nav = Hud.Rect(root, "Spin");
-        var name = Hud.Label(nav, Shown.title.ToUpperInvariant(), 12, Color.Lerp(Hex(Shown.colour), Look.Ink, 0.3f), true, 500, 24);
+        var name = WebLook.Words(nav, Shown.title.ToUpperInvariant(), 0.62f * 16 * Z, 0.24f, Color.Lerp(Hex(Shown.colour), Look.Ink, 0.3f));
+        name.margin = new Vector4(0, 0, 0.24f * 0.62f * 16 * Z, 0);
         float widest = L.branches.Max(b => name.GetPreferredValues(b.title.ToUpperInvariant()).x);
-        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(widest + 2 * (44 + 14), 44));
+        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, 10 * Z), new Vector2(widest + 2 * (40 + 14) * Z, 40 * Z));
         for (int d = -1; d <= 1; d += 2)
         {
             int step = d;
-            var b = Hud.Rect(nav, d < 0 ? "Back" : "On");
-            Hud.At(b, new Vector2(d < 0 ? 0 : 1, 0.5f), Vector2.zero, new Vector2(44, 44));
-            var bi = b.gameObject.AddComponent<Image>();
-            bi.sprite = Hud.Circle;
-            bi.color = new Color(1, 1, 1, 0.85f);
-            b.gameObject.AddComponent<Button>().onClick.AddListener(() => Turn(step));
-            Hud.Label(b, d < 0 ? "‹" : "›", 26, Look.InkSoft, false, 400, 0).raycastTarget = false;
+            var bi = WebLook.Rounded(nav, d < 0 ? "Back" : "On", new Color(1, 1, 1, 0.85f), 999);
+            Hud.At(bi.rectTransform, new Vector2(d < 0 ? 0 : 1, 0.5f), Vector2.zero, new Vector2(40 * Z, 40 * Z));
+            bi.raycastTarget = true;
+            WebLook.Shadow(bi, 4 * Z, 12 * Z, new Color(40 / 255f, 46 / 255f, 70 / 255f, 0.1f), 999, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
+            bi.gameObject.AddComponent<Button>().onClick.AddListener(() => Turn(step));
+            var arrow = WebLook.Words(bi.transform, d < 0 ? "‹" : "›", 1.4f * 16 * Z, 0, Look.InkSoft, false, 400);
+            arrow.margin = new Vector4(0, 0, 0, 3);
         }
         name.raycastTarget = false;
     }
@@ -153,34 +159,118 @@ public class StellariView : MonoBehaviour
 
     void Header(MetaState meta)
     {
-        var back = Hud.Pill(root, "‹ Back", () => menu.Show("campaign"), 15);
-        Hud.At((RectTransform)back.transform, new Vector2(0, 1), new Vector2(26, -26), new Vector2(110, 44));
-        float x = 150;
-        void Small(string label, System.Action act, Color ink)
+        // (.up-head: back, then undo, clear and reset in small spaced capitals, 14 apart; the title in the middle, the
+        // petals under it; the search at the right.)
+        var back = WebLook.UpBack(root, () => menu.Show("campaign"));
+        float x = 26 + ((RectTransform)back.transform).sizeDelta.x + 14 * Z;
+        void Small(string label, System.Action act, Color ink, bool petals = false)
         {
             var r = Hud.Rect(root, label);
-            Hud.At(r, new Vector2(0, 1), new Vector2(x, -26), new Vector2(18 + label.Length * 11, 44));
+            var t = WebLook.Words(r, label.ToUpperInvariant(), 0.56f * 16 * Z, 0.2f, ink, true, 500, TextAlignmentOptions.Left);
+            float w = t.GetPreferredValues(t.text).x;
+            if (petals)
+            {
+                // (Its price after it: the petal and how many.)
+                var p = WebLook.Centred(r, "Petal", w + 6 * Z + 7, 21, 14, 14).gameObject.AddComponent<RawImage>();
+                p.texture = Resources.Load<Texture2D>("Icons/purse-petal");
+                p.raycastTarget = false;
+                var n = WebLook.Words(WebLook.Box(r, "Price", w + 6 * Z + 16, 0, 40, 42), Meta.SkillResetPetals.ToString(), 0.56f * 16 * Z, 0.04f, ink, true, 500, TextAlignmentOptions.Left);
+                w += 6 * Z + 16 + n.GetPreferredValues(n.text).x;
+            }
+            WebLook.Box(r, x, 20, w, 42);
             var hit = r.gameObject.AddComponent<Image>();
             hit.color = new Color(1, 1, 1, 0);
             r.gameObject.AddComponent<Button>().onClick.AddListener(() => act());
-            Hud.Label(r, label.ToUpperInvariant(), 13, ink, true, 500, 20);
-            x += 30 + label.Length * 11;
+            x += w + 14 * Z;
         }
         if (placed.Count > 0)
         {
             Small("undo", () => Undo(1), Look.InkSoft);
             Small("clear", () => Undo(placed.Count), Look.InkSoft);
         }
-        if (Meta.TreePetalsSpent(meta) > 0) Small(resetArmed ? $"confirm reset · {Meta.SkillResetPetals} petals" : $"reset · {Meta.SkillResetPetals} petals", Reset, resetArmed ? Look.Danger : Look.InkSoft);
-        var title = Hud.Label(root, "SKILLS", 30, Look.Ink, true, 400, 40, TextAlignmentOptions.Top);
-        title.margin = new Vector4(0, 22, 0, 0);
-        var purse = Hud.Rect(root, "Purse");
-        Hud.At(purse, new Vector2(0.5f, 1), new Vector2(0, -66), new Vector2(200, 30));
-        var pi = Hud.Rect(purse, "Petal");
-        Hud.At(pi, new Vector2(0.5f, 0.5f), new Vector2(-58, 0), new Vector2(26, 26));
-        pi.gameObject.AddComponent<RawImage>().texture = Resources.Load<Texture2D>("Icons/petal");
-        var pt = Hud.Label(purse, $"<b>{meta.Petals}</b>  <size=60%><color=#9aa0ac>PETALS</color></size>", 22, Look.Ink, true, 500, 6, TextAlignmentOptions.Left);
-        pt.margin = new Vector4(58, 0, 0, 0);
+        if (Meta.TreePetalsSpent(meta) > 0) Small(resetArmed ? "confirm reset" : "reset", Reset, resetArmed ? Look.Ink : Look.InkSoft, true);
+        // (.up-title-big: SKILLS at 54 across 0.5em, its petals under it: the petal, how many, PETALS small.)
+        var title = WebLook.Words(WebLook.Box(root, "Title", 0, 20, 1600, 68), "SKILLS", 54, 0.5f, Look.Ink, true, 400);
+        // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
+        var count = WebLook.Words(Hud.Rect(root, "Petals"), meta.Petals.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
+        var unit = WebLook.Words(Hud.Rect(root, "Unit"), "PETALS", 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
+        float cw = count.GetPreferredValues(count.text).x, uw = unit.GetPreferredValues(unit.text).x;
+        float rowW = 28 + 6 * Z + cw + 10 * Z + uw, x0 = 800 - rowW / 2;
+        var pi = WebLook.Centred(root, "Petal", x0 + 14, 114, 28, 28).gameObject.AddComponent<RawImage>();
+        pi.texture = Resources.Load<Texture2D>("Icons/purse-petal");
+        pi.raycastTarget = false;
+        WebLook.Box((RectTransform)count.transform, x0 + 28 + 6 * Z, 97, cw + 4, 33);
+        WebLook.Box((RectTransform)unit.transform, x0 + 28 + 6 * Z + cw + 10 * Z, 105, uw + 8, 16);
+    }
+
+    // ---- The search: skills whose name or words match lit, the rest dimmed ----
+
+    static string search = "";
+    readonly List<(CanvasGroup group, string words)> nodeLooks = new List<(CanvasGroup, string)>();
+
+    /// <summary>
+    /// The search (.up-search) at the top right: a capsule of white glass ringed by a fine line, a lens and SEARCH in
+    /// faint capitals; typing dims every skill whose name and words don't hold it (straight on the page: no redraw).
+    /// </summary>
+    void Search()
+    {
+        var box = WebLook.Rounded(root, "Search", new Color(1, 1, 1, 0.75f), 999);
+        box.sprite = Hud.Rounded;
+        box.type = Image.Type.Sliced;
+        box.pixelsPerUnitMultiplier = 22f / 19.5f;
+        box.raycastTarget = true;
+        WebLook.Box(box.rectTransform, 1264, 20, 310, 39);
+        WebLook.Shadow(box, 0, 0, Color.clear, 19.5f, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.14f));
+        var lens = WebLook.Centred(box.transform, "Lens", 27, 19.5f, 20, 20).gameObject.AddComponent<RawImage>();
+        lens.texture = Lens();
+        lens.color = Look.InkFaint;
+        lens.raycastTarget = false;
+        var area = WebLook.Box(box.transform, "Text", 46, 0, 247, 39);
+        area.gameObject.AddComponent<RectMask2D>();
+        var hint = WebLook.Words(area, "SEARCH", 0.66f * 16 * Z, 0.14f, Look.InkFaint, true, 500, TextAlignmentOptions.Left);
+        var text = WebLook.Words(area, "", 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
+        text.richText = false;
+        text.fontStyle = FontStyles.UpperCase;
+        var field = box.gameObject.AddComponent<TMP_InputField>();
+        field.textViewport = area;
+        field.richText = false;
+        field.textComponent = text;
+        field.placeholder = hint;
+        field.text = search;
+        field.onValueChanged.AddListener(v => { search = v; Dim(); });
+        Dim();
+    }
+
+    /// <summary>The skills shown lit or dimmed by the search (none: all as they are).</summary>
+    void Dim()
+    {
+        string term = search.Trim().ToLowerInvariant();
+        foreach (var (group, words) in nodeLooks)
+            if (group != null) group.alpha = term.Length == 0 || words.Contains(term) ? 1 : 0.18f;
+    }
+
+    static Texture2D lens;
+
+    /// <summary>The search's lens (its 24-square SVG: a circle 6.5 round (10.5, 10.5), a handle to (20.5, 20.5)), white to tint.</summary>
+    static Texture2D Lens()
+    {
+        if (lens != null) return lens;
+        const int S = 48;
+        lens = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        float k = S / 24f, w = 1.6f * k / 2;
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                var p = new Vector2((x + 0.5f) / k, 24 - (y + 0.5f) / k);
+                float ring = Mathf.Abs((p - new Vector2(10.5f, 10.5f)).magnitude - 6.5f) * k;
+                var a = new Vector2(15.5f, 15.5f);
+                var d = new Vector2(5, 5);
+                float t = Mathf.Clamp01(Vector2.Dot(p - a, d) / d.sqrMagnitude);
+                float handle = (p - (a + d * t)).magnitude * k;
+                lens.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(w - Mathf.Min(ring, handle) + 0.5f)));
+            }
+        lens.Apply();
+        return lens;
     }
 
     // ---- The flower, its petals filling in their branches' colours ----
@@ -264,11 +354,12 @@ public class StellariView : MonoBehaviour
         r.anchorMin = r.anchorMax = new Vector2(0.5f, 0);
         r.pivot = new Vector2(0, 0.5f);
         r.anchoredPosition = p;
-        r.sizeDelta = new Vector2(d.magnitude, 1.4f);
+        r.sizeDelta = new Vector2(d.magnitude, 1.2f * Z);
         r.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
         var img = r.gameObject.AddComponent<RawImage>();
         img.raycastTarget = false;
-        if (lit) { img.texture = Texture2D.whiteTexture; img.color = new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.55f); }
+        // (Learnt: solid, in the branch's colour at three quarters; else dashed pale grey.)
+        if (lit) { img.texture = Texture2D.whiteTexture; var c = Hex(Shown.colour); img.color = new Color(c.r, c.g, c.b, 0.75f); }
         else
         {
             img.texture = Dash;
@@ -286,92 +377,245 @@ public class StellariView : MonoBehaviour
         int had = Mathf.Max(0, level - placed.Count(x => x == u.Id));
         bool maxed = level >= u.Max, open = Meta.UpgradeOpen(meta, u.Id);
         string why = maxed ? null : Meta.BuyUpgradeProblem(meta, u.Id);
-        float size = tier == 3 ? 40 : 30;
+        L.skills.TryGetValue(u.Id, out var look);
+        string vals = look != null ? look.say[Mathf.Max(level, 1) - 1] : u.Text;
+        // (A skill in the tree, styles.css .up-tree: no disc, a mote of light in its branch's colour, brighter and
+        // wider the more is learnt; a fine ring of its levels round it; one to take now, a dashed ring turning slowly
+        // round it; a capstone larger, a faint ring inside it. Not yet open: grey and faded.)
+        var bc = Hex(L.branches.FirstOrDefault(b => b.g == u.Group)?.colour ?? "#8d93a8");
+        var mc = open ? bc : Rgb(0xaab0bf);
+        float lv = (float)level / Mathf.Max(1, u.Max);
+        float size = (tier == 3 ? 40 : 30) * Z;
         var n = Hud.Rect(sky, u.Id);
         n.anchorMin = n.anchorMax = new Vector2(0.5f, 0);
         n.pivot = new Vector2(0.5f, 0.5f);
         n.anchoredPosition = At(pos[u.Id]);
         n.sizeDelta = new Vector2(size, size);
-        if (u.Id == tipFor) n.localScale = Vector3.one * 1.12f;
-        // (A capstone: a faint ring round it.)
-        if (tier == 3)
-        {
-            var halo = Hud.Rect(n, "Halo");
-            Hud.Fill(halo);
-            halo.offsetMin = new Vector2(-7, -7);
-            halo.offsetMax = new Vector2(7, 7);
-            var hi = halo.gameObject.AddComponent<Image>();
-            hi.sprite = Ring;
-            hi.color = new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.18f);
-            hi.raycastTarget = false;
-        }
+        var group = n.gameObject.AddComponent<CanvasGroup>();
+        nodeLooks.Add((group, $"{u.Name} {vals}".ToLowerInvariant()));
         var disc = n.gameObject.AddComponent<Image>();
         disc.sprite = Hud.Circle;
-        disc.color = open ? Color.white : Rgb(0xf6f7f9);
-        // Its ring: a segment a level (learnt inked; placed this visit blue; still to learn pale).
+        disc.color = new Color(1, 1, 1, 0);
+        if (tier == 3)
+        {
+            // (1 wide, 14% in: its box drawn so the ring's circle falls there.)
+            float d = size * 0.72f;
+            Picture(n, "Inner", ThinRing(Z * 44 / d), d * 48 / 44, new Color(mc.r, mc.g, mc.b, 0.22f));
+        }
+        // The mote: its halo spilling out, its light, breathing.
+        var mote = Hud.Rect(n, "Mote");
+        Hud.At(mote, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * size * 0.5f);
+        var halo = Picture(mote, "Halo", null, size * 0.5f * (1 + 2 * (0.4f + 0.3f * lv)), Color.white);
+        halo.texture = Glow(mc, 0.14f + 0.22f * lv);
+        var core = Picture(mote, "Light", null, size * 0.5f * 1.6f, Color.white);
+        core.texture = Mote(mc, lv);
+        var breathe = mote.gameObject.AddComponent<Breathe>();
+        breathe.Phase = nodeLooks.Count % 3 == 0 ? 1.4f : nodeLooks.Count % 3 == 1 ? 2.8f : 0;
+        breathe.Faded = open ? 1 : 0.45f;
+        breathe.Still = !open;
+        // Its ring: a segment a level (learnt in its colour, placed this visit paler, still to learn faint).
+        float ringD = size * 40 / 44f;
         float C = 2 * Mathf.PI * 22, g = u.Max > 1 ? 7 : 0;
         for (int i = 0; i < u.Max; i++)
         {
             var seg = Hud.Rect(n, "Level " + i);
-            Hud.Fill(seg);
-            seg.offsetMin = new Vector2(-3, -3);
-            seg.offsetMax = new Vector2(3, 3);
-            var s = seg.gameObject.AddComponent<Image>();
-            s.sprite = Ring;
-            s.type = Image.Type.Filled;
-            s.fillMethod = Image.FillMethod.Radial360;
-            s.fillOrigin = (int)Image.Origin360.Top;
-            s.fillClockwise = true;
-            s.fillAmount = (C / u.Max - g) / C;
-            seg.localRotation = Quaternion.Euler(0, 0, -(i * 360f / u.Max + g / C * 180));
-            s.color = i < had ? Rgb(0x3a4256) : i < level ? Rgb(0x6f9fd8) : Rgb(0xe3e6ec);
-            s.raycastTarget = false;
+            Hud.At(seg, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(ringD, ringD));
+            var img = seg.gameObject.AddComponent<Image>();
+            img.sprite = ThinRing(1.8f);
+            img.type = Image.Type.Filled;
+            img.fillMethod = Image.FillMethod.Radial360;
+            img.fillOrigin = (int)Image.Origin360.Top;
+            img.fillClockwise = true;
+            img.fillAmount = (C / u.Max - g) / C;
+            img.rectTransform.localRotation = Quaternion.Euler(0, 0, -(i * 360f / u.Max + g / C * 180));
+            img.color = !open ? new Color(170 / 255f, 176 / 255f, 191 / 255f, 0.25f) : i < had ? Color.Lerp(Color.white, bc, 0.85f) : i < level ? Color.Lerp(Color.white, bc, 0.5f) : new Color(bc.r, bc.g, bc.b, 0.18f);
+            img.raycastTarget = false;
         }
-        var mark = Hud.Rect(n, "Mark");
-        Hud.At(mark, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * (tier == 3 ? 16 : 13));
-        var mi = mark.gameObject.AddComponent<RawImage>();
-        mi.texture = Resources.Load<Texture2D>("Icons/up-" + u.Id);
-        mi.color = !open ? Rgb(0xc8ccd6) : had > 0 ? Rgb(0x3a4256) : level > had ? Rgb(0x4f7fc0) : Rgb(0x9aa1b2);
-        mi.raycastTarget = false;
-        // (One to learn now: a small dot, pulsing.)
+        // (One to take now: the dashed ring, 8 out (12 round a capstone), turning once in 28 seconds.)
         if (why == null && !maxed && level == 0)
         {
-            var dot = Hud.Rect(n, "Ready");
-            Hud.At(dot, new Vector2(1, 1), new Vector2(3, 3), new Vector2(7, 7));
-            var di = dot.gameObject.AddComponent<Image>();
-            di.sprite = Hud.Circle;
-            di.color = Rgb(0x3a4256);
-            di.raycastTarget = false;
+            var ring = Picture(n, "Ready", Dashed(), size + (tier == 3 ? 24 : 16) * Z, Color.Lerp(Rgb(0x8d93a8), bc, 0.8f));
+            ring.gameObject.AddComponent<Turning>();
         }
         if (level > had)
         {
-            var plus = Hud.Rect(n, "Plus");
-            Hud.At(plus, new Vector2(0.5f, 1), new Vector2(16, 9), new Vector2(24, 14));
-            var pi = plus.gameObject.AddComponent<Image>();
-            pi.sprite = Hud.Circle;
-            pi.type = Image.Type.Sliced;
-            pi.color = Rgb(0x6f9fd8);
-            Hud.Label(plus, $"+{level - had}", 9, Color.white, true, 500, 0);
+            // (.up-node-plus: a small pill in the branch's colour, its top at the disc's, just right of its middle.)
+            var plus = WebLook.Rounded(n, "Plus", bc, 999);
+            var t = WebLook.Words(plus.transform, $"+{level - had}", 0.55f * 16 * Z, 0, Color.white, true, 400);
+            float pw = t.GetPreferredValues(t.text).x + 10 * Z;
+            plus.sprite = Hud.Rounded;
+            plus.type = Image.Type.Sliced;
+            plus.pixelsPerUnitMultiplier = 22f / (0.55f * 16 * Z * 0.75f);
+            WebLook.Box(plus.rectTransform, size / 2 + 6 * Z, 0, pw, 0.55f * 16 * Z * 1.5f);
         }
-        // Its name to its right, and what it gives.
-        L.skills.TryGetValue(u.Id, out var look);
+        // Its name to its right, and what it gives (.up-mobile .up-node b): on a wash of the page's paper.
+        float lw = Mathf.Min(160, G / Z - 34) * Z, inner2 = lw - 12 * Z;
         var words = Hud.Rect(n, "Words");
-        Hud.At(words, new Vector2(1, 0.5f), new Vector2(4, 0), new Vector2(Mathf.Min(170, G - 34), 60));
-        words.pivot = new Vector2(0, 0.5f);
-        var nm = Hud.Label(words, u.Name.ToUpperInvariant(), 10, open ? Look.InkSoft : Rgb(0xb9bdc8), true, 500, 14, TextAlignmentOptions.BottomLeft);
-        nm.margin = new Vector4(6, 0, 0, 32);
-        var say = Hud.Label(words, look != null ? look.say[Mathf.Max(level, 1) - 1] : u.Text, 12, open ? Look.InkFaint : Rgb(0xc8ccd6), false, 400, 0, TextAlignmentOptions.TopLeft);
+        var wash = words.gameObject.AddComponent<Image>();
+        WebLook.Round(wash, 10 * Z);
+        wash.color = new Color(Look.Paper.r, Look.Paper.g, Look.Paper.b, 0.8f);
+        wash.raycastTarget = false;
+        WebLook.Shadow(wash, 0, 10 * Z, new Color(Look.Paper.r, Look.Paper.g, Look.Paper.b, 0.8f), 10 * Z);
+        var nm = WebLook.Words(words, u.Name.ToUpperInvariant(), 0.5f * 16 * Z, tier == 3 ? 0.2f : 0.14f, open ? Look.InkSoft : Rgb(0xb9bdc8), true, tier == 3 ? 700 : 500, TextAlignmentOptions.TopLeft);
+        nm.textWrappingMode = TextWrappingModes.Normal;
+        var say = WebLook.Words(words, vals, 0.6f * 16 * Z, 0, open ? Look.InkFaint : Rgb(0xc8ccd6), false, 400, TextAlignmentOptions.TopLeft);
         say.textWrappingMode = TextWrappingModes.Normal;
-        say.margin = new Vector4(6, 31, 0, 0);
+        float nh = nm.GetPreferredValues(nm.text, inner2, 0).y, sh = say.GetPreferredValues(vals, inner2, 0).y;
+        float wh = nh + 2 * Z + sh + 6 * Z;
+        words.anchorMin = words.anchorMax = new Vector2(1, 0.5f);
+        words.pivot = new Vector2(0, 0.5f);
+        words.anchoredPosition = new Vector2(4 * Z, 0);
+        words.sizeDelta = new Vector2(lw, wh);
+        WebLook.Box((RectTransform)nm.transform, 6 * Z, 3 * Z, inner2, nh + 2);
+        WebLook.Box((RectTransform)say.transform, 6 * Z, 3 * Z + nh + 2 * Z, inner2, sh + 2);
         nm.raycastTarget = say.raycastTarget = false;
         var b = n.gameObject.AddComponent<Button>();
-        b.targetGraphic = disc;
+        b.transition = Selectable.Transition.None;
         var id = u.Id;
         b.onClick.AddListener(() => Pick(id));
+        // (Under the pointer, the mote swells.)
         var hover = n.gameObject.AddComponent<EventTrigger>();
         var enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
-        enter.callback.AddListener(_ => { tipFor = id; ShowTip(CampaignView.LoadMeta(), id); });
+        enter.callback.AddListener(_ => breathe.Over = true);
         hover.triggers.Add(enter);
+        var exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
+        exit.callback.AddListener(_ => breathe.Over = false);
+        hover.triggers.Add(exit);
+    }
+
+    /// <summary>A picture centred in its parent at a size (a texture or a sprite's), tinted.</summary>
+    static RawImage Picture(RectTransform parent, string name, Sprite sprite, float size, Color tint)
+    {
+        var r = Hud.Rect(parent, name);
+        Hud.At(r, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size, size));
+        var raw = r.gameObject.AddComponent<RawImage>();
+        if (sprite != null) raw.texture = sprite.texture;
+        raw.color = tint;
+        raw.raycastTarget = false;
+        return raw;
+    }
+
+    /// <summary>A mote breathing (styles.css up-mote-breathe: 1 to 1.08 across, 0.92 to whole, over 4.2s); under the pointer, swollen.</summary>
+    public class Breathe : MonoBehaviour
+    {
+        public float Phase, Faded = 1;
+        public bool Still, Over;
+        CanvasGroup g;
+        float over;
+
+        void Update()
+        {
+            if (g == null) g = gameObject.AddComponent<CanvasGroup>();
+            float k = Still ? 0 : 0.5f - 0.5f * Mathf.Cos((Time.time + Phase) / 4.2f * Mathf.PI * 2);
+            over = Mathf.MoveTowards(over, Over ? 1 : 0, Time.deltaTime * 6);
+            transform.localScale = Vector3.one * (1 + 0.08f * k) * (1 + 0.18f * over);
+            g.alpha = Faded * (Still ? 1 : 0.92f + 0.08f * k);
+            g.blocksRaycasts = false;
+        }
+    }
+
+    /// <summary>The ready ring turning: once in 28 seconds.</summary>
+    public class Turning : MonoBehaviour
+    {
+        void Update() => transform.localRotation = Quaternion.Euler(0, 0, -Time.time / 28 * 360);
+    }
+
+    static readonly Dictionary<string, Texture2D> lights = new Dictionary<string, Texture2D>();
+
+    /// <summary>
+    /// A mote's light (styles.css .up-mote), in a box 1.6 times the mote's for its glow: white at its heart, then its
+    /// colour washed with white, then its colour fading out by 70% of the way to its box's corner; a soft glow round it.
+    /// </summary>
+    static Texture2D Mote(Color c, float lv)
+    {
+        string key = $"mote {ColorUtility.ToHtmlStringRGB(c)} {lv:0.00}";
+        if (lights.TryGetValue(key, out var t)) return t;
+        const int S = 64;
+        t = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        float s0 = 0.10f + 0.08f * lv, s1 = 0.22f + 0.10f * lv, s2 = 0.42f + 0.10f * lv;
+        var wash = Color.Lerp(Color.white, c, 0.55f);
+        float glowR = (3 + 7 * lv) / 11f;
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                // (In the mote's own measure: its edge at 1, the gradient's line its corner, 1.414 out.)
+                float d = new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f).magnitude / (S / 2f) * 1.6f;
+                float u = d / 1.4142f;
+                Color col;
+                if (u <= s0) col = Color.white;
+                else if (u <= s1) col = Color.Lerp(Color.white, wash, (u - s0) / (s1 - s0));
+                else if (u <= s2) col = Color.Lerp(wash, new Color(c.r, c.g, c.b, 0.3f + 0.4f * lv), (u - s1) / (s2 - s1));
+                else if (u <= 0.7f) col = Color.Lerp(new Color(c.r, c.g, c.b, 0.3f + 0.4f * lv), new Color(c.r, c.g, c.b, 0), (u - s2) / (0.7f - s2));
+                else col = new Color(c.r, c.g, c.b, 0);
+                // (Cut round at its edge; past it, its drop-shadow's soft glow.)
+                if (d > 1) col.a = 0;
+                float glow = 0.7f * 0.35f * Mathf.Clamp01(1 - (d - 0.6f) / Mathf.Max(0.2f, glowR));
+                float a = col.a + glow * (1 - col.a);
+                var rgb = a > 0 ? (new Color(col.r, col.g, col.b) * col.a + new Color(c.r, c.g, c.b) * glow * (1 - col.a)) / a : new Color(c.r, c.g, c.b);
+                t.SetPixel(x, y, new Color(rgb.r, rgb.g, rgb.b, a));
+            }
+        t.Apply();
+        return lights[key] = t;
+    }
+
+    /// <summary>A mote's wide faint halo (its ::after): its colour at an opacity, fading out by the edge.</summary>
+    static Texture2D Glow(Color c, float a)
+    {
+        string key = $"glow {ColorUtility.ToHtmlStringRGB(c)} {a:0.00}";
+        if (lights.TryGetValue(key, out var t)) return t;
+        const int S = 64;
+        t = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                float d = new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f).magnitude / (S / 2f);
+                t.SetPixel(x, y, new Color(c.r, c.g, c.b, a * Mathf.Clamp01(1 - d / 0.99f)));
+            }
+        t.Apply();
+        return lights[key] = t;
+    }
+
+    static readonly Dictionary<float, Sprite> thin = new Dictionary<float, Sprite>();
+
+    /// <summary>A fine white ring, its stroke `w` of a 48 square (a circle 22 round its middle).</summary>
+    static Sprite ThinRing(float w)
+    {
+        if (thin.TryGetValue(w, out var s)) return s;
+        const int S = 128;
+        var t = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        float rad = 22f / 48 * S, px = w / 48 * S;
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                float d = Mathf.Abs(new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f).magnitude - rad);
+                t.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(px / 2 - d + 0.5f)));
+            }
+        t.Apply();
+        return thin[w] = Sprite.Create(t, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f));
+    }
+
+    static Sprite dashed;
+
+    /// <summary>A dashed white ring (a 1.5 dashed border round a circle), to tint and turn.</summary>
+    static Sprite Dashed()
+    {
+        if (dashed != null) return dashed;
+        const int S = 160;
+        var t = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        float w = 2.2f / 67 * S, rad = S / 2f - w / 2 - 1;
+        int dashes = 14;
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                var p = new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f);
+                float d = Mathf.Abs(p.magnitude - rad);
+                float ang = (Mathf.Atan2(p.y, p.x) / (Mathf.PI * 2) + 1) % 1 * dashes;
+                float f = ang - Mathf.Floor(ang);
+                float on = Mathf.Clamp01(Mathf.Min(f, 0.62f - f) * rad * Mathf.PI * 2 / dashes + 0.5f);
+                t.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(w / 2 - d + 0.5f) * on));
+            }
+        t.Apply();
+        return dashed = Sprite.Create(t, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f));
     }
 
     // ---- Its tip: its name, what it gives now, what the next point makes it, its price ----
