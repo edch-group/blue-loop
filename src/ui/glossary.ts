@@ -97,7 +97,7 @@ export function glossarySections(): Record<string, [string, () => string]> {
           ['phases', 'Whose day', 'Whose day it is, and its phase.', 'l'],
           ['hero', 'Your Hero', 'Leads from its own slot.', 'r'],
           ['trap', 'Trap slot', 'One trap, face down.', 'l'],
-          ['piles', 'Deck, reserves and wreckage', 'Draw from the deck. Spent cards go to the wreckage, then one a dawn to the reserves.', 'r'],
+          ['piles', 'Deck, reserves and wreckage', 'Draw from the deck. Spent cards go to the wreckage, then two a dawn to the reserves.', 'r'],
           ['energy', 'Energy', 'Each dot pays for one point of cost.', 'r'],
           ['endDay', 'End day', 'Ends your day.', 'r'],
         ])}
@@ -186,7 +186,7 @@ export function glossarySections(): Record<string, [string, () => string]> {
           [keywordHtml('shield', undefined, { named: true }), 'Each blocks 1 heat aimed at your sun. They drop away at your dawn.'],
           ['Orbit', `Three planets face your sun in turn, ${B.orbitTurns === 1 ? 'a day' : `${B.orbitTurns} days`} each. Dead: nothing. Abundant: draw ${B.abundantDraw} more. Industrial: ${B.industrialPlays} more energy.`],
           ['Instability', `From round ${B.instabilityStartsRound}, every sun takes heat at dawn, 1 more every few rounds. Games end.`],
-          ['The wreckage', 'Every card discarded or destroyed goes to the bottom of your wreckage. Each dawn its top card moves on to your reserves.'],
+          ['The wreckage', 'Every card discarded or destroyed goes to the bottom of your wreckage. Each dawn its top two cards move on to your reserves.'],
           ['An empty deck', 'Your reserves are shuffled back in, free. With both empty, you draw nothing.'],
         ])}`,
     ],

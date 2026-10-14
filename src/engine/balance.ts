@@ -23,6 +23,8 @@ export const BALANCE = {
   /** Cards in the opening hand, and drawn at each dawn after the first. */
   openingHand: 5,
   drawPerTurn: 1,
+  /** Cards that move from the wreckage to the reserves at each of their owner's dawns, its top ones first. */
+  wreckPerDawn: 2,
   /** The most cards a player may hold: after their dusk, any more are discarded (they pick which). */
   maxHand: 5,
   /** Seats after the first: extra cards in the opening hand, and extra plays on their first day. */
