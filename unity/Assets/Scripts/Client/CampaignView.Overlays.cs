@@ -152,7 +152,9 @@ public partial class CampaignView
         // A story scene up (a companion joining, an encounter): the ship and whoever is alongside, in 3D, over the map.
         bool joining = (s.Joined?.Count ?? 0) > 0 && s.CardRewards.Count == 0 && s.Winner == null && s.Boon == null && s.Battle == null && s.Conquest == null && s.Loot == null;
         bool meeting = !joining && s.Encounter != null && s.CardRewards.Count == 0 && s.Winner == null && s.Boon == null && s.Battle == null && s.Conquest == null && s.Loot == null;
-        StoryShip(joining || meeting, meeting ? Encounters.VisitorLook(s.Encounter.Kind).Ship : null);
+        // (A research station's lab is a scene too: the lab come alongside.)
+        bool lab = !joining && !meeting && LabUp();
+        StoryShip(joining || meeting || lab, meeting ? Encounters.VisitorLook(s.Encounter.Kind).Ship : lab ? "lab" : null);
         if (s.Winner != null) { RunOver(); return; }
         if (s.Boon != null && s.Battle == null)
         {
@@ -615,82 +617,14 @@ public partial class CampaignView
         if (state.Dream != null && state.Struggle == null) Act(new CampaignAction { Type = "dream" });
     }
 
-    // ---- Stations ----
-
-    /// <summary>A space station (its armoury): what it has to sell, each with its price, bought into your deck.</summary>
-    void Armory(string nodeId)
-    {
-        CloseSheet();
-        var n = Campaign.NodeById(state, nodeId);
-        var me = Campaign.Player(state);
-        var stock = n.Station?.Cards ?? new List<string>();
-        var v = Modal($"{n.Name.ToLowerInvariant()} · space station", body =>
-        {
-            int count = Mathf.Min(stock.Count, 5);
-            for (int i = 0; i < count; i++)
-            {
-                int index = i;
-                var id = stock[i];
-                var why = Campaign.BuyProblem(state, me, n, i);
-                var b = CardPick(body, id, new Vector2((i - (count - 1) / 2f) * 176, 40), 160, false, () => { if (Apply(new CampaignAction { Type = "buyCard", NodeId = nodeId, Index = index })) Sound.Play("buy"); Armory(nodeId); Refresh(); });
-                b.interactable = why == null;
-                var price = Hud.Label(body, $"⬢ {Campaign.BuyPrice(state, me, id)}", 15, why == null ? Look.Ink : Look.InkFaint, true, 500, 4, TextAlignmentOptions.Bottom);
-                price.rectTransform.anchorMin = price.rectTransform.anchorMax = new Vector2(0.5f, 0);
-                price.rectTransform.sizeDelta = new Vector2(160, 24);
-                price.rectTransform.anchoredPosition = new Vector2((i - (count - 1) / 2f) * 176, 64);
-            }
-            var purse = Hud.Label(body, $"⬢ {me.Materials}", 16, Look.InkSoft, true, 500, 4, TextAlignmentOptions.BottomLeft);
-            purse.margin = new Vector4(10, 0, 0, 14);
-            var leave = Hud.Pill(body, "Leave", CloseSheet, 16);
-            Hud.At((RectTransform)leave.transform, new Vector2(0.5f, 0), Vector2.zero, new Vector2(190, 52));
-        }, 960, 500, sheetRoot);
-    }
-
-    /// <summary>A research station: its experiments, each a big gain at a big cost; one taken.</summary>
-    void Lab(string nodeId)
-    {
-        CloseSheet();
-        var n = Campaign.NodeById(state, nodeId);
-        var me = Campaign.Player(state);
-        var st = n.Station;
-        Modal($"{n.Name.ToLowerInvariant()} · research", body =>
-        {
-            var opts = (st.Options ?? new List<string>()).Where(id => !Research.RetiredResearch.Contains(id)).ToList();
-            for (int i = 0; i < opts.Count; i++)
-            {
-                var id = opts[i];
-                var p = Research.All.FirstOrDefault(x => x.Id == id);
-                if (p == null) continue;
-                var why = st.TakenBy != null ? (st.Project == id ? "chosen" : "gone") : Campaign.ResearchProblem(state, me, n, id);
-                var r = Hud.Glass(body, id, Color.white);
-                var rr = (RectTransform)r.transform;
-                Hud.At(rr, new Vector2(0.5f, 1), new Vector2((i - (opts.Count - 1) / 2f) * 270, 0), new Vector2(250, 250));
-                var name = Hud.Label(rr, p.Name.ToUpperInvariant(), 15, Look.Ink, true, 600, 14, TextAlignmentOptions.Top);
-                name.textWrappingMode = TextWrappingModes.Normal;
-                name.margin = new Vector4(14, 16, 14, 0);
-                var t = Hud.Label(rr, p.Text, 14, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
-                t.textWrappingMode = TextWrappingModes.Normal;
-                t.margin = new Vector4(14, 64, 14, 0);
-                var b = r.gameObject.AddComponent<Button>();
-                b.interactable = why == null;
-                b.onClick.AddListener(() => { if (Apply(new CampaignAction { Type = "research", NodeId = nodeId, ProjectId = id })) Sound.Play("upgrade"); CloseSheet(); Refresh(); });
-                if (why != null)
-                {
-                    var w = Hud.Label(rr, why, 12, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Bottom);
-                    w.textWrappingMode = TextWrappingModes.Normal;
-                    w.margin = new Vector4(14, 0, 14, 12);
-                }
-            }
-            var leave = Hud.Pill(body, "Leave", CloseSheet, 16);
-            Hud.At((RectTransform)leave.transform, new Vector2(0.5f, 0), Vector2.zero, new Vector2(190, 52));
-        }, 900, 440, sheetRoot);
-    }
-
     // ---- Sheets: a question, the settings ----
 
     void CloseSheet()
     {
-        foreach (Transform c in sheetRoot) Mats.Kill(c.gameObject);
+        // (A station's screen goes with it: CampaignView.Stations.cs.)
+        stationId = null;
+        arLooking = null;
+        foreach (var c in sheetRoot.Cast<Transform>().ToList()) if (c != null) Mats.Kill(c.gameObject);
     }
 
     void Ask(string title, string words, (string label, System.Action act) yes)
