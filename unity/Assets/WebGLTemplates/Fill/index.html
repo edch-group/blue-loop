@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{{ PRODUCT_NAME }}}</title>
+  <style>
+    /* The game fills the window, on the paper it is drawn on; a fine bar while it loads. */
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #f3f2ee; }
+    #unity-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: #f3f2ee; }
+    #loading { position: fixed; left: 50%; top: 50%; width: 220px; height: 2px; transform: translate(-50%, -50%); background: rgba(62, 66, 74, 0.12); }
+    #loading i { display: block; height: 100%; width: 0; background: #3e424a; transition: width 0.2s; }
+  </style>
+</head>
+<body>
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="loading"><i></i></div>
+  <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+  <script>
+    const bar = document.querySelector('#loading i');
+    createUnityInstance(document.querySelector('#unity-canvas'), {
+      dataUrl: 'Build/{{{ DATA_FILENAME }}}',
+      frameworkUrl: 'Build/{{{ FRAMEWORK_FILENAME }}}',
+      codeUrl: 'Build/{{{ CODE_FILENAME }}}',
+      streamingAssetsUrl: 'StreamingAssets',
+      companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+      productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+      productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+      matchWebGLToCanvasSize: true,
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+    }, (p) => { bar.style.width = `${Math.round(p * 100)}%`; })
+      .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; })
+      .catch((e) => { document.getElementById('loading').textContent = String(e); });
+  </script>
+</body>
+</html>

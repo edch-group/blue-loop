@@ -28,6 +28,7 @@ public static class BuildScript
             PlayerSettings.WebGL.decompressionFallback = true;
             PlayerSettings.WebGL.dataCaching = true;
             PlayerSettings.WebGL.nameFilesAsHashes = true;
+            PlayerSettings.WebGL.template = "PROJECT:Fill";
             PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
         }
 
