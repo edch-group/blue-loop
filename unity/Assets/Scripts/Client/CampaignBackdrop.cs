@@ -27,6 +27,24 @@ public class CampaignBackdrop : MonoBehaviour
     readonly List<(string id, CompanionPlace place, Transform t)> crew = new List<(string, CompanionPlace, Transform)>();
     CaptainShipBuild build;
     float t0;
+    string zone;
+
+    /// <summary>
+    /// Frame a section (its page open beside it), or (null) the whole ship. The Captain's: the camera close on the
+    /// Captain, at the left, a little low; everything else covered, so all that shows is the Captain on the paper.
+    /// </summary>
+    public void Focus(string section)
+    {
+        zone = section;
+        bool alone = zone == "captain";
+        landCam.enabled = !alone;
+        shipCam.clearFlags = alone ? CameraClearFlags.SolidColor : CameraClearFlags.Depth;
+        shipCam.backgroundColor = Look.Paper;
+        shipModel.gameObject.SetActive(!alone);
+        foreach (var c in crew) c.t.gameObject.SetActive(!alone);
+        Pose();
+    }
+
     /// <summary>A fixed moment to draw (the editor's screenshots, which have no clock running).</summary>
     public float? At;
 
@@ -204,19 +222,23 @@ public class CampaignBackdrop : MonoBehaviour
             Place(tr, pl.On == "air" ? S(SS) * T(spot) * RX(0.06f * Mathf.Sin(t * 0.61f)) * RZ(0.07f * Mathf.Sin(t * 0.83f + 2.6f)) * local : shipM * T(spot) * local);
         }
 
-        // The ship's camera: the whole ship, side on and a little from ahead and below, set off to the left.
+        // The ship's camera: the whole ship, side on and a little from ahead and below, set off to the left; or the
+        // Captain, close, in the middle of the left of the screen, low.
         float aspect = Mathf.Max(0.3f, ui.aspect);
         float half = Mathf.Tan(16 * Mathf.Deg2Rad);
         {
-            float dist = Mathf.Max(3.7f / (half * aspect), 2.4f / half);
-            float yaw = -0.52f + 0.03f * Mathf.Sin(t * 0.17f), pitch = 0.1f;
-            var target = new Vector3(-0.3f, 0.74f, 0);
+            float narrow = Mathf.Min(1, aspect / 1.6f);
+            bool cap = zone == "captain";
+            float dist = cap ? 2.3f / narrow : Mathf.Max(3.7f / (half * aspect), 2.4f / half);
+            float yaw = (cap ? 1.0f : -0.52f) + 0.03f * Mathf.Sin(t * 0.17f), pitch = cap ? 0.04f : 0.1f;
+            float off = cap ? -0.29f : -0.1f;
+            var target = cap ? (Vector3)(capM.MultiplyPoint(B(20, 12, 30))) + new Vector3(0, 0.1f, 0) : new Vector3(-0.3f, 0.74f, 0);
             var dir = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch));
             Aim(shipCam, target + dir * dist, target);
             shipCam.ResetProjectionMatrix();
             var p = shipCam.projectionMatrix;
             // (Set off centre by shearing the projection: the subject moves aside, its perspective unchanged.)
-            p.m02 = 0.1f * 2;
+            p.m02 = -off * 2;
             shipCam.projectionMatrix = p;
         }
     }

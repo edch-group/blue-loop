@@ -14,14 +14,14 @@ using EngineAction = BlueLoop.Engine.Action;
 public partial class BattleView
 {
     static Dictionary<string, string> words;
-    static string Words(string raw)
+    internal static string Words(string raw)
     {
         words ??= Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, string>>(Resources.Load<TextAsset>("Engine/words").text);
         if (raw == null) return "";
         return words.TryGetValue(raw, out var w) ? w : System.Text.RegularExpressions.Regex.Replace(raw, @"\{[^}]*\}", "").Trim();
     }
 
-    static string ChargeWords(string kind, int n)
+    internal static string ChargeWords(string kind, int n)
     {
         Words("");
         return words.TryGetValue($"charge:{kind}", out var w) ? w.Replace("{n}", n.ToString()) : $"{kind} {n}";

@@ -68,12 +68,13 @@ public class MenuView : MonoBehaviour
         Hud.Fill(page);
         current = name;
         // (The campaign's page over its own scene: the land, the ship on it.)
-        bool campaign = name == "campaign";
+        bool campaign = name == "campaign" || name == "captain";
         backdrop.SetActive(!campaign);
         // (The skill tree lies on the page's own paper, without the hub's glow.)
         backdrop.transform.Find("Glow")?.gameObject.SetActive(name != "stellari");
         if (campaign && scene == null) scene = CampaignBackdrop.Make(cam, transform);
         if (!campaign && scene != null) { Mats.Kill(scene.gameObject); scene = null; }
+        if (scene != null) scene.Focus(name == "captain" ? "captain" : null);
         switch (name)
         {
             case "hub": Hub(); break;
@@ -84,6 +85,7 @@ public class MenuView : MonoBehaviour
             case "challenges": ChallengesView.Make(page, this); break;
             case "campaign": CampaignMenu(); break;
             case "stellari": StellariView.Make(page, this); break;
+            case "captain": CrewView.Make(page, this); break;
             default: Title(); break;
         }
     }
@@ -248,7 +250,7 @@ public class MenuView : MonoBehaviour
             di.color = new Color(1, 1, 1, 0.8f);
             var l = Hud.Label(r, $"{name}\n<size=75%><color=#9aa0ac>{sub}</color></size>", 18, Look.InkSoft, true, 500, 20, TextAlignmentOptions.Left);
             l.margin = new Vector4(80, 0, 0, 0);
-            r.gameObject.AddComponent<Button>().onClick.AddListener(() => { if (name == "THE STELLARI") Show("stellari"); else Soon(name.ToLowerInvariant()); });
+            r.gameObject.AddComponent<Button>().onClick.AddListener(() => { if (name == "THE STELLARI") Show("stellari"); else if (name == "THE CAPTAIN") Show("captain"); else Soon(name.ToLowerInvariant()); });
         }
         var saved = CampaignView.Saved();
         var begin = Hud.Pill(page, saved != null ? "Continue run" : "Begin run", () => App.Instance.Run(saved ?? CampaignView.NewRun()), 18, Color.white);
