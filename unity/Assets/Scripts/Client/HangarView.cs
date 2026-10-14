@@ -51,9 +51,9 @@ public class HangarView : MonoBehaviour
         Hud.Fill(marks);
         foreach (var sl in Parts.ShipSlots)
         {
-            fitted.TryGetValue(sl.Id, out var on);
-            var part = Parts.ShipPart(on);
-            string state = pick != null && fits.Contains(sl.Id) && on != pick ? "lit" : pick != null ? "dim" : part != null ? "fitted" : "empty";
+            fitted.TryGetValue(sl.Id, out var there);
+            var part = Parts.ShipPart(there);
+            string state = pick != null && fits.Contains(sl.Id) && there != pick ? "lit" : pick != null ? "dim" : part != null ? "fitted" : "empty";
             var m = Hud.Rect(marks, sl.Id);
             m.anchorMin = m.anchorMax = new Vector2(0.5f, 0.5f);
             m.sizeDelta = new Vector2(30, 30);
