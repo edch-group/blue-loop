@@ -59,7 +59,6 @@ public class TutorialView : MonoBehaviour
         var linesRect = Hud.Rect(root, "Links");
         Hud.At(linesRect, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1600, 1000));
         var lines = linesRect.gameObject.AddComponent<UiLines>();
-        lines.raycastTarget = false;
         var gold = new Color(0.84f, 0.7f, 0.37f);
         var root0 = Pt("sun") + new Vector2(0, -9 / 64f * 768);
         lines.Add(new List<Vector2> { root0, Pt("sun") }, gold, 3);

@@ -76,7 +76,9 @@ public static class BuildScript
         {
             var menu = app.Menu(page);
             app.MenuCam.targetTexture = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };
-            foreach (var t in menu.GetComponentsInChildren<TMPro.TMP_Text>(true)) t.ForceMeshUpdate();
+            // (Twice: glyphs added to the atlas by later labels would leave the earlier ones' meshes stale.)
+            for (int pass = 0; pass < 2; pass++)
+                foreach (var t in menu.GetComponentsInChildren<TMPro.TMP_Text>(true)) t.ForceMeshUpdate(true);
             Shot(app.MenuCam, Path.Combine(dir, $"menu-{page}.png"));
         }
     }

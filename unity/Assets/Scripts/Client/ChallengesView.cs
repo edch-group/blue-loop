@@ -112,7 +112,12 @@ public class ChallengesView : MonoBehaviour
                         check.margin = new Vector4(0, 8, 12, 0);
                     }
                     var id = c.Id;
-                    tile.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("hover"); picked = picked == id ? null : id; Draw(); });
+                    var tb = tile.gameObject.AddComponent<Button>();
+                    var cb = tb.colors;
+                    cb.disabledColor = Color.white;
+                    cb.highlightedColor = new Color(0.97f, 0.98f, 1f);
+                    tb.colors = cb;
+                    tb.onClick.AddListener(() => { Sound.Play("hover"); picked = picked == id ? null : id; Draw(); });
                 }
                 y -= th + 13;
             }

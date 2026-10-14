@@ -39,9 +39,13 @@ public static class Look
     {
         if (fonts.TryGetValue(file, out var f)) return f;
         var ttf = Resources.Load<Font>("Fonts/" + file);
-        f = ttf != null ? TMP_FontAsset.CreateFontAsset(ttf, 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 1024, 1024) : null;
+        // (Atlases that grow into more pages as glyphs are added, so a long page of words never runs out of room.)
+        f = ttf != null ? TMP_FontAsset.CreateFontAsset(ttf, 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic, true) : null;
         if (f != null) f.name = file;
         fonts[file] = f;
+        // (Signs the game's faces lack, ✦ ⟁ ✓ × and the like, from small fallback faces.)
+        if (f != null && !file.StartsWith("Symbols"))
+            f.fallbackFontAssetTable = new List<TMP_FontAsset> { Font("Symbols"), Font("Symbols2") }.FindAll(x => x != null);
         return f;
     }
 

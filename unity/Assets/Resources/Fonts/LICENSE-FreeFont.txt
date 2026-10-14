@@ -1,0 +1,1 @@
+Symbols2.ttf: two glyphs from GNU FreeFont (FreeSans), GPLv3 with the font exception.
