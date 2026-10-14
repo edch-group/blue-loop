@@ -235,8 +235,10 @@ public partial class CampaignView
     {
         if (go == null) return;
         var made = new HashSet<Material>();
+        // (Never a label's: its material is its font's own, shared by every word in that face, which would be left
+        // drawing with none, in the error shader's pink.)
         foreach (var r in go.GetComponentsInChildren<Renderer>(true))
-            if (r.sharedMaterial != null) made.Add(r.sharedMaterial);
+            if (r.sharedMaterial != null && r.GetComponentInParent<TMPro.TMP_Text>() == null) made.Add(r.sharedMaterial);
         foreach (var m in made) Mats.Kill(m);
         Mats.Kill(go);
     }
