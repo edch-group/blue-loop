@@ -435,19 +435,30 @@ describe('attacks and dimming', () => {
     }
   });
 
-  it("takes a hit back on the attacker's own defence (Sturdy), never its slot's", () => {
+  it("takes a hit back's attack on its own defence (Sturdy), never its slot's; a Sting gets past it", () => {
     let s = twoPlayer();
     const [relay] = give(s.players[0], ['plasma_relay'], 'tableau');
     relay.slot = 2; // the middle slot: defence 3 that an attacker out of it does not have
     relay.health = 5;
     const [veil] = give(s.players[1], ['stinging_veil'], 'tableau');
     veil.health = 5;
-    const back = counterDamage(s, s.players[1], veil); // Sting 3, and Barbed (Vorthane) 1
+    const back = counterDamage(s, s.players[1], veil); // Sting 3, and Barbed (Vorthane) 1: all Sting, no attack
     s = applyAction(s, { type: 'attack', attackerUid: relay.uid, targetUid: veil.uid });
     const after = s.players[0].tableau.find((c) => c.uid === relay.uid)!;
-    // Its Sturdy 1 takes 1, its health the rest; the middle slot's 3 does nothing.
-    expect(after.health).toBe(5 - (back - 1));
-    expect(after.dented).toBe(1);
+    // All of it Sting: its Sturdy 1 stops none of it.
+    expect(after.health).toBe(5 - back);
+    expect(after.dented ?? 0).toBe(0);
+    // An attacker hit back by an attack: its Sturdy takes some of that.
+    let t = twoPlayer();
+    const [r2] = give(t.players[0], ['plasma_relay'], 'tableau');
+    r2.health = 9;
+    const [lancer] = give(t.players[1], ['helio_lancer'], 'tableau');
+    lancer.health = 9;
+    const hit = counterDamage(t, t.players[1], lancer);
+    t = applyAction(t, { type: 'attack', attackerUid: r2.uid, targetUid: lancer.uid });
+    const r2after = t.players[0].tableau.find((c) => c.uid === r2.uid)!;
+    expect(r2after.dented).toBe(1);
+    expect(r2after.health).toBe(9 - (hit - 1));
   });
 
   it('sends cards that do nothing once played straight to the discard pile, taking no slot', () => {

@@ -3331,12 +3331,14 @@ function strike(state: GameState, p: PlayerState, card: CardInstance, targetUid:
   }
   if (back > 0 && p.tableau.includes(card)) {
     // An attacker out of its slot has no slot defence: only its own (Sturdy, and its race's) takes the blow first.
+    // (Its attack only: a Sting gets past defence [direction: cards weren't taking sting damage], as strikeCard has it.
+    // A Sturdy attacker soaked the whole of it.)
+    const atk = cardAttack(state, rival, victim), sting = back - atk;
     const own = Math.max(0, cardSturdy(card));
-    const absorbed = Math.min(back, own, cardDefence(p, card));
+    const absorbed = Math.min(Math.max(0, atk), own, cardDefence(p, card));
     if (absorbed > 0) card.dented = (card.dented ?? 0) + absorbed;
     card.health = Math.max(0, (card.health ?? 0) - (back - absorbed));
     // (Where the blow comes from, in words: its attack and its Sting, each named.)
-    const atk = cardAttack(state, rival, victim), sting = back - atk;
     const from = [atk > 0 ? `its attack ${atk}` : '', sting > 0 ? `Sting ${sting}` : ''].filter(Boolean).join(' and ');
     log(state, `${cardDef(victim.defId).name} hits back for ${from}: ${name} takes ${back}${absorbed ? ` (${absorbed} on its own defence)` : ''} (health ${card.health}).`);
     if (card.health <= 0) {

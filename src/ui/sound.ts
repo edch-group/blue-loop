@@ -812,10 +812,13 @@ class SoundBoard {
       };
       this.thrustNodes = n;
     }
+    // (Swelling in from the first moment [direction: it cut in halfway through itself, loud and abrupt]: an
+    // exponential ramp up from silence stays unheard for most of its time, then leaps; this eases straight in. And
+    // quieter than it was.)
     const t = c.currentTime;
     n.gain.gain.cancelScheduledValues(t);
     n.gain.gain.setValueAtTime(Math.max(n.gain.gain.value, 0.0001), t);
-    n.gain.gain.exponentialRampToValueAtTime(0.13, t + 0.7);
+    n.gain.gain.setTargetAtTime(0.065, t, 0.2);
   }
 
   /**
