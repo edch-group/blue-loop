@@ -123,7 +123,7 @@ public class ShopView : MonoBehaviour
             var colour = c.Flux != null ? new Color(0.427f, 0.435f, 0.816f) : isNew ? Look.Good : Look.InkSoft;
             var t = Hud.Label(slot, tag, 12, colour, true, isNew ? 700 : 500, 14, TextAlignmentOptions.Bottom);
             t.margin = new Vector4(-10, 0, -10, 4);
-            reveal.Cards.Add(slot.gameObject.AddComponent<CanvasGroup>());
+            reveal.Shown.Add(slot.gameObject.AddComponent<CanvasGroup>());
         }
         // The wrapper, over the cards, falling away.
         var pack = Hud.Rect(root, "Wrapper");
@@ -144,7 +144,7 @@ public class ShopView : MonoBehaviour
 /// <summary>A booster's reveal (styles.css pack-drop, booster-reveal): the wrapper drops and fades, then the cards rise in one by one.</summary>
 public class BoosterReveal : MonoBehaviour
 {
-    public readonly List<CanvasGroup> Cards = new List<CanvasGroup>();
+    public readonly List<CanvasGroup> Shown = new List<CanvasGroup>();
     public CanvasGroup Pack;
     float start;
     Vector2 packAt;
@@ -171,9 +171,9 @@ public class BoosterReveal : MonoBehaviour
             r.localScale = Vector3.one * (1 - 0.1f * k);
             if (t > 1.1f) Pack.gameObject.SetActive(false);
         }
-        for (int i = 0; i < Cards.Count; i++)
+        for (int i = 0; i < Shown.Count; i++)
         {
-            var g = Cards[i];
+            var g = Shown[i];
             if (g == null) continue;
             float k = Mathf.Clamp01((t - 0.65f - i * 0.16f) / 0.55f);
             float e = 1 - (1 - k) * (1 - k) * (1 - k);

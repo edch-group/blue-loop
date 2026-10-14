@@ -82,6 +82,8 @@ public class MenuView : MonoBehaviour
             case "quickplay": Quickplay(); break;
             case "collection": BuilderView.Make(page, this); break;
             case "shop": ShopView.Make(page, this); break;
+            // (A starter open in the builder, as its screenshot shows it.)
+            case "deck": BuilderView.Make(page, this, Decks.Presets[0]); break;
             case "glossary": GlossaryView.Make(page, this); break;
             case "tutorial": TutorialView.Make(page, this); break;
             case "challenges": ChallengesView.Make(page, this); break;

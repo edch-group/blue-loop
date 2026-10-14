@@ -79,8 +79,8 @@ public static class Decks
 
     static void Write(List<Saved> decks) => Store.Write(Key, decks);
 
-    /// <summary>Every deck on offer: the presets first, then the player's own that they hold the cards for.</summary>
-    public static List<Saved> All() => Presets.Concat(Custom().Where(d => Progression.OwnsDeck(Profile.Me.Collection, d.Cards))).ToList();
+    /// <summary>Every deck on offer: the presets first, then the player's own (legal ones, built from cards they own).</summary>
+    public static List<Saved> All() => Presets.Concat(Custom().Where(d => DeckRules.DeckProblems(d.Cards, Modes.ModeOf(d)).Count == 0 && Progression.OwnsDeck(Profile.Me.Collection, d.Cards))).ToList();
 
     public static Saved ById(string id) => Presets.Concat(Custom()).FirstOrDefault(d => d.Id == id);
 
