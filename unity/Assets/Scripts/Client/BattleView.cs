@@ -100,6 +100,15 @@ public class BattleView : MonoBehaviour
         Refresh();
     }
 
+    /// <summary>Show a battle as it stands (a state set up elsewhere: a lesson, a puzzle, a picture).</summary>
+    public void Load(GameState s)
+    {
+        state = s;
+        Board.Viewer = you;
+        Clear();
+        Refresh();
+    }
+
     // ---- The loop ----
 
     void Update()

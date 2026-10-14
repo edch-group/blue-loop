@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -60,6 +61,12 @@ public static class BuildScript
         battle.Settle();
         Shot(cam, Path.Combine(dir, "battle-3.png"));
         Debug.Log($"Screenshots: day {battle.State.TurnNumber}, {moves} moves, winner {battle.State.WinnerId ?? "none yet"}");
+        // The glossary's board (scripts/glossary-shots.mjs), set out the same, to set beside src/assets/glossary/board.jpg.
+        battle.Autoplay = false;
+        battle.NewBattle(7);
+        battle.Load(GlossaryBoard(battle.State));
+        battle.Settle();
+        Shot(cam, Path.Combine(dir, "battle-glossary.png"));
         // The menu's pages.
         UnityEngine.Object.DestroyImmediate(battle.Board.gameObject);
         UnityEngine.Object.DestroyImmediate(cam.gameObject);
@@ -72,6 +79,38 @@ public static class BuildScript
             foreach (var t in menu.GetComponentsInChildren<TMPro.TMP_Text>(true)) t.ForceMeshUpdate();
             Shot(app.MenuCam, Path.Combine(dir, $"menu-{page}.png"));
         }
+    }
+
+    /// <summary>The board the web glossary photographs: both suns, Heroes, armed cards, a Guard, a trap set, shields, a hand.</summary>
+    static BlueLoop.Engine.GameState GlossaryBoard(BlueLoop.Engine.GameState s)
+    {
+        int n = 0;
+        BlueLoop.Engine.CardInstance Card(string defId, int? slot = null, int? health = null) => new BlueLoop.Engine.CardInstance { Uid = $"gl{n++}", DefId = defId, Slot = slot, Health = health };
+        var me = s.Players[0];
+        var foe = s.Players[1];
+        me.Name = "You";
+        foe.Name = "Your rival";
+        me.Heat = 7;
+        me.Shields = 2;
+        me.TurnsTaken = 3;
+        s.Round = 3;
+        s.TurnNumber = 5;
+        s.ActivePlayerIndex = 0;
+        me.PlaysLeft = 3;
+        me.DawnChoices = null;
+        me.Tableau = new System.Collections.Generic.List<BlueLoop.Engine.CardInstance> { Card("ignition_protocol", -1, 5), Card("helio_lancer", 1, 2), Card("halo_ward", 2, 1), Card("aureline_vanguard", 3, 3) };
+        me.Lightspeed = Card("ink_cloud");
+        me.Hand = new System.Collections.Generic.List<BlueLoop.Engine.CardInstance> { Card("coronal_lance"), Card("cryo_vault"), Card("sunforge") };
+        me.Deck = Enumerable.Range(0, 18).Select(_ => Card("helio_lancer")).ToList();
+        me.Discard = new System.Collections.Generic.List<BlueLoop.Engine.CardInstance> { Card("coronal_lance") };
+        foe.Heat = 12;
+        foe.Tableau = new System.Collections.Generic.List<BlueLoop.Engine.CardInstance> { Card("war_council", -1, 5), Card("p_prism_blade", 1, 2), Card("p_bell_sentry", 2, 1), Card("shard_reactor", 3, 3) };
+        foe.Hand = new System.Collections.Generic.List<BlueLoop.Engine.CardInstance> { Card("helio_lancer"), Card("helio_lancer") };
+        foe.Deck = Enumerable.Range(0, 16).Select(_ => Card("helio_lancer")).ToList();
+        foe.Discard = new System.Collections.Generic.List<BlueLoop.Engine.CardInstance>();
+        foe.Lightspeed = null;
+        foreach (var p in s.Players) p.Wreck = new System.Collections.Generic.List<BlueLoop.Engine.CardInstance>();
+        return s;
     }
 
     static void Shot(Camera cam, string path)
