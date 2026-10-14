@@ -931,7 +931,7 @@ describe('recovery and removal', () => {
     me.discard.push(ember);
     give(me, ['salvage_drone']);
     const bo = s.players[1].heat;
-    expect(() => play(s, 'salvage_drone')).toThrow(/discard/);
+    expect(() => play(s, 'salvage_drone')).toThrow(/reserves/);
     s = play(s, 'salvage_drone', { recoverUid: ember.uid });
     expect(s.players[0].hand.some((c) => c.uid === ember.uid)).toBe(true);
     expect(s.players[1].heat).toBe(bo + 1);

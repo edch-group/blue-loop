@@ -97,7 +97,7 @@ export function glossarySections(): Record<string, [string, () => string]> {
           ['phases', 'Whose day', 'Whose day it is, and its phase.', 'l'],
           ['hero', 'Your Hero', 'Leads from its own slot.', 'r'],
           ['trap', 'Trap slot', 'One trap, face down.', 'l'],
-          ['piles', 'Deck and discard', 'Draw from one, spent cards go to the other.', 'r'],
+          ['piles', 'Deck, reserves and wreckage', 'Draw from the deck. Spent cards go to the wreckage, then one a dawn to the reserves.', 'r'],
           ['energy', 'Energy', 'Each dot pays for one point of cost.', 'r'],
           ['endDay', 'End day', 'Ends your day.', 'r'],
         ])}
@@ -127,7 +127,7 @@ export function glossarySections(): Record<string, [string, () => string]> {
           ['Cost', 'You get energy each day. Playing a card spends its cost.'],
           ['Attack', 'Once a day, a card with attack can strike your rival\'s sun or one of their cards.'],
           ['Defence', `What a card in play can shrug off. It comes from its slot (${B.slotDefence.join(' · ')}, left to right; the Hero's slot ${B.commandSlotDefence}) plus any ${kw('sturdy', '1')} of its own.`],
-          ['Stability', 'A card\'s health. Hits past its defence take stability off. At 0 the card goes to your discard pile.'],
+          ['Stability', 'A card\'s health. Hits past its defence take stability off. At 0 the card goes to your wreckage.'],
           ['Keywords', 'Hover a keyword on a card, or open the card, to read it. Every keyword is in the keywords section.'],
         ])}`,
     ],
@@ -162,7 +162,7 @@ export function glossarySections(): Record<string, [string, () => string]> {
         ])}
         ${terms([
           ['Attacking a sun', 'Its attack lands as heat on the sun. Shields soak up heat first, 1 each.'],
-          ['Attacking a card', `The hit wears its defence first. Wear lasts: only ${kw('repair', '1')} mends it, and it stays in the slot if the card leaves. Past its defence, the hit takes stability. At 0 the card goes to the discard pile.`],
+          ['Attacking a card', `The hit wears its defence first. Wear lasts: only ${kw('repair', '1')} mends it, and it stays in the slot if the card leaves. Past its defence, the hit takes stability. At 0 the card goes to the wreckage.`],
           ['Hitting back', `A card that is attacked hits back with its own attack and any ${kw('sting', '1')}. That wears the attacker the same way.`],
           ['Guard', `While they have a ${kw('guard')} in play, your attacks must hit a Guard. Heat aimed by a card you play, or by your Hero, goes where you choose.`],
           ['Removal', `${kw('destroy', '2')} and the like only reach cards with that much defence or less.`],
@@ -186,8 +186,8 @@ export function glossarySections(): Record<string, [string, () => string]> {
           [keywordHtml('shield', undefined, { named: true }), 'Each blocks 1 heat aimed at your sun. They drop away at your dawn.'],
           ['Orbit', `Three planets face your sun in turn, ${B.orbitTurns === 1 ? 'a day' : `${B.orbitTurns} days`} each. Dead: nothing. Abundant: draw ${B.abundantDraw} more. Industrial: ${B.industrialPlays} more energy.`],
           ['Instability', `From round ${B.instabilityStartsRound}, every sun takes heat at dawn, 1 more every few rounds. Games end.`],
-          ['The wreckage', 'Every card discarded or destroyed goes to the bottom of your wreckage. Each dawn its top card moves on to your discard pile.'],
-          ['An empty deck', 'Your discard pile is shuffled back in, free. With both empty, you draw nothing.'],
+          ['The wreckage', 'Every card discarded or destroyed goes to the bottom of your wreckage. Each dawn its top card moves on to your reserves.'],
+          ['An empty deck', 'Your reserves are shuffled back in, free. With both empty, you draw nothing.'],
         ])}`,
     ],
     types: [
@@ -197,7 +197,7 @@ export function glossarySections(): Record<string, [string, () => string]> {
         <p class="gl-lead">The type is written across the top of every card.</p>
         ${terms([
           [`${kindDot('unit')}Entity`, 'Stays in your tableau. Attacks once a day if it has attack. Its dawn and dusk effects run every day.'],
-          [`${kindDot('surge')}Technology`, 'Does its thing as it is played, then goes to your discard pile.'],
+          [`${kindDot('surge')}Technology`, 'Does its thing as it is played, then goes to your wreckage.'],
           [`${kindDot('relic')}Relic`, `Stays, with no attack: a lasting effect. ${kw('brittle')}.`],
           [`${kindDot('command')}Hero`, `One per ${B.cardsPerCommand} cards in a deck. Leads from its own slot. Once a day: its ability, or an attack.`],
           [`${kindDot('global')}Global`, 'Changes the table for both players. One at a time.'],
