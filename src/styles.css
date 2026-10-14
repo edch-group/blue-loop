@@ -6058,7 +6058,7 @@ body:has(.game-result) .dock { visibility: hidden; }
 /* Read close up (the inspector, the stage): its words at the foot, over the dark of the picture's fade, its kind just
    above its name. */
 .card.card-full:not(.card-table) { justify-content: flex-end; }
-.card.card-full:not(.card-table) .card-kind { position: relative; order: -1; align-self: flex-start; margin: 0 0 calc(var(--cw) * 0.01); text-align: left; padding: 0; color: #ffb070; font-size: max(9px, calc(var(--cw) * 0.04)); letter-spacing: 0.22em; }
+.card.card-full:not(.card-table) .card-kind { position: relative; order: -1; align-self: flex-start; margin: 0 0 calc(var(--cw) * 0.01); text-align: left; padding: 0; color: #ffb070; font-size: calc(var(--cw) * 0.04); letter-spacing: 0.22em; }
 .card.card-full:not(.card-table) .card-action { margin-top: 0; }
 /* (Its words run higher up the card than on the board: the picture's fade to dark starts higher to carry them.) */
 .card.card-full:not(.card-table)::after { background: linear-gradient(180deg, rgba(10, 4, 6, 0.3) 0%, transparent 16%, rgba(10, 4, 6, 0.55) 38%, rgba(10, 4, 6, 0.9) 58%, rgba(10, 4, 6, 0.97) 100%); }
@@ -6128,7 +6128,7 @@ body:has(.game-result) .dock { visibility: hidden; }
 /* On a full-art card read close up, its type sits in the flow just above its name (not pinned to the card's top
    edge, where the picture is), in the parts' amber. */
 .card.card-full:not(.card-table) .card-kind .card-type {
-  position: static; transform: none; height: auto; padding: 0; font-size: max(9px, calc(var(--cw) * 0.04)); letter-spacing: 0.22em; color: #ffb070;
+  position: static; transform: none; height: auto; padding: 0; font-size: calc(var(--cw) * 0.04); letter-spacing: 0.22em; color: #ffb070;
 }
 /* On a phone there is no room for a strip of readable chips over every card: on the whole board they are not shown
    at all, and zoomed onto a tableau (the eye buttons), where the cards are twice the size, they come back, readable.
