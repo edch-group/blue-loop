@@ -31,6 +31,7 @@ void Check(string name, bool ok, string detail = "")
     Check($"decks round trip ({CardData.Decks.Count})", decksBack == null, decksBack);
     Cards.LoadRules(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/rules.json")));
     Builds.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/builds.json")));
+    World.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/world.json")));
 }
 
 // Built cards: fused, marked, the Captain's builds and the crew's, each as the TypeScript engine builds it.
@@ -133,6 +134,9 @@ void Check(string name, bool ok, string detail = "")
         Check("checker sees a difference", JsonDiff.First(g["steps"][0]["state"], g["steps"][1]["state"]) != null);
     }
 }
+
+// The world around the battles: story, races, rifts, modes, encounters, research, ship parts, lessons and puzzles.
+WorldChecks.Run(Check);
 
 Console.WriteLine(failed == 0 ? "All passed." : $"{failed} failed.");
 return failed == 0 ? 0 : 1;

@@ -34,7 +34,8 @@
     "export-engine": "vite-node scripts/export-engine.ts",
     "record-battles": "vite-node scripts/record-battles.ts",
     "record-builds": "vite-node scripts/record-builds.ts",
-    "record-runs": "vite-node scripts/record-runs.ts"
+    "record-runs": "vite-node scripts/record-runs.ts",
+    "record-world": "vite-node scripts/record-world.ts"
   },
   "build": {
     "appId": "com.coronalmassgames.blueloop",

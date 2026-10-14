@@ -51,7 +51,7 @@ export const GENERALS: string[][] = [
 ];
 
 /** Why each race marches on the Heart. */
-const MOTIVE: string[] = [
+export const MOTIVE: string[] = [
   "The Aureline were the flower's first keepers. They tended it in the Heart's light for an age and named it Vitalia, the life-giver. Then they lost it, and the war that followed nearly wiped them out. What is left of them is coming home.",
   "The Xel'Naru keep every memory of their people in living crystal. The crystal needs light. In the dark, they forget, and then they are gone.",
   "The Vorthane's oceans are freezing from the surface down. The tide fleets have nowhere left to sail but out, and in, towards the Heart.",
@@ -99,7 +99,7 @@ export const HERO_BIOS: Record<string, string> = {
 };
 
 /** What a general says on taking command (and on first meeting a rival). */
-const GENERAL_LINES: Record<string, { join: string; taunt: string }> = {
+export const GENERAL_LINES: Record<string, { join: string; taunt: string }> = {
   command_directive: { join: 'Solarch Veyra stands with you. We lost Vitalia once. We will not lose her again.', taunt: 'Vitalia was ours before your star was lit. Turn back.' },
   ignition_protocol: { join: 'Sol-Marshal Aurex. Point me at something, and watch it burn.', taunt: 'Every star can be made to blaze. Yours will be first.' },
   empress_solenne: { join: 'I am Solenne, last of the line that kept Vitalia. I have waited long enough. Kneel, and follow.', taunt: 'You stand between the Empress and the flower my mothers tended. Move.' },
