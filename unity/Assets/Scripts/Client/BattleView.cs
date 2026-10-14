@@ -773,12 +773,12 @@ public partial class BattleView : MonoBehaviour
         foreach (Transform c in inspector) Mats.Kill(c.gameObject);
         inspector.gameObject.SetActive(true);
         var veil = inspector.gameObject.GetComponent<Image>() ?? inspector.gameObject.AddComponent<Image>();
-        veil.color = new Color(0.95f, 0.95f, 0.94f, 0.82f);
+        veil.color = new Color(240 / 255f, 240 / 255f, 238 / 255f, 0.78f);
         var btn = inspector.gameObject.GetComponent<Button>() ?? inspector.gameObject.AddComponent<Button>();
         btn.onClick.RemoveAllListeners();
         btn.onClick.AddListener(() => inspector.gameObject.SetActive(false));
         var face = Hud.Rect(inspector, "Face");
-        Hud.At(face, new Vector2(0.5f, 0.5f), new Vector2(-170, 20), new Vector2(460, 644));
+        Hud.At(face, new Vector2(0.5f, 0.5f), new Vector2(-205, 30), new Vector2(406, 568));
         var raw = face.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(v.DefId, false);
         raw.raycastTarget = false;
@@ -798,11 +798,12 @@ public partial class BattleView : MonoBehaviour
             if (card.Frozen == true) lines.Add("Frozen");
         }
         var info = Hud.Glass(inspector, "Info", Look.GlassStrong);
-        Hud.At((RectTransform)info.transform, new Vector2(0.5f, 0.5f), new Vector2(270, 120), new Vector2(380, 60 + 40 * lines.Count));
+        Hud.At((RectTransform)info.transform, new Vector2(0.5f, 0.5f), new Vector2(219, 30 + 145), new Vector2(406, 60 + 40 * lines.Count));
         var t = Hud.Label(info.transform, string.Join("\n", lines), 24, Look.Ink, false, 500, 0, TextAlignmentOptions.TopLeft);
         t.margin = new Vector4(24, 20, 24, 20);
-        var hint = Hud.Label(inspector, "TAP ANYWHERE TO CLOSE", 18, Look.InkSoft, true, 500, 14, TextAlignmentOptions.Bottom);
-        hint.margin = new Vector4(0, 0, 0, 40);
+        // (Under it, as the web's inspector sheet: a way to close it.)
+        var close = WhiteButton(inspector, "Close", () => inspector.gameObject.SetActive(false), 15);
+        Hud.At((RectTransform)close.transform, new Vector2(0.5f, 0.5f), new Vector2(0, -300), new Vector2(150, 50));
     }
 
     // ---- The screen's own layer ----
