@@ -43,14 +43,20 @@ public static class BuildScript
     {
         Directory.CreateDirectory(dir);
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        var battle = Boot.Create(out var cam);
-        cam.targetTexture = new RenderTexture((int)BattleScreen.W, (int)BattleScreen.H, 24);
+        EngineData.Ensure();
+        var battle = BattleView.Make();
+        var cam = battle.Cam;
+        cam.targetTexture = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };
+        battle.Autoplay = true;
         battle.NewBattle(42);
+        battle.Settle();
         Shot(cam, Path.Combine(dir, "battle-1.png"));
         int moves = 0;
-        while (battle.State.TurnNumber < 6 && battle.State.WinnerId == null && moves++ < 400) battle.Step();
+        while (battle.State.TurnNumber < 7 && battle.State.WinnerId == null && moves++ < 400) battle.Step();
+        battle.Settle();
         Shot(cam, Path.Combine(dir, "battle-2.png"));
-        while (battle.State.TurnNumber < 12 && battle.State.WinnerId == null && moves++ < 800) battle.Step();
+        while (battle.State.TurnNumber < 13 && battle.State.WinnerId == null && moves++ < 800) battle.Step();
+        battle.Settle();
         Shot(cam, Path.Combine(dir, "battle-3.png"));
         Debug.Log($"Screenshots: day {battle.State.TurnNumber}, {moves} moves, winner {battle.State.WinnerId ?? "none yet"}");
     }
