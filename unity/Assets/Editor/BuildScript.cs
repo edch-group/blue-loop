@@ -1,57 +1,71 @@
 using System;
+using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-/// <summary>The CI build: a scene made here (a camera, a light, a cube that saves a screenshot), built for Linux.</summary>
+/// <summary>
+/// The CI build: screenshots of a battle (the AI playing both sides, stepped here in the editor), then the player:
+/// one empty scene (the game builds itself from code at start: see Boot), for whichever platform was asked for.
+/// </summary>
 public static class BuildScript
 {
-    /// <summary>The camera's view, rendered here in the editor and saved (the CI's look at the work).</summary>
-    public static void Shot(Camera cam, string path)
-    {
-        var rt = new RenderTexture(1280, 720, 24);
-        cam.targetTexture = rt;
-        cam.Render();
-        RenderTexture.active = rt;
-        var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false);
-        tex.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0);
-        tex.Apply();
-        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
-        System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
-        cam.targetTexture = null;
-        RenderTexture.active = null;
-        Debug.Log("Shot saved: " + path + " (" + SystemInfo.graphicsDeviceType + ")");
-    }
-
     public static void Build()
     {
+        try { Shots("ci"); }
+        catch (Exception e) { Debug.LogError("Screenshots failed: " + e); }
+
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        var cam = new GameObject("Camera").AddComponent<Camera>();
-        cam.tag = "MainCamera";
-        cam.transform.position = new Vector3(0, 1.2f, -3.5f);
-        cam.transform.LookAt(Vector3.zero);
-        cam.backgroundColor = new Color(0.09f, 0.1f, 0.14f);
-        cam.clearFlags = CameraClearFlags.SolidColor;
-        var light = new GameObject("Light").AddComponent<Light>();
-        light.type = LightType.Directional;
-        light.transform.rotation = Quaternion.Euler(50, -30, 0);
-        var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        cube.AddComponent<Snap>();
-        System.IO.Directory.CreateDirectory("Assets/Scenes");
-        EditorSceneManager.SaveScene(scene, "Assets/Scenes/Test.unity");
-        Shot(cam, "ci/shot.png");
+        Directory.CreateDirectory("Assets/Scenes");
+        EditorSceneManager.SaveScene(scene, "Assets/Scenes/Main.unity");
+        PlayerSettings.productName = "Blue Loop";
+        PlayerSettings.defaultScreenWidth = 1600;
+        PlayerSettings.defaultScreenHeight = 900;
+        PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
+        PlayerSettings.resizableWindow = true;
 
         var args = Environment.GetCommandLineArgs();
-        var output = "build/StandaloneLinux64/Game";
+        var output = "build/Game";
         for (int i = 0; i < args.Length - 1; i++) if (args[i] == "-customBuildPath") output = args[i + 1];
+        var target = EditorUserBuildSettings.activeBuildTarget;
         var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
         {
-            scenes = new[] { "Assets/Scenes/Test.unity" },
+            scenes = new[] { "Assets/Scenes/Main.unity" },
             locationPathName = output,
-            target = BuildTarget.StandaloneLinux64,
+            target = target,
             options = BuildOptions.None,
         });
-        Debug.Log("Build: " + report.summary.result + " -> " + output);
+        Debug.Log($"Build {target}: {report.summary.result} -> {output}");
         if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded) EditorApplication.Exit(1);
+    }
+
+    static void Shots(string dir)
+    {
+        Directory.CreateDirectory(dir);
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        var battle = Boot.Create(out var cam);
+        cam.targetTexture = new RenderTexture((int)BattleScreen.W, (int)BattleScreen.H, 24);
+        battle.NewBattle(42);
+        Shot(cam, Path.Combine(dir, "battle-1.png"));
+        int moves = 0;
+        while (battle.State.TurnNumber < 6 && battle.State.WinnerId == null && moves++ < 400) battle.Step();
+        Shot(cam, Path.Combine(dir, "battle-2.png"));
+        while (battle.State.TurnNumber < 12 && battle.State.WinnerId == null && moves++ < 800) battle.Step();
+        Shot(cam, Path.Combine(dir, "battle-3.png"));
+        Debug.Log($"Screenshots: day {battle.State.TurnNumber}, {moves} moves, winner {battle.State.WinnerId ?? "none yet"}");
+    }
+
+    static void Shot(Camera cam, string path)
+    {
+        Canvas.ForceUpdateCanvases();
+        var rt = cam.targetTexture;
+        cam.Render();
+        RenderTexture.active = rt;
+        var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);
+        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+        tex.Apply();
+        File.WriteAllBytes(path, tex.EncodeToPNG());
+        RenderTexture.active = null;
+        Debug.Log("Saved " + path);
     }
 }

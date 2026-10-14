@@ -724,6 +724,35 @@ namespace BlueLoop.Engine
             return best;
         }
 
+        // ---- For a player's own moves (the battle screen): the AI's judgement lent to a human's choice ----
+
+        /// <summary>Every way the active side could play this card from hand now.</summary>
+        public static List<Action> PlaysFor(GameState state, string cardUid) =>
+            CandidatePlays(state, Game.ActivePlayer(state)).Where(a => a.CardUid == cardUid && a.ChillUid == null && a.FaceDown != true).ToList();
+
+        /// <summary>Of these moves, the one the AI thinks leaves the side moving best off (null if none can be made).</summary>
+        public static Action BestOf(GameState state, IEnumerable<Action> options)
+        {
+            var me = Game.ActivePlayer(state);
+            var view = Game.Clone(state);
+            view.NoReactions = true;
+            foreach (var p in view.Players) if (p.Id != me.Id) p.Lightspeed = null;
+            Action best = null;
+            double top = double.NegativeInfinity;
+            foreach (var a in options)
+            {
+                GameState next;
+                try { next = SettleChoices(Game.Apply(view, a), me.Id); }
+                catch (Exception) { continue; }
+                double v = Evaluate(next, me.Id);
+                if (best == null || v > top) { best = a; top = v; }
+            }
+            return best;
+        }
+
+        /// <summary>The answer the AI would give to the first dawn choice waiting on the side moving.</summary>
+        public static Action DawnChoiceFor(GameState state) => DawnPick(state, Game.ActivePlayer(state));
+
         static GameState SettleChoices(GameState state, string id)
         {
             var s = state;

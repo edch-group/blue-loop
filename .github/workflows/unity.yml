@@ -1,6 +1,6 @@
-# Builds the Unity project (unity/) with the Personal licence held as repository secrets (UNITY_LICENSE,
-# UNITY_EMAIL, UNITY_PASSWORD), renders a screenshot in the editor as it builds, and commits it back to
-# unity/ci/shot.png, so the work can be seen without a Unity install.
+# Builds the Unity project (unity/) for macOS with the Personal licence held as repository secrets (UNITY_LICENSE,
+# UNITY_EMAIL, UNITY_PASSWORD). The build renders screenshots of a battle in the editor and commits them back to
+# unity/ci/, so the work can be seen without a Unity install; the Mac app is uploaded as the run's artifact.
 name: Unity
 
 on:
@@ -32,11 +32,17 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           projectPath: unity
-          targetPlatform: StandaloneLinux64
+          targetPlatform: StandaloneOSX
           buildMethod: BuildScript.Build
           buildName: Game
-      - name: Screenshot
-        run: ls -la unity/ci || echo 'no screenshot'
+      - name: Package the Mac app
+        run: |
+          ls -la unity/ci || echo 'no screenshots'
+          sudo tar -czf BlueLoop-mac.tar.gz -C build/StandaloneOSX .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlueLoop-mac
+          path: BlueLoop-mac.tar.gz
       - name: Commit screenshot
         run: |
           git config user.name 'github-actions[bot]'
