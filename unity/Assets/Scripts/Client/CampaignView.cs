@@ -87,13 +87,12 @@ public partial class CampaignView : MonoBehaviour
         Cam = new GameObject("Map camera").AddComponent<Camera>();
         Cam.transform.SetParent(transform, false);
         Cam.clearFlags = CameraClearFlags.SolidColor;
-        Cam.backgroundColor = new Color(0.975f, 0.975f, 0.97f);
+        Cam.backgroundColor = new Color(0.957f, 0.953f, 0.937f);
         Cam.fieldOfView = 34;
         Cam.nearClipPlane = 0.1f;
         Cam.farClipPlane = 200;
         world = new GameObject("World").transform;
         world.SetParent(transform, false);
-        Floor();
         hud = Hud.Canvas(Cam);
         hud.transform.SetParent(transform, false);
         top = Hud.Rect(hud.transform, "Top");
@@ -110,41 +109,150 @@ public partial class CampaignView : MonoBehaviour
         Refresh();
     }
 
-    /// <summary>The paper floor, rolling gently, its grid drawn on it, reaching to the horizon.</summary>
-    void Floor()
+    // (The web's map, laid on its world: MAP_K world units a map pixel, centred; this world is the web's scaled up
+    // by G, its z flipped.)
+    const float StripWidth = 4.4f;
+    static float MapK => StripWidth / Campaign.T.MapWidth;
+    static float G => Scale / MapK;
+    static readonly string[] GalaxyCodes = { null, "blackHole", "pulsar", "meteors", "nebula", "darkMatter" };
+    Material groundMat;
+    string groundKey;
+
+    /// <summary>The web's world position of a map point (x, z), in its units.</summary>
+    static Vector2 Web(double x, double y) => new Vector2((float)(x - Campaign.T.MapWidth / 2.0) * MapK, (float)(y - Campaign.T.MapHeight / 2.0) * MapK);
+
+    /// <summary>
+    /// The ground (nebula3d.ts): this universe's land, its hills rising and falling with the route, channels cleared
+    /// along the routes. The first galaxy lies on the campaign menu's own land (a straight line west to east).
+    /// </summary>
+    void Ground()
     {
-        var go = new GameObject("Floor");
-        go.transform.SetParent(world, false);
-        var mf = go.AddComponent<MeshFilter>();
-        var mr = go.AddComponent<MeshRenderer>();
-        const int n = 160;
-        const float size = 90;
-        var verts = new Vector3[(n + 1) * (n + 1)];
-        var tris = new int[n * n * 6];
-        for (int z = 0; z <= n; z++)
-            for (int x = 0; x <= n; x++)
-                verts[z * (n + 1) + x] = new Vector3((x / (float)n - 0.5f) * size, -0.6f, (z / (float)n - 0.5f) * size);
-        int t = 0;
-        for (int z = 0; z < n; z++)
-            for (int x = 0; x < n; x++)
+        bool menuLand = state.Universe == 1 && state.Rift == null;
+        // (Built once a galaxy: after that only its collapse changes.)
+        var key = $"{state.Universe}|{state.Rift?.Kind}|{(state.Nodes.Count > 0 ? state.Nodes[0].Name : "")}";
+        var old = world.Find("Ground");
+        if (old != null && key == groundKey) { Collapse(menuLand); return; }
+        if (old != null) Mats.Kill(old.gameObject);
+        groundKey = key;
+        var strip = new BlueLoop.Models.Strip();
+        double seed;
+        if (menuLand)
+        {
+            seed = 77017;
+            for (int i = 0; i < 13; i++) strip.Nodes.Add(new double[] { -6 + i, 0 });
+            for (int i = 1; i < 13; i++) strip.Routes.Add(new double[] { -7 + i, 0, -6 + i, 0 });
+        }
+        else
+        {
+            int sd = unchecked(state.Universe * 7919);
+            foreach (var ch in state.Nodes.Count > 0 ? state.Nodes[0].Name ?? "" : "") sd = unchecked((sd ^ ch) * 16777619);
+            seed = sd;
+            foreach (var n in state.Nodes)
             {
-                int i = z * (n + 1) + x;
-                tris[t++] = i; tris[t++] = i + n + 1; tris[t++] = i + 1;
-                tris[t++] = i + 1; tris[t++] = i + n + 1; tris[t++] = i + n + 2;
+                var w = Web(n.X, n.Y);
+                strip.Nodes.Add(new double[] { w.x, w.y, n.Col ?? 0, (n.H ?? 0) * MapK });
             }
+            foreach (var n in state.Nodes)
+                foreach (var to in n.Links)
+                {
+                    var m = state.Nodes.FirstOrDefault(x => x.Id == to);
+                    if (m == null || string.CompareOrdinal(n.Id, to) >= 0) continue;
+                    Vector2 a = Web(n.X, n.Y), b = Web(m.X, m.Y);
+                    strip.Routes.Add(new double[] { a.x, a.y, b.x, b.y });
+                }
+        }
+        var shape = BlueLoop.Models.NebulaGeometry.BuildNebula(seed, strip);
+        var go = new GameObject("Ground");
+        go.transform.SetParent(world, false);
+        go.transform.localScale = new Vector3(G, G, -G);
+        go.AddComponent<MeshFilter>().sharedMesh = GroundMesh(shape.Ground);
+        groundMat = Mats.Make("Ground");
+        groundMat.SetFloat("_G", G);
+        go.AddComponent<MeshRenderer>().sharedMaterial = groundMat;
+        Collapse(menuLand);
+    }
+
+    static Mesh GroundMesh(float[] g)
+    {
+        const int S = BlueLoop.Models.NebulaGeometry.GroundStride;
+        int count = g.Length / S;
+        var pos = new Vector3[count];
+        var norm = new Vector3[count];
+        var bary = new List<Vector3>(count);
+        var edge = new List<Vector3>(count);
+        var shard = new List<Vector4>(count);
+        var prog = new List<Vector2>(count);
+        var tris = new int[count];
+        for (int i = 0; i < count; i++)
+        {
+            int o = i * S;
+            pos[i] = new Vector3(g[o], g[o + 1], g[o + 2]);
+            norm[i] = new Vector3(g[o + 3], g[o + 4], g[o + 5]);
+            bary.Add(new Vector3(g[o + 6], g[o + 7], g[o + 8]));
+            edge.Add(new Vector3(g[o + 9], g[o + 10], g[o + 11]));
+            shard.Add(new Vector4(g[o + 12], g[o + 13], g[o + 14], g[o + 15]));
+            prog.Add(new Vector2(g[o + 16], 0));
+            tris[i] = i;
+        }
         var m = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
-        m.vertices = verts;
+        m.vertices = pos;
+        m.normals = norm;
+        m.SetUVs(0, bary);
+        m.SetUVs(1, edge);
+        m.SetUVs(2, shard);
+        m.SetUVs(3, prog);
         m.triangles = tris;
-        m.RecalculateNormals();
-        m.bounds = new Bounds(Vector3.zero, new Vector3(size, 10, size));
-        mf.sharedMesh = m;
-        mr.sharedMaterial = Mats.Make("Floor");
+        // (Falling shards drop well below the land: never culled as they go.)
+        m.RecalculateBounds();
+        var b = m.bounds;
+        b.Expand(new Vector3(0, 30, 0));
+        m.bounds = b;
+        return m;
+    }
+
+    /// <summary>
+    /// Instability (setCollapse): the land gone up to where the collapsed columns end, cracked up to the collapsing.
+    /// On the menu's land, by how far east each column's systems stand.
+    /// </summary>
+    void Collapse(bool menuLand)
+    {
+        if (groundMat == null) return;
+        float Edge(System.Func<CampaignNode, bool> f)
+        {
+            var cols = state.Nodes.Where(f).Select(n => n.Col ?? 0).ToList();
+            return cols.Count > 0 ? cols.Max() + 0.5f : -50;
+        }
+        float gone = Edge(n => n.Collapsed == true);
+        float crack = Mathf.Max(gone, Edge(n => n.Collapsing == true));
+        if (menuLand)
+        {
+            float colX = Campaign.T.ColGap * MapK;
+            float? Xs(int k)
+            {
+                var ns = state.Nodes.Where(n => (n.Col ?? 0) == k && n.Challenge == null).ToList();
+                return ns.Count > 0 ? ns.Average(n => Web(n.X, n.Y).x) : (float?)null;
+            }
+            float ColX(float c)
+            {
+                if (c < -9) return c;
+                int k = Mathf.FloorToInt(c);
+                float f = c - k;
+                float a = Xs(k) ?? (Xs(0) ?? 0) + k * colX, b = Xs(k + 1) ?? a + colX;
+                return a + (b - a) * f;
+            }
+            gone = Mathf.Max(ColX(gone), -50);
+            crack = Mathf.Max(ColX(crack), -50);
+        }
+        groundMat.SetFloat("_Gone", gone);
+        groundMat.SetFloat("_Crack", crack);
+        groundMat.SetFloat("_Galaxy", System.Array.IndexOf(GalaxyCodes, state.Galaxy) is int g && g > 0 ? g : 0);
     }
 
     Vector3 NodePos(string id)
     {
         var n = Campaign.NodeById(state, id);
-        return new Vector3((float)n.X * Scale, (float)(n.H ?? 0) * 0.6f, -(float)n.Y * Scale);
+        var w = Web(n.X, n.Y);
+        return new Vector3(w.x * G, (float)(n.H ?? 0) * Scale, -w.y * G);
     }
 
     // ---- The map: its systems and routes ----
@@ -155,9 +263,7 @@ public partial class CampaignView : MonoBehaviour
         nodes.Clear();
         mapRoot = new GameObject("Map").transform;
         mapRoot.SetParent(world, false);
-        // (Centred on the strip, so the floor's haze is drawn round it.)
-        var c = new Vector3(state.Nodes.Average(n => (float)n.X) * Scale, 0, -state.Nodes.Average(n => (float)n.Y) * Scale);
-        world.Find("Floor").localPosition = new Vector3(c.x, 0, c.z);
+        Ground();
         // The routes: each once.
         foreach (var n in state.Nodes.Where(n => n.Vanished != true))
             foreach (var to in n.Links)
@@ -262,7 +368,7 @@ public partial class CampaignView : MonoBehaviour
         if (state.Galaxy == null || Campaign.D.Galaxies == null || !Campaign.D.Galaxies.TryGetValue(state.Galaxy, out var g)) return;
         var first = state.Nodes.OrderBy(n => n.X).First();
         // (Before the strip's start, angled up along it, clear of its routes.)
-        var at = NodePos(first.Id) + new Vector3(-5.2f, -0.55f, 0.9f);
+        var at = NodePos(first.Id) + new Vector3(-5.2f, 0.03f, 0.9f);
         var name = Mats.FlatText("Galaxy", mapRoot, g.Name.ToUpperInvariant(), 4.6f, Look.InkSoft, true, 400, 30, TextAlignmentOptions.Left);
         name.rectTransform.sizeDelta = new Vector2(10, 1.2f);
         name.transform.localPosition = at;
