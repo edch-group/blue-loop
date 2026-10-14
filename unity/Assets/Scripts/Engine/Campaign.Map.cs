@@ -30,7 +30,7 @@ namespace BlueLoop.Engine
 
         public static CampaignState Create(CampaignSetup setup)
         {
-            var run = setup.Run ?? Meta.RunBonusesFor(null);
+            var run = setup.Run ?? Meta.RunBonuses(null);
             var s = new CampaignState
             {
                 Version = 6,

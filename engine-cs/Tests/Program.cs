@@ -33,6 +33,7 @@ void Check(string name, bool ok, string detail = "")
     Builds.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/builds.json")));
     Heroes.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/heroes.json")));
     Ascent.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/ascent.json")));
+    Meta.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/meta.json")));
 }
 
 // Growth: heroes, boons, modules, ascent, relic rolls, the companions, the Captain and progression, each function called
@@ -48,6 +49,19 @@ void Check(string name, bool ok, string detail = "")
     }
     World.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(Repo.Root, "unity/Assets/Resources/Engine/world.json")));
     Campaign.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(Repo.Root, "unity/Assets/Resources/Engine/campaign.json")));
+}
+
+// The loop's lasting progress: every meta.ts function called on random saves, old and new, and random walks of buying
+// into them (npx vite-node scripts/record-meta.ts), returning the same.
+{
+    var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/meta.json");
+    if (!System.IO.File.Exists(path)) Console.WriteLine("skip meta (no engine-cs/traces/meta.json: npx vite-node scripts/record-meta.ts)");
+    else
+    {
+        var (total, bad, shown) = MetaChecks.Check(Newtonsoft.Json.Linq.JArray.Parse(System.IO.File.ReadAllText(path)));
+        foreach (var line in shown) Console.WriteLine("  " + line);
+        Check($"meta ({total} cases)", bad == 0, $"{bad} differ");
+    }
 }
 
 // Built cards: fused, marked, the Captain's builds and the crew's, each as the TypeScript engine builds it.

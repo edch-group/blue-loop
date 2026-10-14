@@ -23,6 +23,7 @@ import { RESEARCH, RESEARCH_BRANCHES, RETIRED_RESEARCH } from '../src/engine/res
 import { SHIP_PARTS, SHIP_SLOTS } from '../src/engine/parts';
 import { DREAMS } from '../src/engine/dreams-data';
 import { LESSONS } from '../src/engine/lessons';
+import { FELLOWSHIP_BOOST, HERO_UNLOCK_STARS, KINSHIP_BOOST, META_UPGRADES, STARTER_OFFERS, STARTING_RACES, TREE_PETALS, type MetaUpgrade } from '../src/engine/meta';
 
 const out = 'unity/Assets/Resources/Engine';
 mkdirSync(out, { recursive: true });
@@ -118,6 +119,21 @@ writeFileSync(
     parts: { slots: SHIP_SLOTS, parts: SHIP_PARTS },
     dreams: DREAMS,
     lessons: LESSONS,
+  }),
+);
+// The loop's lasting progress, as data (see Meta.cs): the skill tree and unlocks (each price as a base and a step a
+// level: every one is flat or rising), the cards each race can buy into its starting deck, and the small tables.
+const metaUpgradeData = ({ cost, ...u }: MetaUpgrade) => ({ ...u, costBase: cost(0), costStep: cost(1) - cost(0) });
+writeFileSync(
+  `${out}/meta.json`,
+  JSON.stringify({
+    upgrades: META_UPGRADES.map(metaUpgradeData),
+    starterOffers: STARTER_OFFERS,
+    treePetals: TREE_PETALS,
+    kinshipBoost: KINSHIP_BOOST,
+    fellowshipBoost: FELLOWSHIP_BOOST,
+    startingRaces: STARTING_RACES,
+    heroUnlockStars: HERO_UNLOCK_STARS,
   }),
 );
 console.log(`${registeredCardDefs().length} cards, ${PRESET_DECKS.length} decks → ${out}`);

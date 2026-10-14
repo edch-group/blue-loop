@@ -13,6 +13,7 @@ public static class EngineData
         Cards.Load(Text("cards"), Text("decks"), Text("rules"), Text("builds"));
         Heroes.Load(Text("heroes"));
         Ascent.Load(Text("ascent"));
+        Meta.Load(Text("meta"));
         World.Load(Text("world"));
         Campaign.Load(Text("campaign"));
         loaded = true;

@@ -294,7 +294,7 @@ namespace BlueLoop.Engine
                         foreach (var k in fitted.Keys.ToList()) if (fitted[k] == action.PartId) fitted.Remove(k);
                         fitted[action.PartSlot] = action.PartId;
                     }
-                    var run = s.Run != null ? Json.Clone(s.Run) : Meta.RunBonusesFor(null);
+                    var run = s.Run != null ? Json.Clone(s.Run) : Meta.RunBonuses(null);
                     run.Ship = Parts.ShipFit(fitted);
                     s.Run = run;
                     if (n.Station?.Kind == "armory") (n.Station.Used ??= new StationUsed()).Part = true;
