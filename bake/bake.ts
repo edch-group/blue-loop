@@ -267,3 +267,20 @@ function dbIcon(name: string, size: number): void {
   svg.setAttribute('style', `width:${size}px;height:${size}px;display:block;${fill ? 'fill:#fff;stroke:none' : 'fill:none;stroke:#fff;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round'}`);
 }
 Object.assign(window, { pack, modePic, dbIcon, dbIconNames: () => Object.keys(DB_ICONS) });
+
+// ---- The menu's backdrop (art.ts petalBackdrop): its two rings, each square about the heart, and its glow ----
+import { petalBackdrop } from '../src/ui/art';
+/** One layer of the backdrop: 'outer', 'inner' (a square about the heart, 680 of its units) or 'glow' (its whole frame). */
+function mandala(layer: string, size: number): void {
+  stage.innerHTML = `<div id="piece" style="position:relative;width:${size}px;height:${layer === 'glow' ? size * 0.9 : size}px">${petalBackdrop()}</div>`;
+  for (const svg of stage.querySelectorAll('svg')) {
+    const keep = svg.classList.contains(`petal-${layer}`);
+    if (!keep) { svg.remove(); continue; }
+    svg.setAttribute('viewBox', layer === 'glow' ? '0 -300 1000 900' : '160 -170 680 680');
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.setAttribute('style', 'position:absolute;inset:0;width:100%;height:100%;overflow:hidden');
+    for (const e of svg.querySelectorAll('ellipse, path')) (e as SVGElement).setAttribute('style', `fill:rgba(255,255,255,0.26);stroke:rgba(255,255,255,0.95);stroke-width:${layer === 'inner' ? 1 : 1.4}`);
+    svg.querySelector('.heat-core')?.remove();
+  }
+}
+Object.assign(window, { mandala });

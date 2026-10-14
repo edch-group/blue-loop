@@ -47,6 +47,12 @@ for (const kind of ['armour', 'shield', 'weapon', 'booster', 'warp'])
     await page.waitForTimeout(700);
     writeFileSync(`${out}/part-${kind}-${rarity}.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
   }
+// The menu's backdrop: its rings (turned in the game) and its glow, white on nothing, to lie over the page's paper.
+for (const layer of ['outer', 'inner', 'glow']) {
+  await page.evaluate((l) => window.mandala(l, l === 'glow' ? 1000 : 1088), layer);
+  await settle();
+  writeFileSync(`${out}/mandala-${layer}.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
+}
 await page.evaluate(() => window.currency('petal', 64));
 await settle();
 writeFileSync(`${out}/petal.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));

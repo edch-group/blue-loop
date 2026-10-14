@@ -53,13 +53,65 @@ public class MenuView : MonoBehaviour
         t.Apply();
         img.texture = t;
         img.raycastTarget = false;
+        // The Stellari behind it all (art.ts petalBackdrop, backdrop.ts): its glow from the top, and its two rings of
+        // petals, low and wide, turning slowly (one turn in three minutes; the inner ring at 0.6 of it). Framed as the
+        // web frames it: its 1000 x 900 across the screen's width, its heart 752 down.
         var glow = Hud.Rect(backdrop.transform, "Glow");
-        Hud.At(glow, new Vector2(0.5f, 1), new Vector2(0, 200), new Vector2(1500, 900));
-        var g = glow.gameObject.AddComponent<Image>();
-        g.sprite = Hud.Soft;
-        g.type = Image.Type.Sliced;
-        g.color = new Color(1, 1, 1, 0.7f);
-        g.raycastTarget = false;
+        var rings = Hud.Rect(glow, "Rings");
+        Hud.At(glow, new Vector2(0.5f, 1), Vector2.zero, new Vector2(1600, 1440));
+        var gi = glow.gameObject.AddComponent<RawImage>();
+        gi.texture = Resources.Load<Texture2D>("Icons/mandala-glow");
+        gi.raycastTarget = false;
+        Hud.At(rings, new Vector2(0.5f, 1), new Vector2(0, -752), Vector2.zero);
+        rings.pivot = new Vector2(0.5f, 0.5f);
+        foreach (var layer in new[] { "outer", "inner" })
+        {
+            var r = Hud.Rect(rings, layer);
+            Hud.At(r, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1088, 1088));
+            r.pivot = new Vector2(0.5f, 0.5f);
+            var ri = r.gameObject.AddComponent<RawImage>();
+            ri.texture = Resources.Load<Texture2D>("Icons/mandala-" + layer);
+            ri.raycastTarget = false;
+            if (layer == "outer") outerRing = r;
+            else innerRing = r;
+        }
+    }
+
+    RectTransform outerRing, innerRing;
+    float ringAngle;
+
+    void TurnRings()
+    {
+        // (Clockwise, as the web turns it: two degrees a second.)
+        ringAngle = (ringAngle + 2 * Time.deltaTime) % 1800;
+        if (outerRing != null) outerRing.localRotation = Quaternion.Euler(0, 0, -ringAngle);
+        if (innerRing != null) innerRing.localRotation = Quaternion.Euler(0, 0, -ringAngle * 0.6f);
+    }
+
+    /// <summary>
+    /// The game's name as the title block draws it (app.ts: the pearl sun over BLUE LOOP), from its baked picture: the
+    /// sun and the words placed and sized apart, as the title page and the hub each have them.
+    /// </summary>
+    void TitleBlock(float sunY, float sunSize, float wordsY, float wordsWidth)
+    {
+        // (The picture, 2752 x 628: the sun, with its glow, in its top 250 rows, 260 across; the words in rows 400 to
+        // 525, 1116 across, both centred.)
+        var tex = Resources.Load<Texture2D>("Icons/title");
+        float sk = sunSize / 260f, wk = wordsWidth / 1116f;
+        var sun = Hud.Rect(page, "Sun");
+        Hud.At(sun, new Vector2(0.5f, 1), new Vector2(0, -sunY + 125 * sk), new Vector2(752 * sk, 250 * sk));
+        sun.pivot = new Vector2(0.5f, 1);
+        var si = sun.gameObject.AddComponent<RawImage>();
+        si.texture = tex;
+        si.uvRect = new Rect(1000 / 2752f, (628 - 250) / 628f, 752 / 2752f, 250 / 628f);
+        si.raycastTarget = false;
+        var words = Hud.Rect(page, "Words");
+        Hud.At(words, new Vector2(0.5f, 1), new Vector2(0, -wordsY + 62.5f * wk), new Vector2(1156 * wk, 125 * wk));
+        words.pivot = new Vector2(0.5f, 1);
+        var wi = words.gameObject.AddComponent<RawImage>();
+        wi.texture = tex;
+        wi.uvRect = new Rect(800 / 2752f, (628 - 525) / 628f, 1156 / 2752f, 125 / 628f);
+        wi.raycastTarget = false;
     }
 
     public void Show(string name)
@@ -111,9 +163,10 @@ public class MenuView : MonoBehaviour
 
     void Title()
     {
-        Picture(page, "Icons/title", new Vector2(0.5f, 0.5f), new Vector2(0, 110), new Vector2(1376, 314));
-        var start = Hud.Pill(page, "Start", Begin, 28, Look.Ink, Color.white);
-        Hud.At((RectTransform)start.transform, new Vector2(0.5f, 0.5f), new Vector2(0, -150), new Vector2(300, 84));
+        // (As the web's: the sun 190 across at 310 down, the words 815 across at 492; start, a white pill, at 642.)
+        TitleBlock(310, 190, 492, 815);
+        var start = Hud.Pill(page, "Start", Begin, 20, Look.GlassStrong, Look.Ink);
+        Hud.At((RectTransform)start.transform, new Vector2(0.5f, 1), new Vector2(0, -611), new Vector2(262, 62));
         Studio();
     }
 
@@ -142,49 +195,49 @@ public class MenuView : MonoBehaviour
 
     void Studio()
     {
-        var foot = Hud.Label(page, "CORONAL MASS GAMES", 16, Look.InkFaint, true, 500, 30, TextAlignmentOptions.Bottom);
-        foot.margin = new Vector4(0, 0, 0, 28);
+        var foot = Hud.Label(page, "CORONAL MASS GAMES", 13, Look.InkFaint, true, 500, 30, TextAlignmentOptions.Bottom);
+        foot.margin = new Vector4(0, 0, 0, 16);
     }
 
     // ---- The hub ----
 
     void Hub()
     {
-        Picture(page, "Icons/title", new Vector2(0.5f, 1), new Vector2(0, -40), new Vector2(963, 220));
+        // (As the web's hub: the sun 80 across at 276 down, the words 390 across at 362, the five ways under them.)
+        TitleBlock(276, 80, 362, 390);
         // Shop, collection and glossary as plain links, top left.
         var links = new[] { ("shop", "Shop"), ("collection", "Collection"), ("glossary", "Glossary") };
-        // (Each as wide as its name, the next after it.)
-        float linkX = 36;
+        // (Where the web has them: each its mark, then its name.)
+        var linkAt = new[] { 33f, 178f, 404f };
         for (int i = 0; i < links.Length; i++)
         {
             var (icon, name) = links[i];
-            float linkW = 64 + name.Length * 17;
+            float linkW = 44 + name.Length * 15;
             var r = Hud.Rect(page, name);
-            Hud.At(r, new Vector2(0, 1), new Vector2(linkX, -34), new Vector2(linkW, 54));
-            linkX += linkW + 22;
+            Hud.At(r, new Vector2(0, 1), new Vector2(linkAt[i], -28), new Vector2(linkW, 44));
             var b = r.gameObject.AddComponent<Button>();
             var hit = r.gameObject.AddComponent<Image>();
             hit.color = new Color(1, 1, 1, 0);
             b.targetGraphic = hit;
             b.onClick.AddListener(() => Show(icon));
-            Picture(r, $"Icons/{icon}-small", new Vector2(0, 0.5f), new Vector2(0, 0), new Vector2(40, 40));
-            var t = Hud.Label(r, name.ToUpperInvariant(), 18, Look.InkSoft, true, 500, 12, TextAlignmentOptions.Left);
-            t.margin = new Vector4(50, 0, 0, 0);
+            Picture(r, $"Icons/{icon}-small", new Vector2(0, 0.5f), new Vector2(0, 0), new Vector2(26, 26));
+            var t = Hud.Label(r, name.ToUpperInvariant(), 16, Look.Ink, true, 500, 20, TextAlignmentOptions.Left);
+            t.margin = new Vector4(37, 0, 0, 0);
         }
         Chip(page);
-        var opts = Hud.Glass(page, "Options", Look.GlassStrong);
-        Hud.At((RectTransform)opts.transform, new Vector2(1, 1), new Vector2(-34, -26), new Vector2(84, 76));
-        opts.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); Options(); });
-        Picture(opts.transform, "Icons/options-small", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(44, 44));
+        // Options and full screen: round white buttons, top right.
+        var opts = RoundButton(page, new Vector2(-103, -12), "Icons/options-small", () => Options());
+        RoundButton(page, new Vector2(-26, -12), Screen.fullScreen ? "Icons/hud-exit-fullscreen" : "Icons/hud-fullscreen", () => { Screen.fullScreen = !Screen.fullScreen; });
 
         // The five ways to play.
         var tiles = new[] { ("campaign", "A dying universe"), ("quickplay", "Quickplay"), ("online", "Online"), ("tutorial", "Tutorial"), ("challenges", "Challenges") };
-        float w = 236, gap = 26;
+        // (The web's: 218 by 228, 246.5 apart, their tops 423 down.)
+        float w = 218, step = 246.5f;
         for (int i = 0; i < tiles.Length; i++)
         {
             var (icon, name) = tiles[i];
             var tile = Hud.Glass(page, name, Color.white);
-            Hud.At((RectTransform)tile.transform, new Vector2(0.5f, 0.5f), new Vector2((i - 2) * (w + gap), -90), new Vector2(w, 220));
+            Hud.At((RectTransform)tile.transform, new Vector2(0.5f, 1), new Vector2((i - 2) * step, -423), new Vector2(w, 228));
             var b = tile.gameObject.AddComponent<Button>();
             var colors = b.colors;
             colors.highlightedColor = new Color(0.97f, 0.98f, 1f);
@@ -198,21 +251,21 @@ public class MenuView : MonoBehaviour
                 else if (target == "online") { if (Net.Available) Show(target); else Toast("Offline."); }
                 else Soon(name);
             });
-            Picture(tile.transform, $"Icons/{icon}", new Vector2(0.5f, 0.5f), new Vector2(0, 26), new Vector2(84, 84));
-            var t = Hud.Label(tile.transform, name.ToUpperInvariant(), 19, Look.Ink, true, 700, 18, TextAlignmentOptions.Bottom);
-            t.margin = new Vector4(10, 0, 10, 44);
+            Picture(tile.transform, $"Icons/{icon}", new Vector2(0.5f, 0.5f), new Vector2(0, 25), new Vector2(50, 50));
+            var t = Hud.Label(tile.transform, name.ToUpperInvariant(), 20, Look.Ink, true, 700, 20, TextAlignmentOptions.Top);
+            t.margin = new Vector4(12, 138, 12, 0);
             t.textWrappingMode = TextWrappingModes.Normal;
             // (A run left part way: continue it, under its tile.)
             if (target == "campaign" && CampaignView.HasSave)
             {
                 var cont = Hud.Pill(page, "Continue", () => App.Instance.Run(CampaignView.Saved()), 14);
-                Hud.At((RectTransform)cont.transform, new Vector2(0.5f, 0.5f), new Vector2((i - 2) * (w + gap), -232), new Vector2(150, 44));
+                Hud.At((RectTransform)cont.transform, new Vector2(0.5f, 1), new Vector2((i - 2) * step, -666), new Vector2(150, 44));
             }
             // (A game against the AI left part way: continue it, under its tile.)
             if (target == "quickplay" && BattleView.HasSave)
             {
                 var cont = Hud.Pill(page, "Continue", () => App.Instance.Continue(), 14);
-                Hud.At((RectTransform)cont.transform, new Vector2(0.5f, 0.5f), new Vector2((i - 2) * (w + gap), -232), new Vector2(150, 44));
+                Hud.At((RectTransform)cont.transform, new Vector2(0.5f, 1), new Vector2((i - 2) * step, -666), new Vector2(150, 44));
             }
         }
         Studio();
@@ -300,18 +353,40 @@ public class MenuView : MonoBehaviour
     }
 
     /// <summary>You, top right: your name and level, your stardust and flux (the hub's chip, on the pages off it too). Tap it for your profile.</summary>
-    public void Chip(Transform parent) => Chip(parent, new Vector2(-136, -26));
+    public void Chip(Transform parent) => Chip(parent, new Vector2(-182, -18));
+
+    /// <summary>A round white button (the web's .icon-btn), its mark in the middle.</summary>
+    Button RoundButton(Transform parent, Vector2 at, string icon, System.Action act)
+    {
+        var b = Hud.Glass(parent, icon, Look.GlassStrong);
+        b.sprite = Hud.Circle;
+        b.type = Image.Type.Simple;
+        Hud.At((RectTransform)b.transform, new Vector2(1, 1), at, new Vector2(66, 66));
+        var button = b.gameObject.AddComponent<Button>();
+        button.onClick.AddListener(() => { Sound.Play("click"); act(); });
+        Picture(b.transform, icon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(30, 30));
+        return button;
+    }
 
     public void Chip(Transform parent, Vector2 at)
     {
         var me = Profile.Me;
+        // (The web's chip: a white pill, your picture at its left, your name and level, then stardust and flux.)
         var chip = Hud.Glass(parent, "You", Look.GlassStrong);
-        Hud.At((RectTransform)chip.transform, new Vector2(1, 1), at, new Vector2(330, 76));
+        Hud.At((RectTransform)chip.transform, new Vector2(1, 1), at, new Vector2(306, 56));
         chip.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); ProfileView(); });
-        var who = Hud.Label(chip.transform, $"<b>{(string.IsNullOrEmpty(me.Name) ? "Commander" : me.Name)}</b>\n<size=70%><color=#737780>LEVEL {me.Level}</color></size>", 22, Look.Ink, true, 500, 4, TextAlignmentOptions.Left);
-        who.margin = new Vector4(24, 0, 0, 0);
-        var cur = Hud.Label(chip.transform, $"✦ {me.Stardust}\n⟁ {me.Flux}", 18, Look.InkSoft, false, 500, 0, TextAlignmentOptions.Right);
-        cur.margin = new Vector4(0, 0, 22, 0);
+        var face = Hud.Rect(chip.transform, "Picture");
+        Hud.At(face, new Vector2(0, 0.5f), new Vector2(6, 0), new Vector2(44, 44));
+        var fi = face.gameObject.AddComponent<Image>();
+        fi.sprite = Hud.Circle;
+        fi.color = new Color32(0x1d, 0x1f, 0x2b, 255);
+        var who = Hud.Label(chip.transform, $"{(string.IsNullOrEmpty(me.Name) ? "Commander" : me.Name).ToUpperInvariant()}\n<size=72%><color=#9aa0ac>level {me.Level}</color></size>", 15, Look.Ink, true, 500, 10, TextAlignmentOptions.Left);
+        who.margin = new Vector4(58, 0, 120, 0);
+        var line = Hud.Rect(chip.transform, "Divider");
+        Hud.At(line, new Vector2(1, 0.5f), new Vector2(-112, 0), new Vector2(1, 30));
+        line.gameObject.AddComponent<Image>().color = new Color(0.23f, 0.26f, 0.34f, 0.12f);
+        var cur = Hud.Label(chip.transform, $"<color=#b99b5a>✦ {me.Stardust}</color>  <color=#7a6fc0>⟁ {me.Flux}</color>", 15, Look.InkSoft, true, 500, 0, TextAlignmentOptions.Right);
+        cur.margin = new Vector4(0, 0, 18, 0);
     }
 
     /// <summary>
@@ -347,6 +422,7 @@ public class MenuView : MonoBehaviour
 
     void Update()
     {
+        TurnRings();
         if (toast != null && Time.realtimeSinceStartup > toastUntil)
         {
             Mats.Kill(toast.gameObject);
