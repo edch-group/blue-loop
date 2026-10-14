@@ -215,6 +215,15 @@ public partial class CampaignView : MonoBehaviour
         var name = Mats.FlatText("Name", go.transform, "", 2.2f, Look.InkSoft, true, 500, 14);
         name.transform.localPosition = new Vector3(0, -0.1f, -0.45f);
         name.gameObject.SetActive(false);
+        // A station or a lab: its model hanging beside the star (nebula-objects.ts props).
+        if (n.Station?.Kind == "armory" || n.Station?.Kind == "research")
+        {
+            var kind = n.Station.Kind == "armory" ? BlueLoop.Models.PropKind.Station : BlueLoop.Models.PropKind.Lab;
+            var prop = ModelMesh.Make(n.Station.Kind, ModelMesh.Of("prop:" + kind, () => BlueLoop.Models.Ship3d.PropModel3d(kind)), go.transform);
+            prop.transform.localPosition = new Vector3(0.45f, 0.35f, 0.35f);
+            prop.transform.localScale = Vector3.one * 0.5f;
+            prop.AddComponent<Spin>();
+        }
         // A station or a story waiting there: a mark beside it.
         string mark = n.Station?.Kind == "armory" ? "STATION" : n.Station?.Kind == "research" ? "LAB" : n.Heart == true ? "WORMHOLE" : null;
         if (mark != null)
@@ -224,22 +233,23 @@ public partial class CampaignView : MonoBehaviour
         }
     }
 
-    /// <summary>Your ship: a sleek dark hull with its engines burning (the Captain's ship model comes with the models).</summary>
+    /// <summary>The Captain's ship as the map draws it (campaign.ts captainSpec): the parts fitted for this run (and their rarities), the Captain's level, the crew aboard.</summary>
+    BlueLoop.Models.CaptainShipSpec ShipSpec()
+    {
+        var fitted = state.Run?.Ship?.Fitted ?? new Dictionary<string, string>();
+        var rarity = fitted.ToDictionary(kv => kv.Key, kv => Parts.ShipPart(kv.Value)?.Rarity ?? "dwarf");
+        var general = Campaign.Flagship(state, state.PlayerId)?.General;
+        var b = general != null ? Captain.CaptainBuild(general) : null;
+        int level = b != null ? b.Attack + b.Stability + b.Cheaper + Mathf.Max(0, b.Abilities.Count - 1) + (b.Lead != null ? 2 : 0) : 0;
+        return new BlueLoop.Models.CaptainShipSpec { Parts = new Dictionary<string, string>(fitted), Rarity = rarity, Level = level, Crew = Campaign.CrewInDeck(state) };
+    }
+
+    /// <summary>Your ship: the Captain's own model (captain-ship.ts), the Captain on its deck, its engines burning.</summary>
     Transform MakeShip()
     {
         var root = new GameObject("Ship").transform;
-        var hull = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        Mats.Kill(hull.GetComponent<Collider>());
-        hull.transform.SetParent(root, false);
-        hull.transform.localRotation = Quaternion.Euler(0, 0, 90);
-        hull.transform.localScale = new Vector3(0.14f, 0.32f, 0.14f);
-        hull.GetComponent<Renderer>().sharedMaterial = Mats.Make("Planet", new Color(0.32f, 0.33f, 0.37f));
-        var burn = Mats.Flat("Burn", root, Mats.Make("Soft", new Color(1f, 0.7f, 0.35f, 0.8f)), 0.32f, 0.32f);
-        burn.sharedMaterial.SetFloat("_Aspect", 1);
-        burn.sharedMaterial.SetFloat("_Size", 0.12f);
-        burn.sharedMaterial.SetFloat("_Radius", 0.12f);
-        burn.sharedMaterial.SetFloat("_Soft", 0.1f);
-        burn.transform.localPosition = new Vector3(-0.36f, 0, 0);
+        var model = ModelMesh.Make("Captain's ship", ModelMesh.CaptainShipMesh(ShipSpec()), root);
+        model.transform.localScale = Vector3.one * 0.9f;
         return root;
     }
 
@@ -360,7 +370,8 @@ public partial class CampaignView : MonoBehaviour
         // (The ship turns to face its way, and flies on a gentle arc.)
         var dir = to - from;
         dir.y = 0;
-        if (dir.sqrMagnitude > 1e-4) ship.localRotation = Quaternion.LookRotation(Vector3.Cross(Vector3.up, dir.normalized) * -1, Vector3.up) * Quaternion.Euler(0, 90, 0);
+        // (The model's bow is +x: turned so it points down the route.)
+        if (dir.sqrMagnitude > 1e-4) ship.localRotation = Quaternion.FromToRotation(Vector3.right, dir.normalized);
         float t = 0, dur = Mathf.Clamp(dir.magnitude * 0.45f, 0.9f, 2.4f);
         while (t < 1)
         {
@@ -536,6 +547,9 @@ public partial class CampaignView : MonoBehaviour
         Camera();
         foreach (var t in GetComponentsInChildren<TMP_Text>(true)) t.ForceMeshUpdate(true);
     }
+
+    /// <summary>Turning slowly (a station in its orbit).</summary>
+    public class Spin : MonoBehaviour { void Update() => transform.Rotate(0, Time.deltaTime * 12, 0, Space.World); }
 
     // (Taps on the map are told by this.)
     public class NodeTag : MonoBehaviour { public string Id; }
