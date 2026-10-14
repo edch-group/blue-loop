@@ -462,7 +462,8 @@ public partial class BattleView : MonoBehaviour
         if (mineInPlay != null)
         {
             Clear();
-            if (mineInPlay.Slot == Game.CommandSlot && Game.AttackProblem(state, Me, uid, null, false) != null)
+            // (Your Hero, tapped: its abilities, its singularity and its attack to pick from.)
+            if (mineInPlay.Slot == Game.CommandSlot)
             {
                 ShowHero();
                 return;
@@ -491,6 +492,13 @@ public partial class BattleView : MonoBehaviour
     void TapSun(string playerId)
     {
         if (!MyDay || playerId == you) return;
+        // (A Hero's ability or singularity aimed: their sun, if it may be.)
+        // (Something aimed, a card from hand or a Hero's ability: their sun, where it may go there.)
+        if (picked != null && options != null && options.Any(o => Aims(o) != null))
+        {
+            var atSun = options.Where(o => Aims(o) == null).ToList();
+            if (atSun.Count > 0 && atSun.Select(o => o.SlotIndex).Distinct().Count() == 1) { Finish(atSun); return; }
+        }
         if (Dawn != null) { if (Dawn.Kind == "aim") Do(new EngineAction { Type = "dawnChoice" }); return; }
         if (attacker != null) Do(new EngineAction { Type = "attack", AttackerUid = attacker, TargetUid = null });
     }
@@ -829,57 +837,6 @@ public partial class BattleView : MonoBehaviour
         }
     }
 
-    void ShowHero()
-    {
-        foreach (Transform c in heroPanel) Mats.Kill(c.gameObject);
-        var hero = Game.CommandCard(Me);
-        if (hero == null) return;
-        heroPanel.gameObject.SetActive(true);
-        var panel = Hud.Glass(heroPanel, "Panel");
-        Hud.At((RectTransform)panel.transform, new Vector2(0.5f, 0.5f), new Vector2(0, 60), new Vector2(900, 420));
-        // The Hero's face, large, and its abilities beside it.
-        var face = Hud.Rect(panel.transform, "Face");
-        Hud.At(face, new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(260, 364));
-        var raw = face.gameObject.AddComponent<RawImage>();
-        raw.texture = Faces.Of(hero.DefId, false);
-        var abilities = Game.HeroAbilities(Me, hero, true);
-        for (int i = 0; i < abilities.Count; i++)
-        {
-            int index = i;
-            var why = Game.HeroAbilityProblem(state, Me, i);
-            var b = Hud.Pill(panel.transform, abilities[i].Name, () => UseAbility(index), 20);
-            b.interactable = why == null;
-            Hud.At((RectTransform)b.transform, new Vector2(0, 1), new Vector2(330, -40 - i * 86), new Vector2(520, 70));
-        }
-        var k = Singularities.Of(hero.DefId);
-        if (k != null)
-        {
-            var b = Hud.Pill(panel.transform, $"{k.Name}  {hero.Charge ?? 0}/{k.Need}", Unleash, 20, new Color(1f, 0.93f, 0.78f));
-            b.interactable = Game.SingularityProblem(state, Me) == null;
-            Hud.At((RectTransform)b.transform, new Vector2(0, 1), new Vector2(330, -40 - abilities.Count * 86), new Vector2(520, 70));
-        }
-        var close = Hud.Pill(panel.transform, "Close", () => { heroPanel.gameObject.SetActive(false); }, 18);
-        Hud.At((RectTransform)close.transform, new Vector2(1, 0), new Vector2(-26, 26), new Vector2(170, 58));
-    }
-
-    void UseAbility(int index)
-    {
-        var hero = Game.CommandCard(Me);
-        var opts = new List<EngineAction> { new EngineAction { Type = "heroAbility", Index = index } };
-        if (hero != null && Game.AbilityAimable(hero.DefId, index)) opts.AddRange((Game.AimChoices(state, Me).Cards ?? new List<CardInstance>()).Select(c => new EngineAction { Type = "heroAbility", Index = index, AimUid = c.Uid }));
-        var best = AI.BestOf(state, opts);
-        if (best == null) Say(Game.HeroAbilityProblem(state, Me, index) ?? "Not now.");
-        else Do(best);
-    }
-
-    void Unleash()
-    {
-        var opts = new List<EngineAction> { new EngineAction { Type = "singularity" } };
-        opts.AddRange((Game.AimChoices(state, Me).Cards ?? new List<CardInstance>()).Select(c => new EngineAction { Type = "singularity", AimUid = c.Uid }));
-        var best = AI.BestOf(state, opts);
-        if (best == null) Say(Game.SingularityProblem(state, Me) ?? "Not now.");
-        else Do(best);
-    }
 
     void GameOver()
     {

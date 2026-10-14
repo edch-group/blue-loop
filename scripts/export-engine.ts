@@ -7,7 +7,7 @@ import { CARDS, PRESET_DECKS, registeredCardDefs } from '../src/engine/cards';
 import { BOSS_CARDS, LOST_LORDS, OVERLORDS } from '../src/engine/cards-bosses';
 import { ENIGMA_CARDS } from '../src/engine/cards-enigma';
 import { COMPANIONS } from '../src/engine/companions';
-import { CAPTAIN_SINGULARITIES, SINGULARITIES, singularityLine } from '../src/engine/singularities';
+import { CAPTAIN_SINGULARITIES, CHARGE_TEXT, SINGULARITIES, singularityLine } from '../src/engine/singularities';
 import { CAPTAIN_ABILITIES, CAPTAIN_BASE, CAPTAIN_LEADS, CAPTAIN_SLOT_PRICES, CAPTAIN_STABILITY_STEP, CAPTAIN_START_ABILITY, captainSlots } from '../src/engine/captain';
 import { CAPTAIN_TITLES, GATE, TIERS } from '../src/engine/ascent';
 import { BOONS } from '../src/engine/boons';
@@ -136,4 +136,15 @@ writeFileSync(
     heroUnlockStars: HERO_UNLOCK_STARS,
   }),
 );
+// Words as a player reads them (keywords.ts plainText), by their raw text: every Hero's abilities and singularities,
+// the Captain's, and the boons' (see BattleView's hero panel).
+const rawTexts = [
+  ...registeredCardDefs().flatMap((d) => (d.abilities ?? []).map((a) => a.text)),
+  ...Object.values(SINGULARITIES).map((k) => k.text),
+  ...CAPTAIN_ABILITIES.map((a) => a.ability.text),
+  ...BOONS.map((b) => b.text),
+].filter((t): t is string => typeof t === 'string');
+// (With what each singularity's charge asks, as `charge:<kind>` with {n} for its count.)
+const chargeWords = Object.entries(CHARGE_TEXT).map(([k, f]) => [`charge:${k}`, f(424242).replace('424242', '{n}')]);
+writeFileSync(`${out}/words.json`, JSON.stringify(Object.fromEntries([...[...new Set(rawTexts)].map((t) => [t, plainText(t)]), ...chargeWords])));
 console.log(`${registeredCardDefs().length} cards, ${PRESET_DECKS.length} decks → ${out}`);
