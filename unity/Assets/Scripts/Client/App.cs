@@ -16,6 +16,8 @@ public class App : MonoBehaviour
         var go = new GameObject("App");
         var app = go.AddComponent<App>();
         Instance = app;
+        // (The account's session checked, and its economy and any newer progress taken up: Account.)
+        if (Application.isPlaying) Account.CheckIn();
         return app;
     }
 
@@ -93,6 +95,18 @@ public class App : MonoBehaviour
         battle.Cam.transform.SetParent(current.transform, true);
         battle.Board.transform.SetParent(current.transform, true);
         battle.StartPuzzle(kind, id);
+    }
+
+    /// <summary>An online game (Online): the room's view of it, seen as `you`, its moves sent to the room.</summary>
+    public BattleView OnlineBattle(GameState game, string you)
+    {
+        Clear();
+        var battle = BattleView.Make();
+        current = battle.gameObject;
+        battle.Cam.transform.SetParent(current.transform, true);
+        battle.Board.transform.SetParent(current.transform, true);
+        battle.LoadOnline(game, you);
+        return battle;
     }
 
     /// <summary>A battle between two decks (by name; unset: chosen at random), you against the AI.</summary>

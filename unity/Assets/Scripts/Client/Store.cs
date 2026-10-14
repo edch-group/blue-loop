@@ -35,6 +35,8 @@ public static class Store
         {
             // Storage unavailable: kept for this session only.
         }
+        // (Progress the account keeps goes to it shortly.)
+        Account.Touched(key);
     }
 
     public static void Remove(string key)
@@ -48,6 +50,7 @@ public static class Store
         {
             // ignore
         }
+        Account.Touched(key);
     }
 
     public static T Read<T>(string key) where T : class
