@@ -65,8 +65,8 @@ describe('the companions', () => {
     let meta = bankCompanions(emptyMeta(), ['lancer'], {}, 0);
     meta = bankCompanions(meta, [], { lancer: 200 }, 0);
     expect(companionPoints(meta, 'lancer')).toBe(companionLevel(200).level - 1);
-    meta = buyCompanion(meta, 'lancer', { kind: 'stat', stat: 'attack' });
-    meta = buyCompanion(meta, 'lancer', { kind: 'trait', id: 'charge' });
+    meta = buyCompanion(meta, 'lancer', 'atk1');
+    meta = buyCompanion(meta, 'lancer', 'charge');
     const [card] = companionCards(meta);
     expect(cardDef(card).attack).toBe(4);
     expect(cardDef(card).darkspeed).toBe(true);

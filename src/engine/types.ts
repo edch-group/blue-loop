@@ -298,6 +298,8 @@ export interface FuseBonus {
 export interface CardDef {
   /** Draw this card with another's picture (a built card: the Captain's every build shows the Captain). */
   artOf?: string;
+  /** The Captain or a companion: Astral Gates passed (ascent.ts), drawn as a glow that grows with each. */
+  ascended?: number;
   id: string;
   name: string;
   kind: CardKind;

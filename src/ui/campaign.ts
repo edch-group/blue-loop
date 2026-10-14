@@ -105,7 +105,7 @@ import {
   AFFINITY_SKILL,
   priceOf,
   captainMeta,
-  captainPrice,
+  captainGifts,
   captainBuyProblem,
   buyCaptain,
   equipCaptainAbility,
@@ -114,29 +114,34 @@ import {
   CAPTAIN_SINGULARITIES,
   CAPTAIN_START_SINGULARITY,
   CHARGE_TEXT,
-  captainSlots,
-  CAPTAIN_ABILITIES,
-  CAPTAIN_LEADS,
-  CAPTAIN_SLOT_PRICES,
-  CAPTAIN_STAT_PRICES,
-  CAPTAIN_STABILITY_STEP,
+  captainAbility,
+  captainLead,
+  CAPTAIN_START_ABILITY,
+  CAPTAIN_TREE,
+  CAPTAIN_TITLES,
+  COMPANION_TREES,
+  GATE,
+  TIERS,
+  TIER_PICKS,
+  tierPicks,
+  ascentProblem,
+  type Ascent,
+  type AscentNode,
   type CaptainBuy,
   type CaptainMeta,
-  type CaptainStat,
   type MenuSection,
   openSections,
   sectionOpen,
   companionDef,
-  companionCardId,
+  companionCards,
   companionLevel,
   companionsFound,
   companionPoints,
-  companionPrice,
+  companionProblem,
+  companionTree,
   buyCompanion,
   type CompanionId,
-  type CompanionBuy,
   type CompanionMeta,
-  type CompanionStat,
   COMPANION_IDS,
   hasCompanion,
   closingLines,
@@ -253,9 +258,6 @@ const SHIP_ICON =
  * its white disc, raised from it (light above, shadow below: styles.css .cs-emblem). Near-symmetrical.
  */
 const emblem = (body: string) => `<svg class="cs-emblem" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
-/** A skill on a tree's page (the Captain's, a companion's), and a branch of them. */
-type TreeItem = { key: string; owned: boolean; can: boolean; locked: boolean; on?: boolean; title: string; sub: string; what?: string };
-type TreeBranch = { name: string; colour: string; chain: boolean; items: TreeItem[] };
 
 const MENU_EMBLEM: Record<'captain' | 'ship' | 'stellari' | CompanionId, string> = {
   // Kaelen: a lance upright, its leaf blade, through a halo.
@@ -481,6 +483,28 @@ function partIcon(id: string): string {
 
 /** A crew member's page on the crew overlay: its tools (undo and the like), name, experience, note and tree. */
 type CrewPage = { tools: string; title: string; xp: string; note?: string; sheet: string };
+/** How a tier tree's upgrade reads: its name, what it does, its colour, whether it is in use, and (learnt) its state. */
+interface NodeLook {
+  title: string;
+  what: string;
+  colour: string;
+  on?: boolean;
+  owned: string;
+}
+/** Something a character knows from the start, at the foot of its tree. */
+interface KnownLook {
+  arg: string;
+  title: string;
+  what: string;
+  colour: string;
+  on: boolean;
+  sub: string;
+}
+/** An attack, stability or cost upgrade, as it reads. */
+function statLook(x: AscentNode): NodeLook {
+  const colour = x.give.attack ? '#d9644a' : x.give.stability ? '#d8a53c' : x.give.cheaper ? '#5cae7c' : '#8a93a8';
+  return { title: x.name, what: '', colour, owned: '' };
+}
 
 /** Who has used a station (taken its research, or traded at its dock), if anyone: the player, as it stands. */
 function stationUser(n: CampaignNode, playerId: string): string | undefined {
@@ -1092,33 +1116,24 @@ export class CampaignView {
         this.compHistory = [];
         break;
       case 'cmp-comp-pick': {
-        // (As on the Captain's tree: a tap learns it there and then; undo or clear takes it back while it is open.)
+        // (As on the Captain's tree: a tap learns it there and then, or passes the Astral Gate; undo or clear takes it
+        // back while it is open.)
         const id = this.compOpen;
         const meta = loadMeta();
         const c = id && meta.companions?.[id];
         if (!id || !c) break;
-        const [kind, key, step] = arg.split(':');
-        const buy: CompanionBuy = kind === 'stat' ? { kind: 'stat', stat: key as CompanionStat } : { kind: 'trait', id: key };
-        if (buy.kind === 'stat' && Number(step) < c[buy.stat]) break;
-        if (buy.kind === 'trait' && c.traits.includes(key)) break;
-        const fail = (why: string) => {
+        if (arg !== 'gate' && companionTree(meta, id).nodes.includes(arg)) break;
+        const why = companionProblem(meta, id, arg);
+        if (why) {
           this.host.toast(why);
           sound.error();
-        };
-        if (buy.kind === 'stat' && Number(step) > c[buy.stat]) {
-          fail('Learn the one before it first.');
-          break;
-        }
-        const price = companionPrice(meta, id, buy);
-        if (price === null) break;
-        if (price > companionPoints(meta, id)) {
-          fail(`Needs ${price} skill point${price === 1 ? '' : 's'}.`);
           break;
         }
         this.compHistory.push(c);
         this.compPlaced.push(arg);
-        saveMeta(buyCompanion(meta, id, buy));
-        sound.charge(this.compPlaced.length - 1);
+        saveMeta(buyCompanion(meta, id, arg));
+        if (arg === 'gate') sound.upgrade();
+        else sound.charge(this.compPlaced.length - 1);
         break;
       }
       case 'cmp-comp-undo':
@@ -1162,55 +1177,40 @@ export class CampaignView {
         break;
       case 'cmp-cap-pick': {
         // [direction: a skill taken when tapped once, the points all confirmed at once, as in the other skills menu]: a
-        // tap learns it there and then (undo or clear takes it back while the tree is open); a learnt ability is
-        // carried or left behind, a learnt lead led with or not.
+        // tap learns it there and then, or passes the Astral Gate (undo or clear takes it back while the tree is open);
+        // a learnt ability is carried or left behind, a learnt lead led with or not, a learnt singularity carried.
         const meta = loadMeta();
         const c = captainMeta(meta);
-        const [kind, id, step] = arg.split(':');
+        const g = captainGifts(meta);
         const fail = (why: string) => {
           this.host.toast(why);
           sound.error();
         };
-        if (kind === 'ability' && c.abilities.includes(id)) {
-          if (!c.equipped.includes(id) && c.equipped.length >= captainSlots(c.slots)) {
+        const node = CAPTAIN_TREE.find((x) => x.id === arg);
+        const ability = arg === 'start:brace' ? CAPTAIN_START_ABILITY : node && c.nodes.includes(node.id) ? node.give.ability : undefined;
+        if (ability) {
+          if (!c.equipped.includes(ability) && c.equipped.filter((a) => g.abilities.includes(a)).length >= g.slotCount) {
             fail('Every ability slot is full.');
             break;
           }
-          saveMeta(equipCaptainAbility(meta, id));
+          saveMeta(equipCaptainAbility(meta, ability));
           sound.hover();
-          requestAnimationFrame(() => this.showUpTip());
           break;
         }
-        // (A singularity learnt: chosen, the one the Captain carries.)
-        if (kind === 'sing' && (id === CAPTAIN_START_SINGULARITY || c.sings?.includes(id))) {
-          saveMeta(setCaptainSingularity(meta, id));
+        const sing = arg === 'start:wall' ? CAPTAIN_START_SINGULARITY : node && c.nodes.includes(node.id) ? node.give.sing : undefined;
+        if (sing) {
+          saveMeta(setCaptainSingularity(meta, sing));
           sound.hover();
-          requestAnimationFrame(() => this.showUpTip());
           break;
         }
-        if (kind === 'lead' && c.leads.includes(id)) {
-          saveMeta(setCaptainLead(meta, c.lead === id ? undefined : id));
+        const lead = node && c.nodes.includes(node.id) ? node.give.lead : undefined;
+        if (lead) {
+          saveMeta(setCaptainLead(meta, c.lead === lead ? undefined : lead));
           sound.hover();
-          requestAnimationFrame(() => this.showUpTip());
           break;
         }
-        let buy: CaptainBuy;
-        if (kind === 'stat') {
-          const stat = id as CaptainStat;
-          if (Number(step) < c[stat]) break;
-          if (Number(step) > c[stat]) {
-            fail('Learn the one before it first.');
-            break;
-          }
-          buy = { kind: 'stat', stat };
-        } else if (kind === 'slot') {
-          if (id === 'base' || Number(id) < c.slots) break;
-          if (Number(id) > c.slots) {
-            fail('Unlock the one before it first.');
-            break;
-          }
-          buy = { kind: 'slot' };
-        } else buy = kind === 'ability' ? { kind: 'ability', id } : kind === 'sing' ? { kind: 'sing', id } : { kind: 'lead', id };
+        if (arg.startsWith('start:') || (node && c.nodes.includes(node.id))) break;
+        const buy: CaptainBuy = arg === 'gate' ? { kind: 'gate' } : { kind: 'node', id: arg };
         const why = captainBuyProblem(meta, buy);
         if (why) {
           fail(why);
@@ -1218,9 +1218,9 @@ export class CampaignView {
         }
         this.capHistory.push(c);
         this.capPlaced.push(arg);
-        sound.charge(this.capPlaced.length - 1);
+        if (arg === 'gate') sound.upgrade();
+        else sound.charge(this.capPlaced.length - 1);
         saveMeta(buyCaptain(meta, buy));
-        requestAnimationFrame(() => this.showUpTip());
         break;
       }
       case 'cmp-cap-undo':
@@ -2084,93 +2084,43 @@ export class CampaignView {
    */
   private renderHeroPanel(meta: MetaState): CrewPage {
     const c = captainMeta(meta);
-    const placed = new Set(this.capPlaced);
+    const g = captainGifts(meta);
     const left = pointsLeft(meta);
-    // [direction: the Captain's skill tree one big upwards scroll, every skill visibly labelled; styled like the general
-    // skill tree]: his emblem at the foot, each branch climbing from it as a column of skills (its stem bent at right
-    // angles, as the tree's are), each skill a mote of light with its name and what it is beside it; the page opens at
-    // the foot and scrolls up. A tap learns a skill (or carries an ability, or leads with a lead).
-    type Branch = TreeBranch;
-    const price = (buy: CaptainBuy) => captainPrice(meta, buy);
-    const can = (buy: CaptainBuy) => !captainBuyProblem(meta, buy);
-    const cost = (buy: CaptainBuy | null) => {
-      const n = buy ? price(buy) : null;
-      return n === null ? '' : `${n} skill point${n === 1 ? '' : 's'}`;
+    // [direction: upgrades grouped into tiers, only so many in each; an Astral Gate to the next, the Captain an energy
+    // dearer and stronger for it; the tree broken into tiers, scrolling up to the higher ones]: what each upgrade is.
+    const pay = (id: string) => {
+      const a = captainAbility(id)!.ability;
+      return [a.cost ? `${a.cost} energy` : '', a.pay?.stability ? `−${a.pay.stability} stability` : '', a.pay?.selfHeat ? `{heat:${a.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ');
     };
-    const statBranch = (k: CaptainStat, name: string, colour: string, say: (n: number) => string): Branch => ({
-      name,
-      colour,
-      chain: true,
-      items: CAPTAIN_STAT_PRICES[k].map((_, i) => {
-        const owned = i < c[k], next = i === c[k];
-        const buy: CaptainBuy = { kind: 'stat', stat: k };
-        return { key: `stat:${k}:${i}`, owned, can: next && can(buy), locked: i > c[k], title: say(i + 1), sub: owned ? 'learnt' : next ? cost(buy) : 'after the one below' };
-      }),
-    });
-    const slots: Branch = {
-      name: 'ability slots',
-      colour: '#8a7fd0',
-      chain: true,
-      items: [
-        { key: 'slot:base', owned: true, can: false, locked: false, title: '1 ability slot', sub: 'learnt' },
-        ...CAPTAIN_SLOT_PRICES.map((_, i) => {
-          const owned = i < c.slots, next = i === c.slots;
-          const buy: CaptainBuy = { kind: 'slot' };
-          return { key: `slot:${i}`, owned, can: next && can(buy), locked: i > c.slots, title: `${i + 2} ability slots`, sub: owned ? 'learnt' : next ? cost(buy) : 'after the one below' };
-        }),
-      ],
+    const full = c.equipped.filter((a) => g.abilities.includes(a)).length >= g.slotCount;
+    const describe = (x: AscentNode, owned: boolean): NodeLook => {
+      if (x.give.ability) {
+        const a = captainAbility(x.give.ability)!.ability, on = c.equipped.includes(x.give.ability);
+        return { title: a.name.toLowerCase(), what: `${pay(x.give.ability) ? `${pay(x.give.ability)}: ` : ''}${a.text}`, colour: '#4fae9b', on: owned && on, owned: owned ? (on ? 'carried' : full ? 'slots full' : 'tap to carry') : '' };
+      }
+      if (x.give.lead) {
+        const l = captainLead(x.give.lead)!, on = c.lead === x.give.lead;
+        return { title: l.name.toLowerCase(), what: `leads: ${l.text}`, colour: '#c98a4b', on: owned && on, owned: owned ? (on ? 'leading' : 'tap to lead') : '' };
+      }
+      if (x.give.sing) {
+        const k = CAPTAIN_SINGULARITIES[x.give.sing], on = (c.sing ?? CAPTAIN_START_SINGULARITY) === x.give.sing;
+        return { title: k.name.toLowerCase(), what: `{sing:${k.name}}${CHARGE_TEXT[k.charge](k.need)}: ${k.text}`, colour: '#6f8fd8', on: owned && on, owned: owned ? (on ? 'carried' : 'tap to carry') : '' };
+      }
+      return statLook(x);
     };
-    const full = c.equipped.length >= captainSlots(c.slots);
-    const pay = (a: (typeof CAPTAIN_ABILITIES)[number]) =>
-      [a.ability.cost ? `${a.ability.cost} energy` : '', a.ability.pay?.stability ? `−${a.ability.pay.stability} stability` : '', a.ability.pay?.selfHeat ? `{heat:${a.ability.pay.selfHeat}} to your sun` : ''].filter(Boolean).join(', ');
-    const abilities: Branch = {
-      name: 'abilities',
-      colour: '#4fae9b',
-      chain: false,
-      items: CAPTAIN_ABILITIES.map((a) => {
-        const owned = c.abilities.includes(a.id), on = c.equipped.includes(a.id);
-        const buy: CaptainBuy = { kind: 'ability', id: a.id };
-        const what = `${pay(a) ? `${pay(a)}: ` : ''}${a.ability.text}`;
-        return { key: `ability:${a.id}`, owned, on, can: !owned && can(buy), locked: false, title: a.ability.name.toLowerCase(), what, sub: owned ? (on ? 'carried' : full ? 'learnt · slots full' : 'learnt · tap to carry') : cost(buy) };
-      }),
-    };
-    const leads: Branch = {
-      name: 'leads',
-      colour: '#c98a4b',
-      chain: false,
-      items: CAPTAIN_LEADS.map((l) => {
-        const owned = c.leads.includes(l.id), on = c.lead === l.id;
-        const buy: CaptainBuy = { kind: 'lead', id: l.id };
-        return { key: `lead:${l.id}`, owned, on, can: !owned && can(buy), locked: false, title: l.name.toLowerCase(), what: l.text, sub: owned ? (on ? 'leading' : 'learnt · tap to lead') : cost(buy) };
-      }),
-    };
-    // [direction: the campaign hero's singularity variable, a couple of options, the first Back to the Wall]: one carried
-    // at a time, the first known from the start, the others learnt.
-    const sings: Branch = {
-      name: 'singularity',
-      colour: '#6f8fd8',
-      chain: false,
-      items: Object.entries(CAPTAIN_SINGULARITIES).map(([id, k]) => {
-        const owned = id === CAPTAIN_START_SINGULARITY || !!c.sings?.includes(id), on = (c.sing ?? CAPTAIN_START_SINGULARITY) === id;
-        const buy: CaptainBuy = { kind: 'sing', id };
-        return { key: `sing:${id}`, owned, on, can: !owned && can(buy), locked: false, title: k.name.toLowerCase(), what: `${CHARGE_TEXT[k.charge](k.need)}: ${k.text}`, sub: owned ? (on ? 'carried' : 'learnt · tap to carry') : cost(buy) };
-      }),
-    };
-    const branches: Branch[] = [
-      statBranch('attack', 'attack', '#d0675a', (n) => `+${n} attack`),
-      statBranch('cheaper', 'cost', '#d9a441', (n) => `costs ${n} less`),
-      statBranch('stability', 'stability', '#5f9fdc', (n) => `+${n * CAPTAIN_STABILITY_STEP} stability`),
-      slots,
-      abilities,
-      leads,
-      sings,
+    const wall = CAPTAIN_SINGULARITIES[CAPTAIN_START_SINGULARITY], brace = captainAbility(CAPTAIN_START_ABILITY)!.ability;
+    const wallOn = (c.sing ?? CAPTAIN_START_SINGULARITY) === CAPTAIN_START_SINGULARITY, braceOn = c.equipped.includes(CAPTAIN_START_ABILITY);
+    const known: KnownLook[] = [
+      { arg: 'start:brace', title: brace.name.toLowerCase(), what: brace.text, colour: '#4fae9b', on: braceOn, sub: braceOn ? 'carried' : 'tap to carry' },
+      { arg: 'start:wall', title: wall.name.toLowerCase(), what: `{sing:${wall.name}}${CHARGE_TEXT[wall.charge](wall.need)}: ${wall.text}`, colour: '#6f8fd8', on: wallOn, sub: wallOn ? 'carried' : 'tap to carry' },
     ];
+    const sheet = this.tierSheet(CAPTAIN_TREE, c, left, CAPTAIN_TITLES.map((x) => x.replace(/^The /, '').toLowerCase()), describe, known, 'cmp-cap-pick', new Set(this.capPlaced));
     return {
       tools: `${this.capPlaced.length ? '<button class="up-plan-undo" data-act="cmp-cap-undo">undo</button><button class="up-plan-undo" data-act="cmp-cap-clear">clear</button>' : ''}
             ${captainPointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.capResetArmed ? 'armed' : ''}" data-act="cmp-cap-reset">${this.capResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}`,
-      title: 'the captain',
+      title: esc((CAPTAIN_TITLES[c.gates] ?? 'The Captain').toLowerCase()),
       xp: `${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small>`,
-      sheet: this.treeSheet(branches, placed, 'cmp-cap-pick', MENU_EMBLEM.captain, true),
+      sheet,
     };
   }
 
@@ -2181,52 +2131,25 @@ export class CampaignView {
    */
   private renderCompanionPanel(meta: MetaState, id: CompanionId): CrewPage {
     const c = meta.companions![id]!;
+    const a = companionTree(meta, id);
     const d = companionDef(id);
-    const placed = new Set(this.compPlaced);
     const left = companionPoints(meta, id);
-    const cost = (buy: CompanionBuy) => {
-      const n = companionPrice(meta, id, buy);
-      return n === null ? '' : `${n} skill point${n === 1 ? '' : 's'}`;
+    const describe = (x: AscentNode): NodeLook => {
+      const tr = x.give.trait ? d.traits.find((k) => k.id === x.give.trait) : undefined;
+      return tr ? { title: tr.name.toLowerCase(), what: tr.text, colour: '#4fae9b', owned: '' } : statLook(x);
     };
-    const can = (buy: CompanionBuy) => {
-      const n = companionPrice(meta, id, buy);
-      return n !== null && n <= left;
-    };
-    const stat = (k: CompanionStat, name: string, colour: string, say: (n: number) => string): TreeBranch => ({
-      name,
-      colour,
-      chain: true,
-      items: d.stats[k].map((_, i) => {
-        const owned = i < c[k], next = i === c[k];
-        const buy: CompanionBuy = { kind: 'stat', stat: k };
-        return { key: `stat:${k}:${i}`, owned, can: next && can(buy), locked: i > c[k], title: say(i + 1), sub: owned ? 'learnt' : next ? cost(buy) : 'after the one below' };
-      }),
-    });
-    const traits: TreeBranch = {
-      name: 'skills',
-      colour: '#4fae9b',
-      chain: false,
-      items: d.traits.map((t) => {
-        const owned = c.traits.includes(t.id);
-        const buy: CompanionBuy = { kind: 'trait', id: t.id };
-        return { key: `trait:${t.id}`, owned, can: !owned && can(buy), locked: false, title: t.name.toLowerCase(), what: t.text, sub: owned ? 'learnt' : cost(buy) };
-      }),
-    };
-    const branches = [
-      stat('attack', 'attack', '#d0675a', (n) => `+${n} attack`),
-      stat('cheaper', 'cost', '#d9a441', (n) => `costs ${n} less`),
-      stat('stability', 'stability', '#5f9fdc', (n) => `+${n * 2} stability`),
-      traits,
-    ].filter((b) => b.items.length);
+    const first = d.traits.find((k) => k.id === d.start)!;
+    const known: KnownLook[] = [{ arg: '', title: first.name.toLowerCase(), what: first.text, colour: '#4fae9b', on: true, sub: 'known' }];
+    const sheet = this.tierSheet(COMPANION_TREES[id], a, left, d.titles.map((x) => (x.split(', ')[1] ?? x).toLowerCase()), describe, known, 'cmp-comp-pick', new Set(this.compPlaced));
     const lv = companionLevel(c.xp);
-    const card = companionCardId(id, c);
+    const card = companionCards(meta)[companionsFound(meta).indexOf(id)] ?? d.card;
     return {
       tools: `${this.compPlaced.length ? '<button class="up-plan-undo" data-act="cmp-comp-undo">undo</button><button class="up-plan-undo" data-act="cmp-comp-clear">clear</button>' : ''}
             <button class="up-plan-undo hp-card-peek" data-act="inspect" data-card="${esc(card)}">card</button>`,
-      title: esc(d.name.toLowerCase()),
+      title: esc((d.titles[a.gates] ?? d.name).toLowerCase()),
       xp: `${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${lv.level} · ${lv.into}/${lv.need}</small>`,
       note: esc(d.learnsText.toLowerCase()),
-      sheet: this.treeSheet(branches, placed, 'cmp-comp-pick', MENU_EMBLEM[id], true),
+      sheet,
     };
   }
 
@@ -2264,53 +2187,50 @@ export class CampaignView {
   }
 
   /**
-   * A skill tree's page (the Captain's, or a companion's): an emblem at the foot, each branch climbing from it as a
-   * column of skills (its stem bent at right angles), each skill a mote of light with its name and what it is beside
-   * it; the page opens at the foot and scrolls up. `act` is what a tap on a skill does (its key the argument).
+   * A tiered tree [direction: upgrades grouped into tiers, only so many taken in each; capping a tier and passing its
+   * Astral Gate takes the character up a tier; visually the tree broken into tiers, scrolling up to the higher ones]:
+   * what the character knows from the start at the foot, then each tier above the one before, its picks counted, an
+   * Astral Gate between each two (what passing it gives on it), the tiers not yet reached faded. It opens on the tier
+   * the character stands in. A tap: `act` with a node's id, 'gate', or a known thing's argument.
    */
-  private treeSheet(branches: TreeBranch[], placed: Set<string>, act: string, emblem: string, half = false): string {
-    // Laid out on a sheet 1000 wide: its columns side by side (on a phone, two at a time, each pair a tier further up),
-    // a row of 92 a skill, his emblem at the foot.
-    // (Narrower than a desktop's, as a phone held sideways: three a tier, so every name has room. On the crew page
-    // the tree has the right of the screen only.)
-    const narrow = window.innerWidth * (half ? 0.6 : 1) < 1000;
-    const tiers = narrow ? [branches.slice(0, 3), branches.slice(3)] : [branches];
-    const cols = tiers[0].length;
-    const ROW = 92, FOOT = window.innerHeight < 520 ? 104 : 150, GAP = 70, TOP = 70;
-    const tierH = tiers.map((t) => Math.max(...t.map((b) => b.items.length)) * ROW + GAP);
-    const H = FOOT + tierH.reduce((a2, b2) => a2 + b2, 0) + TOP;
-    const rootY = H - (FOOT < 150 ? 48 : 70);
-    const paths: string[] = [];
-    const nodes: string[] = [];
-    let base = rootY - FOOT + 40;
-    tiers.forEach((tier, ti) => {
-      tier.forEach((br, i) => {
-        const x = 40 + (i * 920) / tier.length;
-        const lit = br.items.some((it) => it.owned);
-        // (The stem: up from the emblem, across, and up into the column, at right angles.)
-        const elbow = base + 20 - ti * 6;
-        paths.push(`<path class="${lit ? 'lit' : ''}" style="--bc:${br.colour}" d="M${500 + (i - (tier.length - 1) / 2) * 6} ${rootY - 34} V${elbow} H${x} V${base}"/>`);
-        // (Named at its foot, just over its stem.)
-        nodes.push(`<span class="hp-branch" style="left:${(x / 10).toFixed(2)}%;top:${base + 1}px;--bc:${br.colour}">${esc(br.name)}</span>`);
-        br.items.forEach((it, k) => {
-          const y = base - 30 - k * ROW;
-          paths.push(`<path class="${it.owned ? 'lit' : ''}" style="--bc:${br.colour}" d="M${x} ${k ? y + ROW : base} V${y}"/>`);
-          const plan = it.owned && placed.has(it.key);
-          nodes.push(`<button class="up-node hp-skill ${it.owned && !plan ? 'owned' : ''} ${plan ? 'planned' : ''} ${it.owned ? 'maxed' : ''} ${it.locked ? 'locked' : ''} ${it.can ? 'afford' : ''} ${it.on ? 'hp-carried' : ''}" style="left:${(x / 10).toFixed(2)}%;top:${y}px;--bc:${br.colour};--lv:${it.owned ? 1 : 0}" data-act="${act}" data-arg="${esc(it.key)}" aria-label="${esc(it.title)}">
-            <span class="up-node-disc"><svg class="up-node-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" class="${plan ? 'plan' : it.owned ? 'on' : ''}"/></svg><i class="up-mote" aria-hidden="true"></i></span>
-            <span class="hp-label"><b>${esc(it.title)}</b>${it.what ? `<span class="hp-what">${cardTextHtml(it.what, undefined, true)}</span>` : ''}<small>${esc(it.sub)}</small></span>
-          </button>`);
-        });
-      });
-      base -= tierH[ti];
-    });
-    return `<div class="hp-scroll up-tree">
-          <div class="hp-sheet" style="height:${H}px;--cols:${cols}">
-            <svg class="hp-lines" viewBox="0 0 1000 ${H}" preserveAspectRatio="none" aria-hidden="true">${paths.join('')}</svg>
-            <span class="hp-root" style="top:${rootY}px" aria-hidden="true">${emblem}</span>
-            ${nodes.join('')}
-          </div>
-        </div>`;
+  private tierSheet(tree: AscentNode[], a: Ascent, left: number, names: string[], describe: (x: AscentNode, owned: boolean) => NodeLook, known: KnownLook[], act: string, placed: Set<string>): string {
+    const roman = ['I', 'II', 'III', 'IV'];
+    const node = (x: AscentNode) => {
+      const owned = a.nodes.includes(x.id);
+      const look = describe(x, owned);
+      const why = owned ? null : ascentProblem(tree, a, x.id, left);
+      const plan = owned && placed.has(x.id);
+      const sub = owned ? look.owned || 'learnt' : why ? why.replace(/\.$/, '').toLowerCase() : '1 point';
+      return `<button class="asc-node ${owned ? 'owned' : ''} ${plan ? 'planned' : ''} ${!owned && !why ? 'afford' : ''} ${!owned && why ? 'locked' : ''} ${look.on ? 'on' : ''}" style="--bc:${look.colour}" data-act="${act}" data-arg="${esc(x.id)}" aria-label="${esc(look.title)}">
+        <i class="asc-mote" aria-hidden="true"></i><b>${esc(look.title)}</b>${look.what ? `<span class="hp-what">${cardTextHtml(look.what, undefined, true)}</span>` : ''}<small>${esc(sub)}</small>
+      </button>`;
+    };
+    const bands: string[] = [];
+    for (let tier = TIERS; tier >= 1; tier--) {
+      const reached = tier <= a.gates + 1;
+      const picks = tierPicks(tree, a, tier);
+      const state = tier === a.gates + 1 ? 'asc-current' : reached ? 'asc-passed' : 'asc-ahead';
+      bands.push(`<section class="asc-tier ${state}">
+        <header><b>${roman[tier - 1]} · ${esc(names[tier - 1] ?? '')}</b><small>${picks}/${TIER_PICKS}</small></header>
+        <div class="asc-nodes">${tree.filter((x) => x.tier === tier).map(node).join('')}</div>
+      </section>`);
+      if (tier > 1) {
+        // The gate below this tier: passed, open (the tier under it full), or shut.
+        const passed = a.gates >= tier - 1;
+        const why = passed ? null : a.gates === tier - 2 ? ascentProblem(tree, a, 'gate', left) : 'Reach the tier below first.';
+        const plan = passed && a.gates === tier - 1 && placed.has('gate');
+        bands.push(`<button class="asc-gate ${passed ? 'passed' : why ? 'shut' : 'open'} ${plan ? 'planned' : ''}" data-act="${passed ? '' : act}" data-arg="gate" ${passed || why ? 'aria-disabled="true"' : ''}>
+          <span class="asc-gate-arch" aria-hidden="true"></span><b>astral gate</b>
+          <small>${passed ? 'passed' : `+${GATE.attack} attack · +${GATE.stability * 2} stability · costs ${GATE.cost} more${why ? ` · ${esc(why.replace(/\.$/, '').toLowerCase())}` : ' · 1 point'}`}</small>
+        </button>`);
+      }
+    }
+    const knownRow = known.length
+      ? `<section class="asc-known"><header><b>known</b></header><div class="asc-nodes">${known
+          .map((k) => `<button class="asc-node owned ${k.on ? 'on' : ''}" style="--bc:${k.colour}" ${k.arg ? `data-act="${act}" data-arg="${esc(k.arg)}"` : ''}><i class="asc-mote" aria-hidden="true"></i><b>${esc(k.title)}</b><span class="hp-what">${cardTextHtml(k.what, undefined, true)}</span><small>${esc(k.sub)}</small></button>`)
+          .join('')}</div></section>`
+      : '';
+    return `<div class="hp-scroll asc">${bands.join('')}${knownRow}</div>`;
   }
 
   /** The Captain's ship as the map draws it: the parts fitted for this run (and their rarities), and the Captain's level. */
@@ -3184,7 +3104,9 @@ export class CampaignView {
     // The Captain's tree: opened at its foot, then kept where it was scrolled to as it is drawn afresh.
     const hp = root.querySelector<HTMLElement>('.hp-scroll');
     if (hp) {
-      hp.scrollTop = this.hpScroll ?? hp.scrollHeight;
+      // (A tier tree opens on the tier the character stands in.)
+      const cur = hp.querySelector<HTMLElement>('.asc-current');
+      hp.scrollTop = this.hpScroll ?? (cur ? Math.max(0, cur.offsetTop - hp.clientHeight / 2 + cur.offsetHeight / 2) : hp.scrollHeight);
       hp.addEventListener('scroll', () => (this.hpScroll = hp.scrollTop), { passive: true });
     }
     if (this.afterStruggle) window.setTimeout(() => this.openAfterStruggle(), 0);

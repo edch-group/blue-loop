@@ -24,6 +24,7 @@ export * from './cards-bosses';
 export * from './rifts';
 export * from './dreams-data';
 export * from './captain';
+export * from './ascent';
 export * from './parts';
 export * from './companions';
 export * from './singularities';

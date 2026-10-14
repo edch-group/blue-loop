@@ -88,8 +88,9 @@ describe('singularities', () => {
     expect(lost[0]).toBe(2);
     expect(lost[2]).toBe(2);
     // Another learnt and chosen: written into the Captain's card.
-    let meta = { ...emptyMeta(), xp: xpForLevel(8) };
-    meta = buyCaptain(meta, { kind: 'sing', id: 'stand' });
+    let meta = { ...emptyMeta(), xp: xpForLevel(12) };
+    // (Last Stand is a tier III upgrade: two tiers filled and their Astral Gates passed first.)
+    for (const id of ['atk1', 'stab1', 'patch', 'gate', 'atk2', 'stab2', 'slot2', 'gate', 'stand']) meta = buyCaptain(meta, id === 'gate' ? { kind: 'gate' } : { kind: 'node', id });
     expect(singularityOf(captainCard(meta))!.name).toBe('Last Stand');
     meta = setCaptainSingularity(meta, 'wall');
     expect(singularityOf(captainCard(meta))!.name).toBe('Back to the Wall');

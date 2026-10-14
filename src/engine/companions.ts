@@ -1,4 +1,5 @@
 import type { CardDef, CardKind, Effect, Passive } from './types';
+import { ascentGifts, COMPANION_TREES, GATE, TIERS, type Ascent } from './ascent';
 
 /**
  * The Captain's companions [direction: more permanent characters, earnt over time and in different ways; each sits or
@@ -43,8 +44,8 @@ export interface CompanionDef {
   kind: CardKind;
   race?: number;
   base: { cost: number; health: number; attack: number };
-  /** Stat levels' prices, in its own skill points. Stability: +2 a level. */
-  stats: { attack: number[]; stability: number[]; cheaper: number[] };
+  /** Its name at each tier (ascent.ts: the first its own; each Astral Gate a new one). */
+  titles: string[];
   /** Its first trait, known from the start. */
   start: string;
   traits: CompanionTrait[];
@@ -69,8 +70,9 @@ export const COMPANIONS: CompanionDef[] = [
     title: 'Aureline Lancer',
     kind: 'attack',
     race: 0,
-    base: { cost: 3, health: 4, attack: 3 },
-    stats: { attack: [1, 2, 3], stability: [1, 1, 2], cheaper: [2, 3] },
+    // (Low to start [direction: Kaelen 1 energy, as the plain Aureline Lancer, 3/1]: the tree makes him.)
+    base: { cost: 1, health: 1, attack: 3 },
+    titles: ['Kaelen', 'Kaelen, Dawnlancer', 'Kaelen, Sunspear', 'Kaelen, Lightbringer'],
     start: 'lunge',
     traits: [
       t('lunge', 'Lunge', 0, '{heat:1}.', { onPlay: [heat(1)] }),
@@ -79,6 +81,12 @@ export const COMPANIONS: CompanionDef[] = [
       t('sunlance', 'Sun-Lance', 3, '{dawn}: {heat:1}.', { onTurn: [heat(1)] }),
       t('plate', 'Gilded Plate', 2, '{sturdy:2}.', { defence: 2 }),
       t('zeal', 'Zeal', 4, 'Your attack cards {heat:+1}.', { passive: [{ type: 'kindBonus', kind: 'attack', amount: 1 }] }),
+      t('radiant', 'Radiant Edge', 0, '{sting:1}.', { passive: [{ type: 'retaliate', amount: 1 }] }),
+      t('second', 'Second Wind', 0, '{dawn}: he regains 1 stability.', { onTurn: [{ type: 'restore', amount: 1, self: true }] }),
+      t('solar', 'Solar Charge', 0, '{heat:3}.', { onPlay: [heat(3)] }),
+      t('dawnbreak', 'Dawnbreak', 0, '{dawn}: {heat:2}.', { onTurn: [heat(2)] }),
+      t('aegis', 'Aegis of Dawn', 0, '{dawn}: {shield:2}.', { onTurn: [{ type: 'shield', amount: 2 }] }),
+      t('volley', 'Lance Volley', 0, '2 heat to each rival card.', { onPlay: [{ type: 'strikeAll', amount: 2 }] }),
     ],
     learns: { damage: 1 },
     learnsText: 'Learns from the damage he deals.',
@@ -91,8 +99,8 @@ export const COMPANIONS: CompanionDef[] = [
     name: 'Mara Venn',
     title: 'Engineer',
     kind: 'defence',
-    base: { cost: 2, health: 4, attack: 0 },
-    stats: { attack: [2, 2], stability: [1, 1, 2], cheaper: [2] },
+    base: { cost: 1, health: 4, attack: 0 },
+    titles: ['Mara Venn', 'Mara Venn, Shipwright', 'Mara Venn, Starwright', 'Mara Venn, Voidwright'],
     start: 'emitter',
     traits: [
       t('emitter', 'Emitter', 0, '{dawn}: {shield:1}.', { onTurn: [{ type: 'shield', amount: 1 }] }),
@@ -101,6 +109,13 @@ export const COMPANIONS: CompanionDef[] = [
       t('barrier', 'Barrier', 2, '{shield:3}.', { onPlay: [{ type: 'shield', amount: 3 }] }),
       t('sink', 'Heat Sink', 3, '{dawn}: {cool:1}.', { onTurn: [{ type: 'cool', amount: 1 }] }),
       t('bulwark', 'Bulwark', 3, '{guard}. {sturdy:2}.', { defence: 2, passive: [{ type: 'taunt' }] }),
+      t('kit', 'Patch Kit', 0, '{renew:2}.', { onPlay: [{ type: 'restore', amount: 2, all: true }] }),
+      t('overclock', 'Overclock', 0, '{energy:1}.', { onPlay: [{ type: 'plays', amount: 1 }] }),
+      t('reinforce', 'Reinforce', 0, '{dawn}: {shield:2}.', { onTurn: [{ type: 'shield', amount: 2 }] }),
+      t('deep', 'Deep Coolant', 0, '{cool:4}.', { onPlay: [{ type: 'cool', amount: 4 }] }),
+      t('fortress', 'Fortress', 0, '{sturdy:4}.', { defence: 4 }),
+      t('master', 'Master Weld', 0, '{dawn}: {renew:2}.', { onTurn: [{ type: 'restore', amount: 2, all: true }] }),
+      t('array', 'Shield Array', 0, '{dawn}: {shield:3}.', { onTurn: [{ type: 'shield', amount: 3 }] }),
     ],
     learns: { support: 1 },
     learnsText: 'Learns from the shields she raises and the heat she cools.',
@@ -114,8 +129,8 @@ export const COMPANIONS: CompanionDef[] = [
     title: "Xel'Naru Defector",
     kind: 'attack',
     race: 1,
-    base: { cost: 3, health: 5, attack: 2 },
-    stats: { attack: [1, 2, 3], stability: [1, 2], cheaper: [2, 3] },
+    base: { cost: 2, health: 3, attack: 2 },
+    titles: ["Vey'Sharr", "Vey'Sharr, Unbound", "Vey'Sharr, Shardlord", "Vey'Sharr, Prism Ascendant"],
     start: 'shardstep',
     traits: [
       t('shardstep', 'Shardstep', 0, '2 heat to the rival card with the most attack.', { onPlay: [{ type: 'strikeBest', amount: 2 }] }),
@@ -123,6 +138,13 @@ export const COMPANIONS: CompanionDef[] = [
       t('hunt', 'Hunt', 3, '{dawn}: 1 heat to the rival card with the most attack.', { onTurn: [{ type: 'strikeBest', amount: 1 }] }),
       t('swift', 'Swift', 2, '{darkspeed}.', { darkspeed: true }),
       t('shatter', 'Shatterstorm', 4, '2 heat to each rival card.', { onPlay: [{ type: 'strikeAll', amount: 2 }] }),
+      t('splinter', 'Splinter', 0, '{heat:2}.', { onPlay: [heat(2)] }),
+      t('prism', 'Prism Guard', 0, '{sturdy:2}.', { defence: 2 }),
+      t('cold', 'Cold Light', 0, '{dawn}: {cool:1}.', { onTurn: [{ type: 'cool', amount: 1 }] }),
+      t('refract', 'Refraction', 0, '{sting:3}.', { passive: [{ type: 'retaliate', amount: 3 }] }),
+      t('executioner', 'Executioner', 0, '{dawn}: 2 heat to the rival card with the most attack.', { onTurn: [{ type: 'strikeBest', amount: 2 }] }),
+      t('crystal', 'Crystal Aegis', 0, '{dawn}: {shield:2}.', { onTurn: [{ type: 'shield', amount: 2 }] }),
+      t('nova', 'Shard Nova', 0, '3 heat to each rival card.', { onPlay: [{ type: 'strikeAll', amount: 3 }] }),
     ],
     learns: { kills: 6, damage: 0.5 },
     learnsText: 'Learns from the cards it burns away.',
@@ -138,16 +160,22 @@ export const DEFECTOR_SPARED = 2;
 /** Ship parts fitted for the engineer to be found at a station. */
 export const ENGINEER_PARTS = 3;
 
-/** What a companion's tree has made of its card. */
+/** What a companion's tree has made of its card: attack, stability levels (+2 each), energy off, traits, gates passed. */
 export interface CompanionBuild {
   attack: number;
   stability: number;
   cheaper: number;
   traits: string[];
+  gates: number;
 }
-export type CompanionStat = 'attack' | 'stability' | 'cheaper';
 
-export const plainCompanion = (id: CompanionId): CompanionBuild => ({ attack: 0, stability: 0, cheaper: 0, traits: [companionDef(id).start] });
+export const plainCompanion = (id: CompanionId): CompanionBuild => ({ attack: 0, stability: 0, cheaper: 0, traits: [companionDef(id).start], gates: 0 });
+
+/** The build an ascent makes (ascent.ts): its upgrades' gifts, its traits after its first, its gates. */
+export function companionFromAscent(id: CompanionId, a: Ascent): CompanionBuild {
+  const g = ascentGifts(COMPANION_TREES[id], a);
+  return { attack: g.attack, stability: g.stability, cheaper: g.cheaper, traits: [companionDef(id).start, ...g.traits], gates: Math.min(TIERS - 1, a.gates) };
+}
 
 const SEP = '@';
 
@@ -161,8 +189,8 @@ export function companionOf(defId: string): CompanionId | null {
 export function companionCardId(id: CompanionId, b: CompanionBuild): string {
   const c = companionDef(id);
   const traits = c.traits.filter((x) => b.traits.includes(x.id)).map((x) => x.id);
-  const plain = !b.attack && !b.stability && !b.cheaper && traits.length === 1 && traits[0] === c.start;
-  return plain ? c.card : `${c.card}${SEP}${b.attack}.${b.stability}.${b.cheaper}.${traits.join('+') || '-'}`;
+  const plain = !b.attack && !b.stability && !b.cheaper && !b.gates && traits.length === 1 && traits[0] === c.start;
+  return plain ? c.card : `${c.card}${SEP}${b.attack}.${b.stability}.${b.cheaper}.${traits.join('+') || '-'}${b.gates ? `.${b.gates}` : ''}`;
 }
 
 /** The build a companion's card id was made from (null if it isn't one). */
@@ -171,15 +199,16 @@ export function companionBuild(defId: string): { id: CompanionId; build: Compani
   if (!id) return null;
   const c = companionDef(id);
   if (!defId.includes(SEP)) return { id, build: plainCompanion(id) };
-  const [a, s, ch, traits] = defId.slice(c.card.length + 1).split('.');
+  const [a, s, ch, traits, gates] = defId.slice(c.card.length + 1).split('.');
   const n = (x: string | undefined, most: number) => Math.max(0, Math.min(most, Math.floor(Number(x) || 0)));
   return {
     id,
     build: {
-      attack: n(a, c.stats.attack.length),
-      stability: n(s, c.stats.stability.length),
-      cheaper: n(ch, c.stats.cheaper.length),
+      attack: n(a, 12),
+      stability: n(s, 12),
+      cheaper: n(ch, 4),
       traits: traits && traits !== '-' ? traits.split('+').filter((x) => c.traits.some((k) => k.id === x)) : [],
+      gates: n(gates, TIERS - 1),
     },
   };
 }
@@ -199,14 +228,16 @@ export function companionCard(defId: string): CardDef | undefined {
   const defence = traits.reduce((n, x) => n + (x.def.defence ?? 0), 0);
   const def: CardDef = {
     id: defId,
-    name: c.name,
+    name: c.titles[b.gates] ?? c.name,
     kind: c.kind,
     ...(c.race !== undefined ? { race: c.race } : {}),
     rarity: 'stellar',
     character: true,
-    cost: Math.max(0, c.base.cost - b.cheaper),
-    health: c.base.health + 2 * b.stability,
-    attack: c.base.attack + b.attack,
+    // (Each Astral Gate passed: stronger, and an energy dearer.)
+    cost: Math.max(0, c.base.cost + b.gates * GATE.cost - b.cheaper),
+    health: c.base.health + 2 * (b.stability + b.gates * GATE.stability),
+    attack: c.base.attack + b.attack + b.gates * GATE.attack,
+    ...(b.gates ? { ascended: b.gates } : {}),
     text: traits.map((x) => x.text).join(' '),
     ...(all('onPlay').length ? { onPlay: all('onPlay') } : {}),
     ...(all('onTurn').length ? { onTurn: all('onTurn') } : {}),
@@ -238,11 +269,4 @@ export function companionLevel(xp: number): { level: number; into: number; need:
   return { level, into: left, need: companionXpToNext(level) };
 }
 
-/** Skill points a build cost in all. */
-export function companionSpent(id: CompanionId, b: CompanionBuild): number {
-  const c = companionDef(id);
-  let n = 0;
-  for (const k of ['attack', 'stability', 'cheaper'] as const) n += c.stats[k].slice(0, b[k]).reduce((x, y) => x + y, 0);
-  for (const tr of c.traits) if (b.traits.includes(tr.id)) n += tr.price;
-  return n;
-}
+

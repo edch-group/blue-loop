@@ -1,6 +1,7 @@
 import type { CardDef, Effect, HeroAbility } from './types';
 import { act, hero } from './heroes-battle';
 import { CAPTAIN_SINGULARITIES, CAPTAIN_START_SINGULARITY, captainSingularityId, withSingularity } from './singularities';
+import { CAPTAIN_TITLES, GATE, TIERS } from './ascent';
 
 /**
  * The Captain: the nameless human every run begins with [direction: players start as a no-name human hero with
@@ -30,6 +31,8 @@ export interface CaptainBuild {
   lead?: string;
   /** Its singularity (singularities.ts CAPTAIN_SINGULARITIES), if not the first. */
   sing?: string;
+  /** Astral Gates passed (ascent.ts): stronger, an energy dearer, and a new title. */
+  gates?: number;
 }
 
 /** The plain Captain: no attack, a little stability, two energy to play, and one small ability. */
@@ -95,9 +98,10 @@ export const plainBuild = (): CaptainBuild => ({ attack: 0, stability: 0, cheape
 export function captainId(b: CaptainBuild): string {
   const abilities = b.abilities.filter((a) => captainAbility(a)).slice(0, captainSlots(CAPTAIN_SLOT_PRICES.length));
   const sing = b.sing && b.sing !== CAPTAIN_START_SINGULARITY && CAPTAIN_SINGULARITIES[b.sing] ? b.sing : undefined;
-  const plain = !b.attack && !b.stability && !b.cheaper && !b.lead && !sing && abilities.length === 1 && abilities[0] === CAPTAIN_START_ABILITY;
+  const gates = Math.max(0, Math.min(TIERS - 1, b.gates ?? 0));
+  const plain = !b.attack && !b.stability && !b.cheaper && !b.lead && !sing && !gates && abilities.length === 1 && abilities[0] === CAPTAIN_START_ABILITY;
   if (plain) return CAPTAIN;
-  return `${CAPTAIN}${SEP}${b.attack}.${b.stability}.${b.cheaper}.${abilities.join('+') || '-'}.${b.lead ?? '-'}${sing ? `.${sing}` : ''}`;
+  return `${CAPTAIN}${SEP}${b.attack}.${b.stability}.${b.cheaper}.${abilities.join('+') || '-'}.${b.lead ?? '-'}${sing || gates ? `.${sing ?? '-'}` : ''}${gates ? `.${gates}` : ''}`;
 }
 
 /** Whether a card is the Captain (any build of it). */
@@ -107,12 +111,13 @@ export const isCaptain = (id: string) => id === CAPTAIN || id.startsWith(CAPTAIN
 export function captainBuild(id: string): CaptainBuild | null {
   if (id === CAPTAIN) return plainBuild();
   if (!id.startsWith(CAPTAIN + SEP)) return null;
-  const [a, s, c, abilities, lead] = id.slice(CAPTAIN.length + 1).split('.');
+  const [a, s, c, abilities, lead, , gates] = id.slice(CAPTAIN.length + 1).split('.');
   const n = (x: string | undefined, most: number) => Math.max(0, Math.min(most, Math.floor(Number(x) || 0)));
   return {
-    attack: n(a, CAPTAIN_STAT_PRICES.attack.length),
-    stability: n(s, CAPTAIN_STAT_PRICES.stability.length),
-    cheaper: n(c, CAPTAIN_STAT_PRICES.cheaper.length),
+    attack: n(a, 12),
+    stability: n(s, 12),
+    cheaper: n(c, 4),
+    ...(n(gates, TIERS - 1) ? { gates: n(gates, TIERS - 1) } : {}),
     abilities: abilities && abilities !== '-' ? abilities.split('+').filter((x) => captainAbility(x)) : [],
     ...(captainLead(lead) ? { lead } : {}),
     ...(captainSingularityId(id) !== CAPTAIN_START_SINGULARITY ? { sing: captainSingularityId(id) } : {}),
@@ -131,10 +136,12 @@ export function captainDef(id: string): CardDef | undefined {
   const def = hero(
     {
       id,
-      name: 'The Captain',
-      stability: CAPTAIN_BASE.stability + b.stability * CAPTAIN_STABILITY_STEP,
-      cost: Math.max(0, CAPTAIN_BASE.cost - b.cheaper),
-      attack: CAPTAIN_BASE.attack + b.attack,
+      name: CAPTAIN_TITLES[b.gates ?? 0] ?? 'The Captain',
+      // (Each Astral Gate passed: stronger, and an energy dearer.)
+      stability: CAPTAIN_BASE.stability + (b.stability + (b.gates ?? 0) * GATE.stability) * CAPTAIN_STABILITY_STEP,
+      cost: Math.max(0, CAPTAIN_BASE.cost + (b.gates ?? 0) * GATE.cost - b.cheaper),
+      attack: CAPTAIN_BASE.attack + b.attack + (b.gates ?? 0) * GATE.attack,
+      ...(b.gates ? { ascended: b.gates } : {}),
       ...(lead ? { lead: lead.text, ...lead.def } : {}),
       artOf: CAPTAIN,
     },

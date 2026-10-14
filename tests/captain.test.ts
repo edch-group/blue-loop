@@ -79,15 +79,15 @@ describe('the Captain', () => {
   it('is bought up with skill points: stats in order, abilities carried while a slot is free', () => {
     let meta = { ...emptyMeta(), xp: xpForLevel(11) };
     expect(pointsLeft(meta)).toBe(10);
-    meta = buyCaptain(meta, { kind: 'stat', stat: 'attack' });
+    meta = buyCaptain(meta, { kind: 'node', id: 'atk1' });
     expect(pointsLeft(meta)).toBe(9);
-    meta = buyCaptain(meta, { kind: 'ability', id: 'volley' });
+    meta = buyCaptain(meta, { kind: 'node', id: 'volley' });
     // (One slot, Brace in it: Volley is learnt but left behind until there's room.)
     expect(meta.captain!.equipped).toEqual(['brace']);
     meta = equipCaptainAbility(equipCaptainAbility(meta, 'brace'), 'volley');
     expect(meta.captain!.equipped).toEqual(['volley']);
     expect(cardDef(captainCard(meta)).abilities?.map((a) => a.id)).toEqual(['volley']);
-    expect(captainBuyProblem({ ...meta, xp: 0 }, { kind: 'stat', stat: 'stability' })).toMatch(/point/);
+    expect(captainBuyProblem({ ...meta, xp: 0 }, { kind: 'node', id: 'stab1' })).toMatch(/point/);
   });
 
   it("is offered any core race's cards and neutral ones, never a hero", () => {
@@ -255,16 +255,16 @@ describe('the ship and its parts', () => {
 describe('skill points for the Captain, petals for the skill tree', () => {
   it('brings an older save over: petals spent on the Captain back, the Captain plain, skills kept', () => {
     const old = { ...emptyMeta(), v: 2, petals: 1, upgrades: { cryo: 2 }, captain: { attack: 1, stability: 0, cheaper: 0, slots: 1, abilities: ['brace', 'volley'], equipped: ['brace', 'volley'], leads: [] } };
-    const now = migrateMeta(old);
+    const now = migrateMeta(old as never);
     expect(now.petals).toBe(1 + 5 + 6 + 5);
-    expect(now.captain).toMatchObject({ attack: 0, slots: 0, abilities: ['brace'] });
+    expect(now.captain).toMatchObject({ nodes: [], gates: 0, equipped: ['brace'] });
     expect(now.upgrades).toEqual({ cryo: 2 });
     expect(now.v).toBe(4);
   });
 
   it("resets the Captain for 5 petals, every skill point back", () => {
     let meta = { ...emptyMeta(), xp: xpForLevel(6), petals: 7 };
-    meta = buyCaptain(buyCaptain(meta, { kind: 'stat', stat: 'attack' }), { kind: 'ability', id: 'volley' });
+    meta = buyCaptain(buyCaptain(meta, { kind: 'node', id: 'atk1' }), { kind: 'node', id: 'volley' });
     expect(pointsLeft(meta)).toBe(3);
     const reset = resetCaptain(meta);
     expect(pointsLeft(reset)).toBe(5);

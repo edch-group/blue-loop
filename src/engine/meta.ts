@@ -14,9 +14,10 @@
 
 import { GENERALS } from './story';
 import { partSlots, shipFit, shipPart, type PartSlot, type ShipFit } from './parts';
-import { CAPTAIN_SINGULARITIES, CAPTAIN_START_SINGULARITY } from './singularities';
-import { COMPANION_IDS, companionCardId, companionDef, companionLevel, companionSpent, plainCompanion, type CompanionBuild, type CompanionId, type CompanionStat } from './companions';
-import { CAPTAIN_SLOT_PRICES, CAPTAIN_START_ABILITY, CAPTAIN_STAT_PRICES, captainAbility, captainId, captainLead, captainSlots, type CaptainStat } from './captain';
+import { CAPTAIN_START_SINGULARITY } from './singularities';
+import { COMPANION_IDS, companionCardId, companionFromAscent, companionLevel, type CompanionId } from './companions';
+import { CAPTAIN_START_ABILITY, captainId } from './captain';
+import { ascend, ascentGifts, ascentProblem, ascentSpent, CAPTAIN_TREE, COMPANION_TREES, plainAscent, type Ascent } from './ascent';
 import type { BattleModifiers } from './types';
 
 export type MetaGroup = 'sun' | 'command' | 'flagship' | 'perk' | 'start' | 'spoils' | 'lore' | 'unlock';
@@ -116,44 +117,39 @@ export interface MetaState {
   hunters?: number;
 }
 
-/** A companion as kept: their experience (from what they did in battle) and their build. */
-export interface CompanionMeta extends CompanionBuild {
+/** A companion as kept: their experience (from what they did in battle) and their ascent (ascent.ts). */
+export interface CompanionMeta extends Ascent {
   xp: number;
 }
+/** A companion as kept, read safely (an older build, from before tiers, starts afresh: its points come back). */
+const companionAscent = (c: Partial<CompanionMeta>): Ascent => (Array.isArray(c.nodes) ? { nodes: c.nodes, gates: c.gates ?? 0 } : plainAscent());
 
 /** The companions found so far, in order. */
 export const companionsFound = (meta: MetaState): CompanionId[] => COMPANION_IDS.filter((id) => meta.companions?.[id]);
 
 /** A found companion's card for the next run (its id carries the build). */
-export const companionCards = (meta: MetaState): string[] => companionsFound(meta).map((id) => companionCardId(id, meta.companions![id]!));
+export const companionCards = (meta: MetaState): string[] => companionsFound(meta).map((id) => companionCardId(id, companionFromAscent(id, companionAscent(meta.companions![id]!))));
+
+/** Skill points a companion has spent (an upgrade or a gate, one each). */
+export const companionSpent = (meta: MetaState, id: CompanionId): number => (meta.companions?.[id] ? ascentSpent(COMPANION_TREES[id], companionAscent(meta.companions[id]!)) : 0);
+/** A companion's ascent, as kept. */
+export const companionTree = (meta: MetaState, id: CompanionId): Ascent => companionAscent(meta.companions?.[id] ?? {});
 
 /** A companion's skill points left: one for every level past the first, less those spent. */
 export function companionPoints(meta: MetaState, id: CompanionId): number {
   const c = meta.companions?.[id];
-  return c ? companionLevel(c.xp).level - 1 - companionSpent(id, c) : 0;
+  return c ? companionLevel(c.xp).level - 1 - companionSpent(meta, id) : 0;
 }
 
-/** Something a companion's tree can buy. */
-export type CompanionBuy = { kind: 'stat'; stat: CompanionStat } | { kind: 'trait'; id: string };
+/** Why a companion can't take it now (null if it can): an upgrade's id, or 'gate'. */
+export const companionProblem = (meta: MetaState, id: CompanionId, what: string): string | null =>
+  meta.companions?.[id] ? ascentProblem(COMPANION_TREES[id], companionTree(meta, id), what, companionPoints(meta, id)) : 'Not found yet.';
 
-/** Its price in the companion's skill points (null: learnt already, or at its most). */
-export function companionPrice(meta: MetaState, id: CompanionId, buy: CompanionBuy): number | null {
+/** Take it (a new state; unchanged if it can't be had). */
+export function buyCompanion(meta: MetaState, id: CompanionId, what: string): MetaState {
   const c = meta.companions?.[id];
-  if (!c) return null;
-  const d = companionDef(id);
-  if (buy.kind === 'stat') return d.stats[buy.stat][c[buy.stat]] ?? null;
-  return c.traits.includes(buy.id) ? null : (d.traits.find((x) => x.id === buy.id)?.price ?? null);
-}
-
-/** Learn it (a new state; unchanged if it can't be had). */
-export function buyCompanion(meta: MetaState, id: CompanionId, buy: CompanionBuy): MetaState {
-  const c = meta.companions?.[id];
-  const price = companionPrice(meta, id, buy);
-  if (!c || price === null || companionPoints(meta, id) < price) return meta;
-  const next: CompanionMeta = { ...c, traits: [...c.traits] };
-  if (buy.kind === 'stat') next[buy.stat]++;
-  else next.traits.push(buy.id);
-  return { ...meta, companions: { ...meta.companions, [id]: next } };
+  if (!c || companionProblem(meta, id, what)) return meta;
+  return { ...meta, companions: { ...meta.companions, [id]: { xp: c.xp, ...ascend(COMPANION_TREES[id], companionTree(meta, id), what, companionPoints(meta, id)) } } };
 }
 
 /**
@@ -164,7 +160,7 @@ export function bankCompanions(meta: MetaState, freed: CompanionId[], xp: Partia
   if (hunters > 0) meta = { ...meta, hunters: (meta.hunters ?? 0) + hunters };
   if (!freed.length && !spared && !Object.values(xp).some((n) => (n ?? 0) > 0)) return meta;
   const companions = { ...(meta.companions ?? {}) };
-  for (const id of freed) companions[id] ??= { ...plainCompanion(id), xp: 0 };
+  for (const id of freed) companions[id] ??= { ...plainAscent(), xp: 0 };
   for (const id of COMPANION_IDS) if (companions[id] && (xp[id] ?? 0) > 0) companions[id] = { ...companions[id]!, xp: companions[id]!.xp + xp[id]! };
   return { ...meta, companions, spared: (meta.spared ?? 0) + spared };
 }
@@ -182,7 +178,7 @@ export function sectionOpen(meta: MetaState, s: MenuSection): boolean {
   if (s === 'captain') return pointsLeft(meta) > 0 || captainPointsSpent(meta) > 0;
   if (s === 'ship') return (meta.hangar?.length ?? 0) > 0;
   // (A companion's: once they are found and have a skill point to spend.)
-  if (s !== 'stellari') return !!meta.companions?.[s] && (companionPoints(meta, s) > 0 || companionSpent(s, meta.companions[s]!) > 0);
+  if (s !== 'stellari') return !!meta.companions?.[s] && (companionPoints(meta, s) > 0 || companionSpent(meta, s) > 0);
   return meta.petals > 0 || treePetalsSpent(meta) > 0;
 }
 
@@ -234,110 +230,87 @@ export function setAffinity(meta: MetaState, which: 'primary' | 'secondary', rac
 }
 
 /**
- * The Captain, as petals have made them [direction: petals are for upgrading the hero, "how strong is this card in
- * battle and what abilities does it have"]: each stat's levels, the ability slots bought, the abilities learnt and
- * those carried into battle, and the ways of leading learnt and the one chosen.
+ * The Captain, as skill points have made them [direction: hero upgrades grouped into tiers, an Astral Gate between
+ * each]: their ascent (ascent.ts: the upgrades taken and the gates passed), the abilities carried into battle, the way
+ * of leading chosen and the singularity.
  */
-export interface CaptainMeta {
-  attack: number;
-  stability: number;
-  cheaper: number;
-  /** Ability slots bought (past the first). */
-  slots: number;
-  abilities: string[];
+export interface CaptainMeta extends Ascent {
   equipped: string[];
-  leads: string[];
   lead?: string;
-  /** Singularities learnt past the first (singularities.ts CAPTAIN_SINGULARITIES), and the one chosen (unset: the first). */
-  sings?: string[];
+  /** The singularity chosen (unset: the first, Back to the Wall). */
   sing?: string;
 }
 
-export const plainCaptain = (): CaptainMeta => ({ attack: 0, stability: 0, cheaper: 0, slots: 0, abilities: [CAPTAIN_START_ABILITY], equipped: [CAPTAIN_START_ABILITY], leads: [] });
-export const captainMeta = (meta: MetaState): CaptainMeta => ({ ...plainCaptain(), ...(meta.captain ?? {}) });
+export const plainCaptain = (): CaptainMeta => ({ ...plainAscent(), equipped: [CAPTAIN_START_ABILITY] });
+/** The Captain as kept (an older build, from before tiers, starts afresh: its points come back). */
+export const captainMeta = (meta: MetaState): CaptainMeta => (meta.captain && Array.isArray(meta.captain.nodes) ? { ...plainCaptain(), ...meta.captain } : plainCaptain());
+
+/** What the Captain's ascent gives: abilities learnt (the first always), slots, leads and singularities learnt, stats. */
+export function captainGifts(meta: MetaState) {
+  const c = captainMeta(meta);
+  const g = ascentGifts(CAPTAIN_TREE, c);
+  return { ...g, abilities: [CAPTAIN_START_ABILITY, ...g.abilities], slotCount: 1 + g.slots, gates: c.gates };
+}
 
 /** The Captain's card for the next run (its id carries the build: captain.ts). */
 export function captainCard(meta: MetaState): string {
   const c = captainMeta(meta);
-  return captainId({ attack: c.attack, stability: c.stability, cheaper: c.cheaper, abilities: c.equipped.slice(0, captainSlots(c.slots)), ...(c.lead ? { lead: c.lead } : {}), ...(c.sing ? { sing: c.sing } : {}) });
+  const g = captainGifts(meta);
+  const abilities = c.equipped.filter((a) => g.abilities.includes(a)).slice(0, g.slotCount);
+  const lead = c.lead && g.leads.includes(c.lead) ? c.lead : undefined;
+  const sing = c.sing && g.sings.includes(c.sing) ? c.sing : undefined;
+  return captainId({ attack: g.attack, stability: g.stability, cheaper: g.cheaper, abilities, gates: c.gates, ...(lead ? { lead } : {}), ...(sing ? { sing } : {}) });
 }
 
-/** Something petals can buy for the Captain. */
-export type CaptainBuy = { kind: 'stat'; stat: CaptainStat } | { kind: 'slot' } | { kind: 'ability'; id: string } | { kind: 'lead'; id: string } | { kind: 'sing'; id: string };
+/** Something the Captain's tree can take: an upgrade (its id), or the next Astral Gate. */
+export type CaptainBuy = { kind: 'node'; id: string } | { kind: 'gate' };
+const what = (buy: CaptainBuy) => (buy.kind === 'gate' ? 'gate' : buy.id);
 
-/** Its price in petals (null: bought already, or at its most). */
-export function captainPrice(meta: MetaState, buy: CaptainBuy): number | null {
-  const c = captainMeta(meta);
-  if (buy.kind === 'stat') return CAPTAIN_STAT_PRICES[buy.stat][c[buy.stat]] ?? null;
-  if (buy.kind === 'slot') return CAPTAIN_SLOT_PRICES[c.slots] ?? null;
-  if (buy.kind === 'ability') return c.abilities.includes(buy.id) ? null : (captainAbility(buy.id)?.price ?? null);
-  if (buy.kind === 'sing') return buy.id === CAPTAIN_START_SINGULARITY || c.sings?.includes(buy.id) ? null : (CAPTAIN_SINGULARITIES[buy.id]?.price ?? null);
-  return c.leads.includes(buy.id) ? null : (captainLead(buy.id)?.price ?? null);
-}
-
-/** Why it can't be bought now (null if it can): skill points it needs. */
+/** Why it can't be taken now (null if it can). */
 export function captainBuyProblem(meta: MetaState, buy: CaptainBuy): string | null {
-  const price = captainPrice(meta, buy);
-  if (price === null) return buy.kind === 'stat' || buy.kind === 'slot' ? 'At its most.' : 'Learnt.';
-  if (pointsLeft(meta) < price) return `Needs ${price} skill point${price === 1 ? '' : 's'}.`;
-  return null;
+  return ascentProblem(CAPTAIN_TREE, captainMeta(meta), what(buy), pointsLeft(meta));
 }
 
 /** Skill points spent on the Captain, in all. */
 export function captainPointsSpent(meta: MetaState): number {
-  const c = meta.captain;
-  if (!c) return 0;
-  let n = 0;
-  for (const k of ['attack', 'stability', 'cheaper'] as const) n += CAPTAIN_STAT_PRICES[k].slice(0, c[k] ?? 0).reduce((t, p) => t + p, 0);
-  n += CAPTAIN_SLOT_PRICES.slice(0, c.slots ?? 0).reduce((t, p) => t + p, 0);
-  for (const a of c.abilities ?? []) n += captainAbility(a)?.price ?? 0;
-  for (const l of c.leads ?? []) n += captainLead(l)?.price ?? 0;
-  for (const k of c.sings ?? []) n += CAPTAIN_SINGULARITIES[k]?.price ?? 0;
-  return n;
+  return meta.captain && Array.isArray(meta.captain.nodes) ? ascentSpent(CAPTAIN_TREE, captainMeta(meta)) : 0;
 }
 
-/** Buy it (a new state; throws if it can't be bought). A new ability is carried at once if a slot is free; a new lead is taken up. */
+/** Take it (a new state; throws if it can't be had). A new ability is carried at once if a slot is free; a new lead, or singularity, is taken up. */
 export function buyCaptain(meta: MetaState, buy: CaptainBuy): MetaState {
   const why = captainBuyProblem(meta, buy);
   if (why) throw new Error(why);
   const c = captainMeta(meta);
-  const next: CaptainMeta = { ...c, abilities: [...c.abilities], equipped: [...c.equipped], leads: [...c.leads] };
-  if (buy.kind === 'stat') next[buy.stat]++;
-  else if (buy.kind === 'slot') next.slots++;
-  else if (buy.kind === 'ability') {
-    next.abilities.push(buy.id);
-    if (next.equipped.length < captainSlots(next.slots)) next.equipped.push(buy.id);
-  } else if (buy.kind === 'sing') {
-    next.sings = [...(c.sings ?? []), buy.id];
-    next.sing = buy.id;
-  } else {
-    next.leads.push(buy.id);
-    next.lead = buy.id;
-  }
-  // (Points are not taken: what is left is worked out from what the Captain has.)
-  return { ...meta, captain: next };
+  const next: CaptainMeta = { ...c, ...ascend(CAPTAIN_TREE, c, what(buy), pointsLeft(meta)), equipped: [...c.equipped] };
+  const node = buy.kind === 'node' ? CAPTAIN_TREE.find((x) => x.id === buy.id) : undefined;
+  const after = { ...meta, captain: next };
+  if (node?.give.ability && next.equipped.length < captainGifts(after).slotCount) next.equipped.push(node.give.ability);
+  if (node?.give.lead) next.lead = node.give.lead;
+  if (node?.give.sing) next.sing = node.give.sing;
+  return after;
 }
 
 /** Carry a learnt ability into battle, or leave it behind (carried only while a slot is free). */
 export function equipCaptainAbility(meta: MetaState, id: string): MetaState {
   const c = captainMeta(meta);
-  if (!c.abilities.includes(id)) return meta;
+  const g = captainGifts(meta);
+  if (!g.abilities.includes(id)) return meta;
   const on = c.equipped.includes(id);
-  if (!on && c.equipped.length >= captainSlots(c.slots)) return meta;
+  if (!on && c.equipped.filter((a) => g.abilities.includes(a)).length >= g.slotCount) return meta;
   return { ...meta, captain: { ...c, equipped: on ? c.equipped.filter((x) => x !== id) : [...c.equipped, id] } };
 }
 
 /** Lead in a learnt way (or in none). */
 export function setCaptainLead(meta: MetaState, id: string | undefined): MetaState {
   const c = captainMeta(meta);
-  if (id !== undefined && !c.leads.includes(id)) return meta;
+  if (id !== undefined && !captainGifts(meta).leads.includes(id)) return meta;
   return { ...meta, captain: { ...c, lead: id } };
 }
 
 /** Choose a learnt singularity (the first is always known). */
 export function setCaptainSingularity(meta: MetaState, id: string): MetaState {
   const c = captainMeta(meta);
-  if (id !== CAPTAIN_START_SINGULARITY && !c.sings?.includes(id)) return meta;
+  if (id !== CAPTAIN_START_SINGULARITY && !captainGifts(meta).sings.includes(id)) return meta;
   return { ...meta, captain: { ...c, sing: id === CAPTAIN_START_SINGULARITY ? undefined : id } };
 }
 
@@ -425,12 +398,14 @@ export function migrateMeta(meta: MetaState): MetaState {
     const c = meta.captain;
     let back = 0;
     if (c) {
+      // (A build from those days, read as it was kept.)
+      const old = c as unknown as Partial<Record<'attack' | 'stability' | 'cheaper' | 'slots', number>> & { abilities?: string[]; leads?: string[] };
       const OLD = { attack: [5, 9, 14], stability: [3, 6, 10, 15], cheaper: [8, 16], slots: [6, 12] } as const;
       const OLD_ABILITY: Record<string, number> = { patch: 3, scout: 4, volley: 5, bulwark: 6, vent: 6, strafe: 8, overdrive: 8, rally: 10, mend: 10 };
       const OLD_LEAD: Record<string, number> = { steady: 12, iron: 12, salvo: 14, gunnery: 16 };
-      for (const k of ['attack', 'stability', 'cheaper', 'slots'] as const) back += OLD[k].slice(0, c[k] ?? 0).reduce((t, n) => t + n, 0);
-      for (const a of c.abilities ?? []) back += OLD_ABILITY[a] ?? 0;
-      for (const l of c.leads ?? []) back += OLD_LEAD[l] ?? 0;
+      for (const k of ['attack', 'stability', 'cheaper', 'slots'] as const) back += OLD[k].slice(0, old[k] ?? 0).reduce((t, n) => t + n, 0);
+      for (const a of old.abilities ?? []) back += OLD_ABILITY[a] ?? 0;
+      for (const l of old.leads ?? []) back += OLD_LEAD[l] ?? 0;
     }
     meta = { ...meta, petals: meta.petals + back, v: 3, ...(c ? { captain: plainCaptain() } : {}) };
   }
