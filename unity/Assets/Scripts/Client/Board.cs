@@ -159,6 +159,21 @@ public class Board : MonoBehaviour
         return face;
     }
 
+    readonly Dictionary<string, int> lastHealth = new Dictionary<string, int>();
+    readonly Dictionary<string, int> lastHeat = new Dictionary<string, int>();
+
+    /// <summary>A number that rises and fades where something changed: heat on a sun, stability on a card.</summary>
+    void Float(Vector3 at, int delta, bool heat)
+    {
+        if (!Application.isPlaying) return;
+        var t = Mats.FlatText("Float", table, (delta > 0 ? "+" : "") + delta, 5.5f, heat ? (delta > 0 ? Look.Heat : Look.Cool) : (delta < 0 ? Look.Heat : Look.Good), true, 700, 0);
+        t.transform.localRotation = Quaternion.LookRotation(Cam.transform.forward, Cam.transform.up);
+        t.transform.localPosition = at + new Vector3(0, 1.2f, 0);
+        t.outlineWidth = 0.2f;
+        t.outlineColor = new Color32(255, 255, 255, 200);
+        t.gameObject.AddComponent<Floater>();
+    }
+
     /// <summary>Lay the battle out as it stands: every card where it belongs, every sun as hot as it is.</summary>
     public void Sync(GameState s, BattleView ui)
     {
@@ -190,6 +205,14 @@ public class Board : MonoBehaviour
                 for (int k = 0; k < 3; k++) v.Badge(new[] { "atk", "stab", "def" }[k], "atk", null);
             }
             SunFor(p, mine).Show(s, p);
+            if (lastHeat.TryGetValue(p.Id, out var was) && was != p.Heat) Float(mine ? MySun : RivalSun, p.Heat - was, true);
+            lastHeat[p.Id] = p.Heat;
+            foreach (var c in p.Tableau)
+            {
+                int hp = c.Health ?? 0;
+                if (lastHealth.TryGetValue(c.Uid, out var had) && had != hp) Float(SlotAt(mine, c.Slot ?? 0), hp - had, false);
+                lastHealth[c.Uid] = hp;
+            }
         }
         // My hand, fanned along the foot of the screen; held up a little when it can be played.
         float d = 3.2f;
@@ -243,14 +266,13 @@ public class Board : MonoBehaviour
     {
         if (cards.TryGetValue(c.Uid, out var v) && v.Table != table)
         {
-            // (From the hand to the table: a new view, as its face is the table's.)
-            var at = v.transform.position;
+            // (From the hand to the table: a new view, as its face is the table's, flying from where the old one was.)
+            var at = v.transform;
+            var nv = CardView.Make(table ? this.table : handRoot, c.Uid, c.DefId, table);
+            nv.StartFrom(at.position, at.rotation, at.lossyScale);
             Mats.Kill(v.gameObject);
-            cards.Remove(c.Uid);
-            v = CardView.Make(table ? this.table : handRoot, c.Uid, c.DefId, table);
-            v.transform.position = at;
-            cards[c.Uid] = v;
-            return v;
+            cards[c.Uid] = nv;
+            return nv;
         }
         if (v == null)
         {
@@ -294,6 +316,23 @@ public class Board : MonoBehaviour
         // (Text meshes are built as they're about to be drawn in play; for a still picture, now.)
         foreach (var t in GetComponentsInChildren<TMPro.TMP_Text>(true)) t.ForceMeshUpdate();
         foreach (var t in Cam.GetComponentsInChildren<TMPro.TMP_Text>(true)) t.ForceMeshUpdate();
+    }
+}
+
+/// <summary>A number rising off the table and fading out.</summary>
+public class Floater : MonoBehaviour
+{
+    float age;
+    TMPro.TMP_Text text;
+    void Awake() => text = GetComponent<TMPro.TMP_Text>();
+    void Update()
+    {
+        age += Time.deltaTime;
+        transform.localPosition += new Vector3(0, Time.deltaTime * 0.9f, 0);
+        var c = text.color;
+        c.a = Mathf.Clamp01(1.6f - age);
+        text.color = c;
+        if (age > 1.6f) Mats.Kill(gameObject);
     }
 }
 

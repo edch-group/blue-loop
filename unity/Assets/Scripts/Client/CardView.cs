@@ -102,6 +102,16 @@ public class CardView : MonoBehaviour
         transform.localScale = Vector3.Lerp(transform.localScale, goalScale, k);
     }
 
+    /// <summary>Start from where another object stands (in world space), then glide to where it is told.</summary>
+    public void StartFrom(Vector3 worldPos, Quaternion worldRot, Vector3 worldScale)
+    {
+        transform.position = worldPos;
+        transform.rotation = worldRot;
+        var p = transform.parent != null ? transform.parent.lossyScale : Vector3.one;
+        transform.localScale = new Vector3(worldScale.x / p.x, worldScale.y / p.y, worldScale.z / p.z);
+        placed = true;
+    }
+
     /// <summary>Settle at once (for a still picture).</summary>
     public void Settle()
     {

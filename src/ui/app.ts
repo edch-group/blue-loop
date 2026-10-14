@@ -148,7 +148,7 @@ const RESUME_KEY = 'blue-loop:resume-page';
 /** The menu pages a reload may come back to (not the title, sign-in or a page that needs its own state). */
 const RESUMABLE = new Set<string>(['hub', 'quickplay', 'options', 'decks', 'shop']);
 
-const HUB_ICONS = {
+export const HUB_ICONS = {
   collection: `<svg viewBox="0 0 48 48" aria-hidden="true" style="--ih:#5f8fc4"><rect class="ic-e" x="8" y="12" width="18" height="26" rx="3" transform="rotate(-10 17 25)"/><rect class="ic-e" x="16" y="10" width="18" height="26" rx="3"/><rect class="ic-e" x="24" y="12" width="18" height="26" rx="3" transform="rotate(10 33 25)"/></svg>`,
   /** The general booster pack's emblem: a pack with a star. */
   pack: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 10h20l2 30H12z"/><path d="M14 10l4 6h12l4-6M24 22l2.4 4.8 5.3.8-3.8 3.7.9 5.2-4.8-2.5-4.8 2.5.9-5.2-3.8-3.7 5.3-.8z"/></svg>`,

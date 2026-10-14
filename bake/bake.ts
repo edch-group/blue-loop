@@ -14,7 +14,7 @@ import { cardDef } from '../src/engine';
 import { stellariaFlower } from '../src/ui/art';
 import { cardBackFace, cardArtLite, cardBodyHtml, cardJewels, cardStock, fullArt, KIND_COLOUR, raceRow, typeLine } from '../src/ui/glyphs';
 import { cardCost } from '../src/engine/game';
-import { GUARD_SHIELD_SVG, GUARD_SVG, SHIELD_SVG } from '../src/ui/app';
+import { GUARD_SHIELD_SVG, GUARD_SVG, HUB_ICONS, SHIELD_SVG } from '../src/ui/app';
 import { shownKind } from '../src/engine/cards';
 
 const stage = document.getElementById('stage')!;
@@ -54,6 +54,19 @@ function piece(kind: 'back' | 'flower', width: number): void {
       : `<div id="piece" style="width:${width}px;height:${width}px">${stellariaFlower()}</div>`;
 }
 Object.assign(window, { piece });
+
+/** A menu icon on its own, as the hub draws it (`small`: as the header links do), or the title block. */
+function icon(name: string, size: number, small = false): void {
+  if (name === 'title') {
+    stage.innerHTML = `<main class="menu menu-title" style="display:block;min-height:0;background:none"><div class="title-block" id="piece" style="padding:40px 80px">${'<div class="title-sun"></div><h1 class="title">blue loop</h1>'}</div></main>`;
+    return;
+  }
+  const svg = HUB_ICONS[name as keyof typeof HUB_ICONS];
+  stage.innerHTML = small
+    ? `<span class="hub-link-icon" id="piece" style="display:block;width:${size}px;height:${size}px">${svg}</span>`
+    : `<span class="hub-icon" id="piece" style="display:block;width:${size}px;height:${size}px">${svg}</span>`;
+}
+Object.assign(window, { icon, iconNames: () => Object.keys(HUB_ICONS) });
 
 // (Every face the game uses loaded before anything is drawn.)
 void Promise.all(['400 1em Orbitron', '500 1em Orbitron', '700 1em Orbitron', '300 1em "Exo 2"', '400 1em "Exo 2"', '600 1em "Exo 2"'].map((f) => document.fonts.load(f))).then(() =>

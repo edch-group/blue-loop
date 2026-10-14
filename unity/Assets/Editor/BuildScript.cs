@@ -59,6 +59,18 @@ public static class BuildScript
         battle.Settle();
         Shot(cam, Path.Combine(dir, "battle-3.png"));
         Debug.Log($"Screenshots: day {battle.State.TurnNumber}, {moves} moves, winner {battle.State.WinnerId ?? "none yet"}");
+        // The menu's pages.
+        UnityEngine.Object.DestroyImmediate(battle.Board.gameObject);
+        UnityEngine.Object.DestroyImmediate(cam.gameObject);
+        UnityEngine.Object.DestroyImmediate(battle.gameObject);
+        var app = App.Make();
+        foreach (var page in new[] { "title", "hub", "quickplay" })
+        {
+            var menu = app.Menu(page);
+            app.MenuCam.targetTexture = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };
+            foreach (var t in menu.GetComponentsInChildren<TMPro.TMP_Text>(true)) t.ForceMeshUpdate();
+            Shot(app.MenuCam, Path.Combine(dir, $"menu-{page}.png"));
+        }
     }
 
     static void Shot(Camera cam, string path)

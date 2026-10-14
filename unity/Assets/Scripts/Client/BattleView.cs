@@ -30,7 +30,9 @@ public class BattleView : MonoBehaviour
     Canvas hud;
     Button endDay;
     TextMeshProUGUI toast, energyLabel;
-    RectTransform energyDots, reactionPanel, heroPanel, overPanel;
+    RectTransform energyDots, reactionPanel, heroPanel, overPanel, inspector;
+    float pressAt = -1;
+    Vector3 pressPos;
     float toastUntil;
 
     public GameState State => state;
@@ -81,7 +83,25 @@ public class BattleView : MonoBehaviour
         if (state == null || state.WinnerId != null) return;
         if (!busy && AiToMove()) StartCoroutine(AiMove());
         else if (!busy && HumanDawnChoice()) Do(AI.DawnChoiceFor(state));
-        if (!Autoplay && Input.GetMouseButtonDown(0) && !OverHud()) Tap();
+        if (Autoplay) return;
+        // A tap acts; a press held (or a right click) reads the card under it, large.
+        if (Input.GetMouseButtonDown(1) && !OverHud()) Inspect();
+        if (Input.GetMouseButtonDown(0) && !OverHud())
+        {
+            pressAt = Time.time;
+            pressPos = Input.mousePosition;
+        }
+        if (pressAt >= 0 && Input.GetMouseButton(0) && Time.time - pressAt > 0.45f && (Input.mousePosition - pressPos).magnitude < 12)
+        {
+            pressAt = -1;
+            Inspect();
+        }
+        if (pressAt >= 0 && Input.GetMouseButtonUp(0))
+        {
+            pressAt = -1;
+            if (inspector.gameObject.activeSelf) inspector.gameObject.SetActive(false);
+            else Tap();
+        }
     }
 
     bool AiToMove()
@@ -265,11 +285,53 @@ public class BattleView : MonoBehaviour
     /// <summary>How far a card in hand is held up (a picked card, most).</summary>
     public float HandLift(CardInstance c) => c.Uid == picked ? 1f : 0;
 
+    /// <summary>The card under the pointer, read large: its face, and in play what stands on it now.</summary>
+    void Inspect()
+    {
+        if (!Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 100)) return;
+        var v = hit.collider.GetComponentInParent<CardView>();
+        if (v == null) return;
+        foreach (Transform c in inspector) Mats.Kill(c.gameObject);
+        inspector.gameObject.SetActive(true);
+        var veil = inspector.gameObject.GetComponent<Image>() ?? inspector.gameObject.AddComponent<Image>();
+        veil.color = new Color(0.95f, 0.95f, 0.94f, 0.82f);
+        var btn = inspector.gameObject.GetComponent<Button>() ?? inspector.gameObject.AddComponent<Button>();
+        btn.onClick.RemoveAllListeners();
+        btn.onClick.AddListener(() => inspector.gameObject.SetActive(false));
+        var face = Hud.Rect(inspector, "Face");
+        Hud.At(face, new Vector2(0.5f, 0.5f), new Vector2(-170, 20), new Vector2(460, 644));
+        var raw = face.gameObject.AddComponent<RawImage>();
+        raw.texture = Faces.Of(v.DefId, false);
+        raw.raycastTarget = false;
+        // What stands on it now, for a card in play.
+        var owner = state.Players.FirstOrDefault(p => p.Tableau.Any(c => c.Uid == v.Uid));
+        var card = owner?.Tableau.First(c => c.Uid == v.Uid);
+        var def = Cards.Def(v.DefId);
+        var lines = new List<string> { $"<b>{def.Name.ToUpperInvariant()}</b>" };
+        if (card != null)
+        {
+            int atk = Game.CardAttack(state, owner, card);
+            if (atk > 0 || Game.BaseAttack(def) > 0) lines.Add($"Attack {atk}{(card.Dimmed == true ? " (dimmed: attacked today)" : "")}");
+            lines.Add($"Stability {card.Health ?? 0}");
+            lines.Add($"Defence {Game.CardDefence(owner, card)}{(Game.IsGuard(owner, card) ? " · Guard" : "")}");
+            if ((card.Shields ?? 0) > 0) lines.Add($"Shields {card.Shields}");
+            if ((card.Growth ?? 0) > 0) lines.Add($"Grown {card.Growth}");
+            if (card.Frozen == true) lines.Add("Frozen");
+        }
+        var info = Hud.Glass(inspector, "Info", Look.GlassStrong);
+        Hud.At((RectTransform)info.transform, new Vector2(0.5f, 0.5f), new Vector2(270, 120), new Vector2(380, 60 + 40 * lines.Count));
+        var t = Hud.Label(info.transform, string.Join("\n", lines), 24, Look.Ink, false, 500, 0, TextAlignmentOptions.TopLeft);
+        t.margin = new Vector4(24, 20, 24, 20);
+        var hint = Hud.Label(inspector, "TAP ANYWHERE TO CLOSE", 18, Look.InkSoft, true, 500, 14, TextAlignmentOptions.Bottom);
+        hint.margin = new Vector4(0, 0, 0, 40);
+    }
+
     // ---- The screen's own layer ----
 
     void BuildHud()
     {
         hud = Hud.Canvas(Cam);
+        hud.transform.SetParent(transform, false);
         var root = hud.transform;
         // End Day, and your energy over it.
         endDay = Hud.Pill(root, "End day", () => { if (MyDay) Do(new EngineAction { Type = "endTurn" }); }, 26);
@@ -302,6 +364,8 @@ public class BattleView : MonoBehaviour
         {
             var b = Hud.Glass(root, "Corner " + i, Look.GlassStrong);
             Hud.At((RectTransform)b.transform, new Vector2(1, 1), new Vector2(-30 - (2 - i) * 98, -26), new Vector2(84, 84));
+            // (The menu button: back to the hub.)
+            if (i == 0) b.gameObject.AddComponent<Button>().onClick.AddListener(() => App.Instance?.Menu("hub"));
             Hud.Label(b.transform, glyphs[i], 36, Look.Ink, false, 500, 0);
         }
         // A word when something can't be done.
@@ -312,6 +376,9 @@ public class BattleView : MonoBehaviour
         toast.gameObject.SetActive(false);
         t.gameObject.AddComponent<ToastHide>().Text = toast;
 
+        inspector = Hud.Rect(root, "Inspector");
+        Hud.Fill(inspector);
+        inspector.gameObject.SetActive(false);
         reactionPanel = Hud.Rect(root, "Reaction");
         heroPanel = Hud.Rect(root, "Hero");
         overPanel = Hud.Rect(root, "Over");
