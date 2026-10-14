@@ -58,7 +58,7 @@ public static class Look
         t.color = color;
         t.characterSpacing = spacing;
         t.alignment = align;
-        t.enableWordWrapping = false;
+        t.textWrappingMode = TextWrappingModes.NoWrap;
         t.richText = true;
         t.raycastTarget = false;
         return t;
