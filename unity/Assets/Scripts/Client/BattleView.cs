@@ -139,6 +139,20 @@ public partial class BattleView : MonoBehaviour
         if (state == null || state.WinnerId != null) return;
         if (!busy && AiToMove()) StartCoroutine(AiMove());
         if (Autoplay) return;
+        // The pointer over your hand raises it to be read whole; off it (or over the screen's own layer), it lowers.
+        if (Board.HandTop < 1e8f)
+        {
+            float s = 1000f / Mathf.Max(1, Screen.height);
+            var m = Input.mousePosition;
+            float mx = (m.x - Screen.width / 2f) * s, my = (Screen.height / 2f - m.y) * s;
+            bool up = Mathf.Abs(mx) <= Board.HandSpan && my >= Board.HandTop && my <= 500 && !OverHud() && !inspector.gameObject.activeSelf;
+            if (up != Board.HandUp)
+            {
+                Board.HandUp = up;
+                if (up) Sound.Play("hand-lift");
+                Board.Sync(state, this);
+            }
+        }
         // A tap acts; a press held (or a right click) reads the card under it, large.
         if (Input.GetMouseButtonDown(1) && !OverHud()) Inspect();
         if (Input.GetMouseButtonDown(0) && !OverHud())

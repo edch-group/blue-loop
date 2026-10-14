@@ -25,6 +25,10 @@ public class Board : MonoBehaviour
 
     public Camera Cam;
     public string Viewer;
+    /// <summary>Whether the hand is raised to be read whole (the pointer over it).</summary>
+    public bool HandUp;
+    /// <summary>The hand's cards' top edge, and how far either side of the middle they reach: in pixels of a screen 1000 tall, from its middle (down positive).</summary>
+    public float HandTop = 1e9f, HandSpan;
     Transform table, handRoot;
     readonly Dictionary<string, CardView> cards = new Dictionary<string, CardView>();
     readonly Dictionary<string, SunView> suns = new Dictionary<string, SunView>();
@@ -393,16 +397,28 @@ public class Board : MonoBehaviour
         // My hand, fanned along the foot of the screen (app.ts fitHand, at 1600 × 1000: the page drawn 1.45 times its
         // layout size): cards 127 px wide in a hand 753 px across, overlapping by the same share of their widths,
         // turned 2.5° apart (less for a big hand) on an arc, their middles 63 px above the screen's foot; a picked
-        // card held up.
+        // card held up. Raised (the pointer over it), the hand grows 1.14 times from its foot and rises until its
+        // lowest corner is 8 px above the screen's foot (app.ts measureRaise).
         float d = 3.2f;
         float h = 2 * d * Mathf.Tan(Cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
-        float px = h / 1000 * 1.45f;
-        const float cw = 127, room = 753 - 2 * 0.12f * cw;
-        float cardW = cw * px, cardH = cardW * 1.4f;
+        float px = h / 1000;
+        const float z = 1.45f, cw = 127 * z, room = (753 - 2 * 0.12f * 127) * z, grow = 1.14f, foot = 479.3f;
         int n = me.Hand.Count;
         float spacing = n > 1 ? Mathf.Min(0.98f, (room - cw) / ((n - 1) * cw)) * cw : 0;
         float turn = Mathf.Min(2.5f, 12f / Mathf.Max(n - 1, 1));
         float radius = spacing / (turn * Mathf.Deg2Rad);
+        // (Where each card stands, in pixels from the screen's middle, down positive; and the lowest corner of all.)
+        var spot = new Vector2[n];
+        float low = 0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = i - (n - 1) / 2f, a = t * turn * Mathf.Deg2Rad;
+            spot[i] = new Vector2(t * spacing, 437.5f + radius * (1 - Mathf.Cos(a)) * 1.25f);
+            low = Mathf.Max(low, spot[i].y + (cw * Mathf.Abs(Mathf.Sin(a)) + cw * 1.4f * Mathf.Cos(a)) / 2);
+        }
+        float rise = HandUp && n > 0 ? Mathf.Max(0, foot + (low - foot) * grow - 500 + 8 * z) : 0, size = HandUp ? grow : 1;
+        HandTop = 1e9f;
+        HandSpan = 0;
         for (int i = 0; i < n; i++)
         {
             var c = me.Hand[i];
@@ -410,10 +426,11 @@ public class Board : MonoBehaviour
             seen.Add(c.Uid);
             v.transform.SetParent(handRoot, false);
             float t = i - (n - 1) / 2f;
-            float fy = radius * (1 - Mathf.Cos(t * turn * Mathf.Deg2Rad)) * 1.25f;
+            float x = spot[i].x * size, y = foot + (spot[i].y - foot) * size - rise;
+            HandTop = Mathf.Min(HandTop, y - cw * 1.4f * size / 2);
+            HandSpan = Mathf.Max(HandSpan, Mathf.Abs(x) + cw * size / 2);
             float lift = ui.HandLift(c);
-            var y = -(437.5f / 1.45f + fy) * px + lift * cardH * 0.3f;
-            v.MoveTo(new Vector3(t * spacing * px, -d + 0.001f * i, y), Quaternion.Euler(0, t * turn, 0), cardW);
+            v.MoveTo(new Vector3(x * px, -d + 0.001f * i, -y * px + lift * cw * 1.4f * px * 0.3f), Quaternion.Euler(0, t * turn, 0), cw * size * px);
             foreach (var b in new[] { "atk", "stab", "def" }) v.Badge(b, "atk", null);
             v.Dimmed(false);
             ui.Dress(v, me, c, false);
@@ -708,8 +725,10 @@ public static class BoardArt
             {
                 float u = (x + 0.5f) / k - FrameW / 2, v = FrameZ + (y + 0.5f) / k - FrameD / 2;
                 float d = Mathf.Min(Box(u, v - rowZ, FrameW / 2, rowH, r), Box(u - (bx0 + bx1) / 2, v - (rowZ + bz1) / 2, (bx1 - bx0) / 2, (bz1 - rowZ) / 2, r));
-                // (The inner corner, filled round to a quarter circle.)
-                if (u > bx0 - rc && u < bx0 && v > top && v < top + rc) d = Mathf.Min(d, rc - Vector2.Distance(new Vector2(u, v), new Vector2(bx0 - rc, top + rc)));
+                // (The inner corner, filled round to a quarter circle; the fill reaches a little into both boxes, so
+                // their edges there are inside it and draw no line.)
+                const float e = 3 / k;
+                if (u > bx0 - rc && u < bx0 + e && v > top - e && v < top + rc) d = Mathf.Min(d, rc - Vector2.Distance(new Vector2(u, v), new Vector2(bx0 - rc, top + rc)));
                 d *= k;
                 var c = Over(new Color(fill.r, fill.g, fill.b, 0), fill, 0.5f - d);
                 c = Over(c, line, 1.3f - Mathf.Abs(d));
