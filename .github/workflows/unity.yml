@@ -1,5 +1,5 @@
 # Builds the Unity project (unity/) with the Personal licence held as repository secrets (UNITY_LICENSE,
-# UNITY_EMAIL, UNITY_PASSWORD), runs the built game on a virtual screen, and commits its screenshot back to
+# UNITY_EMAIL, UNITY_PASSWORD), renders a screenshot in the editor as it builds, and commits it back to
 # unity/ci/shot.png, so the work can be seen without a Unity install.
 name: Unity
 
@@ -35,18 +35,13 @@ jobs:
           targetPlatform: StandaloneLinux64
           buildMethod: BuildScript.Build
           buildName: Game
-      - name: Run and screenshot
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libglu1-mesa > /dev/null
-          ls -la build/StandaloneLinux64
-          chmod +x build/StandaloneLinux64/Game* || true
-          mkdir -p unity/ci
-          timeout 120 xvfb-run -s "-screen 0 1280x720x24" build/StandaloneLinux64/Game -force-glcore -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -logFile - -shot "$PWD/unity/ci/shot.png" | grep -v "^GL_\|ALSA" | tail -60 || true
-          ls -la unity/ci
+      - name: Screenshot
+        run: ls -la unity/ci || echo 'no screenshot'
       - name: Commit screenshot
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          sudo chown -R "$(id -u)" unity/ci 2>/dev/null || true
           git add unity/ci
           git commit -m "Unity CI screenshot" || exit 0
           git pull --rebase origin "$GITHUB_REF_NAME"

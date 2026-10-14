@@ -6,6 +6,23 @@ using UnityEngine;
 /// <summary>The CI build: a scene made here (a camera, a light, a cube that saves a screenshot), built for Linux.</summary>
 public static class BuildScript
 {
+    /// <summary>The camera's view, rendered here in the editor and saved (the CI's look at the work).</summary>
+    public static void Shot(Camera cam, string path)
+    {
+        var rt = new RenderTexture(1280, 720, 24);
+        cam.targetTexture = rt;
+        cam.Render();
+        RenderTexture.active = rt;
+        var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false);
+        tex.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0);
+        tex.Apply();
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+        System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+        cam.targetTexture = null;
+        RenderTexture.active = null;
+        Debug.Log("Shot saved: " + path + " (" + SystemInfo.graphicsDeviceType + ")");
+    }
+
     public static void Build()
     {
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -22,6 +39,7 @@ public static class BuildScript
         cube.AddComponent<Snap>();
         System.IO.Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.SaveScene(scene, "Assets/Scenes/Test.unity");
+        Shot(cam, "ci/shot.png");
 
         var args = Environment.GetCommandLineArgs();
         var output = "build/StandaloneLinux64/Game";
