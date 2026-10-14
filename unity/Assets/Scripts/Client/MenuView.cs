@@ -153,11 +153,15 @@ public class MenuView : MonoBehaviour
         Picture(page, "Icons/title", new Vector2(0.5f, 1), new Vector2(0, -40), new Vector2(963, 220));
         // Shop, collection and glossary as plain links, top left.
         var links = new[] { ("shop", "Shop"), ("collection", "Collection"), ("glossary", "Glossary") };
+        // (Each as wide as its name, the next after it.)
+        float linkX = 36;
         for (int i = 0; i < links.Length; i++)
         {
             var (icon, name) = links[i];
+            float linkW = 64 + name.Length * 17;
             var r = Hud.Rect(page, name);
-            Hud.At(r, new Vector2(0, 1), new Vector2(36 + i * 190, -34), new Vector2(180, 54));
+            Hud.At(r, new Vector2(0, 1), new Vector2(linkX, -34), new Vector2(linkW, 54));
+            linkX += linkW + 22;
             var b = r.gameObject.AddComponent<Button>();
             var hit = r.gameObject.AddComponent<Image>();
             hit.color = new Color(1, 1, 1, 0);
