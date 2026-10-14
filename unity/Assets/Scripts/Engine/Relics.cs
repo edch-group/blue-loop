@@ -123,8 +123,4 @@ namespace BlueLoop.Engine
     /// Cards made from their ids, not stored: fused cards ("fuse:a+b"), marked cards, the Captain's and the
     /// companions' builds. (Ported with the campaign.)
     /// </summary>
-    public static partial class Builds
-    {
-        public static CardDef Make(string defId) => null;
-    }
 }

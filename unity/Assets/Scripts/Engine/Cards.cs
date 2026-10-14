@@ -47,10 +47,11 @@ namespace BlueLoop.Engine
         }
 
         /// <summary>Everything the engine reads, from the three data files' text.</summary>
-        public static void Load(string cardsJson, string decksJson, string rulesJson)
+        public static void Load(string cardsJson, string decksJson, string rulesJson, string buildsJson)
         {
             CardData.Load(cardsJson, decksJson);
             LoadRules(rulesJson);
+            Builds.Load(buildsJson);
         }
 
         /// <summary>A card by id (fused, marked and built cards are made from their ids: see Builds).</summary>

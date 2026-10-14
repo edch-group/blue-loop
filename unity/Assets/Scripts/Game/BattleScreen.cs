@@ -39,7 +39,7 @@ public class BattleScreen : MonoBehaviour
             Seed = seed,
             Players = new List<PlayerSetup>
             {
-                new PlayerSetup { Name = "You", IsAI = Autoplay, Deck = mine.Cards, DeckName = mine.Name },
+                new PlayerSetup { Name = "Captain", IsAI = Autoplay, Deck = mine.Cards, DeckName = mine.Name },
                 new PlayerSetup { Name = "Rival", IsAI = true, Deck = theirs.Cards, DeckName = theirs.Name },
             },
         });
@@ -229,7 +229,7 @@ public class BattleScreen : MonoBehaviour
         // The heat meter: how close to supernova.
         var meter = Ui.Place(Ui.Panel(root, "Meter", new Color(0.88f, 0.89f, 0.92f)).rectTransform, 1120, rowY + 10, 440, 22);
         float f = Mathf.Clamp01((p.Heat - Balance.MinHeat) / (float)(Game.SupernovaThreshold(p) - Balance.MinHeat));
-        var fill = Ui.Panel(meter, "Fill", Color.Lerp(Ui.Cool, Ui.Heat, f)).rectTransform;
+        var fill = Ui.Panel(meter, "Fill", f < 0.5f ? Color.Lerp(Ui.Cool, Ui.Stability, f * 2) : Color.Lerp(Ui.Stability, Ui.Heat, f * 2 - 1)).rectTransform;
         fill.anchorMin = Vector2.zero;
         fill.anchorMax = new Vector2(f, 1);
         fill.offsetMin = fill.offsetMax = Vector2.zero;
@@ -271,7 +271,8 @@ public class BattleScreen : MonoBehaviour
         var name = Ui.Label(frame, def.Name, 14, Ui.Ink, TextAnchor.UpperLeft, FontStyle.Bold);
         Ui.Place(name.rectTransform, 6, textTop + 2, w - 12, 34);
         var words = Ui.Label(frame, Ui.CardText(def.Text), 11, Ui.InkSoft, TextAnchor.UpperLeft);
-        Ui.Place(words.rectTransform, 6, textTop + 34, w - 12, h - textTop - 58);
+        // (In play its defence line sits above the foot: the words stop short of it.)
+        Ui.Place(words.rectTransform, 6, textTop + 34, w - 12, h - textTop - (inPlay ? 78 : 58));
         // Cost, top left; attack and stability along the foot.
         var cost = Ui.Label(frame, (inPlay ? Game.CardCost(c.DefId) : Game.HandCost(c, owner)).ToString(), 18, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
         var costBg = Ui.Panel(frame, "Cost", new Color(0.36f, 0.68f, 0.49f));

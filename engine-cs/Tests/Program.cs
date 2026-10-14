@@ -30,6 +30,26 @@ void Check(string name, bool ok, string detail = "")
     var decksBack = JsonDiff.First(Newtonsoft.Json.Linq.JToken.Parse(decksJson), Newtonsoft.Json.Linq.JToken.Parse(Json.Write(CardData.Decks)));
     Check($"decks round trip ({CardData.Decks.Count})", decksBack == null, decksBack);
     Cards.LoadRules(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/rules.json")));
+    Builds.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/builds.json")));
+}
+
+// Built cards: fused, marked, the Captain's builds and the crew's, each as the TypeScript engine builds it.
+{
+    var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/builds.json");
+    if (!System.IO.File.Exists(path)) Console.WriteLine("skip built cards (no engine-cs/traces/builds.json: npx tsx scripts/record-builds.ts)");
+    else
+    {
+        var built = Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(path));
+        int bad = 0;
+        foreach (var kv in built)
+        {
+            string d;
+            try { d = JsonDiff.First(kv.Value, Newtonsoft.Json.Linq.JToken.Parse(Json.Write(Cards.Def(kv.Key)))); }
+            catch (Exception e) { d = e.Message; }
+            if (d != null && bad++ < 8) Console.WriteLine($"  {kv.Key}: {d}");
+        }
+        Check($"built cards ({built.Count})", bad == 0, $"{bad} differ");
+    }
 }
 
 // Battles: each recorded game (npm run record-battles) set up and played move by move here, every state after a move
