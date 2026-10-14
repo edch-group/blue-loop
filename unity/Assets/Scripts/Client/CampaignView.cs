@@ -340,7 +340,7 @@ public partial class CampaignView : MonoBehaviour
         ring.sharedMaterial.SetFloat("_Ring", 1);
         ring.sharedMaterial.renderQueue = 3050;
         var name = Mats.FlatText("Name", go.transform, "", 2.2f, Look.InkSoft, true, 500, 14);
-        name.transform.localPosition = Toward * 0.45f + Vector3.down * 0.1f;
+        name.transform.localPosition = Toward * 0.45f + Vector3.up * 0.03f;
         name.transform.localRotation = Facing;
         name.gameObject.SetActive(false);
         // A station or a lab: its model hanging beside the star (nebula-objects.ts props).
@@ -357,7 +357,7 @@ public partial class CampaignView : MonoBehaviour
         if (mark != null)
         {
             var t = Mats.FlatText("Mark", go.transform, mark, 1.6f, Look.InkFaint, true, 500, 18);
-            t.transform.localPosition = -Toward * 0.42f + Vector3.down * 0.1f;
+            t.transform.localPosition = -Toward * 0.42f + Vector3.up * 0.03f;
             t.transform.localRotation = Facing;
         }
     }
@@ -389,19 +389,19 @@ public partial class CampaignView : MonoBehaviour
     void Galaxy()
     {
         if (state.Galaxy == null || Campaign.D.Galaxies == null || !Campaign.D.Galaxies.TryGetValue(state.Galaxy, out var g)) return;
-        var first = state.Nodes.OrderBy(n => n.X).First();
-        // (Before the strip's start, angled up along it, clear of its routes.)
-        var at = NodePos(first.Id) + Quaternion.Euler(0, ViewYaw, 0) * new Vector3(-5.2f, 0.03f, 0.9f);
-        var name = Mats.FlatText("Galaxy", mapRoot, g.Name.ToUpperInvariant(), 4.6f, Look.InkSoft, true, 400, 30, TextAlignmentOptions.Left);
-        name.rectTransform.sizeDelta = new Vector2(10, 1.2f);
+        // (Laid along the strip's near side, reading west to east, from its first system.)
+        var ps = state.Nodes.Where(n => n.Vanished != true).Select(n => NodePos(n.Id)).ToList();
+        var at = new Vector3(ps.Min(p => p.x) - 0.6f, 0.03f, ps.Min(p => p.z) - 1.1f);
+        var name = Mats.FlatText("Galaxy", mapRoot, g.Name.ToUpperInvariant(), 3.2f, Look.InkSoft, true, 400, 30, TextAlignmentOptions.TopLeft);
+        name.rectTransform.pivot = new Vector2(0, 1);
+        name.rectTransform.sizeDelta = new Vector2(14, 1);
         name.transform.localPosition = at;
-        name.transform.localRotation = Quaternion.Euler(90, ViewYaw - 28, 0);
-        var text = Mats.FlatText("Galaxy words", mapRoot, g.Text, 2.0f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
+        var text = Mats.FlatText("Galaxy words", mapRoot, g.Text, 1.5f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
         text.fontStyle = FontStyles.Italic;
         text.textWrappingMode = TextWrappingModes.Normal;
-        text.rectTransform.sizeDelta = new Vector2(5f, 2f);
-        text.transform.localPosition = at + Quaternion.Euler(0, ViewYaw - 28, 0) * new Vector3(-2.2f, 0, -1.3f);
-        text.transform.localRotation = Quaternion.Euler(90, ViewYaw - 28, 0);
+        text.rectTransform.pivot = new Vector2(0, 1);
+        text.rectTransform.sizeDelta = new Vector2(9, 2f);
+        text.transform.localPosition = at + new Vector3(0, 0, -0.75f);
     }
 
     // ---- The view: following the ship, the player's drags and zooms ----
