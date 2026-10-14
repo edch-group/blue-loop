@@ -72,7 +72,7 @@ public static class BuildScript
         UnityEngine.Object.DestroyImmediate(cam.gameObject);
         UnityEngine.Object.DestroyImmediate(battle.gameObject);
         var app = App.Make();
-        foreach (var page in new[] { "title", "hub", "quickplay", "collection", "glossary" })
+        foreach (var page in new[] { "title", "hub", "quickplay", "collection", "glossary", "tutorial", "challenges" })
         {
             var menu = app.Menu(page);
             app.MenuCam.targetTexture = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };

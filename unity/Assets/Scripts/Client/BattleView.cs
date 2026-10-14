@@ -12,7 +12,7 @@ using EngineAction = BlueLoop.Engine.Action;
 /// up (and then what it can aim at); tap one. Tap one of your cards that can attack, then a rival card or their sun.
 /// Tap your Hero for its abilities. The rival's days play out a move at a time.
 /// </summary>
-public class BattleView : MonoBehaviour
+public partial class BattleView : MonoBehaviour
 {
     public Camera Cam;
     public Board Board;
@@ -186,6 +186,7 @@ public class BattleView : MonoBehaviour
 
     void Do(EngineAction a)
     {
+        if (LessonBlocks(a)) return;
         try
         {
             var was = state;
@@ -250,6 +251,12 @@ public class BattleView : MonoBehaviour
     void Quit()
     {
         CloseSheet();
+        // (A lesson or a challenge is quick to begin again: only leave.)
+        if (puzzleKind != null)
+        {
+            sheet = Hud.Sheet(hud.transform, "quit game", new[] { new Hud.Row("leave", LeavePuzzle, null, true), new Hud.Row("keep playing", CloseSheet) }, CloseSheet);
+            return;
+        }
         sheet = Hud.Sheet(hud.transform, "quit game", new[]
         {
             new Hud.Row("save and leave", () => { Persist(); App.Instance?.Menu("hub"); }, null, true),
@@ -261,7 +268,7 @@ public class BattleView : MonoBehaviour
     /// <summary>Autosave (storage.ts): a game in play kept to continue later; a finished one let go.</summary>
     void Persist()
     {
-        if (state == null || Autoplay || !Application.isPlaying) return;
+        if (state == null || Autoplay || !Application.isPlaying || puzzleKind != null) return;
         if (state.WinnerId != null) Store.Remove(SaveKey);
         else Store.Write(SaveKey, state);
     }
@@ -781,6 +788,7 @@ public class BattleView : MonoBehaviour
         }
         Reaction();
         ShowHint();
+        PuzzleTag();
         GameOver();
     }
 
@@ -864,6 +872,7 @@ public class BattleView : MonoBehaviour
         bool over = state.WinnerId != null && !Autoplay;
         overPanel.gameObject.SetActive(over);
         if (!over) return;
+        if (puzzleKind != null) { PuzzleResult(); return; }
         // (As the web's: a white card a little above the middle, the result, why, and the way out.)
         Hud.At(overPanel, new Vector2(0.5f, 0.55f), Vector2.zero, new Vector2(560, 230));
         var card = Hud.Glass(overPanel, "Result", Color.white);

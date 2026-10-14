@@ -68,6 +68,8 @@ public class MenuView : MonoBehaviour
             case "quickplay": Quickplay(); break;
             case "collection": BuilderView.Make(page, this); break;
             case "glossary": GlossaryView.Make(page, this); break;
+            case "tutorial": TutorialView.Make(page, this); break;
+            case "challenges": ChallengesView.Make(page, this); break;
             default: Title(); break;
         }
     }
@@ -139,7 +141,7 @@ public class MenuView : MonoBehaviour
             colors.pressedColor = new Color(0.93f, 0.94f, 0.97f);
             b.colors = colors;
             string target = icon;
-            b.onClick.AddListener(() => { if (target == "quickplay") Show("quickplay"); else Soon(name); });
+            b.onClick.AddListener(() => { if (target == "quickplay" || target == "tutorial" || target == "challenges") Show(target); else Soon(name); });
             Picture(tile.transform, $"Icons/{icon}", new Vector2(0.5f, 0.5f), new Vector2(0, 26), new Vector2(84, 84));
             var t = Hud.Label(tile.transform, name.ToUpperInvariant(), 19, Look.Ink, true, 700, 18, TextAlignmentOptions.Bottom);
             t.margin = new Vector4(10, 0, 10, 44);

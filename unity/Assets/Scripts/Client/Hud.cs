@@ -11,7 +11,10 @@ using UnityEngine.UI;
 public static class Hud
 {
     public const float W = 1600, H = 1000;
-    static Sprite rounded, soft;
+    static Sprite rounded, soft, circle;
+
+    /// <summary>A white disc (for round buttons, dots and portraits).</summary>
+    public static Sprite Circle => circle ??= MakeRounded(128, 64, 0);
 
     /// <summary>A white rounded rectangle, 9-sliced so it stretches to any size with its corners kept.</summary>
     public static Sprite Rounded => rounded ??= MakeRounded(64, 22, 0);

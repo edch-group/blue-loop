@@ -342,6 +342,22 @@ public class Board : MonoBehaviour
         foreach (Transform c in face.transform.parent) if (c.name == "Name") c.gameObject.SetActive(top == null);
     }
 
+    TextMeshPro tagName, tagSub;
+
+    /// <summary>A lesson's or a challenge's name, and what it asks, under the flower (where a galaxy's would be); null: none.</summary>
+    public void SetTag(string name, string sub)
+    {
+        if (tagName == null)
+        {
+            tagName = Mats.FlatText("Tag", table, "", 1.6f, Look.Ink, true, 600, 24);
+            tagName.transform.localPosition = new Vector3(0, 0.01f, -1.02f);
+            tagSub = Mats.FlatText("Tag words", table, "", 1.4f, Look.InkSoft, false, 400, 4);
+            tagSub.transform.localPosition = new Vector3(0, 0.01f, -1.2f);
+        }
+        tagName.text = name?.ToUpperInvariant() ?? "";
+        tagSub.text = sub ?? "";
+    }
+
     CardView Card(CardInstance c, bool table)
     {
         if (cards.TryGetValue(c.Uid, out var v) && v.Table != table)

@@ -75,6 +75,14 @@ function hudIcon(name: keyof typeof HUD_ICONS, size: number): void {
 }
 Object.assign(window, { hudIcon, hudIconNames: () => Object.keys(HUD_ICONS) });
 
+/** A race's emblem (factions.ts factionAvatar: its painted badge, or its line art on a pearl disc), as a challenge tile shows it. */
+function faction(id: string, size: number): void {
+  stage.innerHTML = `<span id="piece" class="ch-emblem" style="display:block;width:${size}px;height:${size}px">${factionAvatar(id, 'ch-emblem-mark')}</span>`;
+  const el = stage.querySelector('.fav') as HTMLElement;
+  el.style.width = el.style.height = `${size}px`;
+}
+Object.assign(window, { faction });
+
 // (Every face the game uses loaded before anything is drawn.)
 void Promise.all(['400 1em Orbitron', '500 1em Orbitron', '700 1em Orbitron', '300 1em "Exo 2"', '400 1em "Exo 2"', '600 1em "Exo 2"'].map((f) => document.fonts.load(f))).then(() =>
   Object.assign(window, { face, badges, ready: true }),
@@ -178,4 +186,5 @@ async function bakeScore(scene: 'ambient' | 'battle' | 'boss' | 'voyage', loop: 
   return wav(buf, length);
 }
 import { HEROES } from '../src/ui/voice';
+import { factionAvatar } from '../src/ui/factions';
 Object.assign(window, { bakeEffect, bakeScore, heroLines: () => Object.fromEntries(Object.entries(HEROES).map(([id, h]) => [id, h.lines])) });

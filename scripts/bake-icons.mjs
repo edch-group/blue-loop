@@ -28,6 +28,12 @@ for (const name of await page.evaluate(() => window.hudIconNames())) {
   await settle();
   writeFileSync(`${out}/hud-${name}.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
 }
+// The races' emblems, f1 to f8 (a challenge's tile, a deck's race).
+for (let i = 1; i <= 8; i++) {
+  await page.evaluate((id) => window.faction(id, 96), `f${i}`);
+  await settle();
+  writeFileSync(`${out}/faction-f${i}.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
+}
 await page.evaluate(() => window.icon('title', 0));
 await settle();
 writeFileSync(`${out}/title.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
