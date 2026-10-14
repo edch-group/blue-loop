@@ -48,6 +48,25 @@ public class Profile
         if (cached != null) Store.Write(Key, cached);
     }
 
+    /// <summary>Read the profile afresh from this device's storage (after the account's copy was put there).</summary>
+    public static void Reload() => cached = null;
+
+    /// <summary>Take up the account's economy, as the server has it (it alone changes it: see Account).</summary>
+    public static void SetEconomy(Account.Economy e)
+    {
+        if (e == null) return;
+        var p = Me;
+        p.Level = e.Level;
+        p.Xp = e.Xp;
+        p.Stardust = e.Stardust;
+        p.Flux = e.Flux;
+        if (e.Collection != null) p.Collection = new Dictionary<string, int>(e.Collection);
+        p.RankPoints = e.RankPoints;
+        p.Played = e.Played;
+        p.Won = e.Won;
+        Save();
+    }
+
     public static int Owned(string id) => Me.Collection.TryGetValue(id, out var n) ? n : 0;
 
     /// <summary>Set the name the player goes by.</summary>
