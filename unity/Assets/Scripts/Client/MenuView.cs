@@ -738,12 +738,12 @@ public class MenuView : MonoBehaviour
         for (int i = 0; i < rows.Length; i++)
         {
             var row = rows[i];
-            var r = Hud.Box(list.transform, row.Label, new Color(1, 1, 1, 0), 17.4f);
+            var r = Hud.Box(list.transform, row.Label, Color.white, 17.4f);
             Hud.Place((RectTransform)r.transform, 5.8f, 5.8f + i * (rowH + 2.9f), rowW, rowH);
             r.raycastTarget = true;
             var b = r.gameObject.AddComponent<Button>();
             var colors = b.colors;
-            // (A faint blue under the pointer, as the web's row hover.)
+            // (Clear, and a faint blue under the pointer, as the web's row hover.)
             colors.normalColor = new Color(1, 1, 1, 0);
             colors.highlightedColor = Hud.Rgba(95, 143, 196, 0.08f);
             colors.pressedColor = Hud.Rgba(95, 143, 196, 0.14f);
