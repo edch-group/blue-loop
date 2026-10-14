@@ -777,16 +777,16 @@ describe('the end', () => {
     expect(s.players[0].heat).toBeLessThanOrEqual(before);
   });
 
-  it('the wreckage feeds the discard pile one card a dawn, from its top; new ones go to its bottom', () => {
+  it('the wreckage feeds the reserves two cards a dawn, from its top; new ones go to its bottom', () => {
     let s = endTurn(twoPlayer());
     const ada = s.players[0];
-    const [a, b] = give(ada, ['coronal_lance', 'heat_sink']);
-    ada.hand = ada.hand.filter((c) => c !== a && c !== b);
-    ada.wreck = [a, b];
+    const [a, b, c] = give(ada, ['coronal_lance', 'heat_sink', 'cryo_vault']);
+    ada.hand = ada.hand.filter((x) => x !== a && x !== b && x !== c);
+    ada.wreck = [a, b, c];
     ada.discard = [];
     s = endTurn(s);
-    expect(s.players[0].discard.map((c) => c.uid)).toEqual([a.uid]);
-    expect(s.players[0].wreck!.map((c) => c.uid)).toEqual([b.uid]);
+    expect(s.players[0].discard.map((x) => x.uid)).toEqual([a.uid, b.uid]);
+    expect(s.players[0].wreck!.map((x) => x.uid)).toEqual([c.uid]);
   });
 
   it('shuffles the discard pile back in when the deck runs out, at no cost', () => {

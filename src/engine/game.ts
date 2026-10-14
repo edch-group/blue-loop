@@ -1136,12 +1136,14 @@ export function toWreck(p: PlayerState, ...cards: CardInstance[]) {
   (p.wreck ??= []).push(...cards);
 }
 
-/** A dawn: the wreckage's top card reaches the discard pile. */
+/** A dawn: the wreckage's top cards (two [direction: one was a little too punishing]) reach the reserves. */
 function salvageWreck(state: GameState, p: PlayerState) {
-  const card = p.wreck?.shift();
-  if (!card) return;
-  p.discard.push(card);
-  log(state, `${p.name}'s ${cardDef(card.defId).name} comes back from the wreckage to their reserves.`);
+  for (let i = 0; i < BALANCE.wreckPerDawn; i++) {
+    const card = p.wreck?.shift();
+    if (!card) return;
+    p.discard.push(card);
+    log(state, `${p.name}'s ${cardDef(card.defId).name} comes back from the wreckage to their reserves.`);
+  }
 }
 
 /** An empty deck: the discard pile is shuffled back in to be used again (it costs nothing). */
@@ -2029,7 +2031,7 @@ function startTurn(state: GameState) {
     charge(state, p, 'orbit');
     if (currentPlanet(p) !== before) log(state, `The ${currentPlanet(p)} planet swings round to face ${p.name}'s sun.`);
   }
-  // One card back from the wreckage to the discard pile, before the day's draw.
+  // Cards back from the wreckage to the reserves, before the day's draw.
   salvageWreck(state, p);
   const abundance = currentPlanet(p, state) === 'abundant' ? BALANCE.abundantDraw + (p.modifiers?.abundantDraw ?? 0) : 0;
   // Draw (your opening hand covers your first day).

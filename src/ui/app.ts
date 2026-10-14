@@ -6058,7 +6058,7 @@ export class App {
       ${mine ? name + hand : hand + name}
       <div class="tpile" data-anchor="${mine ? 'deck' : `deck:${p.id}`}" title="${mine ? `${p.deck.length} cards left in your deck (what they are, and their order, stay hidden)` : `${p.deck.length} cards left in ${esc(p.name)}'s deck`}">${deck}</div>
       <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} reserves (${p.discard.length}): look through them">${discard}</div>
-      <div class="tpile tpile-wreck tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'wreck' : `wreck:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'wreck' : `wreck:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} wreckage (${p.wreck?.length ?? 0}): what was discarded waits here, and one card a dawn (the top one) goes on to the reserves">${wreck}</div>
+      <div class="tpile tpile-wreck tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'wreck' : `wreck:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'wreck' : `wreck:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} wreckage (${p.wreck?.length ?? 0}): what was discarded waits here, and two cards a dawn (the top ones) go on to the reserves">${wreck}</div>
     </div>`;
   }
 
