@@ -162,7 +162,7 @@ public partial class CampaignView : MonoBehaviour
         foreach (var n in state.Nodes.Where(n => n.Vanished != true))
             foreach (var to in n.Links)
                 if (string.CompareOrdinal(n.Id, to) < 0 && state.Nodes.Any(x => x.Id == to && x.Vanished != true)) Route(NodePos(n.Id), NodePos(to), $"{n.Id}|{to}");
-        foreach (var n in state.Nodes.Where(n => n.Vanished != true)) System(n);
+        foreach (var n in state.Nodes.Where(n => n.Vanished != true)) MakeSystem(n);
         ship = MakeShip();
         ship.SetParent(mapRoot, false);
         var f = Campaign.Flagship(state, state.PlayerId);
@@ -188,7 +188,7 @@ public partial class CampaignView : MonoBehaviour
     }
 
     /// <summary>A system: a pearl star, a ring where it stands in reach (and round where your ship is), its name when focused.</summary>
-    void System(CampaignNode n)
+    void MakeSystem(CampaignNode n)
     {
         var go = new GameObject(n.Id);
         go.transform.SetParent(mapRoot, false);
