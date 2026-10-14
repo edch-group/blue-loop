@@ -248,6 +248,13 @@ public partial class CampaignView : MonoBehaviour
         groundMat.SetFloat("_Galaxy", System.Array.IndexOf(GalaxyCodes, state.Galaxy) is int g && g > 0 ? g : 0);
     }
 
+    // The camera's heading (yaw -0.95 rad, its eye toward the strip's near end), and text laid flat to read from it.
+    const float CamYaw = -0.95f, CamPitch = 0.62f;
+    static float ViewYaw => -CamYaw * Mathf.Rad2Deg;
+    static Quaternion Facing => Quaternion.Euler(90, ViewYaw, 0);
+    /// <summary>Along the ground toward the camera.</summary>
+    static Vector3 Toward => new Vector3(Mathf.Sin(CamYaw), 0, -Mathf.Cos(CamYaw));
+
     /// <summary>How far off the camera rests (nebula3d.ts's home: the strip's width fitted to the view, a little in).</summary>
     static float HomeDist => Mathf.Max(2.4f, (StripWidth / 2 + 0.3f) / Mathf.Tan(18 * Mathf.Deg2Rad) * 0.6f) * 0.8f * G;
 
@@ -333,7 +340,8 @@ public partial class CampaignView : MonoBehaviour
         ring.sharedMaterial.SetFloat("_Ring", 1);
         ring.sharedMaterial.renderQueue = 3050;
         var name = Mats.FlatText("Name", go.transform, "", 2.2f, Look.InkSoft, true, 500, 14);
-        name.transform.localPosition = new Vector3(0, -0.1f, -0.45f);
+        name.transform.localPosition = Toward * 0.45f + Vector3.down * 0.1f;
+        name.transform.localRotation = Facing;
         name.gameObject.SetActive(false);
         // A station or a lab: its model hanging beside the star (nebula-objects.ts props).
         if (n.Station?.Kind == "armory" || n.Station?.Kind == "research")
@@ -349,7 +357,8 @@ public partial class CampaignView : MonoBehaviour
         if (mark != null)
         {
             var t = Mats.FlatText("Mark", go.transform, mark, 1.6f, Look.InkFaint, true, 500, 18);
-            t.transform.localPosition = new Vector3(0, -0.1f, 0.42f);
+            t.transform.localPosition = -Toward * 0.42f + Vector3.down * 0.1f;
+            t.transform.localRotation = Facing;
         }
     }
 
@@ -382,17 +391,17 @@ public partial class CampaignView : MonoBehaviour
         if (state.Galaxy == null || Campaign.D.Galaxies == null || !Campaign.D.Galaxies.TryGetValue(state.Galaxy, out var g)) return;
         var first = state.Nodes.OrderBy(n => n.X).First();
         // (Before the strip's start, angled up along it, clear of its routes.)
-        var at = NodePos(first.Id) + new Vector3(-5.2f, 0.03f, 0.9f);
+        var at = NodePos(first.Id) + Quaternion.Euler(0, ViewYaw, 0) * new Vector3(-5.2f, 0.03f, 0.9f);
         var name = Mats.FlatText("Galaxy", mapRoot, g.Name.ToUpperInvariant(), 4.6f, Look.InkSoft, true, 400, 30, TextAlignmentOptions.Left);
         name.rectTransform.sizeDelta = new Vector2(10, 1.2f);
         name.transform.localPosition = at;
-        name.transform.localRotation = Quaternion.Euler(90, -28, 0);
+        name.transform.localRotation = Quaternion.Euler(90, ViewYaw - 28, 0);
         var text = Mats.FlatText("Galaxy words", mapRoot, g.Text, 2.0f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
         text.fontStyle = FontStyles.Italic;
         text.textWrappingMode = TextWrappingModes.Normal;
         text.rectTransform.sizeDelta = new Vector2(5f, 2f);
-        text.transform.localPosition = at + Quaternion.Euler(0, -28, 0) * new Vector3(-2.2f, 0, -1.3f);
-        text.transform.localRotation = Quaternion.Euler(90, -28, 0);
+        text.transform.localPosition = at + Quaternion.Euler(0, ViewYaw - 28, 0) * new Vector3(-2.2f, 0, -1.3f);
+        text.transform.localRotation = Quaternion.Euler(90, ViewYaw - 28, 0);
     }
 
     // ---- The view: following the ship, the player's drags and zooms ----
@@ -436,7 +445,7 @@ public partial class CampaignView : MonoBehaviour
         focus = Vector3.Lerp(focus, focusGoal, k);
         distance = Mathf.Lerp(distance, distanceGoal, k);
         // (The web's pose: yaw -0.95, pitch 0.62 rad; its eye off toward the strip's near end, looking along it.)
-        float yaw = -0.95f, pitch = 0.62f;
+        float yaw = CamYaw, pitch = CamPitch;
         var back = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), -Mathf.Cos(yaw) * Mathf.Cos(pitch));
         Cam.transform.position = focus + back * distance;
         Cam.transform.rotation = Quaternion.LookRotation(-back, Vector3.up);
