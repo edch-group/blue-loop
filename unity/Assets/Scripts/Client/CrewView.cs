@@ -46,6 +46,8 @@ public class CrewView : MonoBehaviour
 
     static Color Hex(string h) => ColorUtility.TryParseHtmlString(h, out var c) ? c : Look.InkSoft;
 
+    const float Z = WebLook.Zoom;
+
     void Draw()
     {
         if (scroll != null) keepScroll = scroll.verticalNormalizedPosition;
@@ -54,10 +56,9 @@ public class CrewView : MonoBehaviour
         var crew = Meta.CompanionsFound(meta);
         if (tab != null && !crew.Contains(tab)) tab = null;
         scene?.Focus(tab ?? "captain");
-        // The header: back, undo, clear, and the page's own tools.
-        var back = Hud.Pill(root, "‹ Back", () => menu.Show("campaign"), 15);
-        Hud.At((RectTransform)back.transform, new Vector2(0, 1), new Vector2(26, -26), new Vector2(110, 44));
-        x = 150;
+        // The header (.crew-top): back, then undo, clear and the page's own tools, 6 apart.
+        var back = WebLook.UpBack(root, () => menu.Show("campaign"));
+        x = 26 + ((RectTransform)back.transform).sizeDelta.x + 6 * Z;
         if (placed.Count > 0)
         {
             Small("undo", Undo, Look.InkSoft);
@@ -71,46 +72,82 @@ public class CrewView : MonoBehaviour
 
     float x;
 
-    void Small(string label, System.Action act, Color ink)
+    /// <summary>One of the header's tools (.up-plan-undo): small spaced capitals; a reset its price after it.</summary>
+    void Small(string label, System.Action act, Color ink, bool petals = false)
     {
         var r = Hud.Rect(root, label);
-        Hud.At(r, new Vector2(0, 1), new Vector2(x, -26), new Vector2(18 + label.Length * 11, 44));
+        var t = WebLook.Words(r, label.ToUpperInvariant(), 0.56f * 16 * Z, 0.2f, ink, true, 500, TextAlignmentOptions.Left);
+        float w = t.GetPreferredValues(t.text).x;
+        if (petals)
+        {
+            var p = WebLook.Centred(r, "Petal", w + 6 * Z + 7, 21, 14, 14).gameObject.AddComponent<RawImage>();
+            p.texture = Resources.Load<Texture2D>("Icons/purse-petal");
+            p.raycastTarget = false;
+            var n = WebLook.Words(WebLook.Box(r, "Price", w + 6 * Z + 16, 0, 40, 42), Meta.SkillResetPetals.ToString(), 0.56f * 16 * Z, 0.04f, ink, true, 500, TextAlignmentOptions.Left);
+            w += 6 * Z + 16 + n.GetPreferredValues(n.text).x;
+        }
+        WebLook.Box(r, x, 20, w + 12 * Z, 42);
+        t.margin = new Vector4(6 * Z, 0, 0, 0);
         var hit = r.gameObject.AddComponent<Image>();
         hit.color = new Color(1, 1, 1, 0);
         r.gameObject.AddComponent<Button>().onClick.AddListener(() => act());
-        Hud.Label(r, label.ToUpperInvariant(), 13, ink, true, 500, 20);
-        x += 30 + label.Length * 11;
+        x += w + 12 * Z + 6 * Z;
     }
 
+    /// <summary>
+    /// The tabs (.crew-tabs), in the middle of the header: a capsule of white, a tab each (the Captain, then each of the
+    /// crew found), the one open white and ringed; a dark badge of the points each has to spend.
+    /// </summary>
     void Tabs(MetaState meta, List<string> crew)
     {
         var ids = new List<string> { null };
         ids.AddRange(crew);
-        var names = ids.Select(id => id == null ? "CAPTAIN" : Companions.CompanionDef(id).Name.Split(' ')[0].ToUpperInvariant()).ToList();
-        var widths = names.Select(n => 36 + n.Length * 11f + 22).ToList();
-        float total = widths.Sum() + 8;
-        var bar = Hud.Glass(root, "Tabs", new Color(1, 1, 1, 0.92f), false);
-        Hud.At((RectTransform)bar.transform, new Vector2(0.5f, 1), new Vector2(0, -26), new Vector2(total, 44));
-        float at = 4;
+        float font = 0.58f * 16 * Z, pad = 16 * Z, gap = 7 * Z, badgeH = 16 * Z;
+        var bar = WebLook.Rounded(root, "Tabs", new Color(1, 1, 1, 0.92f), 999);
+        bar.sprite = Hud.Rounded;
+        bar.type = Image.Type.Sliced;
+        var labels = new List<(TextMeshProUGUI t, float w, int pts)>();
+        float total = 4 * Z;
+        foreach (var id in ids)
+        {
+            string name = id == null ? "CAPTAIN" : Companions.CompanionDef(id).Name.Split(' ')[0].ToUpperInvariant();
+            int pts = id == null ? Meta.PointsLeft(meta) : Meta.CompanionPoints(meta, id);
+            var t = WebLook.Words(Hud.Rect(bar.transform, "Name"), name, font, 0.24f, id == tab ? Look.Ink : Look.InkFaint, true, 500, TextAlignmentOptions.Left);
+            float w = 2 * pad + t.GetPreferredValues(name).x + (pts > 0 ? gap + Mathf.Max(badgeH, 8 * Z + 9 * pts.ToString().Length) : 0);
+            labels.Add((t, w, pts));
+            total += w + 4 * Z;
+        }
+        float h = 2 * 8 * Z + font * 1.25f, barH = h + 8 * Z;
+        bar.pixelsPerUnitMultiplier = 22f / (barH / 2);
+        var br = bar.rectTransform;
+        br.anchorMin = br.anchorMax = br.pivot = new Vector2(0.5f, 1);
+        br.anchoredPosition = new Vector2(0, -(41 - barH / 2));
+        br.sizeDelta = new Vector2(total, barH);
+        WebLook.Shadow(bar, 4 * Z, 12 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.06f), barH / 2, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
+        float at = 4 * Z;
         for (int i = 0; i < ids.Count; i++)
         {
             var id = ids[i];
-            int pts = id == null ? Meta.PointsLeft(meta) : Meta.CompanionPoints(meta, id);
+            var (t, w, pts) = labels[i];
             bool on = id == tab;
-            var t = Hud.Glass(bar.transform, names[i], on ? Color.white : new Color(1, 1, 1, 0), false);
-            Hud.At((RectTransform)t.transform, new Vector2(0, 0.5f), new Vector2(at, 0), new Vector2(widths[i], 36));
-            var l = Hud.Label(t.transform, names[i], 11, on ? Look.Ink : Look.InkFaint, true, 500, 24, TextAlignmentOptions.Left);
-            l.margin = new Vector4(16, 0, 0, 0);
+            var cell = WebLook.Rounded(bar.transform, "Tab", on ? Color.white : new Color(1, 1, 1, 0), 999);
+            cell.sprite = Hud.Rounded;
+            cell.type = Image.Type.Sliced;
+            cell.pixelsPerUnitMultiplier = 22f / (h / 2);
+            cell.raycastTarget = true;
+            WebLook.Box(cell.rectTransform, at, 4 * Z, w, h);
+            if (on) WebLook.Shadow(cell, 3 * Z, 8 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.1f), h / 2, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.16f));
+            t.transform.SetParent(cell.transform, false);
+            WebLook.Box((RectTransform)t.transform, pad, 0, w, h);
             if (pts > 0)
             {
-                var badge = Hud.Rect(t.transform, "Points");
-                Hud.At(badge, new Vector2(1, 0.5f), new Vector2(-12, 0), new Vector2(18, 18));
-                var bi = badge.gameObject.AddComponent<Image>();
-                bi.sprite = Hud.Circle;
-                bi.color = new Color32(0x3a, 0x42, 0x56, 255);
-                Hud.Label(badge, pts.ToString(), 9, Color.white, true, 500, 0);
+                string n = pts.ToString();
+                float bw = Mathf.Max(badgeH, 8 * Z + 9 * n.Length);
+                var badge = WebLook.Rounded(cell.transform, "Points", WebLook.Hex("#3a4256"), badgeH / 2);
+                WebLook.Box(badge.rectTransform, w - pad - bw, (h - badgeH) / 2, bw, badgeH);
+                WebLook.Words(badge.transform, n, 0.52f * 16 * Z, 0, Color.white, true, 500);
             }
-            t.gameObject.AddComponent<Button>().onClick.AddListener(() =>
+            cell.gameObject.AddComponent<Button>().onClick.AddListener(() =>
             {
                 tab = id;
                 placed.Clear();
@@ -121,35 +158,57 @@ public class CrewView : MonoBehaviour
                 Sound.Play("hover");
                 Draw();
             });
-            at += widths[i];
+            at += w + 4 * Z;
         }
     }
 
-    /// <summary>Who, on the left: their title (by the gates passed), the points to spend, the level (and a note).</summary>
-    void Who(string title, string xp, string note = null)
+    /// <summary>
+    /// Who, on the left (.crew-who): their title (by the gates passed) large and widely spaced, then the points to spend
+    /// beside the gold chevrons and the level small after; a companion's note on how they learn under that.
+    /// </summary>
+    void Who(string title, int points, string level, string note = null)
     {
-        var who = Hud.Rect(root, "Who");
-        Hud.At(who, new Vector2(0, 1), new Vector2(0, -90), new Vector2(Hud.W * 0.4f, 150));
-        var h = Hud.Label(who, title.ToUpperInvariant(), 34, Look.Ink, true, 400, 45, TextAlignmentOptions.Top);
-        h.raycastTarget = false;
-        var x2 = Hud.Label(who, xp, 22, Look.Ink, true, 500, 6, TextAlignmentOptions.Top);
-        x2.margin = new Vector4(0, 56, 0, 0);
-        x2.raycastTarget = false;
+        const float W = 619, X = 26;
+        var h = WebLook.Words(Hud.Rect(root, "Title"), title.ToUpperInvariant(), 50, 0.45f, Look.Ink, true, 400, TextAlignmentOptions.Top);
+        h.textWrappingMode = TextWrappingModes.Normal;
+        h.margin = new Vector4(0.45f * 50, 0, 0, 0);
+        float th = h.GetPreferredValues(h.text, W - 0.45f * 50, 0).y;
+        WebLook.Box(h.rectTransform, X, 92, W, th + 4);
+        float y = 92 + th + 6 * Z;
+        var count = WebLook.Words(Hud.Rect(root, "Points"), points.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
+        var small = WebLook.Words(Hud.Rect(root, "Level"), level.ToUpperInvariant(), 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
+        float cw = count.GetPreferredValues(count.text).x, sw = small.GetPreferredValues(small.text).x;
+        float rowW = 28 + 6 * Z + cw + 10 * Z + sw, x0 = X + W / 2 - rowW / 2;
+        XpMark(root, x0, y + 2.5f, 28);
+        WebLook.Box((RectTransform)count.transform, x0 + 28 + 6 * Z, y, cw + 4, 33);
+        WebLook.Box((RectTransform)small.transform, x0 + 28 + 6 * Z + cw + 10 * Z, y + 8, sw + 8, 16);
         if (note != null)
         {
-            var n = Hud.Label(who, note.ToLowerInvariant(), 13, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
-            n.margin = new Vector4(40, 96, 40, 0);
+            var n = WebLook.Words(Hud.Rect(root, "Learns"), note.ToLowerInvariant(), 0.7f * 16 * Z, 0.06f, WebLook.Hex("#7d8496"), false, 400, TextAlignmentOptions.Top);
             n.textWrappingMode = TextWrappingModes.Normal;
-            n.raycastTarget = false;
+            float nw = Mathf.Min(W, 34 * 0.55f * 0.7f * 16 * Z);
+            WebLook.Box(n.rectTransform, X + (W - nw) / 2, y + 33 + 6 * Z, nw, 80);
         }
+    }
+
+    /// <summary>Experience's mark (campaign.ts XP_MARK): two gold chevrons rising, in a square at a point of the page.</summary>
+    static void XpMark(Transform parent, float x, float y, float size)
+    {
+        var r = WebLook.Box(parent, "Experience", x, y, size, size);
+        var lines = r.gameObject.AddComponent<UiLines>();
+        float k = size / 20;
+        Vector2 P(float px, float py) => new Vector2((px - 10) * k, (10 - py) * k);
+        var gold = WebLook.Hex("#b8953f");
+        lines.Add(new List<Vector2> { P(4.6f, 10.2f), P(10, 5), P(15.4f, 10.2f) }, gold, 2.1f * k);
+        lines.Add(new List<Vector2> { P(4.6f, 15.2f), P(10, 10), P(15.4f, 15.2f) }, gold, 2.1f * k);
     }
 
     void CaptainPage(MetaState meta)
     {
         var c = Meta.CaptainMeta(meta);
         int left = Meta.PointsLeft(meta);
-        if (Meta.CaptainPointsSpent(meta) > 0) Small(resetArmed ? $"confirm reset · {Meta.SkillResetPetals} petals" : $"reset · {Meta.SkillResetPetals} petals", Reset, resetArmed ? Look.Danger : Look.InkSoft);
-        Who(Ascent.CaptainTitles.ElementAtOrDefault(c.Gates ?? 0) ?? "The Captain", $"<b>{left}</b>  <size=60%><color=#9aa0ac>SKILL POINT{(left == 1 ? "" : "S")} · LEVEL {Meta.LevelFor(meta.Xp).Level}</color></size>");
+        if (Meta.CaptainPointsSpent(meta) > 0) Small(resetArmed ? "confirm reset" : "reset", Reset, resetArmed ? Look.Ink : Look.InkSoft, true);
+        Who(Ascent.CaptainTitles.ElementAtOrDefault(c.Gates ?? 0) ?? "The Captain", left, $"skill point{(left == 1 ? "" : "s")} · level {Meta.LevelFor(meta.Xp).Level}");
         var g = Meta.CaptainGifts(meta);
         var a = new AscentState { Nodes = c.Nodes ?? new List<string>(), Gates = c.Gates ?? 0 };
         var wall = Cards.Rules.CaptainSingularities["wall"];
@@ -186,7 +245,7 @@ public class CrewView : MonoBehaviour
         var lv = Companions.CompanionLevel(meta.Companions[id].Xp);
         var title = d.Titles.ElementAtOrDefault(a.Gates) ?? d.Name;
         var parts = title.Split(new[] { ", " }, System.StringSplitOptions.None);
-        Who(parts.Length > 1 ? parts[1] : title, $"<b>{left}</b>  <size=60%><color=#9aa0ac>SKILL POINT{(left == 1 ? "" : "S")} · LEVEL {lv.Level} · {lv.Into}/{lv.Need}</color></size>", d.LearnsText);
+        Who(parts.Length > 1 ? parts[1] : title, left, $"skill point{(left == 1 ? "" : "s")} · level {lv.Level} · {lv.Into}/{lv.Need}", d.LearnsText);
         var first = d.Traits.First(k => k.Id == d.Start);
         var known = new List<Known> { new Known { arg = "", title = first.Name.ToLowerInvariant(), what = BattleView.Words(first.Text), colour = "#4fae9b", on = true, sub = "known" } };
         var names = d.Titles.Select(t => { var p = t.Split(new[] { ", " }, System.StringSplitOptions.None); return (p.Length > 1 ? p[1] : t).ToLowerInvariant(); }).ToList();
@@ -251,12 +310,9 @@ public class CrewView : MonoBehaviour
         var tiers = Enumerable.Range(1, Ascent.Tiers).Select(t => tree.Where(n => n.Tier == t).ToList()).ToList();
         float H = Top + RootH + Rows(known.Count) * Row + tiers.Sum(l => Head + Rows(l.Count) * Row) + (Ascent.Tiers - 1) * GateH + 30;
 
-        // The scroller: the right 60% of the page, below the header.
-        var view = Hud.Rect(root, "Tree");
-        view.anchorMin = new Vector2(0.4f, 0);
-        view.anchorMax = new Vector2(1, 1);
-        view.offsetMin = new Vector2(0, 0);
-        view.offsetMax = new Vector2(-20, -84);
+        // The scroller (.crew-tree): the right 60% of the page under the header, the sheet in it 10 in from each side;
+        // across, the sheet's 1000 units its width; down, its units CSS pixels (drawn 1.45 times).
+        var view = WebLook.Box(root, "Tree", 645, 62, 929, 923);
         view.gameObject.AddComponent<RectMask2D>();
         var hit = view.gameObject.AddComponent<Image>();
         hit.color = new Color(1, 1, 1, 0);
@@ -264,19 +320,39 @@ public class CrewView : MonoBehaviour
         sheet.anchorMin = new Vector2(0.5f, 1);
         sheet.anchorMax = new Vector2(0.5f, 1);
         sheet.pivot = new Vector2(0.5f, 1);
-        sheet.sizeDelta = new Vector2(SheetW, H);
+        sheet.sizeDelta = new Vector2(SheetW, H * Z);
         scroll = view.gameObject.AddComponent<ScrollRect>();
         scroll.content = sheet;
         scroll.horizontal = false;
         scroll.movementType = ScrollRect.MovementType.Clamped;
         scroll.scrollSensitivity = 40;
+        // The board: the cards' faint circuit traces (a tile 340 across), faded out toward each side.
+        var board = Hud.Rect(sheet, "Board");
+        Hud.Fill(board);
+        var bi = board.gameObject.AddComponent<RawImage>();
+        bi.texture = Resources.Load<Texture2D>("Icons/circuit-dwarf");
+        bi.uvRect = new Rect(0, 0, SheetW / (340 * Z), H * Z / (340 * Z));
+        bi.color = new Color(1, 1, 1, 0.35f);
+        bi.raycastTarget = false;
+        for (int side = 0; side < 2; side++)
+        {
+            var fade = Hud.Rect(sheet, "Edge");
+            fade.anchorMin = new Vector2(side, 0);
+            fade.anchorMax = new Vector2(side, 1);
+            fade.pivot = new Vector2(side, 0.5f);
+            fade.sizeDelta = new Vector2(SheetW * 0.12f, 0);
+            fade.anchoredPosition = Vector2.zero;
+            var fi = fade.gameObject.AddComponent<RawImage>();
+            fi.texture = EdgeFade(side == 0);
+            fi.color = Look.Paper;
+            fi.raycastTarget = false;
+        }
         var lines = Hud.Rect(sheet, "Lines");
         Hud.Fill(lines);
         var pads = Hud.Rect(sheet, "Pads");
         Hud.Fill(pads);
 
-        // (Sheet units: 1000 across, y down from its top, in pixels.)
-        Vector2 P(float sx, float sy) => new Vector2(sx / 1000f * SheetW, -sy);
+        Vector2 P(float sx, float sy) => new Vector2(sx / 1000f * SheetW, -sy * Z);
         void Seg(float x0, float y0, float x1, float y1, Color col, float w)
         {
             var r = Hud.Rect(lines, "Trace");
@@ -290,22 +366,32 @@ public class CrewView : MonoBehaviour
             img.color = col;
             img.raycastTarget = false;
         }
+        // (A via: r 3.4 of the sheet's units, stretched as the sheet is, 0.9 across and 1.45 down; ringed.)
         void Via(float vx, float vy, bool lit)
         {
             var r = Hud.Rect(lines, "Via");
             r.anchorMin = r.anchorMax = new Vector2(0, 1);
             r.pivot = new Vector2(0.5f, 0.5f);
             r.anchoredPosition = P(vx, vy);
-            r.sizeDelta = new Vector2(8, 8);
-            var img = r.gameObject.AddComponent<Image>();
-            img.sprite = Hud.Circle;
-            img.color = lit ? new Color32(0x4a, 0x52, 0x68, 255) : new Color32(0xb4, 0xbb, 0xcc, 255);
-            img.raycastTarget = false;
+            r.sizeDelta = new Vector2(6.8f * SheetW / 1000 + 1.5f * Z, 6.8f * Z + 1.5f * Z);
+            var ring = r.gameObject.AddComponent<Image>();
+            ring.sprite = Hud.Circle;
+            ring.color = lit ? WebLook.Hex("#4a5268") : new Color(120 / 255f, 132 / 255f, 160 / 255f, 0.5f);
+            ring.raycastTarget = false;
+            var fill = Hud.Rect(r, "Fill");
+            Hud.Fill(fill);
+            fill.offsetMin = Vector2.one * 1.5f * Z / 2;
+            fill.offsetMax = -Vector2.one * 1.5f * Z / 2;
+            var fi = fill.gameObject.AddComponent<Image>();
+            fi.sprite = Hud.Circle;
+            fi.color = lit ? WebLook.Hex("#4a5268") : WebLook.Hex("#f4f6fa");
+            fi.raycastTarget = false;
         }
-        Color Trace(bool lit) => lit ? new Color(74 / 255f, 82 / 255f, 104 / 255f, 0.75f) : new Color(120 / 255f, 132 / 255f, 160 / 255f, 0.38f);
+        Color Trace(bool lit, bool spine = false) => lit ? new Color(74 / 255f, 82 / 255f, 104 / 255f, 0.75f) : new Color(120 / 255f, 132 / 255f, 160 / 255f, spine ? 0.3f : 0.38f);
 
         float y = H - RootH;
         float rootY = y + 50;
+        float current = -1;
         void Place(List<(string colour, bool lit, System.Action<float, float> make)> items)
         {
             int n = Rows(items.Count);
@@ -315,8 +401,8 @@ public class CrewView : MonoBehaviour
                 float py = y - Row * (n - r) + 28, px = Cols[cc];
                 float by = py + 52;
                 var col = Trace(items[k].lit);
-                Seg(px, py, px, by, col, 2);
-                Seg(px, by, Spine, by, col, 2);
+                Seg(px, py, px, by, col, 2 * Z);
+                Seg(px, by, Spine, by, col, 2 * Z);
                 Via(px, by, items[k].lit);
                 Via(Spine, by, items[k].lit);
                 items[k].make(px, py);
@@ -329,18 +415,21 @@ public class CrewView : MonoBehaviour
         for (int tier = 1; tier <= Ascent.Tiers; tier++)
         {
             bool reached = tier <= a.Gates + 1;
-            // The tier's name and its picks, across the spine at its foot.
-            var tl = Hud.Rect(pads, "Tier " + tier);
-            tl.anchorMin = tl.anchorMax = new Vector2(0.5f, 1);
-            tl.pivot = new Vector2(0.5f, 0.5f);
-            tl.anchoredPosition = new Vector2(0, -(y - 30));
-            tl.sizeDelta = new Vector2(320, 26);
-            var tb = tl.gameObject.AddComponent<Image>();
-            tb.sprite = Hud.Rounded;
-            tb.type = Image.Type.Sliced;
-            tb.color = Look.Paper;
-            var tt = Hud.Label(tl, $"{roman[tier - 1]} · {(names.ElementAtOrDefault(tier - 1) ?? "").ToUpperInvariant()}   {Ascent.TierPicksTaken(tree, a, tier)}/{Ascent.TierPicks}", 12, tier == a.Gates + 1 ? Look.Ink : Look.InkSoft, true, 400, 26);
-            tt.alpha = reached ? 1 : 0.5f;
+            // The tier's name and its picks (.cx-tier): silkscreen lettering across the middle of the sheet at its foot.
+            var tl = WebLook.Rounded(pads, "Tier " + tier, WebLook.Hex("#eef1f6"), 4 * Z);
+            var tt = WebLook.Words(tl.transform, $"{roman[tier - 1]} · {(names.ElementAtOrDefault(tier - 1) ?? "").ToUpperInvariant()}", 0.62f * 16 * Z, 0.26f, tier == a.Gates + 1 ? Look.Ink : Look.InkSoft, true, 400, TextAlignmentOptions.Left);
+            var tp = WebLook.Words(tl.transform, $"{Ascent.TierPicksTaken(tree, a, tier)}/{Ascent.TierPicks}", 0.64f * 16 * Z, 0, Look.InkSoft, false, 400, TextAlignmentOptions.Left);
+            float bw = tt.GetPreferredValues(tt.text).x, pw = tp.GetPreferredValues(tp.text).x;
+            float lw = 10 * Z + bw + 10 * Z + pw + 10 * Z;
+            var tr = tl.rectTransform;
+            tr.anchorMin = tr.anchorMax = new Vector2(0.5f, 1);
+            tr.pivot = new Vector2(0.5f, 1);
+            tr.anchoredPosition = new Vector2(0, -(y - 30) * Z);
+            tr.sizeDelta = new Vector2(lw, 24);
+            WebLook.Box(tt.rectTransform, 10 * Z, 0, bw + 4, 24);
+            WebLook.Box(tp.rectTransform, 10 * Z + bw + 10 * Z, 0, pw + 4, 24);
+            if (!reached) tl.gameObject.AddComponent<CanvasGroup>().alpha = 0.5f;
+            if (tier == a.Gates + 1) current = (y - 30) * Z + 12;
             y -= Head;
             Place(tiers[tier - 1].Select(n =>
             {
@@ -354,138 +443,187 @@ public class CrewView : MonoBehaviour
             spineTo.Add((y, reached));
             if (tier < Ascent.Tiers)
             {
-                // The Astral Gate: a chip on the spine; passed, it glows gold.
+                // The Astral Gate: a chip in the middle of the sheet; passed, it glows gold.
                 bool passed = a.Gates >= tier;
                 var why = passed ? null : a.Gates == tier - 1 ? Ascent.AscentProblem(tree, a, "gate", left) : "Reach the tier below first.";
-                Gate(pads, P(Spine, y - GateH / 2), passed, why);
+                Gate(pads, new Vector2(SheetW / 2, -(y - GateH / 2) * Z), passed, why);
                 y -= GateH;
                 spineTo.Add((y, passed));
             }
         }
-        // The spine: from the emblem up, lit as far as the Captain has climbed.
+        // The spine: from the emblem up, lit as far as the character has climbed.
         float from = rootY - 30;
         foreach (var (sy, lit) in spineTo)
         {
-            Seg(Spine, from, Spine, sy, Trace(lit), 3.5f);
+            Seg(Spine, from, Spine, sy, Trace(lit, true), 3.5f * Z);
             from = sy;
         }
-        Seg(Spine, from, Spine, Top, Trace(false), 3.5f);
-        // The emblem's socket at the foot.
-        var socket = Hud.Rect(pads, "Root");
-        socket.anchorMin = socket.anchorMax = new Vector2(0, 1);
-        socket.pivot = new Vector2(0.5f, 0.5f);
-        socket.anchoredPosition = P(Spine, rootY);
-        socket.sizeDelta = new Vector2(40, 40);
-        var si = socket.gameObject.AddComponent<Image>();
-        si.sprite = Hud.Circle;
-        si.color = new Color32(0x35, 0x3b, 0x4c, 255);
-        var core = Hud.Rect(socket, "Core");
-        Hud.At(core, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(22, 22));
-        var ci = core.gameObject.AddComponent<Image>();
-        ci.sprite = Hud.Circle;
-        ci.color = new Color32(0xf4, 0xdc, 0x8a, 255);
+        Seg(Spine, from, Spine, Top, Trace(false, true), 3.5f * Z);
+        Root(pads, new Vector2(SheetW / 2, -rootY * Z));
         Canvas.ForceUpdateCanvases();
-        // (It opens on the tier the Captain stands in: from the foot, unless it was scrolled.)
-        scroll.verticalNormalizedPosition = keepScroll >= 0 ? keepScroll : 0;
+        // (It opens on the tier the character stands in, that tier's name in the middle; then where it was scrolled.)
+        float range = H * Z - 923;
+        float want = current < 0 ? range : Mathf.Clamp(current - 923 / 2f, 0, range);
+        scroll.verticalNormalizedPosition = keepScroll >= 0 ? keepScroll : range > 0 ? 1 - want / range : 0;
     }
 
+    static readonly Texture2D[] edges = new Texture2D[2];
+
+    /// <summary>The board's fade at an edge: the page's paper, whole at the edge, gone 12% in.</summary>
+    static Texture2D EdgeFade(bool leftSide)
+    {
+        int i = leftSide ? 0 : 1;
+        if (edges[i] != null) return edges[i];
+        var t = new Texture2D(32, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int px = 0; px < 32; px++)
+        {
+            float k = (px + 0.5f) / 32;
+            t.SetPixel(px, 0, new Color(1, 1, 1, leftSide ? 1 - k : k));
+        }
+        t.Apply();
+        return edges[i] = t;
+    }
+
+    /// <summary>The emblem's socket where the spine begins (.cx-root): a dark disc, a gold heart ringed gold, glowing.</summary>
+    static void Root(RectTransform parent, Vector2 at)
+    {
+        var socket = Hud.Rect(parent, "Root");
+        socket.anchorMin = socket.anchorMax = new Vector2(0, 1);
+        socket.pivot = new Vector2(0.5f, 0.5f);
+        socket.anchoredPosition = at;
+        socket.sizeDelta = Vector2.one * 40 * Z;
+        var glow = Disc(socket, "Glow", 40 * Z + 2 * 18 * Z, new Color(226 / 255f, 194 / 255f, 106 / 255f, 0.6f), true);
+        Disc(socket, "Ring", 40 * Z + 2 * 2 * Z, WebLook.Hex("#d8b65a"));
+        Disc(socket, "Disc", 40 * Z, WebLook.Hex("#353b4c"));
+        Disc(socket, "Rim", 2 * 11.5f * Z, WebLook.Hex("#d8b65a"));
+        Disc(socket, "Heart", 2 * 8.5f * Z, WebLook.Hex("#f4dc8a"));
+        glow.raycastTarget = false;
+    }
+
+    /// <summary>A disc (or a soft glow) centred in its parent, at a size.</summary>
+    static Image Disc(RectTransform parent, string name, float size, Color colour, bool soft = false)
+    {
+        var r = Hud.Rect(parent, name);
+        Hud.At(r, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size, size));
+        var img = r.gameObject.AddComponent<Image>();
+        img.sprite = soft ? Hud.Soft : Hud.Circle;
+        if (soft)
+        {
+            img.type = Image.Type.Sliced;
+            img.pixelsPerUnitMultiplier = 41f / (size / 2);
+        }
+        img.color = colour;
+        img.raycastTarget = false;
+        return img;
+    }
+
+    /// <summary>
+    /// An upgrade (.cx-pad): its solder ring at the corner (pale; washed in its colour, to learn now; its colour and
+    /// glowing, learnt; ringed white and its colour, carried), its name, what it does and where it stands beside it.
+    /// </summary>
     void Pad(RectTransform parent, Vector2 at, string title, string what, string sub, Color colour, bool owned, bool afford, bool on, bool locked, bool ahead, string arg, bool planned = false)
     {
+        float solderD = 18 * Z, labelX = solderD + 10 * Z, w = SheetW * 0.21f;
         var r = Hud.Rect(parent, title);
         r.anchorMin = r.anchorMax = new Vector2(0, 1);
         r.pivot = new Vector2(0, 1);
-        r.anchoredPosition = at + new Vector2(-9, 9);
-        r.sizeDelta = new Vector2(SheetW * 0.21f, 84);
+        r.anchoredPosition = at + new Vector2(-9 * Z, 9 * Z);
         var hit = r.gameObject.AddComponent<Image>();
         hit.color = new Color(1, 1, 1, 0);
         if (!string.IsNullOrEmpty(arg)) r.gameObject.AddComponent<Button>().onClick.AddListener(() => Pick(arg));
-        // The solder: pale, or (to learn now) washed in its colour, or (learnt) its colour, glowing; carried, ringed.
-        var solder = Hud.Rect(r, "Solder");
-        Hud.At(solder, new Vector2(0, 1), Vector2.zero, new Vector2(18, 18));
-        if (owned || on)
+        var solder = WebLook.Box(r, "Solder", 0, 0, solderD, solderD);
+        var s = solder;
+        if (owned || on) Disc(s, "Glow", solderD + 2 * (on ? 14 : 10) * Z, new Color(colour.r, colour.g, colour.b, 0.7f), true);
+        if (on)
         {
-            var glow = Hud.Rect(solder, "Glow");
-            Hud.Fill(glow);
-            glow.offsetMin = new Vector2(on ? -9 : -6, on ? -9 : -6);
-            glow.offsetMax = -glow.offsetMin;
-            var gi = glow.gameObject.AddComponent<Image>();
-            gi.sprite = Hud.Soft;
-            var gc = colour;
-            gc.a = 0.5f;
-            gi.color = gc;
-            gi.raycastTarget = false;
+            Disc(s, "Ring", solderD + 2 * 4 * Z, colour);
+            Disc(s, "White", solderD + 2 * 2.5f * Z, Color.white);
         }
-        var ring = solder.gameObject.AddComponent<Image>();
-        ring.sprite = Hud.Circle;
-        ring.color = owned || afford ? colour : new Color32(0x9c, 0xa5, 0xbb, 255);
-        ring.raycastTarget = false;
-        var fill = Hud.Rect(solder, "Fill");
-        Hud.Fill(fill);
-        fill.offsetMin = new Vector2(1.5f, 1.5f);
-        fill.offsetMax = new Vector2(-1.5f, -1.5f);
-        var fi = fill.gameObject.AddComponent<Image>();
-        fi.sprite = Hud.Circle;
-        fi.color = owned ? colour : afford ? Color.Lerp(colour, Color.white, 0.55f) : new Color32(0xc4, 0xcc, 0xdb, 255);
-        fi.raycastTarget = false;
-        var dot = Hud.Rect(solder, "Dot");
-        Hud.At(dot, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(owned ? 5 : 6, owned ? 5 : 6));
-        var di = dot.gameObject.AddComponent<Image>();
-        di.sprite = Hud.Circle;
-        di.color = owned ? Color.white : new Color32(0xf4, 0xf6, 0xfa, 255);
-        di.raycastTarget = false;
-        if (planned) solder.localScale = Vector3.one * 1.15f;
+        else Disc(s, "Ring", solderD + 2 * 1.5f * Z, owned || afford ? colour : new Color(120 / 255f, 132 / 255f, 160 / 255f, 0.6f));
+        Disc(s, "Fill", solderD, owned ? colour : afford ? Color.Lerp(Color.white, colour, 0.45f) : WebLook.Hex("#c4ccdb"));
+        Disc(s, "Dot", 2 * (owned ? 2.75f : 3.25f) * Z, owned || afford ? Color.white : WebLook.Hex("#f4f6fa"));
+        if (planned) solder.gameObject.AddComponent<WebLook.Pulse>();
         // Its name, what it does, and where it stands.
-        var name = Hud.Label(r, title.ToUpperInvariant(), 11, Look.Ink, true, 400, 16, TextAlignmentOptions.TopLeft);
-        name.margin = new Vector4(28, 1, 0, 0);
-        var body = Hud.Label(r, $"{(what != "" ? $"<color=#5b6170>{what}</color>\n" : "")}<size=90%><color=#{(afford ? "3a7a55" : "737780")}>{sub}</color></size>", 12, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
-        body.textWrappingMode = TextWrappingModes.Normal;
-        body.margin = new Vector4(28, 17, 0, 0);
-        foreach (var t in new[] { name, body })
+        float textW = w - labelX;
+        var words = WebLook.Box(r, "Words", labelX, 1 * Z, textW, 100);
+        var group = words.gameObject.AddComponent<CanvasGroup>();
+        group.alpha = locked || ahead ? 0.5f : 1;
+        group.blocksRaycasts = false;
+        float y = 0;
+        var name = WebLook.Words(words, title.ToUpperInvariant(), 0.64f * 16 * Z, 0.16f, Look.Ink, true, 400, TextAlignmentOptions.TopLeft);
+        name.textWrappingMode = TextWrappingModes.Normal;
+        float nh = name.GetPreferredValues(name.text, textW, 0).y;
+        WebLook.Box(name.rectTransform, 0, y, textW, nh + 2);
+        y += nh + 1 * Z;
+        if (what != "")
         {
-            t.raycastTarget = false;
-            t.alpha = locked || ahead ? 0.5f : 1;
+            var body = WebLook.Words(words, what, 0.68f * 16 * Z, 0, Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
+            body.textWrappingMode = TextWrappingModes.Normal;
+            float bh = body.GetPreferredValues(what, textW, 0).y;
+            WebLook.Box(body.rectTransform, 0, y, textW, bh + 2);
+            y += bh + 1 * Z;
         }
+        var small = WebLook.Words(words, sub, 0.6f * 16 * Z, 0.06f, afford ? WebLook.Hex("#3a7a55") : Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
+        small.textWrappingMode = TextWrappingModes.Normal;
+        float sh = small.GetPreferredValues(sub, textW, 0).y;
+        WebLook.Box(small.rectTransform, 0, y, textW, sh + 2);
+        y += sh;
+        r.sizeDelta = new Vector2(w, Mathf.Max(solderD, y + 1 * Z));
     }
 
+    /// <summary>
+    /// The Astral Gate (.cx-gate): a dark chip, three pins above and three below, its eye in the middle (open, lit blue;
+    /// passed, gold); what passing it gives beside it.
+    /// </summary>
     void Gate(RectTransform parent, Vector2 at, bool passed, string why)
     {
         bool open = !passed && why == null;
+        float cw = 44 * Z, ch = 30 * Z;
         var r = Hud.Rect(parent, "Gate");
         r.anchorMin = r.anchorMax = new Vector2(0, 1);
         r.pivot = new Vector2(0, 0.5f);
-        r.anchoredPosition = at + new Vector2(-22, 0);
-        r.sizeDelta = new Vector2(360, 50);
+        r.anchoredPosition = at + new Vector2(-22 * Z, 0);
+        r.sizeDelta = new Vector2(cw + 14 * Z + 300 * Z, Mathf.Max(ch, 60));
         var hit = r.gameObject.AddComponent<Image>();
         hit.color = new Color(1, 1, 1, 0);
         if (open) r.gameObject.AddComponent<Button>().onClick.AddListener(() => Pick("gate"));
-        // The chip: dark, three pins above and three below; open, lit blue; passed, gold.
-        var chip = Hud.Rect(r, "Chip");
-        Hud.At(chip, new Vector2(0, 0.5f), Vector2.zero, new Vector2(44, 30));
-        var ci = chip.gameObject.AddComponent<Image>();
-        ci.sprite = Hud.Rounded;
-        ci.type = Image.Type.Sliced;
-        ci.color = new Color32(0x40, 0x47, 0x5a, 255);
-        Color pin = passed ? new Color32(0xe2, 0xc2, 0x6a, 255) : open ? new Color32(0x8f, 0xb0, 0xff, 255) : new Color32(0xa9, 0xb2, 0xc6, 255);
+        var chip = WebLook.Rounded(r, "Chip", Color.white, 4 * Z);
+        chip.rectTransform.anchorMin = chip.rectTransform.anchorMax = chip.rectTransform.pivot = new Vector2(0, 0.5f);
+        chip.rectTransform.anchoredPosition = Vector2.zero;
+        chip.rectTransform.sizeDelta = new Vector2(cw, ch);
+        WebLook.Fade(chip, WebLook.Hex("#4a5268"), WebLook.Hex("#353b4c"));
+        WebLook.Shadow(chip, 2 * Z, 6 * Z, new Color(30 / 255f, 36 / 255f, 52 / 255f, 0.3f), 4 * Z, Z, WebLook.Hex("#2a2f3d"));
+        Color pin = passed ? WebLook.Hex("#e2c26a") : open ? WebLook.Hex("#8fb0ff") : WebLook.Hex("#a9b2c6");
         for (int i = 0; i < 6; i++)
         {
-            var p = Hud.Rect(chip, "Pin");
-            Hud.At(p, new Vector2(0, i < 3 ? 1 : 0), new Vector2(7 + (i % 3) * 13, i < 3 ? 6 : -6), new Vector2(4, 6));
-            p.gameObject.AddComponent<Image>().color = pin;
+            var p = WebLook.Rounded(r, "Pin", pin, Z);
+            float px = (7 + (i % 3) * 13) * Z, py = i < 3 ? -ch / 2 - 6 * Z : ch / 2;
+            p.rectTransform.anchorMin = p.rectTransform.anchorMax = p.rectTransform.pivot = new Vector2(0, 0.5f);
+            p.rectTransform.anchoredPosition = new Vector2(px, -(py + 3 * Z));
+            p.rectTransform.sizeDelta = new Vector2(4 * Z, 6 * Z);
+            p.transform.SetSiblingIndex(0);
         }
-        var eye = Hud.Rect(chip, "Eye");
-        Hud.At(eye, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10, 10));
-        var ei = eye.gameObject.AddComponent<Image>();
-        ei.sprite = Hud.Circle;
-        ei.color = passed ? new Color32(0xf4, 0xdc, 0x8a, 255) : open ? new Color32(0x8f, 0xb0, 0xff, 255) : new Color32(0x7d, 0x86, 0x9e, 255);
+        var eyeAt = Hud.Rect(chip.transform, "Eye");
+        Hud.At(eyeAt, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * 10 * Z);
+        if (open || passed) Disc(eyeAt, "Glow", 10 * Z + 2 * 10 * Z, passed ? WebLook.Hex("#e2c26a") : WebLook.Hex("#6f8fd8"), true);
+        Disc(eyeAt, "Eye", 10 * Z, passed ? WebLook.Hex("#f4dc8a") : open ? WebLook.Hex("#8fb0ff") : WebLook.Hex("#7d869e"));
         var gift = Ascent.Gate;
         var sub = passed ? "passed" : $"+{gift.Attack} attack · +{gift.Stability * 2} stability · costs {gift.Cost} more · {(why != null ? why.TrimEnd('.').ToLowerInvariant() : "1 point")}";
-        var t = Hud.Label(r, "ASTRAL GATE", 11, open ? new Color32(0x3d, 0x5a, 0xa8, 255) : Look.Ink, true, 400, 16, TextAlignmentOptions.TopLeft);
-        t.margin = new Vector4(58, 6, 0, 0);
-        t.raycastTarget = false;
-        var w = Hud.Label(r, sub, 12, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
+        float lx = cw + 14 * Z, lw = 300 * Z;
+        var label = WebLook.Box(r, "Words", lx, 0, lw, 60);
+        label.anchorMin = label.anchorMax = label.pivot = new Vector2(0, 0.5f);
+        label.anchoredPosition = new Vector2(lx, 0);
+        var group = label.gameObject.AddComponent<CanvasGroup>();
+        group.alpha = !passed && !open ? 0.5f : 1;
+        group.blocksRaycasts = false;
+        var t = WebLook.Words(label, "ASTRAL GATE", 0.64f * 16 * Z, 0.16f, open ? WebLook.Hex("#3d5aa8") : passed ? WebLook.Hex("#9a7a2a") : Look.Ink, true, 400, TextAlignmentOptions.TopLeft);
+        var w = WebLook.Words(label, sub, 0.6f * 16 * Z, 0.06f, Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
         w.textWrappingMode = TextWrappingModes.Normal;
-        w.margin = new Vector4(58, 22, 0, 0);
-        w.raycastTarget = false;
+        float th = t.GetPreferredValues(t.text).y, wh = w.GetPreferredValues(sub, lw, 0).y;
+        float h = 1 * Z + th + 1 * Z + wh;
+        label.sizeDelta = new Vector2(lw, h);
+        WebLook.Box(t.rectTransform, 0, 1 * Z, lw, th + 2);
+        WebLook.Box(w.rectTransform, 0, 1 * Z + th + 1 * Z, lw, wh + 2);
     }
 
     // ---- Learning, carrying, undoing ----

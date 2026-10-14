@@ -1,7 +1,8 @@
 /**
  * Bakes the campaign screens' marks for the Unity game (Assets/Resources/Icons), cut from the web game itself as its
  * pages draw them: the campaign menu's section discs (each its emblem on its white disc, open and greyed out), and the
- * map's purse (the sun's orb, cool, warm and hot; materials; petals). `node scripts/bake-campaign.mjs [menu] [map]`.
+ * skill trees' circuit board, and the map's purse (the sun's orb, cool, warm and hot; materials; petals).
+ * `node scripts/bake-campaign.mjs [menu] [circuit] [map]`.
  */
 import { mkdirSync, writeFileSync, globSync } from 'node:fs';
 import { createServer } from 'vite';
@@ -10,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 
 const exe = globSync('/opt/pw-browsers/chromium-*/chrome-linux/chrome')[0] ?? process.env.CHROME;
 const out = 'unity/Assets/Resources/Icons';
-const parts = process.argv.slice(2).length ? process.argv.slice(2) : ['menu', 'map'];
+const parts = process.argv.slice(2).length ? process.argv.slice(2) : ['menu', 'circuit', 'map'];
 mkdirSync(out, { recursive: true });
 const server = await createServer({ server: { port: 5241, strictPort: true, fs: { strict: false } }, logLevel: 'error' });
 await server.listen();
@@ -95,6 +96,18 @@ if (parts.includes('menu')) {
   }
   await style.evaluate((s) => s.remove());
   console.log(`campaign menu discs baked (${size.toFixed(1)} px across at 1600 x 1000)`);
+}
+
+if (parts.includes('circuit')) {
+  // The skill trees' board: the cards' faint circuit traces (glyphs.ts --circuit-dwarf), a tile 340 across (CSS).
+  const url = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--circuit-dwarf').trim().replace(/^url\(["']?|["']?\)$/g, ''));
+  const tile = await browser.newPage({ deviceScaleFactor: 1, viewport: { width: 1200, height: 1200 } });
+  await tile.setContent(`<html><body style="margin:0;background:transparent"><img id="t" src="${url}" style="display:block;width:${Math.round(340 * 1.45)}px"></body></html>`);
+  await tile.evaluate(() => document.getElementById('t').decode());
+  writeFileSync(`${out}/circuit-dwarf.png`, await (await tile.$('#t')).screenshot({ type: 'png', omitBackground: true }));
+  clean(`${out}/circuit-dwarf.png`);
+  await tile.close();
+  console.log('circuit tile baked');
 }
 
 if (parts.includes('map')) {

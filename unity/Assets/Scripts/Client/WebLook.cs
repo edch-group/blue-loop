@@ -170,6 +170,12 @@ public static class WebLook
         }
     }
 
+    /// <summary>A point placed and not yet confirmed, pulsing (styles.css cx-plan: 1.2s, a little larger at its height).</summary>
+    public class Pulse : MonoBehaviour
+    {
+        void Update() => transform.localScale = Vector3.one * (1 + 0.1f * (0.5f - 0.5f * Mathf.Cos(Time.time / 1.2f * Mathf.PI * 2)));
+    }
+
     /// <summary>An option lifting a little under the pointer (the campaign menu's: its disc 1.1 times, its name inked).</summary>
     public class Lift : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
