@@ -1025,7 +1025,13 @@ export function recycleProblem(s: CampaignState, f: Faction, n: CampaignNode, de
   if (n.station.used?.recycle) return 'One recycle per station';
   const army = flagship(s, f.id);
   if (!army) return 'You have no flagship.';
+  if (isCharacter(defId)) return "Characters can't be recycled";
   return deckRemoveProblem(army, defId);
+}
+
+/** A character's card [direction: character cards not available to recycle]: a Hero, the Captain, or one of the crew. */
+export function isCharacter(defId: string): boolean {
+  return cardDef(defId).kind === 'command' || isCaptain(defId) || defId.startsWith('companion_');
 }
 
 /** Why two cards of the flagship's deck can't be fused at this space station (null if they can). */

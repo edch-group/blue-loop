@@ -148,6 +148,7 @@ import {
   type EncounterLine,
   type EncounterSpeaker,
   CAPTAIN,
+  isCharacter,
   type Station,
 } from '../engine';
 import { account, markDirty } from './account';
@@ -4164,7 +4165,8 @@ export class CampaignView {
     const ship = flagship(s, s.playerId);
     // (Recycling and fusing take from the flagship's deck [direction: there is no reserve now]; its leader's card stays.)
     const deck = ship?.deck ?? [];
-    const list = tab === 'buy' ? stock : [...new Set(deck)].filter((id) => id !== ship?.general || deck.filter((x) => x === id).length > 1);
+    // (Characters, the Captain, the crew and any Hero, are never recycled: they don't show.)
+    const list = tab === 'buy' ? stock : [...new Set(deck)].filter((id) => (id !== ship?.general || deck.filter((x) => x === id).length > 1) && !(tab === 'recycle' && isCharacter(id)));
     const used = n.station?.kind === 'armory' ? n.station.used ?? {} : {};
     const picks = sh.fuse ?? [];
     const repair = ship && ship.damage > 0 ? `<span class="ar-repair"><small>sun ✸${ship.damage}</small>${this.repairButtons('cmp-heal-army', ship.id, ship.damage, CAMPAIGN.armyHealCost, '')}</span>` : '';

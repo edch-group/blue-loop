@@ -165,3 +165,13 @@ describe('research experiments', () => {
     for (const id of options) expect(EXPERIMENTS.some((x) => x.id === id)).toBe(true);
   });
 });
+
+describe('recycling', () => {
+  it('never takes a character: the Captain, the crew or any Hero', async () => {
+    const { isCharacter } = await import('../src/engine');
+    expect(isCharacter(CAPTAIN)).toBe(true);
+    expect(isCharacter('companion_lancer')).toBe(true);
+    expect(isCharacter('empress_solenne')).toBe(true);
+    expect(isCharacter('coronal_lance')).toBe(false);
+  });
+});
