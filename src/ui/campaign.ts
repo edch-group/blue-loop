@@ -14,6 +14,7 @@ import {
   armoryPrice,
   CAMPAIGN,
   campaignPlayer,
+  keepableCards,
   cardDef,
   migrateGame,
   migrateCampaign,
@@ -502,6 +503,8 @@ export class CampaignView {
   private sheet: Sheet | null = null;
   /** The cache of the last battle's rewards, burst open (its rewards coming out). */
   private lootOpen = false;
+  /** The card picked to keep for the next run, on the run-over screen. */
+  private keepPick: string | null = null;
   /** On the way into a pending battle (so the map, drawn meanwhile, sends it only once). */
   private enteringBattle = false;
   /** New-campaign setup choices (the hero: an index into the race's heroes). */
@@ -1049,11 +1052,22 @@ export class CampaignView {
         this.setup.hero = n();
         sound.hover();
         break;
-      case 'cmp-new-run':
+      case 'cmp-keep':
+        // A card to keep for the next run: a tap picks it (again, lets it go).
+        this.keepPick = this.keepPick === arg ? null : arg;
+        sound.hover();
+        break;
+      case 'cmp-new-run': {
+        // (The card picked to keep goes with the account into the next run; none picked, none kept.)
+        const kept = s?.winner && this.keepPick && keepableCards(s).includes(this.keepPick) ? this.keepPick : undefined;
+        const { kept: _old, ...meta } = loadMeta();
+        saveMeta(kept ? { ...meta, kept } : meta);
+        this.keepPick = null;
         // (Off to the upgrades and a new run: the finished one is gone.)
         this.openSetup();
         saveCampaign(null);
         break;
+      }
       case 'cmp-meta-buy': {
         const meta = loadMeta();
         const why = buyUpgradeProblem(meta, arg);
@@ -1709,7 +1723,9 @@ export class CampaignView {
     const meta = loadMeta();
     // (Every run is the Captain's, as petals have made them.)
     const hero = captainCard(meta);
-    saveMeta({ ...meta, runs: meta.runs + 1 });
+    // (A card kept from the last run comes in with this one, and is used up.)
+    const { kept: _kept, ...rest } = meta;
+    saveMeta({ ...rest, runs: meta.runs + 1 });
     const state = createCampaign({ seed: (Math.random() * 2 ** 31) | 0, captain: hero, run: runBonuses(meta) });
     // The hero's arrival comes first: whatever else the opening brought on waits its turn behind it.
     const story = state.story;
@@ -3855,13 +3871,22 @@ export class CampaignView {
   private renderOverlay(): string {
     const s = this.state!;
     if (s.winner) {
-      // The run is over (the flagship is lost): said plainly, the petals it banked, and the way out to the campaign's
-      // menu (its upgrades, and a new run).
+      // The run is over (the flagship is lost): said plainly, the petals it banked, one card from the run to keep for
+      // the next (once: it cannot be kept again after that), and the way out to the campaign's menu.
+      const keepable = keepableCards(s);
+      const pick = this.keepPick && keepable.includes(this.keepPick) ? this.keepPick : null;
+      const keep = keepable.length
+        ? `<div class="run-keep">
+            <small>keep one card for your next run</small>
+            <div class="cmp-cards run-keep-cards">${keepable.map((id) => `<button class="cmp-pick ${pick === id ? 'cmp-pick-on' : ''}" data-act="cmp-keep" data-arg="${id}" aria-pressed="${pick === id}">${cardHtml(id)}</button>`).join('')}</div>
+          </div>`
+        : '';
       return `<div class="overlay overlay-soft run-over">
         <h2>you are dead</h2>
         <p>The others will follow, soon enough…</p>
         <span class="run-over-petals">+ ${s.petals} ${PETAL}</span>
-        <button class="btn-primary" data-act="cmp-new-run">exit</button>
+        ${keep}
+        <button class="btn-primary" data-act="cmp-new-run">${pick ? `keep ${lower(cardDef(pick).name)} · exit` : 'exit'}</button>
       </div>`;
     }
     // A Frost Line held: its reward, chosen.
