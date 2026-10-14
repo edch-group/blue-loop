@@ -7568,3 +7568,9 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* (Its words end above the attack and stability stones along its foot [direction: the text didn't clear the gems]:
    up close they sat over the last line.) */
 .card.card-full:not(.card-table):not(.card-big) .card-text { padding-bottom: calc(var(--cw) * 0.2); }
+/* (The clip on the picture alone, not the whole picture area [direction: the energy dots cut off in hand]: the dots
+   and anything else laid over the picture are never cut by it; Safari clipped them square inside the card's corner.) */
+.card.card-full .card-glyph { overflow: visible; -webkit-clip-path: none; clip-path: none; }
+.card.card-full .card-glyph .art-wrap { height: 100%; }
+.card.card-full .card-glyph .art-frame { display: block; height: 100%; overflow: hidden; -webkit-clip-path: inset(0 round calc(var(--cw) * 0.08)); clip-path: inset(0 round calc(var(--cw) * 0.08)); }
+.card.card-full.card-costed .card-glyph .cost-dots { top: calc(var(--cw) * 0.07); left: calc(var(--cw) * 0.065); }
