@@ -71,11 +71,14 @@ jobs:
         run: |
           pip install --quiet pillow
           mkdir -p unity/Assets/StreamingAssets
-          for d in CardFaces CardArt Glossary; do
-            mv "unity/Assets/Resources/$d" "unity/Assets/StreamingAssets/$d"
-            rm -f "unity/Assets/Resources/$d.meta"
+          # (Only the pictures: anything else there, the glossary's index, stays in the game's data.)
+          cd unity/Assets/Resources
+          find CardFaces CardArt Glossary -type f \( -name '*.jpg' -o -name '*.png' \) | while read -r f; do
+            mkdir -p "../StreamingAssets/$(dirname "$f")"
+            mv "$f" "../StreamingAssets/$f"
+            rm -f "$f.meta"
           done
-          find unity/Assets/StreamingAssets -name '*.meta' -delete
+          cd ../../..
           python3 - <<'PY'
           import os
           from PIL import Image
