@@ -27,7 +27,7 @@ public static class EngineData
         var def = Cards.Def(defId);
         var id = def.ArtOf ?? defId.Split('@')[0];
         if (art.TryGetValue(id, out var t)) return t;
-        t = Resources.Load<Texture2D>("CardArt/" + id);
+        t = Pictures.Load("CardArt/" + id);
         art[id] = t;
         return t;
     }

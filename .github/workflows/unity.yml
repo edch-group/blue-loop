@@ -52,3 +52,68 @@ jobs:
           git commit -m "Unity CI screenshot" || exit 0
           git pull --rebase --autostash origin "$GITHUB_REF_NAME"
           git push origin "HEAD:$GITHUB_REF_NAME"
+
+  # The browser's build, served by the site at /play/ (Cloudflare deploys whatever is pushed): made after the Mac's
+  # when a commit's message asks for it ("[play]") or by hand. The baked pictures go beside it, each its own file (see
+  # Pictures.cs), with their list; the build is committed to public/play/.
+  web:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[play]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: unity/Library
+          key: unity-library-webgl-${{ hashFiles('unity/Packages/**', 'unity/ProjectSettings/**') }}
+          restore-keys: unity-library-webgl-
+      - name: Move the pictures out of the game's data
+        run: |
+          pip install --quiet pillow
+          mkdir -p unity/Assets/StreamingAssets
+          for d in CardFaces CardArt Glossary; do
+            mv "unity/Assets/Resources/$d" "unity/Assets/StreamingAssets/$d"
+            rm -f "unity/Assets/Resources/$d.meta"
+          done
+          find unity/Assets/StreamingAssets -name '*.meta' -delete
+          python3 - <<'PY'
+          import os
+          from PIL import Image
+          root = 'unity/Assets/StreamingAssets'
+          lines = []
+          for d, _, files in os.walk(root):
+              for f in sorted(files):
+                  path = os.path.join(d, f)
+                  w, h = Image.open(path).size
+                  lines.append(f"{os.path.relpath(path, root)} {w} {h}")
+          open('unity/Assets/Resources/Engine/pictures.txt', 'w').write('\n'.join(lines) + '\n')
+          print(len(lines), 'pictures')
+          PY
+      - name: Build
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: unity
+          targetPlatform: WebGL
+          buildMethod: BuildScript.Build
+          buildName: Game
+      - name: Publish to the site
+        run: |
+          sudo chown -R "$(id -u)" build
+          ls -la build/WebGL/Game
+          du -sh build/WebGL/Game/* || true
+          git checkout -- unity
+          rm -rf public/play
+          mkdir -p public/play
+          cp -r build/WebGL/Game/. public/play/
+          # (The site opens on it: the web game it was ported from stays at its own paths.)
+          printf '/ /play/ 302\n' > public/_redirects
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A public/play public/_redirects
+          git commit -m "Unity web build" || exit 0
+          git pull --rebase --autostash origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"

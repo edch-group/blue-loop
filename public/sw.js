@@ -28,6 +28,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   // The account API is always live (never served from the cache).
   if (url.pathname.startsWith('/api/')) return;
+  // The Unity game (/play/) caches its own build: never held here.
+  if (url.pathname.startsWith('/play/')) return;
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)

@@ -13,8 +13,23 @@ public static class BuildScript
 {
     public static void Build()
     {
-        try { Shots("ci"); }
-        catch (Exception e) { Debug.LogError("Screenshots failed: " + e); }
+        var target = EditorUserBuildSettings.activeBuildTarget;
+        // (The browser's build, made after the Mac's, takes no screenshots of its own.)
+        if (target != BuildTarget.WebGL)
+        {
+            try { Shots("ci"); }
+            catch (Exception e) { Debug.LogError("Screenshots failed: " + e); }
+        }
+        else
+        {
+            // In the browser: packed small (gzip, unpacked by the page itself, whatever the server says of it), the
+            // game's memory let grow, the page the plain one.
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback = true;
+            PlayerSettings.WebGL.dataCaching = true;
+            PlayerSettings.WebGL.nameFilesAsHashes = true;
+            PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
+        }
 
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         Directory.CreateDirectory("Assets/Scenes");
@@ -28,7 +43,6 @@ public static class BuildScript
         var args = Environment.GetCommandLineArgs();
         var output = "build/Game";
         for (int i = 0; i < args.Length - 1; i++) if (args[i] == "-customBuildPath") output = args[i + 1];
-        var target = EditorUserBuildSettings.activeBuildTarget;
         var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
         {
             scenes = new[] { "Assets/Scenes/Main.unity" },

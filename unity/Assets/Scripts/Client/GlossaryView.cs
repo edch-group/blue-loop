@@ -65,7 +65,7 @@ public class GlossaryView : MonoBehaviour
         vm.sprite = Hud.Rounded;
         vm.type = Image.Type.Sliced;
         viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-        var tex = Resources.Load<Texture2D>("Glossary/" + tab);
+        var tex = Pictures.Load("Glossary/" + tab);
         var content = Hud.Rect(viewport, "Content");
         content.anchorMin = new Vector2(0, 1);
         content.anchorMax = new Vector2(1, 1);

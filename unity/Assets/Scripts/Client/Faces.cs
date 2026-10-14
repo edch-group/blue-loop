@@ -17,7 +17,7 @@ public static class Faces
     static Texture2D Load(string path)
     {
         if (cache.TryGetValue(path, out var t)) return t;
-        t = Resources.Load<Texture2D>(path);
+        t = Pictures.Load(path);
         if (t != null)
         {
             t.wrapMode = TextureWrapMode.Clamp;
