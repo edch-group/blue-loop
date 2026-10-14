@@ -128,7 +128,7 @@ export const SINGULARITIES: Record<string, Singularity> = {
  * other sources]: learnt and chosen on the Captain's tree (meta.ts), the choice written into its card's id.
  */
 export const CAPTAIN_SINGULARITIES: Record<string, Singularity & { price: number }> = {
-  wall: { ...s('Back to the Wall', 'struck', 10, '3 heat to a rival card and 2 to each card beside it.', [{ type: 'blast', amount: 3, side: 2 }]), price: 0 },
+  wall: { ...s('Back to the Wall', 'struck', 10, '{splash:3}.', [{ type: 'blast', amount: 3, side: 2 }]), price: 0 },
   stand: { ...s('Last Stand', 'sunHit', 12, '{cool:5}. {shield:5}. Draw 1.', [{ type: 'cool', amount: 5 }, { type: 'shield', amount: 5 }, { type: 'draw', amount: 1 }]), price: 3 },
   scrap: { ...s('Scrap Run', 'lost', 3, 'Draw 2. {energy:2}.', [{ type: 'draw', amount: 2 }, { type: 'plays', amount: 2 }]), price: 3 },
 };

@@ -40,6 +40,7 @@ export const KEYWORDS: Record<string, Keyword> = {
   dusk: { name: 'dusk', group: 'timing', explain: () => 'End of your day.' },
   vigil: { name: 'vigil', group: 'timing', explain: () => "End of your day, if this card didn't attack or act." },
   heat: { name: 'heat', group: 'heat', symbol: true, explain: () => "Heats your rival's sun." },
+  splash: { name: 'splash', group: 'heat', explain: () => 'Heat to a rival card, and 1 less to each card beside it.' },
   pierce: { name: 'pierce', group: 'heat', explain: () => 'Ignores defence.' },
   cool: { name: 'cool', group: 'cool', symbol: true, explain: () => 'Cools your sun. Played, it can chill a rival card instead: its attack down as much, until your next day.' },
   shield: { name: 'shields', group: 'shields', symbol: true, explain: () => 'Blocks heat on your sun. Fades at dawn.' },
