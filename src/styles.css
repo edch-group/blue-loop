@@ -942,8 +942,10 @@ input { font: inherit; }
   transform-origin: 50% 50%;
   transform: translateY(var(--fy, 0)) rotate(calc(var(--fr, 0deg) + var(--side, 0deg)));
   /* (A card kept in hand as the fan changes slides along to its new place: left and angle together.) */
-  /* (Its lift as it is hovered runs with the hand's own rise, same time and curve: one movement, not two.) */
-  transition: transform 0.32s cubic-bezier(.2,.8,.2,1), left 0.3s cubic-bezier(.2,.8,.2,1), box-shadow 0.2s;
+  /* (Its lift as it is hovered runs with the hand's own rise, same time and curve: one movement, not two. The curve
+     has no long tail [direction: cards in hand animate, stop, then animate up a tiny bit more]: a fast-out curve
+     covered most of the way in a fifth of the time, then crept the last pixels, which read as a second move.) */
+  transition: transform 0.24s cubic-bezier(.3,.6,.4,1), left 0.3s cubic-bezier(.2,.8,.2,1), box-shadow 0.2s;
   box-shadow: -4px 4px 16px rgba(90, 90, 110, 0.18);
 }
 .hand > .card.lifted, .hand > .card:focus-visible {
@@ -4266,9 +4268,9 @@ body:has(.db-pool.db-short) .db-grid-sizes:has([data-arg="md"].on) [data-arg="lg
 .card-ability ~ .card-ability { margin-top: 0.3em; padding-top: 0.3em; border-top: 1px solid rgba(255, 255, 255, 0.22); }
 .card:not(.kind-command) .card-ability ~ .card-ability { border-top-color: rgba(90, 96, 110, 0.18); }
 /* The hand raised to read every card whole: by a first tap on a touch screen, or by hovering it with a mouse. */
-.table-view > .dock { transition: transform 0.32s cubic-bezier(.2,.8,.2,1); }
+.table-view > .dock { transition: transform 0.24s cubic-bezier(.3,.6,.4,1); }
 .table-view > .dock.dock-raised { transform: translateY(calc(-1 * var(--raise, 0px))); }
-.table-view > .dock .hand { transform-origin: 50% 100%; transition: transform 0.32s cubic-bezier(.2,.8,.2,1); }
+.table-view > .dock .hand { transform-origin: 50% 100%; transition: transform 0.24s cubic-bezier(.3,.6,.4,1); }
 .table-view > .dock.dock-raised .hand { transform: scale(var(--hgrow, 1)); }
 /* A card dragged out of the hand to play it: its copy follows the pointer, the card itself waits faded. */
 .hand > .card { touch-action: none; }
