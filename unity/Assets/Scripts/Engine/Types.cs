@@ -356,6 +356,12 @@ namespace BlueLoop.Engine
         public string DeckName;
         public string Avatar;
         public int Heat;
+        /// <summary>
+        /// (The AI's look-ahead only: a fraction of heat it imagines kept off, as the TypeScript's sun may hold. Never
+        /// saved, never in a real game.)
+        /// </summary>
+        [JsonIgnore] public double HeatShift;
+        [JsonIgnore] public double HeatExact => Heat + HeatShift;
         public int Shields;
         public int? DeckSize;
         public HeroBoons HeroBoons;

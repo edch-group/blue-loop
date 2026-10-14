@@ -71,6 +71,39 @@ void Check(string name, bool ok, string detail = "")
     }
 }
 
+// The AI: at every recorded state where the AI moved, the C# AI chooses the same move.
+{
+    var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/battles.json");
+    if (System.IO.File.Exists(path))
+    {
+        var ser = Newtonsoft.Json.JsonSerializer.Create(Json.Settings);
+        var games = Newtonsoft.Json.Linq.JArray.Parse(System.IO.File.ReadAllText(path));
+        int gi = 0, total = 0;
+        foreach (var g in games)
+        {
+            if (gi >= int.Parse(Environment.GetEnvironmentVariable("AI_GAMES") ?? "999")) break;
+            string fail = null;
+            var steps = (Newtonsoft.Json.Linq.JArray)g["steps"];
+            var before = g["start"].ToObject<GameState>(ser);
+            for (int i = 0; fail == null && i < steps.Count; i++)
+            {
+                var want = steps[i]["action"];
+                try
+                {
+                    var got = AI.Choose(before);
+                    var d = JsonDiff.First(want, Newtonsoft.Json.Linq.JToken.Parse(Json.Write(got)));
+                    if (d != null) fail = $"move {i}: wanted {want.ToString(Newtonsoft.Json.Formatting.None)}, chose {Json.Write(got)}";
+                }
+                catch (Exception e) { fail = $"move {i}: {e.GetType().Name}: {e.Message} {e.StackTrace?.Split('\n').FirstOrDefault()}"; }
+                total++;
+                before = steps[i]["state"].ToObject<GameState>(ser);
+            }
+            Check($"AI game {gi}", fail == null, fail);
+            gi++;
+        }
+    }
+}
+
 // (The checker itself: two states a move apart must not compare alike.)
 {
     var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/battles.json");

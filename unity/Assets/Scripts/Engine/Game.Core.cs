@@ -215,7 +215,7 @@ namespace BlueLoop.Engine
 
         public static int SupernovaThreshold(PlayerState p) => Balance.SupernovaAt + (p.Modifiers?.MaxHealthDelta ?? 0);
 
-        public static bool IsOverheated(PlayerState p) => p.Heat * 2 >= SupernovaThreshold(p);
+        public static bool IsOverheated(PlayerState p) => p.HeatExact * 2 >= SupernovaThreshold(p);
 
         public static int InstabilityHeat(GameState state) => InstabilityHeat(state.Round);
 
@@ -673,7 +673,7 @@ namespace BlueLoop.Engine
                 case "cold":
                 {
                     var sun = c.Rival == true ? (state != null ? TargetOf(state, p) : null) : p;
-                    return sun != null ? Floor(Math.Max(0, -sun.Heat) / per) * (c.Times ?? 1) : 0;
+                    return sun != null ? Floor(Math.Max(0, -sun.HeatExact) / per) * (c.Times ?? 1) : 0;
                 }
             }
             return 0;
