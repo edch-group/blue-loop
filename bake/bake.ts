@@ -234,3 +234,36 @@ function loot(what: string, size: number): void {
   mountLoot3d(stage);
 }
 Object.assign(window, { loot });
+
+// ---- The shop's booster packs and the deck builder's marks (app.ts packFace, builder.ts), for scripts/bake-menus.mjs ----
+import { PROGRESSION, RACE_NAMES } from '../src/engine';
+import { modeArt } from '../src/ui/glyphs';
+/** A booster pack as the shop's row shows it: the foil wrapper, turned a little, its shadow under it (its sheen still). */
+function pack(kind: string, width: number): void {
+  const k = kind === 'general' ? 'general' : Number(kind);
+  const name = k === 'general' ? 'general' : RACE_NAMES[k].toLowerCase();
+  const emblem = k === 'general' ? `<span class="pack-icon">${HUB_ICONS.pack}</span>` : factionAvatar(`f${k + 1}`, 'pack-emblem');
+  stage.innerHTML = `<span class="pack-slot" id="piece" style="display:inline-block;padding:24px 34px 40px 24px"><span class="pack pack-${k}" style="width:${width}px"><span class="pack-tear"></span><span class="pack-body"><span class="pack-brand">blue loop</span>${emblem}<span class="pack-name">${name}</span><span class="pack-count">${PROGRESSION.boosterSize} cards</span></span><span class="pack-shine" style="animation:none;background-position:150% 0"></span></span></span>`;
+}
+/** A game mode's picture as the deck list's switch shows it (`off`: greyed, as when the other is picked). */
+function modePic(m: 'core' | 'lost', width: number, off: boolean): void {
+  stage.innerHTML = `<span class="db-mode-art" id="piece" style="width:${width}px;margin:0;${off ? 'filter:grayscale(1) opacity(0.55)' : 'filter:none'}">${modeArt(m)}</span>`;
+}
+/** The deck builder's small marks, in white (the game tints them): a deck's copy, share and delete, the filters' funnel, the card sizes, import. */
+const DB_ICONS: Record<string, string> = {
+  copy: '<svg viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.5V3a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>',
+  share: '<svg viewBox="0 0 16 16"><circle cx="12" cy="3.5" r="1.8"/><circle cx="4" cy="8" r="1.8"/><circle cx="12" cy="12.5" r="1.8"/><path d="M5.6 7.1l4.8-2.7M5.6 8.9l4.8 2.7"/></svg>',
+  delete: '<svg viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5a1 1 0 0 0 1 .9h3.6a1 1 0 0 0 1-.9l.7-8.5M7 7v4.5M9 7v4.5"/></svg>',
+  upload: '<svg viewBox="0 0 16 16"><path d="M8 10.5V2.5M4.8 5.5 8 2.3l3.2 3.2M2.5 10.5v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2"/></svg>',
+  filter: '<svg viewBox="0 0 16 16"><path d="M2.5 3.5h11L9.2 8.6v4.2l-2.4-1.3V8.6z"/></svg>',
+  'grid-sm': `<svg viewBox="0 0 14 14" class="fill">${[0, 5, 10].flatMap((y) => [0, 5, 10].map((x) => `<rect x="${x}" y="${y}" width="4" height="4" rx="1"/>`)).join('')}</svg>`,
+  'grid-md': `<svg viewBox="0 0 14 14" class="fill">${[0, 7.5].flatMap((y) => [0, 7.5].map((x) => `<rect x="${x}" y="${y}" width="6.5" height="6.5" rx="1.5"/>`)).join('')}</svg>`,
+  'grid-lg': '<svg viewBox="0 0 14 14" class="fill"><rect width="14" height="14" rx="2.5"/></svg>',
+};
+function dbIcon(name: string, size: number): void {
+  stage.innerHTML = `<span id="piece" style="display:block;width:${size}px;height:${size}px">${DB_ICONS[name]}</span>`;
+  const svg = stage.querySelector('svg')!;
+  const fill = svg.classList.contains('fill');
+  svg.setAttribute('style', `width:${size}px;height:${size}px;display:block;${fill ? 'fill:#fff;stroke:none' : 'fill:none;stroke:#fff;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round'}`);
+}
+Object.assign(window, { pack, modePic, dbIcon, dbIconNames: () => Object.keys(DB_ICONS) });
