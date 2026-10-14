@@ -25,7 +25,7 @@ public partial class CampaignView : MonoBehaviour
     readonly Dictionary<string, Transform> nodes = new Dictionary<string, Transform>();
     Transform ship;
     Vector3 focus, focusGoal;
-    float distance = 11, distanceGoal = 11;
+    float distance = HomeDist, distanceGoal = HomeDist;
     bool flying;
     int storyLine;
 
@@ -88,7 +88,7 @@ public partial class CampaignView : MonoBehaviour
         Cam.transform.SetParent(transform, false);
         Cam.clearFlags = CameraClearFlags.SolidColor;
         Cam.backgroundColor = new Color(0.957f, 0.953f, 0.937f);
-        Cam.fieldOfView = 34;
+        Cam.fieldOfView = 36;
         Cam.nearClipPlane = 0.1f;
         Cam.farClipPlane = 200;
         world = new GameObject("World").transform;
@@ -105,7 +105,7 @@ public partial class CampaignView : MonoBehaviour
         SkipSilentScenes();
         Map();
         var f = Campaign.Flagship(state, state.PlayerId);
-        if (f != null) focus = focusGoal = NodePos(f.NodeId);
+        if (f != null) focus = focusGoal = Home(f.NodeId);
         Refresh();
     }
 
@@ -246,6 +246,20 @@ public partial class CampaignView : MonoBehaviour
         groundMat.SetFloat("_Gone", gone);
         groundMat.SetFloat("_Crack", crack);
         groundMat.SetFloat("_Galaxy", System.Array.IndexOf(GalaxyCodes, state.Galaxy) is int g && g > 0 ? g : 0);
+    }
+
+    /// <summary>How far off the camera rests (nebula3d.ts's home: the strip's width fitted to the view, a little in).</summary>
+    static float HomeDist => Mathf.Max(2.4f, (StripWidth / 2 + 0.3f) / Mathf.Tan(18 * Mathf.Deg2Rad) * 0.6f) * 0.8f * G;
+
+    /// <summary>What the camera looks at following the ship at a system: a little ahead of it, so it sits low and to the left.</summary>
+    Vector3 Home(string id)
+    {
+        var n = Campaign.NodeById(state, id);
+        var f = Web(n.X, n.Y);
+        float dist = HomeDist / G;
+        float reach = StripWidth / 2 - dist * 0.35f;
+        float x = Mathf.Clamp(f.x + dist * 0.28f, -reach, reach);
+        return new Vector3(x * G, 0, -(0.1f + f.y * 0.35f) * G);
     }
 
     Vector3 NodePos(string id)
@@ -405,7 +419,7 @@ public partial class CampaignView : MonoBehaviour
         }
         if (Input.GetMouseButtonUp(0) && !dragging) Tap();
         float wheel = Input.mouseScrollDelta.y;
-        if (wheel != 0) distanceGoal = Mathf.Clamp(distanceGoal * (1 - wheel * 0.08f), 5, 22);
+        if (wheel != 0) distanceGoal = Mathf.Clamp(distanceGoal * (1 - wheel * 0.08f), HomeDist * 0.4f, HomeDist * 2);
     }
 
     Vector3? FloorPoint(Vector3 screen)
@@ -421,9 +435,11 @@ public partial class CampaignView : MonoBehaviour
         float k = Application.isPlaying ? 1 - Mathf.Exp(-Time.deltaTime * 4) : 1;
         focus = Vector3.Lerp(focus, focusGoal, k);
         distance = Mathf.Lerp(distance, distanceGoal, k);
-        var dir = Quaternion.Euler(52, -8, 0) * Vector3.forward;
-        Cam.transform.position = focus - dir * distance;
-        Cam.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+        // (The web's pose: yaw -0.95, pitch 0.62 rad; its eye off toward the strip's near end, looking along it.)
+        float yaw = -0.95f, pitch = 0.62f;
+        var back = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), -Mathf.Cos(yaw) * Mathf.Cos(pitch));
+        Cam.transform.position = focus + back * distance;
+        Cam.transform.rotation = Quaternion.LookRotation(-back, Vector3.up);
     }
 
     void Tap()
@@ -453,7 +469,7 @@ public partial class CampaignView : MonoBehaviour
         }
         var n = Campaign.NodeById(state, id);
         if (Campaign.Flagship(state, state.PlayerId)?.NodeId == id && n.Station != null) EnterStation(id);
-        else { focusGoal = NodePos(id); Sound.Play("hover"); Refresh(); }
+        else { Sound.Play("hover"); Refresh(); }
     }
 
     /// <summary>Your ship sets out down a route: it flies there, and what the system holds shows as it lands.</summary>
@@ -473,7 +489,7 @@ public partial class CampaignView : MonoBehaviour
         flying = true;
         var from = ship.localPosition;
         var to = ShipSpot(toId);
-        focusGoal = NodePos(toId);
+        focusGoal = Home(toId);
         // (The ship turns to face its way, and flies on a gentle arc.)
         var dir = to - from;
         dir.y = 0;
@@ -531,7 +547,7 @@ public partial class CampaignView : MonoBehaviour
         {
             Map();
             var f = Campaign.Flagship(state, state.PlayerId);
-            if (f != null) focus = focusGoal = NodePos(f.NodeId);
+            if (f != null) focus = focusGoal = Home(f.NodeId);
             Toast($"Galaxy {state.Universe}: through the wormhole.");
         }
         if (action.Type != "endTurn" && action.Type != "aiStep" && MoveSpent()) Invoke(nameof(PassTime), 0.42f);
@@ -609,7 +625,7 @@ public partial class CampaignView : MonoBehaviour
         Apply(new CampaignAction { Type = "finishBattle", Game = game, Auto = auto });
         Map();
         var f = Campaign.Flagship(state, state.PlayerId);
-        if (f != null) focus = focusGoal = NodePos(f.NodeId);
+        if (f != null) focus = focusGoal = Home(f.NodeId);
         Refresh();
     }
 
