@@ -6049,7 +6049,7 @@ export class App {
         : `<span class="tpile-empty"></span><small>deck</small>`;
     const discard = top
       ? `${discardStack.layers}<span class="tpile-face tpile-stacked" style="${discardStack.style}">${this.renderCard(top, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span>`
-      : `<span class="tpile-empty"></span><small>discard</small>`;
+      : `<span class="tpile-empty"></span><small>reserves</small>`;
     // How many cards they hold: a little bar above your piles, below theirs (the board stays a mirror).
     const n = p.hand.length;
     const hand = `<div class="tpile-hand tpile-hand-${side}" title="${mine ? 'Cards in your hand' : `Cards in ${esc(p.name)}'s hand`}">${HAND_ICON}<span>hand</span><b>${n}</b></div>`;
@@ -6058,8 +6058,8 @@ export class App {
     return `<div class="tableau-piles">
       ${mine ? name + hand : hand + name}
       <div class="tpile" data-anchor="${mine ? 'deck' : `deck:${p.id}`}" title="${mine ? `${p.deck.length} cards left in your deck (what they are, and their order, stay hidden)` : `${p.deck.length} cards left in ${esc(p.name)}'s deck`}">${deck}</div>
-      <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} discard pile (${p.discard.length}): look through it">${discard}</div>
-      <div class="tpile tpile-wreck tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'wreck' : `wreck:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'wreck' : `wreck:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} wreckage (${p.wreck?.length ?? 0}): what was discarded waits here, and one card a dawn (the top one) goes on to the discard pile">${wreck}</div>
+      <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} reserves (${p.discard.length}): look through them">${discard}</div>
+      <div class="tpile tpile-wreck tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'wreck' : `wreck:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'wreck' : `wreck:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} wreckage (${p.wreck?.length ?? 0}): what was discarded waits here, and one card a dawn (the top one) goes on to the reserves">${wreck}</div>
     </div>`;
   }
 
@@ -6915,7 +6915,7 @@ export class App {
     if (of && of.id !== me.id) {
       const rows = [...of.discard].reverse().map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}</div>`).join('');
       return this.sheetFrame(
-        `${esc(of.name.toLowerCase())}'s discard · ${of.discard.length}`,
+        `${esc(of.name.toLowerCase())}'s reserves · ${of.discard.length}`,
         `<div class="pile-grid">${rows || '<p class="muted">Empty.</p>'}</div>`,
       );
     }
@@ -6927,7 +6927,7 @@ export class App {
       .map((c) => `<div class="pile-card">${this.renderCard(c, { static: true })}${canTake ? `<button class="pile-take" data-act="reclaim" data-arg="${c.uid}" ${me.playsLeft < reclaim ? 'disabled' : ''}>take back · ${reclaim} energy</button>` : ''}</div>`)
       .join('');
     return this.sheetFrame(
-      `your discard · ${me.discard.length}`,
+      `your reserves · ${me.discard.length}`,
       `<div class="pile-grid">${rows || '<p class="muted">Empty.</p>'}</div>`,
     );
   }

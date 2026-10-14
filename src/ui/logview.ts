@@ -40,7 +40,7 @@ function outcome(text: string): { icon: string; tone: string; chip: Chip | null 
   if (/destroys/.test(text)) return { icon: '✕', tone: 'remove', chip: { cls: 'remove', html: `✕ destroyed` } };
   if (/flung back|returns .+ to their hand/.test(text)) return { icon: '↩', tone: 'remove', chip: { cls: 'move', html: `${ARROW} hand` } };
   if (/recovers/.test(text)) return { icon: '↩', tone: 'move', chip: { cls: 'move', html: `${ARROW} hand` } };
-  if (/fades into/.test(text)) return { icon: '◌', tone: 'fade', chip: { cls: 'fade', html: `${ARROW} discard` } };
+  if (/fades into/.test(text)) return { icon: '◌', tone: 'fade', chip: { cls: 'fade', html: `${ARROW} wreckage` } };
   if ((m = text.match(/loses (\d+) stability/))) return { icon: '◷', tone: 'remove', chip: { cls: 'remove', html: `◷−${m[1]}` } };
   if (/steadies/.test(text)) return { icon: '◷', tone: 'move', chip: { cls: 'move', html: '◷ steadied' } };
   if (/sets a card face down/.test(text)) return { icon: '⚡', tone: 'ls', chip: { cls: 'ls', html: `${ARROW} face down` } };

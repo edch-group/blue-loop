@@ -1141,14 +1141,14 @@ function salvageWreck(state: GameState, p: PlayerState) {
   const card = p.wreck?.shift();
   if (!card) return;
   p.discard.push(card);
-  log(state, `${p.name}'s ${cardDef(card.defId).name} comes back from the wreckage to their discard pile.`);
+  log(state, `${p.name}'s ${cardDef(card.defId).name} comes back from the wreckage to their reserves.`);
 }
 
 /** An empty deck: the discard pile is shuffled back in to be used again (it costs nothing). */
 function reshuffle(state: GameState, p: PlayerState) {
   p.deck = shuffleInPlace(state, p.discard);
   p.discard = [];
-  log(state, `${p.name} shuffles their discard pile back into their deck.`);
+  log(state, `${p.name} shuffles their reserves back into their deck.`);
   charge(state, p, 'recycles');
   // A Recycle relic answers it with a blow.
   const recycle = relicN(p.relics, 'recycle');
@@ -1625,7 +1625,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         }
         const [back] = p.discard.splice(i, 1);
         p.hand.push(back);
-        log(state, `${p.name} recovers ${cardDef(back.defId).name} from their discard pile.`);
+        log(state, `${p.name} recovers ${cardDef(back.defId).name} from their reserves.`);
         resolveEffects(state, p, back, cardDef(back.defId).onRecover, 'recover');
         break;
       }
@@ -1773,7 +1773,7 @@ function mend(state: GameState, p: PlayerState, c: CardInstance, amount: number)
 
 /** A card whose stability ran out fades into its owner's discard pile (shuffled into a new deck once the deck runs out). */
 function sweep(state: GameState, owner: PlayerState, card: CardInstance) {
-  log(state, `${owner.name}'s ${cardDef(card.defId).name} fades into their discard pile.`);
+  log(state, `${owner.name}'s ${cardDef(card.defId).name} fades into their wreckage.`);
   leaveTableau(state, owner, card, 'discard');
 }
 
@@ -2821,7 +2821,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   const host = fusing ? fusionHosts(p).find((c) => c.uid === action.hostUid) : undefined;
   if (fusing && !host) throw new GameError('Choose a card of yours in play to fuse it onto.');
   const recovers = recoverChoices(p, def.id);
-  if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your discard pile to recover.');
+  if (recovers.length > 0 && !recovers.some((c) => c.uid === action.recoverUid)) throw new GameError('Choose a card in your reserves to recover.');
 
   // Shift: the card chosen moves into another slot of its tableau.
   const shifts = shiftEffect(def.id);
@@ -3180,13 +3180,13 @@ export function applyAction(prev: GameState, action: Action): GameState {
       // A Reclaim relic: a card from the discard pile back to hand, for energy (then played as any card is).
       const n = relicN(p.relics, 'reclaim');
       const i = p.discard.findIndex((c) => c.uid === action.cardUid);
-      if (!n) throw new GameError('Only a Reclaim emblem takes cards back from your discard pile.');
-      if (i < 0) throw new GameError('That card is not in your discard pile.');
+      if (!n) throw new GameError('Only a Reclaim emblem takes cards back from your reserves.');
+      if (i < 0) throw new GameError('That card is not in your reserves.');
       if (p.playsLeft < n) throw new GameError(`Taking a card back costs ${n} energy.`);
       const [card] = p.discard.splice(i, 1);
       p.playsLeft -= n;
       p.hand.push(card);
-      log(state, `${p.name}'s ${relicOf(p.relics, 'reclaim')!.name} takes ${cardDef(card.defId).name} back from the discard pile.`);
+      log(state, `${p.name}'s ${relicOf(p.relics, 'reclaim')!.name} takes ${cardDef(card.defId).name} back from the reserves.`);
       break;
     }
   }
