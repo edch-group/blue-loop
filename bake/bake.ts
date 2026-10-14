@@ -68,10 +68,18 @@ function icon(name: string, size: number, small = false): void {
 }
 Object.assign(window, { icon, iconNames: () => Object.keys(HUB_ICONS) });
 
+/** One of the battle's corner icons (the log, fullscreen, the settings gear), drawn as its round button draws it. */
+const HUD_ICONS = { log: LOG_ICON, fullscreen: FULLSCREEN_ICON, 'exit-fullscreen': EXIT_FULLSCREEN_ICON, settings: MENU_ICON };
+function hudIcon(name: keyof typeof HUD_ICONS, size: number): void {
+  stage.innerHTML = `<span class="icon-btn" id="piece" style="width:${size}px;height:${size}px;font-size:${size / 34 * 17.6}px;background:none;border:none;box-shadow:none">${HUD_ICONS[name]}</span>`;
+}
+Object.assign(window, { hudIcon, hudIconNames: () => Object.keys(HUD_ICONS) });
+
 // (Every face the game uses loaded before anything is drawn.)
 void Promise.all(['400 1em Orbitron', '500 1em Orbitron', '700 1em Orbitron', '300 1em "Exo 2"', '400 1em "Exo 2"', '600 1em "Exo 2"'].map((f) => document.fonts.load(f))).then(() =>
   Object.assign(window, { face, badges, ready: true }),
 );
 
 import { registeredCardDefs } from '../src/engine/cards';
+import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from '../src/ui/menu-icon';
 Object.assign(window, { allIds: () => registeredCardDefs().map((d) => d.id) });

@@ -36,23 +36,47 @@ public class BattleView : MonoBehaviour
     float toastUntil;
 
     public GameState State => state;
+    /// <summary>Which part of the day the phase track shows lit.</summary>
+    public string Phase = "day";
 
     public static BattleView Make()
     {
         var cam = new GameObject("Camera").AddComponent<Camera>();
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = new Color(0.93f, 0.93f, 0.91f);
-        cam.fieldOfView = 30;
         cam.nearClipPlane = 0.1f;
         cam.farClipPlane = 100;
-        cam.transform.position = new Vector3(0.2f, 15.2f, -11.4f);
-        cam.transform.LookAt(new Vector3(0.2f, 0, -0.75f));
+        Frame(cam);
         var v = new GameObject("Battle").AddComponent<BattleView>();
         v.Cam = cam;
         v.Board = Board.Make(cam);
         v.BuildHud();
         return v;
     }
+
+    /// <summary>
+    /// The web's view of the table: tipped 22° away, seen from twice the screen's height away (a vertical field of
+    /// 28°), the eye a quarter of the way down the screen (here, the camera turned down to match). Narrower screens
+    /// widen the view so the whole table still fits.
+    /// </summary>
+    public static void Frame(Camera cam)
+    {
+        const float tilt = 22, px = 93.3f;
+        float aspect = cam.aspect > 0 ? cam.aspect : 1.6f;
+        float fov = 28.07f;
+        if (aspect < 1.6f) fov = 2 * Mathf.Atan(Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad) * 1.6f / aspect) * Mathf.Rad2Deg;
+        cam.fieldOfView = fov;
+        float t = tilt * Mathf.Deg2Rad;
+        var back = new Vector3(0, Mathf.Cos(t), -Mathf.Sin(t));
+        var up = new Vector3(0, Mathf.Sin(t), Mathf.Cos(t));
+        var centre = new Vector3(0, 0, Board.TableZ);
+        // (The eye 1800 px out and 140 px above the table's middle; the screen's middle 234 px below the eye.)
+        float dist = 1800 / px;
+        cam.transform.position = centre + back * dist + up * (140 / px);
+        cam.transform.rotation = Quaternion.LookRotation(-back, up) * Quaternion.Euler(Mathf.Atan(234f / 1800f) * Mathf.Rad2Deg, 0, 0);
+    }
+
+    float framedAspect;
 
     public void NewBattle(int seed, string myDeck = null, string theirDeck = null)
     {
@@ -79,6 +103,12 @@ public class BattleView : MonoBehaviour
 
     void Update()
     {
+        if (Cam != null && !Mathf.Approximately(framedAspect, Cam.aspect))
+        {
+            framedAspect = Cam.aspect;
+            Frame(Cam);
+            if (state != null) Board.Sync(state, this);
+        }
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
         if (state == null || state.WinnerId != null) return;
         if (!busy && AiToMove()) StartCoroutine(AiMove());
@@ -333,22 +363,22 @@ public class BattleView : MonoBehaviour
         hud = Hud.Canvas(Cam);
         hud.transform.SetParent(transform, false);
         var root = hud.transform;
-        // End Day, and your energy over it.
-        endDay = Hud.Pill(root, "End day", () => { if (MyDay) Do(new EngineAction { Type = "endTurn" }); }, 26);
-        Hud.At((RectTransform)endDay.transform, new Vector2(1, 0), new Vector2(-34, 34), new Vector2(270, 84));
+        // End Day, and your energy over it (sizes as the web's, in a 1600 × 1000 frame).
+        endDay = Hud.Pill(root, "End day", () => { if (MyDay) Do(new EngineAction { Type = "endTurn" }); }, 19);
+        Hud.At((RectTransform)endDay.transform, new Vector2(1, 0), new Vector2(-18, 20), new Vector2(224, 62));
         var energy = Hud.Rect(root, "Energy");
-        Hud.At(energy, new Vector2(1, 0), new Vector2(-34, 128), new Vector2(270, 70));
-        energyLabel = Hud.Label(energy, "ENERGY", 22, Look.InkSoft, true, 500, 16, TextAlignmentOptions.Top);
+        Hud.At(energy, new Vector2(1, 0), new Vector2(-18, 86), new Vector2(224, 52));
+        energyLabel = Hud.Label(energy, "ENERGY", 16, Look.InkSoft, true, 500, 16, TextAlignmentOptions.Top);
         energyDots = Hud.Rect(energy, "Dots");
-        Hud.At(energyDots, new Vector2(0.5f, 0), Vector2.zero, new Vector2(270, 28));
+        Hud.At(energyDots, new Vector2(0.5f, 0), Vector2.zero, new Vector2(224, 16));
         // The pace: normal, auto, skip.
         var pace = Hud.Glass(root, "Pace", Look.GlassStrong);
-        Hud.At((RectTransform)pace.transform, new Vector2(0, 0), new Vector2(34, 34), new Vector2(380, 66));
+        Hud.At((RectTransform)pace.transform, new Vector2(0, 0), new Vector2(40, 32), new Vector2(292, 44));
         var names = new[] { "Normal", "Auto", "Skip" };
         for (int i = 0; i < 3; i++)
         {
             var seg = Hud.Rect(pace.transform, names[i]);
-            Hud.At(seg, new Vector2(0, 0.5f), new Vector2(8 + i * 122, 0), new Vector2(118, 50));
+            Hud.At(seg, new Vector2(0, 0.5f), new Vector2(5 + i * 94, 0), new Vector2(94, 36));
             if (i == 0)
             {
                 var on = seg.gameObject.AddComponent<Image>();
@@ -356,17 +386,22 @@ public class BattleView : MonoBehaviour
                 on.type = Image.Type.Sliced;
                 on.color = Look.Ink;
             }
-            Hud.Label(seg, names[i].ToUpperInvariant(), 20, i == 0 ? Color.white : Look.InkSoft, true, 500, 10);
+            Hud.Label(seg, names[i].ToUpperInvariant(), 15, i == 0 ? Color.white : Look.InkSoft, true, 500, 10);
         }
-        // The corner buttons: menu, full screen, settings.
-        string[] glyphs = { "≡", "⛶", "⚙" };
+        // The corner buttons: the log, fullscreen, settings (for now: back to the hub).
+        string[] icons = { "log", "fullscreen", "settings" };
         for (int i = 0; i < 3; i++)
         {
-            var b = Hud.Glass(root, "Corner " + i, Look.GlassStrong);
-            Hud.At((RectTransform)b.transform, new Vector2(1, 1), new Vector2(-30 - (2 - i) * 98, -26), new Vector2(84, 84));
-            // (The menu button: back to the hub.)
-            if (i == 0) b.gameObject.AddComponent<Button>().onClick.AddListener(() => App.Instance?.Menu("hub"));
-            Hud.Label(b.transform, glyphs[i], 36, Look.Ink, false, 500, 0);
+            var b = Hud.Glass(root, "Corner " + icons[i], Look.GlassStrong);
+            Hud.At((RectTransform)b.transform, new Vector2(1, 1), new Vector2(-18 - (2 - i) * 72, -10), new Vector2(63, 63));
+            var btn = b.gameObject.AddComponent<Button>();
+            if (i == 2) btn.onClick.AddListener(() => App.Instance?.Menu("hub"));
+            if (i == 1) btn.onClick.AddListener(() => Screen.fullScreen = !Screen.fullScreen);
+            var ic = Hud.Rect(b.transform, "Icon");
+            Hud.At(ic, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(63, 63));
+            var raw = ic.gameObject.AddComponent<RawImage>();
+            raw.texture = Resources.Load<Texture2D>("Icons/hud-" + icons[i]);
+            raw.raycastTarget = false;
         }
         // A word when something can't be done.
         var t = Hud.Glass(root, "Toast", Look.GlassStrong);
@@ -375,6 +410,7 @@ public class BattleView : MonoBehaviour
         toast = t.GetComponentInChildren<TextMeshProUGUI>();
         toast.gameObject.SetActive(false);
         t.gameObject.AddComponent<ToastHide>().Text = toast;
+        foreach (var img in t.GetComponentsInChildren<Image>(true)) img.enabled = false;
 
         inspector = Hud.Rect(root, "Inspector");
         Hud.Fill(inspector);
@@ -397,7 +433,7 @@ public class BattleView : MonoBehaviour
         for (int i = 0; i < left; i++)
         {
             var d = Hud.Rect(energyDots, "Dot");
-            Hud.At(d, new Vector2(0.5f, 0.5f), new Vector2((i - (left - 1) / 2f) * 32, 0), new Vector2(24, 24));
+            Hud.At(d, new Vector2(0.5f, 0.5f), new Vector2((i - (left - 1) / 2f) * 19, 0), new Vector2(14, 14));
             var img = d.gameObject.AddComponent<Image>();
             img.sprite = Hud.Rounded;
             img.type = Image.Type.Sliced;
@@ -508,5 +544,9 @@ public class BattleView : MonoBehaviour
 public class ToastHide : MonoBehaviour
 {
     public TextMeshProUGUI Text;
-    void Update() => GetComponent<Image>().enabled = Text != null && Text.gameObject.activeSelf;
+    void Update()
+    {
+        bool on = Text != null && Text.gameObject.activeSelf;
+        foreach (var img in GetComponentsInChildren<Image>(true)) img.enabled = on;
+    }
 }

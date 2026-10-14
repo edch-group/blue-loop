@@ -12,7 +12,7 @@ const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbo
 const page = await browser.newPage({ deviceScaleFactor: 2, viewport: { width: 1000, height: 1000 } });
 await page.goto('http://localhost:5199/bake/index.html');
 await page.waitForFunction(() => window.ready === true);
-await page.addStyleTag({ content: 'body,#stage{background:transparent!important}' });
+await page.addStyleTag({ content: 'html,body,#stage,#piece{background:transparent!important}' });
 const settle = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 await page.evaluate(() => window.piece('back', 200));
 await settle();

@@ -12,12 +12,14 @@ using UnityEngine;
 /// </summary>
 public class Board : MonoBehaviour
 {
-    // The table's layout, in card widths (a card is 1 × 1.4), x across and z away from the viewer.
-    public const float Pitch = 1.16f, RowZ = 2.45f;
-    public static readonly Vector3 MyHero = new Vector3(2.8f, 0, -0.62f), RivalHero = new Vector3(-2.95f, 0, 0.82f);
-    public static readonly Vector3 MySun = new Vector3(-6.2f, 0.9f, -2.2f), RivalSun = new Vector3(-6.0f, 0.9f, 2.25f);
-    public static readonly Vector3 MyDeck = new Vector3(2.9f, 0, -RowZ), MyDiscard = new Vector3(5.35f, 0, -2.6f);
-    public static readonly Vector3 RivalDeck = new Vector3(4.55f, 0, RowZ), RivalDiscard = new Vector3(5.65f, 0, RowZ);
+    // The table's layout, in card widths (a card is 1 × 1.4), x across and z away from the viewer: the web board's
+    // own, measured off it laid flat (scripts/measure-board.mjs), the table 12.66 wide.
+    public const float Pitch = 1.175f, RowZ = 2.47f, TableW = 12.66f, TableD = 8.05f, TableZ = 0.09f;
+    public static readonly Vector3 MyHero = new Vector3(2.94f, 0, -0.89f), RivalHero = new Vector3(-2.94f, 0, 0.9f);
+    public static readonly Vector3 MyTrap = new Vector3(2.94f, 0, -RowZ), RivalTrap = new Vector3(-2.94f, 0, RowZ);
+    public static readonly Vector3 MySun = new Vector3(-5.03f, 0.55f, -2.33f), RivalSun = new Vector3(-5.03f, 0.55f, 2.62f);
+    // (Each side's piles: its deck, its reserves and its wreckage, small cards in a row.)
+    public const float PileX = 4.3f, PileStep = 0.705f, PileScale = 0.545f;
 
     public Camera Cam;
     public string Viewer;
@@ -26,9 +28,12 @@ public class Board : MonoBehaviour
     readonly Dictionary<string, SunView> suns = new Dictionary<string, SunView>();
     readonly List<GameObject> slotMarks = new List<GameObject>();
     TextMeshPro[] phases;
-    TextMeshPro myLabel, rivalLabel;
-    MeshRenderer myDeck, rivalDeck, myDiscard, rivalDiscard;
-    TextMeshPro myDeckN, rivalDeckN, myDiscardN, rivalDiscardN, rivalHandN, myHandN;
+    readonly MeshRenderer[] phaseDots = new MeshRenderer[3];
+    TextMeshPro myLabel, rivalLabel, turnThem, turnYou;
+    MeshRenderer myDeck, rivalDeck, myDiscard, rivalDiscard, myWreck, rivalWreck;
+    TextMeshPro myDeckN, rivalDeckN, myDiscardN, rivalDiscardN, myWreckN, rivalWreckN, rivalHandN, myHandN;
+
+    public static Vector3 PileAt(bool mine, int i) => new Vector3(PileX + PileStep * i, 0, mine ? -RowZ : RowZ);
 
     public static Vector3 SlotAt(bool mine, int slot)
     {
@@ -51,41 +56,51 @@ public class Board : MonoBehaviour
         table = new GameObject("Table").transform;
         table.SetParent(transform, false);
         // The plate, a lip under its near edge, and the floor's shadow under it all.
-        var floor = Mats.Flat("Floor shadow", table, Mats.Make("Soft", new Color(0.35f, 0.35f, 0.4f, 0.18f)), 17.5f, 11f, -0.05f);
-        floor.sharedMaterial.SetFloat("_Aspect", 11f / 17.5f);
+        table.localPosition = new Vector3(0, 0, 0);
+        var floor = Mats.Flat("Floor shadow", table, Mats.Make("Soft", new Color(0.35f, 0.35f, 0.4f, 0.18f)), TableW + 1.5f, TableD + 1.6f, -0.05f);
+        floor.sharedMaterial.SetFloat("_Aspect", (TableD + 1.6f) / (TableW + 1.5f));
         floor.sharedMaterial.SetFloat("_Size", 0.44f);
         floor.sharedMaterial.SetFloat("_Radius", 0.03f);
         floor.sharedMaterial.SetFloat("_Soft", 0.04f);
-        floor.transform.localPosition = new Vector3(0, -0.05f, -0.25f);
+        floor.transform.localPosition = new Vector3(0, -0.05f, TableZ - 0.3f);
         floor.sharedMaterial.renderQueue = 2900;
-        var lip = Mats.Flat("Lip", table, Mats.Make("Table"), 16f, 9.2f, -0.02f);
-        lip.sharedMaterial.SetFloat("_Aspect", 9.2f / 16f);
+        var lip = Mats.Flat("Lip", table, Mats.Make("Table"), TableW, TableD, -0.02f);
+        lip.sharedMaterial.SetFloat("_Aspect", TableD / TableW);
         lip.sharedMaterial.SetColor("_Top", new Color(0.86f, 0.86f, 0.85f));
         lip.sharedMaterial.SetColor("_Bottom", new Color(0.8f, 0.8f, 0.79f));
         lip.sharedMaterial.SetColor("_Mark", new Color(0.8f, 0.8f, 0.79f));
-        lip.transform.localPosition = new Vector3(0, -0.02f, -0.14f);
+        lip.transform.localPosition = new Vector3(0, -0.02f, TableZ - 0.16f);
         lip.sharedMaterial.renderQueue = 2905;
-        var plate = Mats.Flat("Plate", table, Mats.Make("Table"), 16f, 9.2f);
-        plate.sharedMaterial.SetFloat("_Aspect", 9.2f / 16f);
+        var plate = Mats.Flat("Plate", table, Mats.Make("Table"), TableW, TableD);
+        plate.transform.localPosition = new Vector3(0, 0, TableZ);
+        plate.sharedMaterial.SetFloat("_Aspect", TableD / TableW);
         plate.sharedMaterial.renderQueue = 2910;
 
         // The Stellari's flower in the middle, and the day's phases beside it.
-        var flower = Mats.Flat("Flower", table, Mats.Make("Card"), 2.6f, 2.6f, 0.001f);
+        var flower = Mats.Flat("Flower", table, Mats.Make("Card"), 1.85f, 1.85f, 0.001f);
         flower.sharedMaterial.mainTexture = Resources.Load<Texture2D>("Board/flower");
         flower.sharedMaterial.SetFloat("_Radius", 0);
         flower.sharedMaterial.SetFloat("_Aspect", 1);
-        flower.sharedMaterial.color = new Color(0.86f, 0.9f, 1f, 0.9f);
+        flower.sharedMaterial.color = Color.white;
         flower.sharedMaterial.renderQueue = 2920;
         phases = new[] { "dawn", "day", "dusk" }.Select((k, i) =>
         {
-            var t = Mats.FlatText(k, table, k.ToUpperInvariant(), 2.6f, Look.InkFaint, true, 500, 14, TextAlignmentOptions.Left);
-            t.transform.localPosition = new Vector3(2.85f, 0.01f, 0.4f - i * 0.38f);
+            var t = Mats.FlatText(k, table, k.ToUpperInvariant(), 1.75f, Look.InkFaint, true, 500, 14, TextAlignmentOptions.Left);
+            t.transform.localPosition = new Vector3(1.0f + 3, 0.01f, 0.26f - i * 0.26f);
+            var dot = Mats.Flat("Dot", t.transform.parent, Mats.Make("Soft", Look.InkFaint), 0.11f, 0.11f, 0.01f);
+            dot.sharedMaterial.SetFloat("_Aspect", 1);
+            dot.sharedMaterial.SetFloat("_Size", 0.45f);
+            dot.sharedMaterial.SetFloat("_Radius", 0.45f);
+            dot.sharedMaterial.SetFloat("_Soft", 0.02f);
+            dot.sharedMaterial.renderQueue = 2990;
+            dot.transform.localPosition = new Vector3(0.82f, 0.01f, 0.26f - i * 0.26f);
+            phaseDots[i] = dot;
             return t;
         }).ToArray();
-        var them = Mats.FlatText("Opponent", table, "OPPONENT", 2.2f, Look.InkFaint, true, 500, 14, TextAlignmentOptions.Right);
-        them.transform.localPosition = new Vector3(-3.4f, 0.01f, 0.18f);
-        var you = Mats.FlatText("You", table, "YOU", 2.2f, Look.InkSoft, true, 500, 14, TextAlignmentOptions.Right);
-        you.transform.localPosition = new Vector3(-3.4f, 0.01f, -0.2f);
+        turnThem = Mats.FlatText("Opponent", table, "OPPONENT", 1.75f, Look.InkFaint, true, 500, 14, TextAlignmentOptions.Right);
+        turnThem.transform.localPosition = new Vector3(-0.85f - 3, 0.01f, 0.13f);
+        turnYou = Mats.FlatText("You", table, "YOU", 1.75f, Look.InkSoft, true, 500, 14, TextAlignmentOptions.Right);
+        turnYou.transform.localPosition = new Vector3(-0.85f - 3, 0.01f, -0.13f);
 
         // Each side's slots: a faint outline and its defence where a card could stand.
         for (int s = -1; s < Balance.TableauSlots; s++)
@@ -93,20 +108,22 @@ public class Board : MonoBehaviour
             Slot(true, s);
             Slot(false, s);
         }
+        TrapSlot(MyTrap);
+        TrapSlot(RivalTrap);
 
         // The piles.
-        myDeck = Pile("My deck", MyDeck, true, out myDeckN);
-        rivalDeck = Pile("Rival deck", RivalDeck, true, out rivalDeckN);
-        myDiscard = Pile("My discard", MyDiscard, false, out myDiscardN);
-        rivalDiscard = Pile("Rival discard", RivalDiscard, false, out rivalDiscardN);
-        rivalLabel = Mats.FlatText("Your rival", table, "YOUR RIVAL", 2.6f, Look.InkSoft, true, 500, 18, TextAlignmentOptions.Left);
-        rivalLabel.transform.localPosition = new Vector3(6.2f, 0.01f, 1.05f);
-        rivalHandN = Mats.FlatText("Rival hand", table, "", 2.4f, Look.Ink, true, 500, 10, TextAlignmentOptions.Left);
-        rivalHandN.transform.localPosition = new Vector3(6.2f, 0.01f, 1.45f);
-        myLabel = Mats.FlatText("You", table, "YOU", 2.6f, Look.InkSoft, true, 500, 18, TextAlignmentOptions.Left);
-        myLabel.transform.localPosition = new Vector3(6.6f, 0.01f, -0.95f);
-        myHandN = Mats.FlatText("My hand", table, "", 2.4f, Look.Ink, true, 500, 10, TextAlignmentOptions.Left);
-        myHandN.transform.localPosition = new Vector3(6.6f, 0.01f, -1.35f);
+        myDeck = Pile("My deck", PileAt(true, 0), true, out myDeckN);
+        rivalDeck = Pile("Rival deck", PileAt(false, 0), true, out rivalDeckN);
+        myDiscard = Pile("My reserves", PileAt(true, 1), false, out myDiscardN, "RESERVES");
+        rivalDiscard = Pile("Rival reserves", PileAt(false, 1), false, out rivalDiscardN, "RESERVES");
+        myWreck = Pile("My wreckage", PileAt(true, 2), false, out myWreckN, "WRECKAGE");
+        rivalWreck = Pile("Rival wreckage", PileAt(false, 2), false, out rivalWreckN, "WRECKAGE");
+        rivalHandN = HandPill("Rival hand", new Vector3(PileX + PileStep, 0, 1.9f));
+        myHandN = HandPill("My hand", new Vector3(PileX + PileStep, 0, -1.89f));
+        rivalLabel = Mats.FlatText("Your rival", table, "YOUR RIVAL", 2.1f, Look.InkSoft, true, 500, 18, TextAlignmentOptions.Left);
+        rivalLabel.transform.localPosition = new Vector3(4.12f + 3, 0.01f, 1.57f);
+        myLabel = Mats.FlatText("You", table, "YOU", 2.1f, Look.InkSoft, true, 500, 18, TextAlignmentOptions.Left);
+        myLabel.transform.localPosition = new Vector3(4.12f + 3, 0.01f, -1.58f);
 
         handRoot = new GameObject("Hand").transform;
         handRoot.SetParent(Cam.transform, false);
@@ -130,7 +147,7 @@ public class Board : MonoBehaviour
         fill.sharedMaterial.SetFloat("_Size", 0.45f);
         fill.sharedMaterial.SetFloat("_Soft", 0.004f);
         fill.sharedMaterial.renderQueue = 2925;
-        var label = Mats.FlatText("Defence", go.transform, s < 0 ? "HERO" : $"<size=70%>DEF</size> {Game.SlotDefence(s)}", 2.4f, Look.InkFaint, true, 500, 6);
+        var label = Mats.FlatText("Defence", go.transform, s < 0 ? "" : $"<size=75%>DEF</size> {Game.SlotDefence(s)}", 1.7f, Look.InkFaint, true, 500, 6);
         label.transform.localPosition = new Vector3(0, 0.002f, 0);
         var col = go.AddComponent<BoxCollider>();
         col.size = new Vector3(1, 0.05f, 1.4f);
@@ -138,25 +155,68 @@ public class Board : MonoBehaviour
         slotMarks.Add(go);
     }
 
-    MeshRenderer Pile(string name, Vector3 at, bool back, out TextMeshPro count)
+    /// <summary>An empty place a trap could be set: a dashed outline, as the web's.</summary>
+    void TrapSlot(Vector3 at)
+    {
+        var go = new GameObject("Trap slot");
+        go.transform.SetParent(table, false);
+        go.transform.localPosition = at;
+        var ring = Mats.Flat("Outline", go.transform, Mats.Make("Soft", new Color(0.55f, 0.52f, 0.78f, 0.55f)), 1.12f, 1.52f, 0.001f);
+        ring.sharedMaterial.SetFloat("_Aspect", 1.52f / 1.12f);
+        ring.sharedMaterial.SetFloat("_Size", 0.45f);
+        ring.sharedMaterial.SetFloat("_Soft", 0.006f);
+        ring.sharedMaterial.SetFloat("_Ring", 1);
+        ring.sharedMaterial.renderQueue = 2930;
+    }
+
+    MeshRenderer Pile(string name, Vector3 at, bool back, out TextMeshPro count, string title = "")
     {
         var go = new GameObject(name);
         go.transform.SetParent(table, false);
         go.transform.localPosition = at;
-        var shadow = Mats.Flat("Shadow", go.transform, Mats.Make("Soft", new Color(0.25f, 0.27f, 0.33f, 0.2f)), 1.5f, 1.9f, -0.001f);
+        go.transform.localScale = Vector3.one * PileScale;
+        var shadow = Mats.Flat("Shadow", go.transform, Mats.Make("Soft", new Color(0.25f, 0.27f, 0.33f, back ? 0.2f : 0.08f)), 1.5f, 1.9f, -0.001f);
         shadow.sharedMaterial.SetFloat("_Aspect", 1.9f / 1.5f);
         shadow.sharedMaterial.SetFloat("_Size", 0.36f);
         shadow.sharedMaterial.SetFloat("_Soft", 0.09f);
         shadow.sharedMaterial.renderQueue = 2940;
+        if (!back)
+        {
+            var ring = Mats.Flat("Outline", go.transform, Mats.Make("Soft", new Color(0.62f, 0.64f, 0.7f, 0.45f)), 1.08f, 1.48f, 0.001f);
+            ring.sharedMaterial.SetFloat("_Aspect", 1.48f / 1.08f);
+            ring.sharedMaterial.SetFloat("_Size", 0.45f);
+            ring.sharedMaterial.SetFloat("_Soft", 0.008f);
+            ring.sharedMaterial.SetFloat("_Ring", 1);
+            ring.sharedMaterial.renderQueue = 2945;
+        }
         var face = Mats.Flat("Top", go.transform, Mats.Make("Card"), 1, 1.4f, 0.02f);
         face.sharedMaterial.mainTexture = back ? Resources.Load<Texture2D>("Board/back") : null;
-        face.sharedMaterial.color = back ? Color.white : new Color(1, 1, 1, 0.55f);
+        face.sharedMaterial.color = back ? Color.white : new Color(1, 1, 1, 0);
         face.sharedMaterial.renderQueue = 2950;
-        var label = Mats.FlatText("Name", go.transform, back ? "" : "DISCARD", 1.9f, Look.InkFaint, true, 500, 10);
+        var label = Mats.FlatText("Name", go.transform, title, 1.5f, Look.InkFaint, true, 500, 10);
         label.transform.localPosition = new Vector3(0, 0.03f, 0);
+        label.gameObject.SetActive(!back);
         count = Mats.FlatText("Count", go.transform, "", 2.6f, Look.InkSoft, true, 700, 4);
-        count.transform.localPosition = new Vector3(0, 0.03f, -0.92f);
+        count.transform.localPosition = new Vector3(0, 0.03f, -0.9f);
         return face;
+    }
+
+    /// <summary>A side's hand, counted: a white pill on the table, "HAND" and how many.</summary>
+    TextMeshPro HandPill(string name, Vector3 at)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(table, false);
+        go.transform.localPosition = at;
+        var pill = Mats.Flat("Pill", go.transform, Mats.Make("Soft", new Color(1, 1, 1, 0.9f)), 1.96f, 0.26f, 0.002f);
+        pill.sharedMaterial.SetFloat("_Aspect", 0.26f / 1.96f);
+        pill.sharedMaterial.SetFloat("_Size", 0.5f);
+        pill.sharedMaterial.SetFloat("_Radius", 0.26f / 1.96f / 2);
+        pill.sharedMaterial.SetFloat("_Soft", 0.006f);
+        pill.sharedMaterial.renderQueue = 2955;
+        var t = Mats.FlatText("Count", go.transform, "", 1.6f, Look.InkSoft, true, 500, 14, TextAlignmentOptions.Left);
+        t.rectTransform.sizeDelta = new Vector2(1.7f, 0.3f);
+        t.transform.localPosition = new Vector3(0, 0.01f, 0);
+        return t;
     }
 
     readonly Dictionary<string, int> lastHealth = new Dictionary<string, int>();
@@ -199,12 +259,14 @@ public class Board : MonoBehaviour
                 var v = Card(p.Lightspeed, true);
                 seen.Add(p.Lightspeed.Uid);
                 v.transform.SetParent(table, false);
-                v.MoveTo(SlotAt(mine, 0) + new Vector3(-1.25f, 0.03f, mine ? 0.4f : -0.4f), Quaternion.Euler(0, mine ? -8 : 8, 0), 0.8f);
+                v.MoveTo((mine ? MyTrap : RivalTrap) + new Vector3(0, 0.03f, 0), Quaternion.identity);
                 if (mine) v.SetCard(p.Lightspeed.DefId);
                 else v.FaceDown();
                 for (int k = 0; k < 3; k++) v.Badge(new[] { "atk", "stab", "def" }[k], "atk", null);
             }
-            SunFor(p, mine).Show(s, p);
+            var sunView = SunFor(p, mine);
+            sunView.Show(s, p);
+            sunView.Face(Cam);
             if (lastHeat.TryGetValue(p.Id, out var was) && was != p.Heat) Float(mine ? MySun : RivalSun, p.Heat - was, true);
             lastHeat[p.Id] = p.Heat;
             foreach (var c in p.Tableau)
@@ -218,9 +280,10 @@ public class Board : MonoBehaviour
         float d = 3.2f;
         float h = 2 * d * Mathf.Tan(Cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
         float w = h * Cam.aspect;
-        float cardH = h * 0.36f, cardW = cardH / 1.4f;
+        // (As the web's: cards a quarter of the screen tall, their middles near its foot, a little overlapped.)
+        float cardH = h * 0.262f, cardW = cardH / 1.4f;
         int n = me.Hand.Count;
-        float step = Mathf.Min(cardW * 1.04f, (w * 0.62f) / Mathf.Max(1, n - 1));
+        float step = Mathf.Min(cardW * 0.93f, (w * 0.62f) / Mathf.Max(1, n - 1));
         for (int i = 0; i < n; i++)
         {
             var c = me.Hand[i];
@@ -229,8 +292,8 @@ public class Board : MonoBehaviour
             v.transform.SetParent(handRoot, false);
             float x = (i - (n - 1) / 2f) * step;
             float lift = ui.HandLift(c);
-            var y = -h / 2 + cardH * 0.36f + lift * cardH * 0.25f;
-            v.MoveTo(new Vector3(x, -d + 0.001f * i, y), Quaternion.Euler(0, (i - (n - 1) / 2f) * 1.2f, 0), cardW);
+            var y = -h * 0.44f + lift * cardH * 0.3f;
+            v.MoveTo(new Vector3(x, -d + 0.001f * i, y), Quaternion.Euler(0, (i - (n - 1) / 2f) * 1.6f, 0), cardW);
             foreach (var b in new[] { "atk", "stab", "def" }) v.Badge(b, "atk", null);
             v.Dimmed(false);
             ui.Dress(v, me, c, false);
@@ -242,24 +305,39 @@ public class Board : MonoBehaviour
         }
 
         // Piles and counts.
-        myDeckN.text = me.Deck.Count.ToString();
-        rivalDeckN.text = rival.Deck.Count.ToString();
-        myDiscardN.text = me.Discard.Count.ToString();
-        rivalDiscardN.text = rival.Discard.Count.ToString();
-        var top = me.Discard.LastOrDefault();
-        myDiscard.sharedMaterial.mainTexture = top != null ? Faces.Of(top.DefId, true) : null;
-        myDiscard.sharedMaterial.color = top != null ? Color.white : new Color(1, 1, 1, 0.5f);
-        var rtop = rival.Discard.LastOrDefault();
-        rivalDiscard.sharedMaterial.mainTexture = rtop != null ? Faces.Of(rtop.DefId, true) : null;
-        rivalDiscard.sharedMaterial.color = rtop != null ? Color.white : new Color(1, 1, 1, 0.5f);
+        myDeckN.text = "";
+        rivalDeckN.text = "";
+        Top(myDiscard, myDiscardN, me.Discard);
+        Top(rivalDiscard, rivalDiscardN, rival.Discard);
+        Top(myWreck, myWreckN, me.Wreck);
+        Top(rivalWreck, rivalWreckN, rival.Wreck);
         myDeck.gameObject.SetActive(me.Deck.Count > 0);
         rivalDeck.gameObject.SetActive(rival.Deck.Count > 0);
-        rivalHandN.text = $"HAND  <b>{rival.Hand.Count}</b>";
-        myHandN.text = $"HAND  <b>{me.Hand.Count}</b>";
+        rivalHandN.text = $"HAND<pos=86%><b>{rival.Hand.Count}</b>";
+        myHandN.text = $"HAND<pos=86%><b>{me.Hand.Count}</b>";
         rivalLabel.text = rival.Name.ToUpperInvariant();
         var active = Game.ActivePlayer(s);
-        for (int i = 0; i < phases.Length; i++) phases[i].color = i == 1 ? (active == me ? Look.Ink : Look.InkSoft) : Look.InkFaint;
+        bool mineNow = active == me;
+        turnYou.color = mineNow ? Look.Ink : Look.InkFaint;
+        turnThem.color = mineNow ? Look.InkFaint : Look.Ink;
+        string phase = ui.Phase;
+        for (int i = 0; i < phases.Length; i++)
+        {
+            bool on = new[] { "dawn", "day", "dusk" }[i] == phase;
+            phases[i].color = on ? Look.Ink : Look.InkFaint;
+            phaseDots[i].sharedMaterial.color = on ? Look.Gold : new Color(0.75f, 0.76f, 0.8f);
+        }
         foreach (var slot in slotMarks) slot.SetActive(true);
+    }
+
+    /// <summary>An open pile: its top card face up, and how many are in it (none: its empty place and name).</summary>
+    static void Top(MeshRenderer face, TextMeshPro count, List<CardInstance> pile)
+    {
+        var top = pile?.LastOrDefault();
+        face.sharedMaterial.mainTexture = top != null ? Faces.Of(top.DefId, true) : null;
+        face.sharedMaterial.color = top != null ? Color.white : new Color(1, 1, 1, 0);
+        count.text = pile != null && pile.Count > 1 ? pile.Count.ToString() : "";
+        foreach (Transform c in face.transform.parent) if (c.name == "Name") c.gameObject.SetActive(top == null);
     }
 
     CardView Card(CardInstance c, bool table)
@@ -300,7 +378,7 @@ public class Board : MonoBehaviour
     {
         if (!suns.TryGetValue(p.Id, out var sun))
         {
-            sun = SunView.Make(table, mine ? MySun : RivalSun, p.Id);
+            sun = SunView.Make(table, mine ? MySun : RivalSun, p.Id, mine);
             suns[p.Id] = sun;
         }
         return sun;

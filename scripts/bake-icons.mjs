@@ -23,6 +23,11 @@ for (const name of names) {
     if (el) writeFileSync(`${out}/${name}${small ? '-small' : ''}.png`, await el.screenshot({ type: 'png', omitBackground: true }));
   }
 }
+for (const name of await page.evaluate(() => window.hudIconNames())) {
+  await page.evaluate((n) => window.hudIcon(n, 96), name);
+  await settle();
+  writeFileSync(`${out}/hud-${name}.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
+}
 await page.evaluate(() => window.icon('title', 0));
 await settle();
 writeFileSync(`${out}/title.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));

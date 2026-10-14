@@ -47,6 +47,7 @@ public static class BuildScript
         var battle = BattleView.Make();
         var cam = battle.Cam;
         cam.targetTexture = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };
+        BattleView.Frame(cam);
         battle.Autoplay = true;
         battle.NewBattle(42);
         battle.Settle();
