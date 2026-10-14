@@ -7552,3 +7552,4 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .slot-empty.slot-wrecked small { color: #b5503a; letter-spacing: 0.18em; text-transform: uppercase; font-size: 0.45rem; }
 /* An attacker whose attack is all gone: 0, on a blue stone. */
 .jewel.jewel-zero { filter: hue-rotate(205deg) saturate(1.15) brightness(1.05); }
+.enc-note { margin: 0; text-align: center; font-size: 0.72rem; letter-spacing: 0.08em; color: var(--ink-soft); animation: run-over-in 0.6s ease 1.6s both; }

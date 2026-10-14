@@ -725,6 +725,8 @@ export interface CampaignState {
    * closing lines shown until the Captain flies on), and the part it gave or the slot it wrecked.
    */
   encounter?: { nodeId: string; kind: EncounterKind; price: number; stage: number; outcome?: EncounterOutcome; part?: string; slot?: number };
+  /** Companions who have just joined, each waiting for their scene (who, and what they say). */
+  joined?: { id: CompanionId; line: string }[];
   /** A tableau slot of the flagship's wrecked (a merchant's device that blew): closed in every battle until a space station mends it. */
   wreckedSlot?: number;
   /** Stages of Kaelen's hunters beaten this run, and how many of them are already kept on the account. */
@@ -850,6 +852,8 @@ export type CampaignAction =
   | { type: 'struggle' }
   /** A story encounter's choice (encounterChoices), or (`done`) flying on once it is decided. */
   | { type: 'encounter'; choice: string }
+  /** A companion's joining scene seen. */
+  | { type: 'joinedSeen' }
   | { type: 'struggleChoice'; recruit: boolean }
   | { type: 'swapPart'; nodeId: string; slot: PartSlot; partId: string | null }
   /** Drift into the Dream of the Lost waiting (its puzzle begins). */
@@ -1810,7 +1814,9 @@ function joinCompanion(s: CampaignState, id: CompanionId, line: string) {
   if (army) army.deck.push(c.card);
   else f.reserve.push(c.card);
   clog(s, `${c.name}, ${c.title.toLowerCase()}, joins the Captain's ship.`, army?.nodeId, f.id);
-  tell(s, { id: `companion:${id}`, title: c.name, lines: [{ speaker: { kind: 'general', card: c.card, faction: f.id }, text: line }] });
+  // (Their own scene, waiting until nothing else is on screen [direction: the mechanic was aboard with no idea how
+  // she got there]: a story line was lost behind the station's screen.)
+  (s.joined ??= []).push({ id, line });
 }
 
 /** The engineer: found at a space station once the ship has its parts fitted. */
@@ -3856,7 +3862,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
   if (s.battle && action.type !== 'finishBattle') throw new GameError('Finish the battle first.');
   if (s.phase === 'ai' && action.type !== 'finishBattle' && action.type !== 'chooseCard' && action.type !== 'aiStep') throw new GameError('Wait for the other factions to finish their turns.');
   if (s.conquest && action.type !== 'conquer') throw new GameError('Decide the fate of the conquered system first.');
-  if (s.encounter && !s.battle && !['encounter', 'chooseCard', 'dismissLoot', 'finishBattle', 'aiStep', 'petalsBanked'].includes(action.type)) throw new GameError('Someone is alongside: answer them first.');
+  if (s.encounter && !s.battle && !['encounter', 'joinedSeen', 'chooseCard', 'dismissLoot', 'finishBattle', 'aiStep', 'petalsBanked'].includes(action.type)) throw new GameError('Someone is alongside: answer them first.');
   if (s.cardRewards.length && !['chooseCard', 'finishBattle', 'conquer', 'aiStep', 'dismissLoot'].includes(action.type)) throw new GameError('Choose your card first');
 
   switch (action.type) {
@@ -3978,6 +3984,10 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       break;
     case 'encounter':
       chooseEncounter(s, action.choice);
+      break;
+    case 'joinedSeen':
+      s.joined = s.joined?.slice(1);
+      if (!s.joined?.length) s.joined = undefined;
       break;
     case 'swapPart': {
       const n = nodeById(s, action.nodeId);

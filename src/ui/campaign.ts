@@ -1507,6 +1507,9 @@ export class CampaignView {
         else if (arg === 'pay' || (arg === 'buy' && kind === 'merchant')) sound.buy();
         break;
       }
+      case 'cmp-joined':
+        if (this.apply({ type: 'joinedSeen' })) sound.hover();
+        break;
       case 'cmp-struggle':
         this.apply({ type: 'struggle' });
         break;
@@ -3919,6 +3922,12 @@ export class CampaignView {
         <button class="btn-primary loot-take" style="--i:${items.length + first}" data-act="cmp-loot-ok">take it</button>
       </div>`;
     }
+    // A companion just joined: their scene, aboard, a word from them.
+    const joined = s.joined?.[0];
+    if (joined && !s.battle && !s.cardRewards.length) {
+      const c = companionDef(joined.id);
+      return this.scene({ kicker: 'joins the crew', title: c.name, visitor: null, speaker: '', lines: [{ who: joined.id, text: joined.line }], body: `<p class="enc-note">${esc(c.title.toLowerCase())} · in your deck now</p>`, actions: `<button class="btn-primary" data-act="cmp-joined">welcome aboard</button>` });
+    }
     // A story encounter: whoever came alongside, and the Captain's choice (once a fight is over, how it ended).
     if (s.encounter && !s.battle && !s.cardRewards.length) return this.renderEncounter();
     // A Power Struggle: a hero of your own race, come for your command while your sun runs overheated.
@@ -4282,14 +4291,14 @@ export class CampaignView {
    * coming up beside it; beneath, what is said, a line at a time (each its speaker's name over it), and what the
    * Captain may do.
    */
-  private scene(o: { kicker: string; title: string; visitor: Visitor; speaker: string; lines: EncounterLine[]; body?: string; actions: string }): string {
+  private scene(o: { kicker: string; title: string; visitor: Visitor | null; speaker: string; lines: EncounterLine[]; body?: string; actions: string }): string {
     const who = (w: EncounterSpeaker) => (w === 'visitor' ? o.speaker : w === 'captain' ? 'the captain' : companionDef(w).name.toLowerCase());
     const face = (w: EncounterSpeaker) => (w === 'captain' ? portrait(CAPTAIN) : w === 'visitor' ? '' : portrait(companionDef(w).card));
     const lines = o.lines
       .map((l, i) => `<div class="enc-line enc-${l.who === 'visitor' ? 'them' : 'us'}" style="--i:${i}">${face(l.who)}<div><small>${esc(who(l.who))}</small><p>${esc(l.text)}</p></div></div>`)
       .join('');
-    return `<div class="overlay enc enc-${o.visitor}">
-      <canvas class="enc-3d" data-visitor="${o.visitor}"></canvas>
+    return `<div class="overlay enc enc-${o.visitor ?? 'crew'}">
+      <canvas class="enc-3d" data-visitor="${o.visitor ?? ''}"></canvas>
       <header class="enc-head"><small>${esc(o.kicker)}</small><h3>${esc(o.title.toLowerCase())}</h3></header>
       <div class="enc-talk">
         <div class="enc-lines">${lines}</div>
@@ -4381,7 +4390,7 @@ export class CampaignView {
       this.enc3d = Base3d.mount(canvas, { ...this.captainSpec(army?.general ?? CAPTAIN), crew: this.sceneCrew() });
     }
     this.enc3d?.setCrew(this.sceneCrew());
-    this.enc3d?.setVisitor(canvas.dataset.visitor as Visitor);
+    this.enc3d?.setVisitor((canvas.dataset.visitor || null) as Visitor | null);
   }
 
   private modal(title: string, body: string, closable = false, tabs = '', cls = 'modal-wide'): string {
