@@ -23,7 +23,6 @@ public partial class CampaignView : MonoBehaviour
     RectTransform top, overlay, sheetRoot;
     Transform world, mapRoot;
     readonly Dictionary<string, Transform> nodes = new Dictionary<string, Transform>();
-    Transform ship;
     Vector3 focus, focusGoal;
     float distance = HomeDist, distanceGoal = HomeDist;
     bool flying;
@@ -59,14 +58,18 @@ public partial class CampaignView : MonoBehaviour
 
     // ---- Making it ----
 
-    public static CampaignView Make(CampaignState s)
+    /// <summary>The run's map; a new run (`fresh`) opens on its opening shot, the flagship cruising in.</summary>
+    public static CampaignView Make(CampaignState s, bool fresh = false)
     {
         var go = new GameObject("Campaign");
         var v = go.AddComponent<CampaignView>();
         v.state = s;
+        v.fresh = fresh;
         v.Build();
         return v;
     }
+
+    bool fresh;
 
     /// <summary>A new run: the Captain's, as petals have made them (a card kept from the last comes in with it).</summary>
     public static CampaignState NewRun()
@@ -93,6 +96,8 @@ public partial class CampaignView : MonoBehaviour
         Cam.fieldOfView = 36;
         Cam.nearClipPlane = 0.1f;
         Cam.farClipPlane = 200;
+        // (Never the campaign menu's own scenes, its land and its ship, which keep to their layers.)
+        Cam.cullingMask = ~((1 << 29) | (1 << 30));
         world = new GameObject("World").transform;
         world.SetParent(transform, false);
         hud = Hud.Canvas(Cam);
@@ -104,7 +109,16 @@ public partial class CampaignView : MonoBehaviour
         sheetRoot = Hud.Rect(hud.transform, "Sheet");
         Hud.Fill(sheetRoot);
         Sound.Scene("ambient");
-        SkipSilentScenes();
+        // (A new run's hero has their say first: whatever else the opening brought on waits behind it.)
+        if (!(fresh && state.Story.Queue.Count > 0 && state.Story.Queue[0].Id == "intro")) SkipSilentScenes();
+        // A new run: the opening shot, alongside the flagship as it cruises in while its hero speaks.
+        if (fresh && Application.isPlaying)
+        {
+            arriving = true;
+            cine = "ride";
+            rideEnds = Clock + CineRideMax;
+            Sound.Play("objective");
+        }
         Map();
         var f = Campaign.Flagship(state, state.PlayerId);
         if (f != null) focus = focusGoal = Home(f.NodeId);
@@ -134,7 +148,7 @@ public partial class CampaignView : MonoBehaviour
         var key = $"{state.Universe}|{state.Rift?.Kind}|{(state.Nodes.Count > 0 ? state.Nodes[0].Name : "")}";
         var old = world.Find("Ground");
         if (old != null && key == groundKey) { Collapse(menuLand); return; }
-        if (old != null) Mats.Kill(old.gameObject);
+        if (old != null) KillAll(old.gameObject);
         groundKey = key;
         var strip = new BlueLoop.Models.Strip();
         double seed;
@@ -167,10 +181,17 @@ public partial class CampaignView : MonoBehaviour
         var go = new GameObject("Ground");
         go.transform.SetParent(world, false);
         go.transform.localScale = new Vector3(G, G, -G);
-        go.AddComponent<MeshFilter>().sharedMesh = GroundMesh(shape.Ground);
+        var mesh = GroundMesh(shape.Ground);
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
         groundMat = Mats.Make("Ground");
         groundMat.SetFloat("_G", G);
         go.AddComponent<MeshRenderer>().sharedMaterial = groundMat;
+        // The starry abyss beneath it, the stars and comets over it.
+        Sky(go, mesh, shape);
+        // (The Dark Galaxy: no land, no gas, no sky.)
+        go.SetActive(state.Rift?.Kind != "dark");
+        // (A new land: no falling to watch, it is simply so.)
+        goneTarget = -50;
         Collapse(menuLand);
     }
 
@@ -214,10 +235,16 @@ public partial class CampaignView : MonoBehaviour
 
     /// <summary>
     /// Instability (setCollapse): the land gone up to where the collapsed columns end, cracked up to the collapsing.
-    /// On the menu's land, by how far east each column's systems stand.
+    /// On the menu's land, by how far east each column's systems stand (and what the menu already broke away stays
+    /// gone, drawn soft as the menu drew it). A column falling in the galaxy already in view: the ground shakes, and
+    /// the land breaks away toward it, a column at a time (Update), exposing the starry abyss beneath.
     /// </summary>
     void Collapse(bool menuLand)
     {
+        int fallen = state.Nodes.Count(x => x.Collapsed == true);
+        if (fallenUniverse == state.Universe && fallen > fallenSeen && Application.isPlaying) Sound.Play("earthquake");
+        fallenUniverse = state.Universe;
+        fallenSeen = fallen;
         if (groundMat == null) return;
         float Edge(System.Func<CampaignNode, bool> f)
         {
@@ -242,12 +269,33 @@ public partial class CampaignView : MonoBehaviour
                 float a = Xs(k) ?? (Xs(0) ?? 0) + k * colX, b = Xs(k + 1) ?? a + colX;
                 return a + (b - a) * f;
             }
-            gone = Mathf.Max(ColX(gone), -50);
-            crack = Mathf.Max(ColX(crack), -50);
+            float floor = menuGone ?? -50;
+            gone = Mathf.Max(ColX(gone), floor);
+            crack = Mathf.Max(ColX(crack), floor);
         }
-        groundMat.SetFloat("_Gone", gone);
-        groundMat.SetFloat("_Crack", crack);
+        // (What the menu broke away goes as the menu drew it, soft; the shards still falling as it handed over among it.)
+        float softBelow = menuLand && menuGone != null ? menuGone.Value + 0.8f : -1e9f;
+        groundMat.SetFloat("_SoftBelow", softBelow);
+        if (abyssMat != null) abyssMat.SetFloat("_SoftBelow", softBelow);
+        // (A first look, or going back: no falling to watch, it is simply so.)
+        if (gone < goneTarget || goneTarget < -9 || !Application.isPlaying) goneNow = gone;
+        goneTarget = gone;
+        crackNow = crack;
+        SetGone();
         groundMat.SetFloat("_Galaxy", System.Array.IndexOf(GalaxyCodes, state.Galaxy) is int g && g > 0 ? g : 0);
+    }
+
+    /// <summary>How far the land is gone now (eased toward where it is going), where it is cracked; the menu's own broken land.</summary>
+    float goneNow = -50, goneTarget = -50, crackNow = -50;
+    float? menuGone;
+    int fallenSeen = -1, fallenUniverse = -1;
+
+    void SetGone()
+    {
+        if (groundMat == null) return;
+        groundMat.SetFloat("_Gone", goneNow);
+        groundMat.SetFloat("_Crack", crackNow);
+        if (abyssMat != null) abyssMat.SetFloat("_Gone", goneNow);
     }
 
     // The camera's heading (yaw -0.95 rad, its eye toward the strip's near end), and text laid flat to read from it.
@@ -280,80 +328,50 @@ public partial class CampaignView : MonoBehaviour
 
     // ---- The map: its systems and routes ----
 
+    /// <summary>
+    /// The map as it stands (campaign.ts showNebula): the land, the routes, every system the ship can see (in the Dark
+    /// Galaxy only what it can see at all), the ships over their stars, what lies under the galaxy, its name.
+    /// </summary>
     void Map()
     {
-        if (mapRoot != null) Mats.Kill(mapRoot.gameObject);
+        if (mapRoot != null) KillAll(mapRoot.gameObject);
         nodes.Clear();
+        stars3d.Clear();
         mapRoot = new GameObject("Map").transform;
         mapRoot.SetParent(world, false);
         Ground();
-        // The routes: each once.
-        foreach (var n in state.Nodes.Where(n => n.Vanished != true))
-            foreach (var to in n.Links)
-                if (string.CompareOrdinal(n.Id, to) < 0 && state.Nodes.Any(x => x.Id == to && x.Vanished != true)) Route(NodePos(n.Id), NodePos(to), $"{n.Id}|{to}");
-        foreach (var n in state.Nodes.Where(n => n.Vanished != true)) MakeSystem(n);
-        ship = MakeShip();
-        ship.SetParent(mapRoot, false);
-        var f = Campaign.Flagship(state, state.PlayerId);
-        if (f != null) ship.localPosition = ShipSpot(f.NodeId);
+        var seen = new HashSet<string>(Campaign.VisibleNodes(state, state.PlayerId));
+        Routes(seen);
+        foreach (var sys in state.Nodes)
+            if (sys.Vanished != true && sys.Challenge?.Hidden != true && seen.Contains(sys.Id)) MakeSystem(sys);
+        Under();
+        Stellari();
+        Darkness();
+        SetShips(ShipsNow(seen));
         Galaxy();
+        Rings();
+        Animate();
     }
 
-    void Route(Vector3 a, Vector3 b, string name)
-    {
-        var go = new GameObject("Route " + name);
-        go.transform.SetParent(mapRoot, false);
-        var mf = go.AddComponent<MeshFilter>();
-        var mr = go.AddComponent<MeshRenderer>();
-        var d = b - a;
-        var side = Vector3.Cross(d.normalized, Vector3.up) * 0.16f;
-        var m = new Mesh();
-        m.vertices = new[] { a - side, a + side, b + side, b - side };
-        m.uv = new[] { new Vector2(0, 0), new Vector2(0, 1), new Vector2(1, 1), new Vector2(1, 0) };
-        m.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-        m.RecalculateBounds();
-        mf.sharedMesh = m;
-        mr.sharedMaterial = Mats.Make("Route", Color.white);
-    }
-
-    /// <summary>A system: a pearl star, a ring where it stands in reach (and round where your ship is), its name when focused.</summary>
+    /// <summary>
+    /// A system: its sun as the scene draws it (Sun3d), a fingertip's reach to tap it by, its name when it is in reach
+    /// or the ship is there, a mark beside a station or the wormhole.
+    /// </summary>
     void MakeSystem(CampaignNode n)
     {
         var go = new GameObject(n.Id);
         go.transform.SetParent(mapRoot, false);
         go.transform.localPosition = NodePos(n.Id);
         nodes[n.Id] = go.transform;
-        var star = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        Mats.Kill(star.GetComponent<Collider>());
-        star.name = "Star";
-        star.transform.SetParent(go.transform, false);
-        float r = n.Heart == true ? 0.42f : 0.3f;
-        star.transform.localScale = Vector3.one * r;
-        star.GetComponent<Renderer>().sharedMaterial = Mats.Make("Planet", n.Heart == true ? new Color(0.86f, 0.9f, 1f) : new Color(0.93f, 0.93f, 0.95f));
+        Sun3d(n, go.transform);
+        // (Picked within its outer ring, as the travel rings pulse out to.)
         var col = go.AddComponent<SphereCollider>();
         col.radius = 0.45f;
         go.AddComponent<NodeTag>().Id = n.Id;
-        // (Its rings: reach, and where you are; set by Refresh.)
-        var ring = Mats.Flat("Ring", go.transform, Mats.Make("Soft", new Color(0.5f, 0.55f, 0.65f, 0)), 0.9f, 0.9f, -0.12f);
-        ring.sharedMaterial.SetFloat("_Aspect", 1);
-        ring.sharedMaterial.SetFloat("_Size", 0.4f);
-        ring.sharedMaterial.SetFloat("_Radius", 0.4f);
-        ring.sharedMaterial.SetFloat("_Soft", 0.006f);
-        ring.sharedMaterial.SetFloat("_Ring", 1);
-        ring.sharedMaterial.renderQueue = 3050;
         var name = Mats.FlatText("Name", go.transform, "", 2.2f, Look.InkSoft, true, 500, 14);
         name.transform.localPosition = Toward * 0.45f + Vector3.up * 0.03f;
         name.transform.localRotation = Facing;
         name.gameObject.SetActive(false);
-        // A station or a lab: its model hanging beside the star (nebula-objects.ts props).
-        if (n.Station?.Kind == "armory" || n.Station?.Kind == "research")
-        {
-            var kind = n.Station.Kind == "armory" ? BlueLoop.Models.PropKind.Station : BlueLoop.Models.PropKind.Lab;
-            var prop = ModelMesh.Make(n.Station.Kind, ModelMesh.Of("prop:" + kind, () => BlueLoop.Models.Ship3d.PropModel3d(kind)), go.transform);
-            prop.transform.localPosition = new Vector3(0.45f, 0.35f, 0.35f);
-            prop.transform.localScale = Vector3.one * 0.5f;
-            prop.AddComponent<Spin>();
-        }
         // A station or a story waiting there: a mark beside it.
         string mark = n.Station?.Kind == "armory" ? "STATION" : n.Station?.Kind == "research" ? "LAB" : n.Heart == true ? "WORMHOLE" : null;
         if (mark != null)
@@ -375,30 +393,26 @@ public partial class CampaignView : MonoBehaviour
         return new BlueLoop.Models.CaptainShipSpec { Parts = new Dictionary<string, string>(fitted), Rarity = rarity, Level = level, Crew = Campaign.CrewInDeck(state) };
     }
 
-    /// <summary>Your ship: the Captain's own model (captain-ship.ts), the Captain on its deck, its engines burning.</summary>
-    Transform MakeShip()
-    {
-        var root = new GameObject("Ship").transform;
-        var model = ModelMesh.Make("Captain's ship", ModelMesh.CaptainShipMesh(ShipSpec()), root);
-        model.transform.localScale = Vector3.one * 0.9f;
-        return root;
-    }
-
-    /// <summary>Where your ship rests at a system: beside it, a little off the star.</summary>
-    Vector3 ShipSpot(string nodeId) => NodePos(nodeId) + new Vector3(-0.35f, 0.32f, 0.25f);
-
-    /// <summary>The galaxy's name and what it does, laid on the floor by the strip's start.</summary>
+    /// <summary>
+    /// The galaxy's name and what it does, laid on the floor by the strip's start; a rift's galaxy, its name and what it
+    /// is like (in the Dark Galaxy, in a pale light).
+    /// </summary>
     void Galaxy()
     {
-        if (state.Galaxy == null || Campaign.D.Galaxies == null || !Campaign.D.Galaxies.TryGetValue(state.Galaxy, out var g)) return;
+        string title = null, words = null;
+        if (state.Rift != null && Rifts.ByKind != null && Rifts.ByKind.TryGetValue(state.Rift.Kind, out var rift)) { title = rift.Name; words = rift.Text; }
+        else if (state.Galaxy != null && Campaign.D.Galaxies != null && Campaign.D.Galaxies.TryGetValue(state.Galaxy, out var g)) { title = g.Name; words = g.Text; }
+        if (title == null) return;
         // (Laid along the strip's near side, reading west to east, from its first system.)
-        var ps = state.Nodes.Where(n => n.Vanished != true).Select(n => NodePos(n.Id)).ToList();
+        var ps = nodes.Values.Select(t => t.localPosition).ToList();
+        if (ps.Count == 0) return;
+        var ink = state.Rift?.Kind == "dark" ? new Color(0.91f, 0.9f, 0.96f) : Look.InkSoft;
         var at = new Vector3(ps.Min(p => p.x) - 0.6f, 0.03f, ps.Min(p => p.z) - 1.1f);
-        var name = Mats.FlatText("Galaxy", mapRoot, g.Name.ToUpperInvariant(), 3.2f, Look.InkSoft, true, 400, 30, TextAlignmentOptions.TopLeft);
+        var name = Mats.FlatText("Galaxy", mapRoot, title.ToUpperInvariant(), 3.2f, ink, true, 400, 30, TextAlignmentOptions.TopLeft);
         name.rectTransform.pivot = new Vector2(0, 1);
         name.rectTransform.sizeDelta = new Vector2(14, 1);
         name.transform.localPosition = at;
-        var text = Mats.FlatText("Galaxy words", mapRoot, g.Text, 1.5f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
+        var text = Mats.FlatText("Galaxy words", mapRoot, words, 1.5f, ink, false, 400, 0, TextAlignmentOptions.TopLeft);
         text.fontStyle = FontStyles.Italic;
         text.textWrappingMode = TextWrappingModes.Normal;
         text.rectTransform.pivot = new Vector2(0, 1);
@@ -413,10 +427,26 @@ public partial class CampaignView : MonoBehaviour
 
     void Update()
     {
+        float now = Clock;
+        // The land breaks away toward the collapse, a column at a time.
+        if (goneNow != goneTarget)
+        {
+            goneNow = goneTarget > goneNow ? Mathf.Min(goneTarget, goneNow + Mathf.Min(0.1f, Time.deltaTime) * 1.3f) : goneTarget;
+            SetGone();
+        }
+        // The opening shot: alongside the flagship until the hero has had their say (or a while), then pulled back.
+        if (cine == "ride" && !launching && now >= rideEnds) EndRide();
+        if (cine == "done" && now - cineDone > 1.2f) cine = null;
+        HudFade(now);
+        bool still = !flying && !Cining && !launching && overlay.childCount == 0 && sheetRoot.childCount == 0;
+        bool overUi = UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+        // The system under the pointer swells and flares.
+        string under = null;
+        if (still && !overUi && Input.mousePresent && Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var over, 200)) under = over.collider.GetComponent<NodeTag>()?.Id;
+        hovered = under;
+        Animate();
         Camera();
-        if (flying) return;
-        if (overlay.childCount > 0 || sheetRoot.childCount > 0) return;
-        if (UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return;
+        if (!still || overUi) return;
         // A drag pans across the floor; a tap picks a system; the wheel zooms.
         if (Input.GetMouseButtonDown(0)) { dragFrom = Input.mousePosition; dragging = false; }
         if (Input.GetMouseButton(0) && (Input.mousePosition - dragFrom).magnitude > 8)
@@ -440,17 +470,26 @@ public partial class CampaignView : MonoBehaviour
         return plane.Raycast(ray, out var d) ? ray.GetPoint(d) : (Vector3?)null;
     }
 
-    /// <summary>The camera, looking down at the map from its south, easing toward where it should be.</summary>
+    /// <summary>
+    /// The camera, looking down at the map from its south, easing toward where it should be (after the opening shot,
+    /// slowly, from the whole strip down onto the flagship); through the opening shot and the pan from the menu, where
+    /// they have it.
+    /// </summary>
     void Camera()
     {
-        float k = Application.isPlaying ? 1 - Mathf.Exp(-Time.deltaTime * 4) : 1;
+        if (CinePose(out var shot) || LaunchPose(out shot))
+        {
+            Aim(shot);
+            return;
+        }
+        float k = Application.isPlaying ? 1 - Mathf.Exp(-Mathf.Min(0.1f, Time.deltaTime) * glideRate) : 1;
         focus = Vector3.Lerp(focus, focusGoal, k);
         distance = Mathf.Lerp(distance, distanceGoal, k);
         // (The web's pose: yaw -0.95, pitch 0.62 rad; its eye off toward the strip's near end, looking along it.)
-        float yaw = CamYaw, pitch = CamPitch;
-        var back = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), -Mathf.Cos(yaw) * Mathf.Cos(pitch));
-        Cam.transform.position = focus + back * distance;
-        Cam.transform.rotation = Quaternion.LookRotation(-back, Vector3.up);
+        yawNow += Wrap(CamYaw - yawNow) * k;
+        pitchNow += (CamPitch - pitchNow) * k;
+        if (glideRate < 4 && (focus - focusGoal).magnitude < 1e-3f && Mathf.Abs(distance - distanceGoal) < 1e-3f && Mathf.Abs(Wrap(CamYaw - yawNow)) < 1e-4f) glideRate = 4;
+        Aim(new Pose { X = focus.x / G, Y = focus.y / G, Z = -focus.z / G, Yaw = yawNow, Pitch = pitchNow, Dist = distance / G });
     }
 
     void Tap()
@@ -490,36 +529,36 @@ public partial class CampaignView : MonoBehaviour
         var army0 = Campaign.ArmyById(state, armyId);
         var move = Campaign.ArmyMoves(state, army0).FirstOrDefault(m => m.ToId == toId);
         if (move == null) return;
+        warpMove = move.Warp == true;
         if (move.Warp == true) Sound.Play("warp");
         else Sound.Play("launch");
         StartCoroutine(Fly(armyId, toId, move.Battle));
     }
 
+    /// <summary>
+    /// The ship on its way (nebula-objects.ts): the Captain's turning to face the system, then flying there, bobbing
+    /// (or, with its warp drive, warping); the camera following. What the system holds shows as it lands.
+    /// </summary>
     System.Collections.IEnumerator Fly(string armyId, string toId, bool battle)
     {
         flying = true;
-        var from = ship.localPosition;
-        var to = ShipSpot(toId);
         focusGoal = Home(toId);
-        // (The ship turns to face its way, and flies on a gentle arc.)
-        var dir = to - from;
-        dir.y = 0;
-        // (The model's bow is +x: turned so it points down the route.)
-        if (dir.sqrMagnitude > 1e-4) ship.localRotation = Quaternion.FromToRotation(Vector3.right, dir.normalized);
-        float t = 0, dur = Mathf.Clamp(dir.magnitude * 0.45f, 0.9f, 2.4f);
-        while (t < 1)
+        var n = Campaign.NodeById(state, toId);
+        float dur = 0;
+        if (tracks.TryGetValue(armyId, out var tr))
         {
-            t += Time.deltaTime / dur;
-            float e = t * t * (3 - 2 * t);
-            ship.localPosition = Vector3.Lerp(from, to, e) + Vector3.up * Mathf.Sin(Mathf.PI * Mathf.Clamp01(t)) * 0.25f;
-            yield return null;
+            Bound(tr, Web(n.X, n.Y), (float)(n.H ?? 0) * MapK, !warpMove);
+            dur = tr.Dur;
         }
+        if (dur > 0) yield return new WaitForSeconds(dur);
         flying = false;
         if (battle) Sound.Play("thermo");
         int seq = state.Log.Count > 0 ? state.Log[state.Log.Count - 1].Seq : 0;
         if (!Apply(new CampaignAction { Type = "move", ArmyId = armyId, ToId = toId })) { Map(); Refresh(); yield break; }
         if (state.Log.Any(l => l.Seq > seq && l.Text.Contains(" finds "))) Sound.Play("buy");
         if (state.Battle == null) EnterStation(toId);
+        // (The systems as they now stand: one used, one taken, the routes from here.)
+        if (state.Battle == null) Map();
         Refresh();
         if (state.Battle != null)
         {
@@ -541,6 +580,7 @@ public partial class CampaignView : MonoBehaviour
     bool Apply(CampaignAction action)
     {
         int universe = state.Universe;
+        string rift = state.Rift?.Kind;
         try
         {
             state = Campaign.Apply(state, action);
@@ -554,6 +594,12 @@ public partial class CampaignView : MonoBehaviour
         SkipSilentScenes();
         BankPetals();
         Save(state);
+        if (state.Universe != universe || state.Rift?.Kind != rift)
+        {
+            // (Into a new galaxy, or through a rift: the ships are simply there, not flown across from the last.)
+            foreach (var t in tracks.Values) if (t.T != null) KillAll(t.T.gameObject);
+            tracks.Clear();
+        }
         if (state.Universe != universe && state.Winner == null)
         {
             Map();
@@ -647,38 +693,51 @@ public partial class CampaignView : MonoBehaviour
     void Refresh()
     {
         if (state == null) return;
+        // (The hero has had their say: the opening shot pulls back.)
+        if (cine == "ride" && (state.Story.Queue.Count == 0 || state.Story.Queue[0].Id != "intro")) EndRide();
         Top();
+        CineHud();
         Rings();
         Overlays();
         Camera();
     }
 
-    /// <summary>Each system's ring: in reach (dashed blue), where your ship is (blue), else none; a focused one's name.</summary>
+    /// <summary>
+    /// Each system in reach pulsing, rings going out from it, a dashed ring turning round it; its name, and the name of
+    /// the one your ship is at (none through the opening shot, the map's marks hidden till it is over).
+    /// </summary>
     void Rings()
     {
         var army = Campaign.Flagship(state, state.PlayerId);
-        var reach = army != null && state.Phase == "player" && state.Battle == null ? Campaign.ArmyMoves(state, army).Select(m => m.ToId).ToHashSet() : new HashSet<string>();
+        var reach = army != null && state.Phase == "player" && state.Battle == null && state.Winner == null ? Campaign.ArmyMoves(state, army).Select(m => m.ToId).ToHashSet() : new HashSet<string>();
+        foreach (var st in stars3d) st.Reach = reach.Contains(st.Id);
+        bool marks = !Cining && !launching;
         foreach (var kv in nodes)
         {
-            var ring = kv.Value.Find("Ring")?.GetComponent<MeshRenderer>();
-            if (ring == null) continue;
             bool here = army?.NodeId == kv.Key, can = reach.Contains(kv.Key);
-            ring.sharedMaterial.color = here ? new Color(0.37f, 0.56f, 0.86f, 0.9f) : can ? new Color(0.45f, 0.5f, 0.6f, 0.55f) : new Color(0, 0, 0, 0);
             var name = kv.Value.Find("Name")?.GetComponent<TextMeshPro>();
             if (name != null)
             {
-                bool show = can || here;
+                bool show = (can || here) && marks;
                 name.gameObject.SetActive(show);
                 if (show) name.text = Campaign.NodeById(state, kv.Key).Name.ToUpperInvariant();
             }
+            kv.Value.Find("Mark")?.gameObject.SetActive(marks);
         }
+        if (mapRoot != null)
+            foreach (var label in new[] { "Galaxy", "Galaxy words" })
+                mapRoot.Find(label)?.gameObject.SetActive(marks);
     }
 
     public void Settle()
     {
         focus = focusGoal;
         distance = distanceGoal;
+        yawNow = CamYaw;
+        pitchNow = CamPitch;
+        Animate();
         Camera();
+        PlaceDarkness();
         foreach (var t in GetComponentsInChildren<TMP_Text>(true)) t.ForceMeshUpdate(true);
     }
 

@@ -1,7 +1,10 @@
 // The campaign's ground (nebula3d.ts's GROUND_VERT/GROUND_FRAG): paper, softly lit, a fine ink mesh drawn into it,
 // faint splashes of sea blue on the hills, bent by whatever lies under the galaxy; at its edges and far off it fades
 // into the paper. Shards past the collapse (_Gone, in the route's columns; each shard knows its own) turn about their
-// middles and fall; those next to go (up to _Crack) are marked faintly red, their borders glowing.
+// middles and fall; those next to go (up to _Crack) are marked faintly red, their borders glowing. Land drawn soft (the
+// campaign menu's, _Soft; or the first map's west of _SoftBelow, where the menu broke it) drifts down slowly as it
+// fades. Two passes, as the web draws it: the land standing, then what falls, blended over what lies beneath (the
+// abyss: Abyss.shader), see-through as it fades.
 // Drawn in the web's own units (the object's space; the object scaled up to the map's, z flipped).
 Shader "BlueLoop/Ground"
 {
@@ -13,20 +16,16 @@ Shader "BlueLoop/Ground"
         _Galaxy ("Galaxy", Float) = 0
         _G ("World per unit", Float) = 1
         _Soft ("Soft (the campaign menu's land)", Float) = 0
+        _SoftBelow ("Soft below (the first map, where the menu broke it)", Float) = -1000000000
     }
     SubShader
     {
         Tags { "Queue"="Geometry" "RenderType"="Opaque" }
         Cull Off
-        Pass
-        {
-            CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #pragma target 3.5
+        CGINCLUDE
             #include "UnityCG.cginc"
             fixed4 _Paper;
-            float _Gone, _Crack, _Galaxy, _G, _Soft;
+            float _Gone, _Crack, _Galaxy, _G, _Soft, _SoftBelow;
             struct appdata
             {
                 float4 vertex : POSITION;
@@ -44,6 +43,7 @@ Shader "BlueLoop/Ground"
                 float3 bary : TEXCOORD2;
                 float3 edge : TEXCOORD3;
                 float4 more : TEXCOORD4; // fall, crack, dist, rest
+                float soft : TEXCOORD5;
             };
 
             float hash(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
@@ -83,16 +83,17 @@ Shader "BlueLoop/Ground"
                     n = normalize(n - float3(slope.x, 0.0, slope.y));
                 }
                 float prog = v.prog.x;
+                float soft = _Soft > 0.5 || prog < _SoftBelow ? 1.0 : 0.0;
                 float fall = (_Gone - prog) / 1.6 + v.shard.w * 0.45;
                 if (fall > 0.0)
                 {
                     float t = min(fall, 2.2);
                     // (Soft, as on the campaign menu, whose camera rides low: drifting down slowly, tumbling gently, as
                     // it fades, so it is seen to go rather than dropping straight out of the view.)
-                    float3x3 r = rot(float3(v.shard.w - 0.5, 0.3, 0.5 - frac(v.shard.w * 7.0)), t * (0.8 + v.shard.w * 1.6) * (1.0 - 0.6 * _Soft));
+                    float3x3 r = rot(float3(v.shard.w - 0.5, 0.3, 0.5 - frac(v.shard.w * 7.0)), t * (0.8 + v.shard.w * 1.6) * (1.0 - 0.6 * soft));
                     p = mid + mul(p - mid, r);
                     n = mul(n, r);
-                    p.y -= lerp(3.2, 0.35, _Soft) * t * t;
+                    p.y -= lerp(3.2, 0.35, soft) * t * t;
                     p.xz += mid.xz * 0.04 * t;
                 }
                 o.pos = UnityObjectToClipPos(float4(p, 1));
@@ -102,15 +103,18 @@ Shader "BlueLoop/Ground"
                 o.edge = v.edge;
                 float crack = (prog < _Crack || fall > 0.0) ? 1.0 : 0.0;
                 o.more = float4(fall, crack, -UnityObjectToViewPos(p).z / _G, rest);
+                o.soft = soft;
                 return o;
             }
 
-            fixed4 frag (v2f i) : SV_Target
+            // (falling 0: the land standing, drawn first; 1: what falls, over it.)
+            fixed4 shade (v2f i, float falling)
             {
                 float fall = i.more.x, cracked = i.more.y, dist = i.more.z, rest = i.more.w;
                 if (fall > 2.0) discard;
-                // (The campaign menu's land: what falls fades out as it goes, and nothing is marked red before it does.)
-                float keep = _Soft > 0.5 ? 1.0 - smoothstep(0.0, 1.1, fall) : 1.0;
+                if ((fall > 0.0) != (falling > 0.5)) discard;
+                // (Land drawn soft: what falls fades out as it goes, and nothing is marked red before it does.)
+                float keep = i.soft > 0.5 ? 1.0 - smoothstep(0.0, 1.1, fall) : 1.0;
                 if (keep < 0.01) discard;
                 float3 w = i.world;
                 float3 eye = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos, 1)).xyz;
@@ -188,13 +192,13 @@ Shader "BlueLoop/Ground"
                 float nearby = 1.0 - smoothstep(5.0, 11.0, dist);
                 c = lerp(c, float3(0.45, 0.51, 0.64), mesh * 0.32 * nearby);
                 // Cracks along the shards' borders, glowing with the colours beneath.
-                if (cracked > 0.5 && _Soft < 0.5)
+                if (cracked > 0.5 && i.soft < 0.5)
                 {
                     float3 b = i.bary + (1.0 - i.edge) * 9.0;
                     float d = min(b.x, min(b.y, b.z));
                     float wd = fwidth(d) * 1.8;
                     float crack = 1.0 - smoothstep(0.0, wd, d);
-                    float3 glow = lerp(float3(0.85, 0.35, 0.75), float3(0.3, 0.75, 0.95), 0.5 + 0.5 * sin(w.x * 3.0 + time * 2.0));
+                    float3 glow = lerp(float3(0.5, 0.36, 0.88), float3(0.3, 0.75, 0.95), 0.5 + 0.5 * sin(w.x * 3.0 + time * 2.0));
                     if (fall <= 0.0) c *= float3(1.0, 0.9, 0.88);
                     c = lerp(c, glow, crack * 0.9);
                     if (fall > 0.0) c *= 1.0 - min(fall, 1.5) * 0.35;
@@ -203,8 +207,27 @@ Shader "BlueLoop/Ground"
                 float edge = min(min(w.x + 7.0, 7.0 - w.x), min(w.z + 5.5, 4.0 - w.z));
                 float away = max(1.0 - smoothstep(0.0, 1.8, edge), smoothstep(7.0, 20.0, dist));
                 if (fall <= 0.0) c = lerp(c, _Paper.rgb, away);
-                return fixed4(lerp(_Paper.rgb, c, keep), 1);
+                return fixed4(c * keep, keep);
             }
+            fixed4 frag (v2f i) : SV_Target { return shade(i, 0.0); }
+            fixed4 fragFall (v2f i) : SV_Target { return shade(i, 1.0); }
+        ENDCG
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma target 3.5
+            ENDCG
+        }
+        Pass
+        {
+            Blend One OneMinusSrcAlpha
+            ZWrite Off
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment fragFall
+            #pragma target 3.5
             ENDCG
         }
     }

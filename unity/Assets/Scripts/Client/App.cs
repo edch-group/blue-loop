@@ -27,6 +27,19 @@ public class App : MonoBehaviour
         current = null;
         if (MenuCam != null) Mats.Kill(MenuCam.gameObject);
         MenuCam = null;
+        Left();
+    }
+
+    // The campaign menu as a run sets out from it: kept until the run has taken over (CampaignView.Launch).
+    GameObject leaving;
+    Camera leavingCam;
+
+    void Left()
+    {
+        if (leaving != null) Mats.Kill(leaving);
+        if (leavingCam != null) Mats.Kill(leavingCam.gameObject);
+        leaving = null;
+        leavingCam = null;
     }
 
     /// <summary>The menu, at one of its pages ("title", "hub", "quickplay").</summary>
@@ -58,11 +71,27 @@ public class App : MonoBehaviour
 
     CampaignView campaign;
 
-    /// <summary>The campaign: a run (the saved one, or a new one), its map.</summary>
+    /// <summary>
+    /// The campaign: a run (the saved one, or a new one), its map. A new run opens on its opening shot; set out from the
+    /// campaign menu, in one shot from the menu's own land (the menu kept, under it, until the run has taken over).
+    /// </summary>
     public void Run(CampaignState run)
     {
+        bool fresh = run != null && !CampaignView.HasSave && run.Rift == null;
+        var scene = current != null && current.GetComponent<MenuView>() != null ? current.GetComponentInChildren<CampaignBackdrop>() : null;
+        if (fresh && scene != null && MenuCam != null && Application.isPlaying)
+        {
+            Left();
+            leaving = current;
+            leavingCam = MenuCam;
+            MenuCam = null;
+            campaign = CampaignView.Make(run, true);
+            current = campaign.gameObject;
+            campaign.Launch(scene, leaving.GetComponentInChildren<Canvas>(), leavingCam, Left);
+            return;
+        }
         Clear();
-        campaign = CampaignView.Make(run);
+        campaign = CampaignView.Make(run, fresh);
         current = campaign.gameObject;
     }
 
