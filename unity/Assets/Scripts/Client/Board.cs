@@ -247,7 +247,7 @@ public class Board : MonoBehaviour
             bool mine = p == me;
             foreach (var c in p.Tableau)
             {
-                var v = Card(c, true);
+                var v = Card(c, true, mine);
                 seen.Add(c.Uid);
                 var at = SlotAt(mine, c.Slot ?? 0) + new Vector3(0, 0.03f, 0);
                 v.transform.SetParent(table, false);
@@ -258,7 +258,7 @@ public class Board : MonoBehaviour
             // (A trap set face down, beside the row.)
             if (p.Lightspeed != null)
             {
-                var v = Card(p.Lightspeed, true);
+                var v = Card(p.Lightspeed, true, mine);
                 seen.Add(p.Lightspeed.Uid);
                 v.transform.SetParent(table, false);
                 v.MoveTo((mine ? MyTrap : RivalTrap) + new Vector3(0, 0.03f, 0), Quaternion.identity);
@@ -302,9 +302,12 @@ public class Board : MonoBehaviour
         }
         foreach (var uid in cards.Keys.Where(k => !seen.Contains(k)).ToList())
         {
-            Mats.Kill(cards[uid].gameObject);
+            // (In play, a card leaving fades away where it was; it was destroyed, returned, or played out.)
+            if (Application.isPlaying) cards[uid].Die(0.25f);
+            else Mats.Kill(cards[uid].gameObject);
             cards.Remove(uid);
         }
+        dealt = true;
 
         // Piles and counts.
         myDeckN.text = "";
@@ -358,7 +361,10 @@ public class Board : MonoBehaviour
         tagSub.text = sub ?? "";
     }
 
-    CardView Card(CardInstance c, bool table)
+    /// <summary>Whether the board has been laid out once (after that, cards arriving come from somewhere).</summary>
+    bool dealt;
+
+    CardView Card(CardInstance c, bool table, bool mine = true)
     {
         if (cards.TryGetValue(c.Uid, out var v) && v.Table != table)
         {
@@ -374,10 +380,38 @@ public class Board : MonoBehaviour
         {
             v = CardView.Make(table ? this.table : handRoot, c.Uid, c.DefId, table);
             cards[c.Uid] = v;
+            if (dealt && Application.isPlaying) Arrive(v, table, mine);
         }
         v.SetCard(c.DefId);
         return v;
     }
+
+    /// <summary>
+    /// Where a card arriving comes from: drawn, from your deck; your rival's, shown large on the stage a moment (so you
+    /// see what they played) before it lands; anything else, from just above its place.
+    /// </summary>
+    void Arrive(CardView v, bool table, bool mine)
+    {
+        if (!table)
+        {
+            var deck = this.table.TransformPoint(PileAt(true, 0));
+            v.StartFrom(deck + Vector3.up * 0.1f, this.table.rotation, Vector3.one * PileScale);
+            return;
+        }
+        if (!mine)
+        {
+            var f = Cam.transform.forward;
+            v.StartFrom(Cam.transform.position + f * 9f + Cam.transform.up * 0.4f, Quaternion.LookRotation(Cam.transform.up, -f), Vector3.one * 2.3f);
+            v.Hold(0.85f);
+            return;
+        }
+    }
+
+    /// <summary>The sun of a player, as drawn.</summary>
+    public SunView SunOf(string playerId) => suns.TryGetValue(playerId, out var s) ? s : null;
+
+    /// <summary>Where a card is now (world space), if on show.</summary>
+    public Vector3? WorldOf(string uid) => cards.TryGetValue(uid, out var v) ? v.transform.position : (Vector3?)null;
 
     /// <summary>A card in play's badges: its attack (dimmed once it has attacked), stability, and defence (a Guard's).</summary>
     static void InPlay(CardView v, GameState s, PlayerState p, CardInstance c)

@@ -293,10 +293,18 @@ public partial class BattleView : MonoBehaviour
         float delay = ending ? 0.75f : actor.IsAI ? 0.52f : 0.16f;
         PlayerState Was(PlayerState p) => prev.Players.First(x => x.Id == p.Id);
         // A sun struck, cooled or shielded: heat taken (yours, by them: hurt; theirs: strike), cooling, shields lost or raised.
+        // Where heat is loosed from: the card played (still where it was), or the striking sun.
+        var origin = (a.CardUid != null ? Board.WorldOf(a.CardUid) : null) ?? Board.SunOf(source.Id)?.transform.position ?? Vector3.zero;
         void Hit(PlayerState p, float at, bool byEnemy)
         {
             var w = Was(p);
             int dHeat = p.Heat - w.Heat;
+            var sunView = Board.SunOf(p.Id);
+            if (sunView != null && (dHeat != 0 || p.Shields != w.Shields))
+            {
+                if (byEnemy && a.Type != "attack" && dHeat > 0) Shot.Fire(Board.transform, origin, sunView.transform.position, sunView, true, Mathf.Max(0, at - 0.42f));
+                else sunView.Pulse(dHeat >= 0, a.Type == "attack" ? 0.15f : at);
+            }
             int lost = byEnemy ? Mathf.Max(0, w.Shields - p.Shields) : 0;
             int gained = Mathf.Max(0, p.Shields - w.Shields);
             if (dHeat > 0)
@@ -344,7 +352,14 @@ public partial class BattleView : MonoBehaviour
                 break;
             case "attack":
                 Sound.Play("swing");
-                if (a.TargetUid != null) CardBlow(prev, next, a.TargetUid);
+                // The attacker lunges at what it strikes; a card struck shudders.
+                var target = a.TargetUid != null ? Board.WorldOf(a.TargetUid) : Board.SunOf(next.Players.FirstOrDefault(p => p.Id != actor.Id)?.Id ?? "")?.transform.position;
+                if (target != null) Board.View(a.AttackerUid)?.Lunge(target.Value);
+                if (a.TargetUid != null)
+                {
+                    Board.View(a.TargetUid)?.Shake(0.15f);
+                    CardBlow(prev, next, a.TargetUid);
+                }
                 break;
         }
         // Cards drawn into your hand, one after another.

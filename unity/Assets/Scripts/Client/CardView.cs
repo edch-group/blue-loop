@@ -16,6 +16,10 @@ public class CardView : MonoBehaviour
     Vector3 goalPos, goalScale = Vector3.one;
     Quaternion goalRot = Quaternion.identity;
     bool placed;
+    // Its motions on top of where it is going: held in place a while (on the stage), a lunge, a shake.
+    float holdUntil, lungeAge = -1, shakeAge = -11;
+    Vector3 lunge;
+    const float LungeTime = 0.4f, ShakeTime = 0.32f;
 
     public static CardView Make(Transform parent, string uid, string defId, bool table)
     {
@@ -96,12 +100,53 @@ public class CardView : MonoBehaviour
         }
     }
 
+    /// <summary>Stay where it is for a while before going on (a card shown on the stage).</summary>
+    public void Hold(float seconds) => holdUntil = Time.time + seconds;
+
+    /// <summary>Lunge toward a point (in world space) and back: an attack.</summary>
+    public void Lunge(Vector3 worldTarget, float distance = 0.75f)
+    {
+        var d = worldTarget - transform.position;
+        d.y = 0;
+        lunge = (transform.parent != null ? transform.parent.InverseTransformVector(d.normalized) : d.normalized) * Mathf.Min(distance, d.magnitude * 0.6f);
+        lungeAge = 0;
+    }
+
+    /// <summary>Shudder: a blow landing.</summary>
+    public void Shake(float after = 0) => shakeAge = -after;
+
+    /// <summary>Its end: it lifts, fades and shrinks away, then is gone.</summary>
+    public void Die(float after = 0)
+    {
+        enabled = false;
+        var d = gameObject.AddComponent<Dying>();
+        d.After = after;
+        foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
+    }
+
+    /// <summary>The lunge's and the shake's offset, added to its place each frame (and taken off again the next).</summary>
+    Vector3 applied;
+
+    Vector3 Offset()
+    {
+        var o = Vector3.zero;
+        if (lungeAge >= 0) o += lunge * Mathf.Sin(Mathf.PI * Mathf.Clamp01(lungeAge / LungeTime));
+        if (shakeAge >= 0) o += new Vector3(Mathf.Sin(shakeAge * 70) * 0.06f * (1 - shakeAge / ShakeTime), 0, 0);
+        return o;
+    }
+
     void Update()
     {
+        if (Time.time < holdUntil) return;
         float k = 1 - Mathf.Exp(-Time.deltaTime * 12);
-        transform.localPosition = Vector3.Lerp(transform.localPosition, goalPos, k);
+        var at = transform.localPosition - applied;
+        at = Vector3.Lerp(at, goalPos, k);
         transform.localRotation = Quaternion.Slerp(transform.localRotation, goalRot, k);
         transform.localScale = Vector3.Lerp(transform.localScale, goalScale, k);
+        if (lungeAge >= 0) { lungeAge += Time.deltaTime; if (lungeAge > LungeTime) lungeAge = -1; }
+        if (shakeAge > -10) { shakeAge += Time.deltaTime; if (shakeAge > ShakeTime) shakeAge = -11; }
+        applied = Offset();
+        transform.localPosition = at + applied;
     }
 
     /// <summary>Start from where another object stands (in world space), then glide to where it is told.</summary>
@@ -117,8 +162,46 @@ public class CardView : MonoBehaviour
     /// <summary>Settle at once (for a still picture).</summary>
     public void Settle()
     {
+        applied = Vector3.zero;
+        holdUntil = 0;
         transform.localPosition = goalPos;
         transform.localRotation = goalRot;
         transform.localScale = goalScale;
+    }
+}
+
+/// <summary>A card going: lifting, fading and shrinking away, then gone.</summary>
+public class Dying : MonoBehaviour
+{
+    public float After;
+    float age;
+    Vector3 scale0, pos0;
+    Renderer[] parts;
+
+    void Start()
+    {
+        scale0 = transform.localScale;
+        pos0 = transform.localPosition;
+        parts = GetComponentsInChildren<Renderer>();
+    }
+
+    void Update()
+    {
+        age += Time.deltaTime;
+        float t = Mathf.Clamp01((age - After) / 0.5f);
+        if (t <= 0) return;
+        transform.localScale = scale0 * (1 - 0.35f * t);
+        transform.localPosition = pos0 + new Vector3(0, 0.6f * t, 0);
+        foreach (var r in parts)
+        {
+            if (r is MeshRenderer m && m.sharedMaterial != null && m.sharedMaterial.HasProperty("_Grey")) m.sharedMaterial.SetFloat("_Grey", t);
+            if (r.sharedMaterial != null && r.sharedMaterial.HasProperty("_Color"))
+            {
+                var c = r.sharedMaterial.color;
+                c.a = Mathf.Min(c.a, 1 - t);
+                r.sharedMaterial.color = c;
+            }
+        }
+        if (t >= 1) Mats.Kill(gameObject);
     }
 }

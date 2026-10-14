@@ -199,8 +199,27 @@ public class SunView : MonoBehaviour
         most.transform.position = c - f * 0.62f - u * 0.26f;
     }
 
+    float pulseAge = -1, pulseDelay;
+    bool pulseHot;
+
+    /// <summary>A hit landing: the sun swells and flares (hot), or shrinks a little and pales (cooled), and settles.</summary>
+    public void Pulse(bool hot, float after = 0)
+    {
+        pulseAge = 0;
+        pulseDelay = after;
+        pulseHot = hot;
+    }
+
     void Update()
     {
+        if (pulseAge >= 0)
+        {
+            pulseAge += Time.deltaTime;
+            float t = Mathf.Clamp01((pulseAge - pulseDelay) / 0.5f);
+            float bump = t > 0 ? Mathf.Sin(Mathf.PI * t) * (1 - t * 0.3f) : 0;
+            star.transform.localScale = Vector3.one * 1.1f * (1 + (pulseHot ? 0.16f : -0.08f) * bump);
+            if (pulseAge - pulseDelay > 0.5f) { pulseAge = -1; star.transform.localScale = Vector3.one * 1.1f; }
+        }
         orbitTurn = Mathf.LerpAngle(orbitTurn, orbitGoal, 1 - Mathf.Exp(-Time.deltaTime * 4));
         orbit.localRotation = Quaternion.Euler(0, orbitTurn, 0);
     }
