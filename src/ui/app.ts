@@ -12,6 +12,7 @@ import {
   SUBRACES,
   attackProblem,
   cardAttack,
+  baseAttack,
   maxHand,
   applyAction,
   answerShown,
@@ -120,11 +121,11 @@ import { ORACLE_NAME } from '../engine/story';
 import { relicMark } from './relic-art';
 
 import { closeTour, startTour, tourShowing } from './tour';
-import { DREAMS, shownKind, isBurst, isBossCard, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS, overdrivable } from '../engine';
+import { DREAMS, shownKind, isBurst, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS, overdrivable } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
-import { symbolIcon, cardJewels, cardBackFace, cardBodyHtml, effectMark, mechanicMark, modeCards, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
+import { symbolIcon, cardJewels, fullArt, cardBackFace, cardBodyHtml, effectMark, mechanicMark, modeCards, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
 import { profile, signedIn, signIn } from './profile';
@@ -6279,14 +6280,14 @@ export class App {
     // In play: its defence (what removal must beat), attack and stability (what it can take).
     const stats =
       opts.owner && c.slot !== undefined
-        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''} ${isGuard(opts.owner, c) ? 'stat-def-guard' : ''}" title="${isGuard(opts.owner, c) ? `A Guard: rival attacks must strike it first${(def.passive ?? []).some((x) => x.type === 'taunt') ? '' : ' (fortified, until its next dawn)'}. ` : ''}${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. Only Repair mends it, and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${isGuard(opts.owner, c) ? GUARD_SVG + GUARD_SHIELD_SVG : SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: s && cardAttack(s, opts.owner, c) > 0 ? cardAttack(s, opts.owner, c) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
+        ? `<b class="stat-def stat-def-floor ${c.dented ? 'stat-dented' : ''} ${isGuard(opts.owner, c) ? 'stat-def-guard' : ''}" title="${isGuard(opts.owner, c) ? `A Guard: rival attacks must strike it first${(def.passive ?? []).some((x) => x.type === 'taunt') ? '' : ' (fortified, until its next dawn)'}. ` : ''}${c.dented ? `Defence ${cardDefence(opts.owner, c)} of ${fullDefence(opts.owner, c)}: worn by attacks and heat. Only Repair mends it, and the wear on its slot stays if it leaves. ` : ''}Defence: heat aimed at this card wears its defence first (pierce ignores it), and the wear lasts; removal can only reach cards with low enough defence">${isGuard(opts.owner, c) ? GUARD_SVG + GUARD_SHIELD_SVG : SHIELD_SVG}<span class="def-n">${pv('', cardDefence(opts.owner, c), opts.settled?.defence, opts.preview?.defence)}</span></b>${cardJewels({ atk: s && (cardAttack(s, opts.owner, c) > 0 || baseAttack(def) > 0) ? Math.max(0, cardAttack(s, opts.owner, c)) : undefined, dim: c.dimmed, hp: pv('', c.health ?? 0, opts.settled?.health, opts.preview?.health), hero: def.kind === 'command', lowHp: (c.health ?? 0) <= 1 })}`
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     const guard = (opts.tableau && (opts.owner ? isGuard(opts.owner, c) : (def.passive ?? []).some((x) => x.type === 'taunt')) ? ' card-guard' : '') + (c.fused?.length ? ' card-has-fused' : '');
     // A Lost Overlord's part: a full-art card, its one action named across its picture; the part whose action
     // comes next is marked.
     // (A full-art card with a cost of its own, a Lost Lord, shows it: the Overlords' parts have none.)
-    const full = isBossCard(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}${opts.owner?.boss?.intent === c.uid ? ' card-intent' : ''}` : '';
+    const full = fullArt(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}${opts.owner?.boss?.intent === c.uid ? ' card-intent' : ''}` : '';
     // (Its action's name shows in the inspector only [direction: hide the unique ability pills other than in the
     // inspector]. The part acting next carries the heat it will deal, large across its middle.)
     // (Its minions too: each acts every day.)
@@ -6416,7 +6417,7 @@ export class App {
         : stabilityBadge(def);
     const race = def.race !== undefined ? ` race-${def.race}` : '';
     // (A Lost Overlord's part: full-art, its action named across its picture.)
-    const full = isBossCard(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}` : '';
+    const full = fullArt(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}` : '';
     const actionTag = def.bossAction && (def.overlordPart !== 'lost lord' || owner?.boss) ? `<div class="card-action">${esc(def.bossAction.name.toLowerCase())}</div>` : '';
     return `
       <div class="card card-big kind-${def.kind}${race}${full} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[shownKind(def)]}">

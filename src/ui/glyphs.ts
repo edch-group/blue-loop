@@ -1,4 +1,4 @@
-import { BALANCE, baseAttack, baseHealth, CARDS, cardDef, hasDarkspeed, isBurst, raceTrait, SUBRACES, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, type CardDef, type CardKind, type Rarity, type ShownKind, shownKind, SHOWN_KIND_NAME } from '../engine';
+import { BALANCE, baseAttack, baseHealth, CARDS, cardDef, hasDarkspeed, isBurst, raceTrait, SUBRACES, cardCost, keywordLabel, KEYWORDS, keywordsIn, optionList, optionText, persists, plainText, RACE_NAMES, TEXT_RULES, textParts, isBossCard, isCaptain, type CardDef, type CardKind, type Rarity, type ShownKind, shownKind, SHOWN_KIND_NAME } from '../engine';
 import { stellariaFlower } from './art';
 import { cardScene, renderedArt } from './cardart';
 import jewelEmerald from './jewels/emerald.png';
@@ -616,7 +616,8 @@ export function cardJewels(o: { atk?: number | string; dim?: boolean; hp: number
   const atkTitle = 'Attack: once each of your days it can attack a rival card or their sun for this much, then it is dimmed until your next day. A card it attacks hits back with its own attack and Sting.';
   const hpTitle = `Stability: attacks, stings, aimed heat past its defence and Erode wear this down; at 0 ${o.hero ? 'the Hero falls' : 'it burns away'}.`;
   return (
-    (o.atk === undefined ? '' : lobe('bl', jewel(`jewel-atk${o.dim ? ' jewel-dim' : ''}`, o.atk, atkTitle + (o.dim ? ' Dimmed: it has attacked today, and is undimmed at your next dawn.' : '')))) +
+    // (An attacker with its attack all gone shows 0, its stone blue [direction: 0 attack on blue, not the attack vanishing].)
+    (o.atk === undefined ? '' : lobe('bl', jewel(`jewel-atk${o.atk === 0 ? ' jewel-zero' : ''}${o.dim ? ' jewel-dim' : ''}`, o.atk, o.atk === 0 ? 'Attack 0: its attack is all gone. It can\'t attack until it has some again.' : atkTitle + (o.dim ? ' Dimmed: it has attacked today, and is undimmed at your next dawn.' : '')))) +
     lobe('br', jewel(`jewel-stab${o.lowHp ? ' jewel-low' : ''}`, o.hp, hpTitle))
   );
 }
@@ -887,4 +888,12 @@ export function keywordList(text: string, stats: { defence?: number; health?: nu
   if (stats.defence !== undefined) row(`<b class="kw kw-defence">⛨ Defence</b>`, 'Takes heat before stability.');
   // (In a column no taller than the card: it scrolls, and an arrow bobs at its foot while there is more below.)
   return rows.length ? `<div class="kw-wrap"><div class="kw-list">${rows.join('')}</div><i class="kw-more" aria-hidden="true"></i></div>` : '';
+}
+
+/**
+ * Whether a card is drawn full-art (its painting the whole card, its words over it): the Overlords' parts and Lost
+ * Lords, and the Captain and the Captain's crew [direction: crew members and the Captain all full art cards].
+ */
+export function fullArt(id: string): boolean {
+  return isBossCard(id) || isCaptain(id) || id.startsWith('companion_');
 }

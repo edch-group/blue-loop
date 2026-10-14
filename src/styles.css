@@ -7550,3 +7550,5 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* A wrecked slot (a merchant's device that blew): scorched shut, nothing can stand in it. */
 .slot-empty.slot-wrecked { border-style: solid; border-color: rgba(181, 80, 58, 0.35); background: repeating-linear-gradient(135deg, rgba(120, 90, 80, 0.12) 0 6px, transparent 6px 12px), rgba(60, 50, 48, 0.06); }
 .slot-empty.slot-wrecked small { color: #b5503a; letter-spacing: 0.18em; text-transform: uppercase; font-size: 0.45rem; }
+/* An attacker whose attack is all gone: 0, on a blue stone. */
+.jewel.jewel-zero { filter: hue-rotate(205deg) saturate(1.15) brightness(1.05); }

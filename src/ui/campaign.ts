@@ -339,6 +339,8 @@ function portrait(cardId: string): string {
 
 
 /** One of the Lost Races: a faded figure, half gone into the dark. */
+/** The campaign menu's fade in (ms: .cs-base's transition). */
+const MENU_FADE_MS = 900;
 /** How long the flagship takes to fly in as a campaign starts (seconds). */
 const ARRIVAL_FLIGHT = 3.2;
 /** Setting out from the menu: how long its camera takes to pan onto the campaign's opening shot (seconds). */
@@ -3028,12 +3030,14 @@ export class CampaignView {
             this.menuIntro = 'arriving';
             box.classList.remove('cs-base-hidden');
             base.arrive(ENTRY);
+            window.setTimeout(() => (world.smooth = false), (ENTRY - 3) * 1000);
+            // (The options a second after the fade in is done [direction: not waiting on the ship], the ship still
+            // drifting in behind them.)
             window.setTimeout(() => {
-              world.smooth = false;
               if (this.menuIntro !== 'arriving') return;
               this.menuIntro = null;
               box.querySelector('.cs-nodes')?.classList.remove('cs-nodes-wait');
-            }, (ENTRY - 3) * 1000);
+            }, MENU_FADE_MS + 1000);
           };
           requestAnimationFrame(ready);
         }
