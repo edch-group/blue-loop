@@ -108,6 +108,7 @@ public class BattleView : MonoBehaviour
         Board.Viewer = you;
         Clear();
         Refresh();
+        Sound.Scene("battle");
     }
 
     // ---- The loop ----
@@ -155,7 +156,7 @@ public class BattleView : MonoBehaviour
     IEnumerator AiMove()
     {
         busy = true;
-        yield return new WaitForSeconds(MoveDelay);
+        yield return new WaitForSeconds(Delay);
         Step();
         busy = false;
     }
@@ -214,6 +215,63 @@ public class BattleView : MonoBehaviour
     {
         toast.text = text;
         toastUntil = Time.time + 3.5f;
+    }
+
+    // ---- Settings and leaving (the web's settings and quit sheets) ----
+
+    RectTransform sheet;
+    static readonly string[] Speeds = { "slow", "normal", "fast" };
+    static readonly float[] SpeedFactor = { 1.7f, 1, 0.4f };
+    const string SpeedKey = "blue-loop:ai-speed", SaveKey = "blue-loop:save:v4";
+
+    public static string Speed => System.Array.IndexOf(Speeds, Store.Get(SpeedKey)) >= 0 ? Store.Get(SpeedKey) : "normal";
+    float Delay => 0.75f * SpeedFactor[System.Array.IndexOf(Speeds, Speed)];
+
+    void CloseSheet()
+    {
+        if (sheet != null) Mats.Kill(sheet.gameObject);
+        sheet = null;
+    }
+
+    void Settings()
+    {
+        CloseSheet();
+        bool over = state == null || state.WinnerId != null;
+        sheet = Hud.Sheet(hud.transform, "settings", new[]
+        {
+            new Hud.Row("sound", () => { Sound.Muted = !Sound.Muted; Settings(); }, Sound.Muted ? "off" : "on"),
+            new Hud.Row("music", Sound.Muted ? (System.Action)null : () => { Sound.MusicOn = !Sound.MusicOn; Settings(); }, Sound.MusicOn && !Sound.Muted ? "on" : "off"),
+            new Hud.Row("ai speed", () => { Store.Set(SpeedKey, Speeds[(System.Array.IndexOf(Speeds, Speed) + 1) % 3]); Settings(); }, Speed),
+            over ? new Hud.Row("main menu", () => App.Instance?.Menu("hub")) : new Hud.Row("quit game", Quit),
+        }, CloseSheet);
+    }
+
+    void Quit()
+    {
+        CloseSheet();
+        sheet = Hud.Sheet(hud.transform, "quit game", new[]
+        {
+            new Hud.Row("save and leave", () => { Persist(); App.Instance?.Menu("hub"); }, null, true),
+            new Hud.Row("concede", () => { CloseSheet(); Do(new EngineAction { Type = "concede", PlayerId = you }); }),
+            new Hud.Row("keep playing", CloseSheet),
+        }, CloseSheet);
+    }
+
+    /// <summary>Autosave (storage.ts): a game in play kept to continue later; a finished one let go.</summary>
+    void Persist()
+    {
+        if (state == null || Autoplay || !Application.isPlaying) return;
+        if (state.WinnerId != null) Store.Remove(SaveKey);
+        else Store.Write(SaveKey, state);
+    }
+
+    public static bool HasSave => Store.Get(SaveKey) != null;
+
+    /// <summary>The saved game, to continue (none, or one that no longer reads: null).</summary>
+    public static GameState Saved()
+    {
+        try { return Store.Read<GameState>(SaveKey); }
+        catch { return null; }
     }
 
     // ---- What a move sounds like (app.ts: the same sounds for the same changes) ----
@@ -671,7 +729,7 @@ public class BattleView : MonoBehaviour
             var b = Hud.Glass(root, "Corner " + icons[i], Look.GlassStrong);
             Hud.At((RectTransform)b.transform, new Vector2(1, 1), new Vector2(-18 - (2 - i) * 72, -10), new Vector2(63, 63));
             var btn = b.gameObject.AddComponent<Button>();
-            if (i == 2) btn.onClick.AddListener(() => App.Instance?.Menu("hub"));
+            if (i == 2) btn.onClick.AddListener(() => { Sound.Play("click"); Settings(); });
             if (i == 1) btn.onClick.AddListener(() => Screen.fullScreen = !Screen.fullScreen);
             var ic = Hud.Rect(b.transform, "Icon");
             Hud.At(ic, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(63, 63));
@@ -704,6 +762,7 @@ public class BattleView : MonoBehaviour
     {
         if (state == null) return;
         Phase = Dawn != null ? "dawn" : "day";
+        Persist();
         Board.Sync(state, this);
         endDay.interactable = MyDay;
         endDay.gameObject.SetActive(!Autoplay);

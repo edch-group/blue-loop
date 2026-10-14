@@ -40,6 +40,19 @@ public class App : MonoBehaviour
         return menu;
     }
 
+    /// <summary>The saved game against the AI, where it was left.</summary>
+    public void Continue()
+    {
+        var saved = BattleView.Saved();
+        if (saved == null) { Menu("hub"); return; }
+        Clear();
+        var battle = BattleView.Make();
+        current = battle.gameObject;
+        battle.Cam.transform.SetParent(current.transform, true);
+        battle.Board.transform.SetParent(current.transform, true);
+        battle.Load(saved);
+    }
+
     /// <summary>A battle between two decks (by name; unset: chosen at random), you against the AI.</summary>
     public BattleView Battle(string myDeck = null, string theirDeck = null, int? seed = null)
     {

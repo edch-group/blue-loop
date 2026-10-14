@@ -128,4 +128,92 @@ public static class Hud
         Label(img.transform, text.ToUpperInvariant(), size, ink ?? Look.Ink, true, 500, 14);
         return b;
     }
+
+    /// <summary>A row of a sheet: its name, what it is set to (if it is a setting), and what tapping it does.</summary>
+    public struct Row
+    {
+        public string Label, Value;
+        public Action Act;
+        public bool Strong;
+        public Row(string label, Action act, string value = null, bool strong = false)
+        {
+            Label = label;
+            Act = act;
+            Value = value;
+            Strong = strong;
+        }
+    }
+
+    /// <summary>
+    /// A sheet (the web's .modal with its settings panel): over a veil of the page, a white card with its title in
+    /// spaced capitals and a short rule under it, and a panel of rows, each its name and either its setting in a pill
+    /// or a chevron. A tap on the veil closes it.
+    /// </summary>
+    public static RectTransform Sheet(Transform parent, string title, Row[] rows, Action close)
+    {
+        var veil = Rect(parent, "Sheet");
+        Fill(veil);
+        var v = veil.gameObject.AddComponent<Image>();
+        v.color = new Color(0.95f, 0.95f, 0.94f, 0.8f);
+        veil.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
+        float rowH = 70, inner = rows.Length * rowH;
+        var card = Glass(veil, "Card", Color.white);
+        Hud.At((RectTransform)card.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(549, inner + 150));
+        // (The card itself swallows taps, so only the veil closes.)
+        card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
+        var t = Label(card.transform, title.ToUpperInvariant(), 18, Look.Ink, true, 500, 34, TextAlignmentOptions.Top);
+        t.margin = new Vector4(0, 26, 0, 0);
+        var rule = Rect(card.transform, "Rule");
+        Hud.At(rule, new Vector2(0.5f, 1), new Vector2(0, -56), new Vector2(60, 2));
+        var ri = rule.gameObject.AddComponent<Image>();
+        ri.color = new Color(0.55f, 0.57f, 0.63f, 0.6f);
+        var panel = Glass(card.transform, "Panel", Color.white, false);
+        Hud.At((RectTransform)panel.transform, new Vector2(0.5f, 1), new Vector2(0, -86), new Vector2(467, inner + 16));
+        var edge = Rect(panel.transform, "Edge");
+        Fill(edge);
+        edge.offsetMin = new Vector2(-1, -1);
+        edge.offsetMax = new Vector2(1, 1);
+        edge.SetAsFirstSibling();
+        var ei = edge.gameObject.AddComponent<Image>();
+        ei.sprite = Rounded;
+        ei.type = Image.Type.Sliced;
+        ei.color = new Color(0.88f, 0.89f, 0.92f);
+        for (int i = 0; i < rows.Length; i++)
+        {
+            var row = rows[i];
+            var r = Rect(panel.transform, row.Label);
+            Hud.At(r, new Vector2(0.5f, 1), new Vector2(0, -8 - i * rowH), new Vector2(451, rowH));
+            var hit = r.gameObject.AddComponent<Image>();
+            hit.color = new Color(1, 1, 1, 0.001f);
+            var b = r.gameObject.AddComponent<Button>();
+            var act = row.Act;
+            if (act != null) b.onClick.AddListener(() => { Sound.Play("click"); act(); });
+            else b.interactable = false;
+            if (i > 0)
+            {
+                var line = Rect(r, "Line");
+                Hud.At(line, new Vector2(0.5f, 1), Vector2.zero, new Vector2(435, 1));
+                line.gameObject.AddComponent<Image>().color = new Color(0.92f, 0.92f, 0.94f);
+            }
+            var l = Label(r, row.Label.ToUpperInvariant(), 16, row.Strong ? Look.Ink : Look.InkSoft, true, row.Strong ? 700 : 500, 26, TextAlignmentOptions.Left);
+            l.margin = new Vector4(30, 0, 0, 0);
+            if (row.Value != null)
+            {
+                var pill = Rect(r, "Value");
+                float w = 26 + row.Value.Length * 12;
+                Hud.At(pill, new Vector2(1, 0.5f), new Vector2(-24, 0), new Vector2(w, 29));
+                var pi = pill.gameObject.AddComponent<Image>();
+                pi.sprite = Rounded;
+                pi.type = Image.Type.Sliced;
+                pi.color = new Color(0.93f, 0.93f, 0.95f);
+                Label(pill, row.Value.ToUpperInvariant(), 13, Look.InkSoft, true, 500, 14);
+            }
+            else
+            {
+                var chev = Label(r, "›", 22, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Right);
+                chev.margin = new Vector4(0, 4, 26, 0);
+            }
+        }
+        return veil;
+    }
 }

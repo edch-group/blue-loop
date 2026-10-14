@@ -150,6 +150,12 @@ public class MenuView : MonoBehaviour
             var t = Hud.Label(tile.transform, name.ToUpperInvariant(), 19, Look.Ink, true, 700, 18, TextAlignmentOptions.Bottom);
             t.margin = new Vector4(10, 0, 10, 44);
             t.textWrappingMode = TextWrappingModes.Normal;
+            // (A game against the AI left part way: continue it, under its tile.)
+            if (target == "quickplay" && BattleView.HasSave)
+            {
+                var cont = Hud.Pill(page, "Continue", () => App.Instance.Continue(), 14);
+                Hud.At((RectTransform)cont.transform, new Vector2(0.5f, 0.5f), new Vector2((i - 2) * (w + gap), -232), new Vector2(150, 44));
+            }
         }
         Studio();
     }
