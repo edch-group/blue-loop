@@ -7645,3 +7645,6 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .card.card-ascended-1 { box-shadow: 0 0 0 1.5px #c9b36a, 0 0 10px rgba(226, 194, 106, 0.45); }
 .card.card-ascended-2 { box-shadow: 0 0 0 2px #e2c26a, 0 0 16px rgba(226, 194, 106, 0.6); }
 .card.card-ascended-3 { box-shadow: 0 0 0 2px #f4dc8a, 0 0 22px rgba(244, 220, 138, 0.8), 0 0 40px rgba(244, 220, 138, 0.35); }
+/* (A full-art card's race sits above its kind, never between its kind and its name.) */
+.card.card-full:not(.card-table) .card-racerow { order: -2; position: relative; z-index: 2; color: rgba(255, 220, 190, 0.7); }
+.card.card-full:not(.card-table) .card-racerow ~ .card-name { margin-top: 0 !important; }
