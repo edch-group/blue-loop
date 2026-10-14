@@ -284,3 +284,11 @@ function mandala(layer: string, size: number): void {
   }
 }
 Object.assign(window, { mandala });
+
+// ---- The settings panel's Stellari (settings.ts settingsPanel), still, for scripts/bake-menus.mjs ----
+/** The flower that rises half out of the settings panel's foot, with its soft shadows, a margin round it for them. */
+function settingsFlower(size: number): void {
+  stage.innerHTML = `<div id="piece" style="padding:${size * 0.06}px;display:inline-block"><i class="settings-flower" style="position:relative;display:block;left:0;bottom:0;transform:none;opacity:1;width:${size}px;height:${size}px">${stellariaFlower()}</i></div>`;
+  (stage.querySelector('.stellaria-flower') as SVGElement).style.animation = 'none';
+}
+Object.assign(window, { settingsFlower });

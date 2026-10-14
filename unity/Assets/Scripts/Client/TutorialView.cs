@@ -36,11 +36,14 @@ public class TutorialView : MonoBehaviour
         return v;
     }
 
-    // (The branch's box on the page: the full width, 768 tall from 138 down, in the 1600 × 1000 frame.)
+    // (The branch's box on the page, as the web lays it out on its 1600 × 1000 page: 1553.6 across from 23.2 in,
+    // 768.4 tall from 149.8 down; points from the middle of the page, y up.)
+    static Vector2 Map(float x, float y) => new Vector2(23.2f + x / 100 * 1553.6f - 800, 500 - (149.8f + y / 64 * 768.4f));
+
     static Vector2 Pt(string id)
     {
         var p = At.TryGetValue(id, out var a) ? a : new Vector2(50, 50);
-        return new Vector2((p.x - 50) / 100 * 1600, -138 - p.y / 64 * 768 + 500);
+        return Map(p.x, p.y);
     }
 
     void Draw()
@@ -48,108 +51,99 @@ public class TutorialView : MonoBehaviour
         foreach (Transform c in root) Mats.Kill(c.gameObject);
         var done = Puzzles.LessonsDone;
         bool coreDone = Lessons.CoreLessons.All(done.Contains);
-        var back = Hud.Pill(root, "‹ Back", () => menu.Show("hub"), 15);
-        Hud.At((RectTransform)back.transform, new Vector2(0, 1), new Vector2(24, -20), new Vector2(92, 40));
-        var small = Hud.Label(root, "WITH ORIEL", 13, Look.InkFaint, true, 500, 30, TextAlignmentOptions.Top);
-        small.margin = new Vector4(0, 22, 0, 0);
-        var title = Hud.Label(root, "TUTORIAL", 50, Look.Ink, true, 400, 60, TextAlignmentOptions.Top);
-        title.margin = new Vector4(0, 44, 0, 0);
+        MenuView.BackButton(root, () => menu.Show("hub"), 23.2f, 20.3f);
+        Hud.Text(root, "WITH ORIEL", 0, 20.3f, 1600, 17, 13.9f, Look.InkFaint, true, 400, 30);
+        Hud.Text(root, "TUTORIAL", 0, 40.2f, 1600, 58, 46.4f, Look.Ink, true, 400, 40);
 
-        // The links: each lesson to those before it (the crown from the trunk's top, once the core is done).
+        // The links: each lesson to those before it (the crown from the trunk's top, once the core is done); a curve
+        // through a point a unit above the lower end, as the web's path.
         var linesRect = Hud.Rect(root, "Links");
         Hud.At(linesRect, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1600, 1000));
         var lines = linesRect.gameObject.AddComponent<UiLines>();
-        var gold = new Color(0.84f, 0.7f, 0.37f);
-        var root0 = Pt("sun") + new Vector2(0, -9 / 64f * 768);
-        lines.Add(new List<Vector2> { root0, Pt("sun") }, gold, 3);
+        var gold = Hud.Rgba(214, 178, 94);
+        lines.Add(new List<Vector2> { Map(50, 59), Pt("sun") }, gold, 3);
         foreach (var l in Lessons.All)
             foreach (var a in l.After)
             {
-                var p1 = a == "core" ? Pt("breach") : Pt(a);
-                var p2 = Pt(l.Id);
+                var from = a == "core" ? At["breach"] : At.TryGetValue(a, out var fa) ? fa : new Vector2(50, 50);
+                var to = At.TryGetValue(l.Id, out var ta) ? ta : new Vector2(50, 50);
                 bool lit = done.Contains(l.Id), open = Lessons.LessonOpen(l.Id, done);
-                // (The control point a unit above the lower end, as the web's path.)
-                var c = new Vector2((p1.x + p2.x) / 2, Mathf.Max(p1.y, p2.y) + 768 / 64f);
-                var pts = UiLines.Curve(p1, new Vector2(c.x, Mathf.Min(p1.y, p2.y) + 12), p2);
+                var pts = UiLines.Curve(Map(from.x, from.y), Map((from.x + to.x) / 2, Mathf.Max(from.y, to.y) - 1), Map(to.x, to.y));
                 if (lit) lines.Add(pts, gold, 3);
-                else if (open) lines.Add(pts, new Color(0.37f, 0.56f, 0.77f, 0.45f), 2, 4, 5);
-                else if (a == "core") lines.Add(pts, new Color(0.23f, 0.26f, 0.34f, 0.16f), 2, 2, 6);
-                else lines.Add(pts, new Color(0.23f, 0.26f, 0.34f, 0.16f), 2);
+                else if (open) lines.Add(pts, Hud.Rgba(95, 143, 196, 0.45f), 2, 4, 5);
+                else if (a == "core") lines.Add(pts, Hud.Rgba(58, 66, 86, 0.16f), 2, 2, 6);
+                else lines.Add(pts, Hud.Rgba(58, 66, 86, 0.16f), 2);
             }
 
-        // The lessons.
+        // The lessons: each a dot (60.9 across) over its name (15.3, spaced 0.16em), the two centred on its point.
         for (int i = 0; i < Lessons.All.Count; i++)
         {
             var l = Lessons.All[i];
             bool isDone = done.Contains(l.Id), open = Lessons.LessonOpen(l.Id, done), on = picked == l.Id;
+            var p = Pt(l.Id);
             var node = Hud.Rect(root, l.Id);
-            Hud.At(node, new Vector2(0.5f, 0.5f), Pt(l.Id), new Vector2(140, 90));
+            Hud.At(node, new Vector2(0.5f, 0.5f), p, new Vector2(240, 85.7f));
             var group = node.gameObject.AddComponent<CanvasGroup>();
             group.alpha = open || isDone ? 1 : 0.5f;
-            float d = on ? 58 : 50;
-            if (on)
-            {
-                var ring = Hud.Rect(node, "Ring");
-                Hud.At(ring, new Vector2(0.5f, 0.5f), new Vector2(0, 14), new Vector2(d + 6, d + 6));
-                var ri = ring.gameObject.AddComponent<Image>();
-                ri.sprite = Hud.Circle;
-                ri.color = Look.Ink;
-            }
+            // (Picked, the dot grows by 18% in a dark ring.)
+            float d = on ? 60.9f * 1.18f : 60.9f;
             var dot = Hud.Rect(node, "Dot");
-            Hud.At(dot, new Vector2(0.5f, 0.5f), new Vector2(0, 14), new Vector2(d, d));
+            Hud.At(dot, new Vector2(0.5f, 1), new Vector2(0, -30.45f), new Vector2(d, d));
+            dot.pivot = new Vector2(0.5f, 0.5f);
             var di = dot.gameObject.AddComponent<Image>();
             di.sprite = Hud.Circle;
-            di.color = isDone ? new Color(0.91f, 0.76f, 0.42f) : l.Track == "advanced" && !open ? new Color(0.93f, 0.93f, 0.95f) : Color.white;
-            Hud.Label(dot, isDone ? "✓" : (i + 1).ToString(), 15, isDone ? new Color(0.42f, 0.29f, 0.07f) : Look.InkSoft, true, 500, 0);
-            var name = Hud.Label(node, l.Name.ToUpperInvariant(), 13, Look.InkSoft, true, 400, 16, TextAlignmentOptions.Bottom);
-            name.margin = new Vector4(-40, 0, -40, 0);
+            di.color = isDone ? Hud.Rgba(231, 194, 106) : l.Track == "advanced" && !open ? Hud.Rgba(236, 238, 243) : Color.white;
+            var ring = on ? new Hud.Drop(Hud.Rgba(58, 66, 86), 0, 0, 4.35f)
+                : isDone ? new Hud.Drop(Hud.Rgba(150, 110, 30, 0.5f), 0, 0, 1.4f)
+                : open ? new Hud.Drop(Hud.Rgba(95, 143, 196), 0, 0, 2.9f)
+                : new Hud.Drop(Hud.Rgba(58, 66, 86, 0.2f), 0, 0, 1.4f);
+            var glow = on ? new Hud.Drop(Hud.Rgba(40, 46, 70, 0.25f), 8.7f, 26.1f)
+                : isDone ? new Hud.Drop(Hud.Rgba(230, 190, 90, 0.5f), 0, 20.3f)
+                : open ? new Hud.Drop(Hud.Rgba(95, 143, 196, 0.5f), 0, 23.2f)
+                : new Hud.Drop(Hud.Rgba(40, 46, 70, 0.1f), 5.8f, 17.4f);
+            Hud.Shadow(di, d / 2, ring, glow);
+            Hud.Label(dot, isDone ? "✓" : (i + 1).ToString(), 16.7f, isDone ? Hud.Rgba(106, 74, 18) : open ? Look.Ink : Look.InkSoft, true, 400, 0);
+            Hud.Text(node, l.Name.ToUpperInvariant(), 0, 66.7f, 240, 19, 15.3f, Look.InkSoft, true, 400, 16);
             if (open || isDone)
             {
                 var id = l.Id;
-                var b = node.gameObject.AddComponent<Button>();
+                var b = dot.gameObject.AddComponent<Button>();
                 b.targetGraphic = di;
                 b.onClick.AddListener(() => { Sound.Play("hover"); picked = picked == id ? null : id; Draw(); });
             }
         }
 
-        // Oriel, at the root.
+        // Oriel, at the root: 87 across, a white ring and a soft shadow.
         var oriel = Hud.Rect(root, "Oriel");
-        Hud.At(oriel, new Vector2(0.5f, 0.5f), root0, new Vector2(88, 88));
-        var halo = oriel.gameObject.AddComponent<Image>();
-        halo.sprite = Hud.Circle;
-        halo.color = Color.white;
-        var face = Hud.Rect(oriel, "Face");
-        Hud.Fill(face);
-        face.offsetMin = new Vector2(3, 3);
-        face.offsetMax = new Vector2(-3, -3);
-        var fm = face.gameObject.AddComponent<Image>();
-        fm.sprite = Hud.Circle;
-        face.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-        var pic = Hud.Rect(face, "Picture");
+        Hud.At(oriel, new Vector2(0.5f, 0.5f), Map(50, 59), new Vector2(87, 87));
+        var face = oriel.gameObject.AddComponent<Image>();
+        face.sprite = Hud.Circle;
+        Hud.Shadow(face, 43.5f, new Hud.Drop(Color.white, 0, 0, 2.9f), new Hud.Drop(Hud.Rgba(40, 46, 70, 0.25f), 8.7f, 26.1f));
+        oriel.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+        var pic = Hud.Rect(oriel, "Picture");
         Hud.Fill(pic);
         var raw = pic.gameObject.AddComponent<RawImage>();
         raw.texture = Resources.Load<Texture2D>("Portraits/oriel");
 
-        // The lesson picked, waiting to begin (or Oriel's word).
+        // The lesson picked, waiting to begin (its track, name and what it teaches, and begin beside them), or
+        // Oriel's word, centred under the branch.
         var lesson = picked != null ? Lessons.LessonById(picked) : null;
         if (lesson != null)
         {
-            var foot = Hud.Rect(root, "Picked");
-            Hud.At(foot, new Vector2(0.5f, 0), new Vector2(0, 20), new Vector2(600, 100));
-            var t1 = Hud.Label(foot, lesson.Track == "core" ? "CORE" : "THE LOST RACES", 11, Look.InkFaint, true, 500, 26, TextAlignmentOptions.TopLeft);
-            t1.margin = new Vector4(130, 6, 0, 0);
-            var t2 = Hud.Label(foot, lesson.Name.ToUpperInvariant(), 24, Look.Ink, true, 400, 26, TextAlignmentOptions.Left);
-            t2.margin = new Vector4(130, 0, 0, 6);
-            var t3 = Hud.Label(foot, lesson.Teaches, 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.BottomLeft);
-            t3.margin = new Vector4(130, 0, 0, 10);
+            string track = lesson.Track == "core" ? "CORE" : "THE LOST RACES", name = lesson.Name.ToUpperInvariant(), go = done.Contains(lesson.Id) ? "again" : "begin";
+            float colW = Mathf.Max(Hud.Wide(track, 12.1f, 400, 24, 0), Hud.Wide(name, 23.2f, 400, 24, 0), Hud.Wide(lesson.Teaches, 18.1f, 400, 0, 0, false));
+            float bw = Hud.Wide(go.ToUpperInvariant(), 15.3f, 700, 14, 24.6f), x = 800 - (colW + 26.1f + bw) / 2;
+            Hud.Text(root, track, x, 900.3f, colW + 2, 15, 12.1f, Look.InkFaint, true, 400, 24, TextAlignmentOptions.Left);
+            Hud.Text(root, name, x, 918.2f, colW + 2, 29, 23.2f, Look.Ink, true, 400, 24, TextAlignmentOptions.Left);
+            Hud.Text(root, lesson.Teaches, x, 950.1f, colW + 2, 22, 18.1f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
             var id = lesson.Id;
-            var begin = Hud.Pill(foot, done.Contains(id) ? "Again" : "Begin", () => App.Instance.Puzzle("lesson", id), 16, Color.white);
-            Hud.At((RectTransform)begin.transform, new Vector2(0.5f, 0.5f), new Vector2(150, 0), new Vector2(150, 50));
+            var begin = Hud.Primary(root, go, () => App.Instance.Puzzle("lesson", id));
+            Hud.Place((RectTransform)begin.transform, x + colW + 26.1f, 912.7f, bw, 47.1f);
         }
         else
         {
-            var hint = Hud.Label(root, coreDone ? "The lost races await, above." : done.Count > 0 ? "The lost races open once the core is learnt." : "Walk with me. Start at the root.", 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Bottom);
-            hint.margin = new Vector4(0, 0, 0, 44);
+            var hint = coreDone ? "The lost races await, above." : done.Count > 0 ? "The lost races open once the core is learnt." : "Walk with me. Start at the root.";
+            Hud.Text(root, hint.ToUpperInvariant(), 0, 927.2f, 1600, 18, 14.4f, Look.InkFaint, true, 400, 24);
         }
     }
 }

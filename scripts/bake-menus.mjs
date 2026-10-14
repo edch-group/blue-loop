@@ -36,6 +36,10 @@ for (const name of await page.evaluate(() => window.dbIconNames())) {
   await settle();
   await shoot(`db-${name}`);
 }
+// The settings panel's flower (234 across in the game, its margin for its shadows 6% each side).
+await page.evaluate(() => window.settingsFlower(240));
+await settle();
+await shoot('settings-flower');
 console.log('packs, modes and marks baked');
 await browser.close();
 await server.close();

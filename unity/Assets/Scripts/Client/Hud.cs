@@ -122,6 +122,133 @@ public static class Hud
         return b;
     }
 
+    // ---- Drawn to the web's own measures (its CSS as laid out on a 1600 x 1000 page): a place by its top-left corner,
+    // corners of a given radius, shadows as its box-shadow lists them, and its buttons ----
+
+    /// <summary>A rect placed by its top-left corner in its parent, x right and y down (as the web's boxes are measured).</summary>
+    public static RectTransform Place(RectTransform r, float x, float y, float w, float h) => At(r, new Vector2(0, 1), new Vector2(x, -y), new Vector2(w, h));
+
+    /// <summary>An image given rounded corners of `radius` reference pixels (a pill when it is half its height).</summary>
+    public static Image Corner(Image img, float radius)
+    {
+        img.sprite = Rounded;
+        img.type = Image.Type.Sliced;
+        // (The sprite's corner is 22 of its pixels: drawn smaller or larger to match.)
+        img.pixelsPerUnitMultiplier = 22f / Mathf.Max(0.5f, radius);
+        return img;
+    }
+
+    /// <summary>A rounded box in a colour, `radius` its corners.</summary>
+    public static Image Box(Transform parent, string name, Color color, float radius)
+    {
+        var r = Rect(parent, name);
+        var img = r.gameObject.AddComponent<Image>();
+        img.color = color;
+        img.raycastTarget = false;
+        return Corner(img, radius);
+    }
+
+    /// <summary>One of a box's shadows as CSS gives it: its colour, offset, blur and spread (reference pixels).</summary>
+    public struct Drop
+    {
+        public Color Color;
+        public float X, Y, Blur, Spread;
+        public Drop(Color color, float y, float blur, float spread = 0, float x = 0)
+        {
+            Color = color;
+            Y = y;
+            Blur = blur;
+            Spread = spread;
+            X = x;
+        }
+    }
+
+    /// <summary>A box's shadows (box-shadow): drawn just under it, the first given on top; `radius` the box's corners.</summary>
+    public static Shades Shadow(Graphic target, float radius, params Drop[] drops)
+    {
+        var s = target.gameObject.AddComponent<Shades>();
+        s.Init(radius, drops);
+        return s;
+    }
+
+    /// <summary>A colour from the web's rgba().</summary>
+    public static Color Rgba(int r, int g, int b, float a = 1) => new Color(r / 255f, g / 255f, b / 255f, a);
+
+    /// <summary>A label placed in its own box (top-left x, y; w by h), as the web measures its text's box.</summary>
+    public static TextMeshProUGUI Text(Transform parent, string text, float x, float y, float w, float h, float size, Color color, bool display = true, int weight = 500, float spacing = 0, TextAlignmentOptions align = TextAlignmentOptions.Center)
+    {
+        var t = Label(parent, text, size, color, display, weight, spacing, align);
+        Place(t.rectTransform, x, y, w, h);
+        return t;
+    }
+
+    static Button Pressable(Image img, Action onClick)
+    {
+        var b = img.gameObject.AddComponent<Button>();
+        img.raycastTarget = true;
+        var colors = b.colors;
+        colors.highlightedColor = new Color(0.97f, 0.98f, 1f);
+        colors.pressedColor = new Color(0.9f, 0.91f, 0.95f);
+        colors.disabledColor = new Color(1, 1, 1, 0.4f);
+        b.colors = colors;
+        b.onClick.AddListener(() => { Sound.Play("click"); onClick(); });
+        return b;
+    }
+
+    /// <summary>
+    /// The web's .btn (and .btn-small, .pill-btn): glass-strong, a white hairline, a soft shadow (0 2.9 14.5, 12%),
+    /// its word in spaced capitals; `radius` 14.5, or half its height for a pill. Placed by the caller.
+    /// </summary>
+    public static Button Btn(Transform parent, string text, Action onClick, float size = 13, float radius = 14.5f, float spacing = 14, int weight = 500)
+    {
+        var img = Box(parent, text, Look.GlassStrong, radius);
+        Shadow(img, radius, new Drop(Rgba(90, 90, 110, 0.12f), 2.9f, 14.5f));
+        var b = Pressable(img, onClick);
+        Label(img.transform, text.ToUpperInvariant(), size, Look.Ink, true, weight, spacing);
+        return b;
+    }
+
+    /// <summary>
+    /// The web's .btn-primary: white to #eeeff1 (drawn as their middle), a ring of the line colour and a wider soft
+    /// shadow, its word bold; `radius` 14.5.
+    /// </summary>
+    public static Button Primary(Transform parent, string text, Action onClick, float size = 15.3f, float spacing = 14, float radius = 14.5f)
+    {
+        var img = Box(parent, text, Rgba(247, 247, 248), radius);
+        Shadow(img, radius, new Drop(Look.Line, 0, 0, 1.4f), new Drop(Rgba(120, 124, 134, 0.22f), 8.7f, 29));
+        var b = Pressable(img, onClick);
+        Label(img.transform, text.ToUpperInvariant(), size, Look.Ink, true, 700, spacing);
+        return b;
+    }
+
+    /// <summary>The web's .link-btn: its word in spaced capitals, ink-soft, underlined in a faint line; no box.</summary>
+    public static Button Link(Transform parent, string text, Action onClick, float size = 13.9f, Color? ink = null)
+    {
+        var r = Rect(parent, text);
+        var hit = r.gameObject.AddComponent<Image>();
+        hit.color = new Color(1, 1, 1, 0);
+        var b = r.gameObject.AddComponent<Button>();
+        b.targetGraphic = hit;
+        b.onClick.AddListener(() => { Sound.Play("click"); onClick(); });
+        var t = Label(r, text.ToUpperInvariant(), size, ink ?? Look.InkSoft, true, 400, 16);
+        // (Its underline: a hairline 3 under the words, as wide as them.)
+        var line = Rect(r, "Underline");
+        At(line, new Vector2(0.5f, 0), new Vector2(0, 4), new Vector2(t.GetPreferredValues(t.text).x, 1.4f));
+        var li = line.gameObject.AddComponent<Image>();
+        li.color = Rgba(120, 128, 150, 0.35f);
+        li.raycastTarget = false;
+        return b;
+    }
+
+    /// <summary>The width the web gives a label of this text (its words, plus padding either side).</summary>
+    public static float Wide(string text, float size, int weight, float spacing, float pad, bool display = true)
+    {
+        var probe = Label(null, text, size, Color.clear, display, weight, spacing);
+        float w = probe.GetPreferredValues(text).x;
+        Mats.Kill(probe.gameObject);
+        return w + pad * 2;
+    }
+
     /// <summary>A row of a sheet: its name, what it is set to (if it is a setting), and what tapping it does.</summary>
     public struct Row
     {
@@ -253,4 +380,85 @@ public class GlassShadow : MonoBehaviour
     void OnEnable() { if (shadow != null) shadow.gameObject.SetActive(true); Follow(); }
     void OnDisable() { if (shadow != null) shadow.gameObject.SetActive(false); }
     void OnDestroy() { if (shadow != null) Mats.Kill(shadow.gameObject); }
+}
+
+/// <summary>
+/// A box's shadows as the web's box-shadow lists them (Hud.Shadow): each a sibling just under it (a child would be
+/// drawn over it), the first listed nearest; kept to its place, size and corners, shown and gone with it. A shadow
+/// with no blur is a hard ring (its spread); one with blur, the soft sprite drawn wide enough to fade over the blur.
+/// </summary>
+[ExecuteAlways]
+public class Shades : MonoBehaviour
+{
+    RectTransform[] layers = new RectTransform[0];
+    Hud.Drop[] drops = new Hud.Drop[0];
+
+    public void Init(float radius, Hud.Drop[] given)
+    {
+        drops = given;
+        layers = new RectTransform[given.Length];
+        for (int i = 0; i < given.Length; i++)
+        {
+            var d = given[i];
+            var go = new GameObject("Shade", typeof(RectTransform));
+            var r = (RectTransform)go.transform;
+            r.SetParent(transform.parent, false);
+            var img = go.AddComponent<Image>();
+            img.raycastTarget = false;
+            img.color = d.Color;
+            img.type = Image.Type.Sliced;
+            if (d.Blur > 0)
+            {
+                // (The soft sprite fades over 14.4 of its pixels and reaches 18 beyond its box.)
+                img.sprite = Hud.Soft;
+                img.pixelsPerUnitMultiplier = 14.4f / d.Blur;
+            }
+            else
+            {
+                img.sprite = Hud.Rounded;
+                img.pixelsPerUnitMultiplier = 22f / Mathf.Max(0.5f, radius + d.Spread);
+            }
+            layers[i] = r;
+        }
+        Follow();
+    }
+
+    void Follow()
+    {
+        var r = (RectTransform)transform;
+        for (int i = 0; i < layers.Length; i++)
+        {
+            var s = layers[i];
+            if (s == null) continue;
+            if (s.parent != r.parent) s.SetParent(r.parent, false);
+            var d = drops[i];
+            float e = d.Spread + (d.Blur > 0 ? d.Blur * 1.25f : 0);
+            s.anchorMin = r.anchorMin;
+            s.anchorMax = r.anchorMax;
+            s.pivot = r.pivot;
+            s.offsetMin = r.offsetMin + new Vector2(d.X - e, -d.Y - e);
+            s.offsetMax = r.offsetMax + new Vector2(d.X + e, -d.Y + e);
+            s.localScale = r.localScale;
+            s.localRotation = r.localRotation;
+        }
+        // (Just before the box, the first listed nearest it; moved only when out of place.)
+        int at = r.GetSiblingIndex();
+        bool inPlace = true;
+        for (int i = 0; i < layers.Length; i++)
+            if (layers[i] != null && layers[i].GetSiblingIndex() != at - 1 - i) inPlace = false;
+        if (inPlace) return;
+        for (int i = layers.Length - 1; i >= 0; i--)
+        {
+            if (layers[i] == null) continue;
+            // (Moved to just before the box: one less when it comes from before it, as the box then shifts down.)
+            int ti = r.GetSiblingIndex(), li = layers[i].GetSiblingIndex();
+            layers[i].SetSiblingIndex(li < ti ? ti - 1 : ti);
+        }
+    }
+
+    void OnRectTransformDimensionsChange() => Follow();
+    void LateUpdate() => Follow();
+    void OnEnable() { foreach (var s in layers) if (s != null) s.gameObject.SetActive(true); Follow(); }
+    void OnDisable() { foreach (var s in layers) if (s != null) s.gameObject.SetActive(false); }
+    void OnDestroy() { foreach (var s in layers) if (s != null) Mats.Kill(s.gameObject); }
 }

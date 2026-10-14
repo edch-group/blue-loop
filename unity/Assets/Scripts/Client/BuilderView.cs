@@ -128,39 +128,39 @@ public class BuilderView : MonoBehaviour
 
     void List()
     {
-        var back = Hud.Pill(root, "‹ Back", () => menu.Show("hub"), 15);
-        Hud.At((RectTransform)back.transform, new Vector2(0, 1), new Vector2(26, -30), new Vector2(110, 44));
-        var title = Hud.Label(root, "DECKS", 26, new Color(0.333f, 0.353f, 0.388f), true, 500, 40, TextAlignmentOptions.Top);
-        title.margin = new Vector4(0, 38, 0, 0);
-        var imp = Hud.Pill(root, "Import", () => { panel = "import"; codeText = ""; Draw(); }, 14);
-        Hud.At((RectTransform)imp.transform, new Vector2(1, 1), new Vector2(-26, -30), new Vector2(150, 44));
-        imp.GetComponentInChildren<TextMeshProUGUI>().margin = new Vector4(30, 0, 0, 0);
-        Icon(imp.transform, "db-upload", new Vector2(0, 0.5f), new Vector2(22, 0), 18, Look.InkSoft);
+        // The header (builder.ts's setup-top): back, DECKS, and import on the right where the chip would be.
+        MenuView.BackButton(root, () => menu.Show("hub"), 26.1f, 35.9f);
+        Hud.Text(root, "DECKS", 26.1f, 36.6f, 1547.8f, 37, 30.2f, Hud.Rgba(85, 90, 99), true, 500, 30);
+        var imp = Hud.Btn(root, "Import", () => { panel = "import"; codeText = ""; Draw(); });
+        Hud.Place((RectTransform)imp.transform, 1446.6f, 33.7f, 127.3f, 42.7f);
+        imp.GetComponentInChildren<TextMeshProUGUI>().margin = new Vector4(31.9f, 0, 0, 0);
+        Icon(imp.transform, "db-upload", new Vector2(0, 0.5f), new Vector2(25.65f, 0), 20.3f, Look.Ink);
 
-        // One column, top to bottom: the mode, your decks (a new one first), the starters.
+        // One column, top to bottom, scrolling under the header (from 112.8 down): the mode, your decks (a new one
+        // first), the starters.
         var view = Hud.Rect(root, "List");
-        view.anchorMin = Vector2.zero;
-        view.anchorMax = Vector2.one;
-        view.offsetMin = Vector2.zero;
-        view.offsetMax = new Vector2(0, -96);
+        Hud.Place(view, 0, 112.8f, 1600, 887.2f);
         view.gameObject.AddComponent<RectMask2D>();
         var content = Hud.Rect(view, "Content");
-        content.anchorMin = content.anchorMax = content.pivot = new Vector2(0.5f, 1);
+        content.anchorMin = new Vector2(0, 1);
+        content.anchorMax = new Vector2(1, 1);
+        content.pivot = new Vector2(0.5f, 1);
         content.anchoredPosition = Vector2.zero;
-        float y = -8;
 
-        var modes = Hud.Glass(content, "Modes", new Color(1, 1, 1, 0.7f));
-        Hud.At((RectTransform)modes.transform, new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(528, 150));
+        // (The web's .db-modes: 754 by 200.5, 70% white, corners 23.2; each mode 368.3 by 188.9, the picked one white
+        // and lifted; its picture 327.7 by 104.4, its name 18.1 spaced 0.24em, its line in Exo 2.)
+        var modes = Hud.Box(content, "Modes", new Color(1, 1, 1, 0.7f), 23.2f);
+        Hud.Place((RectTransform)modes.transform, 423, 0, 754, 200.5f);
+        Hud.Shadow(modes, 23.2f, new Hud.Drop(Hud.Rgba(58, 66, 86, 0.08f), 0, 0, 1.4f), new Hud.Drop(Hud.Rgba(40, 46, 70, 0.06f), 8.7f, 26.1f));
         for (int i = 0; i < 2; i++)
         {
             string m = i == 0 ? "core" : "lost";
             bool on = gm == m;
-            var mb = Hud.Rect(modes.transform, m);
-            Hud.At(mb, new Vector2(0, 1), new Vector2(4 + i * 262, -4), new Vector2(258, 142));
-            var bg = mb.gameObject.AddComponent<Image>();
-            bg.sprite = Hud.Rounded;
-            bg.type = Image.Type.Sliced;
-            bg.color = on ? Color.white : new Color(1, 1, 1, 0.001f);
+            var bg = Hud.Box(modes.transform, m, on ? Color.white : new Color(1, 1, 1, 0), 17.4f);
+            var mb = (RectTransform)bg.transform;
+            Hud.Place(mb, 5.8f + i * 374.1f, 5.8f, 368.3f, 188.9f);
+            if (on) Hud.Shadow(bg, 17.4f, new Hud.Drop(Hud.Rgba(40, 46, 70, 0.12f), 2.9f, 14.5f));
+            bg.raycastTarget = true;
             mb.gameObject.AddComponent<Button>().onClick.AddListener(() =>
             {
                 Sound.Play("click");
@@ -169,26 +169,27 @@ public class BuilderView : MonoBehaviour
                 Draw();
             });
             var art = Hud.Rect(mb, "Art");
-            Hud.At(art, new Vector2(0.5f, 1), new Vector2(0, -10), new Vector2(232, 72));
-            var ai = art.gameObject.AddComponent<RawImage>();
+            Hud.Place(art, 20.3f, 14.5f, 327.7f, 104.4f);
+            var mask = art.gameObject.AddComponent<Image>();
+            Hud.Corner(mask, 13);
+            art.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+            var pic = Hud.Rect(art, "Picture");
+            Hud.Fill(pic);
+            var ai = pic.gameObject.AddComponent<RawImage>();
             ai.texture = Resources.Load<Texture2D>($"Icons/mode-{m}{(on ? "" : "-off")}");
             ai.raycastTarget = false;
-            var mn = Hud.Label(mb, Modes.GameModes[m].Name.ToUpperInvariant(), 14, on ? Look.Ink : Look.InkSoft, true, 400, 30, TextAlignmentOptions.Top);
-            mn.margin = new Vector4(0, 90, 0, 0);
-            var blurb = Hud.Label(mb, Modes.GameModes[m].Blurb, 13, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Top);
-            blurb.margin = new Vector4(0, 114, 0, 0);
+            Hud.Text(mb, Modes.GameModes[m].Name.ToUpperInvariant(), 20.3f, 130.4f, 327.7f, 22, 18.1f, on ? Look.Ink : Look.InkSoft, true, 400, 24);
+            Hud.Text(mb, Modes.GameModes[m].Blurb, 20.3f, 155.3f, 327.7f, 19, 15.8f, Look.InkFaint, false, 400, 0);
         }
-        y -= 150 + 34;
-
-        y = Group(content, y, "YOUR DECKS", "");
+        float y = 272;
         var mine = Decks.Custom().Where(d => Modes.ModeOf(d) == gm).ToList();
         var presets = Decks.Presets.Where(d => Modes.ModeOf(d) == gm).ToList();
+        y = Group(content, y, "YOUR DECKS", "");
         y = Boxes(content, y, mine, true);
-        y -= 30;
-        y = Group(content, y, "STARTERS", "COPY ONE TO MAKE IT YOUR OWN");
+        y = Group(content, y + 71.6f, "STARTERS", "copy one to make it your own");
         y = Boxes(content, y, presets.Where(d => d.Mixed != true).Concat(presets.Where(d => d.Mixed == true)).ToList(), false);
 
-        content.sizeDelta = new Vector2(800, -y + 24);
+        content.sizeDelta = new Vector2(0, y + 24);
         var hit = content.gameObject.AddComponent<Image>();
         hit.color = new Color(1, 1, 1, 0.001f);
         var scroll = view.gameObject.AddComponent<ScrollRect>();
@@ -199,28 +200,33 @@ public class BuilderView : MonoBehaviour
         scroll.scrollSensitivity = 40;
     }
 
+    /// <summary>A group's label (the web's .section-label: 13, spaced 0.3em, centred), a quiet note after it; returns where its boxes begin.</summary>
     static float Group(RectTransform content, float y, string name, string note)
     {
-        var l = Hud.Label(content, note.Length > 0 ? $"{name}  <color=#a6a9b0><size=80%>{note}</size></color>" : name, 13, Look.InkSoft, true, 500, 30, TextAlignmentOptions.Top);
-        l.rectTransform.anchorMin = new Vector2(0, 1);
-        l.rectTransform.anchorMax = new Vector2(1, 1);
-        l.rectTransform.pivot = new Vector2(0.5f, 1);
-        l.rectTransform.anchoredPosition = new Vector2(0, y);
-        l.rectTransform.sizeDelta = new Vector2(0, 24);
-        return y - 40;
+        float nw = Hud.Wide(name, 13, 400, 30, 0), tw = note.Length > 0 ? Hud.Wide(note, 16.2f, 400, 0, 0, false) : 0, gap = note.Length > 0 ? 21.8f : 0;
+        float x = 800 - (nw + gap + tw) / 2;
+        Hud.Text(content, name, x, y + 1.5f, nw + 2, 16, 13, Look.InkSoft, true, 400, 30, TextAlignmentOptions.Left);
+        if (note.Length > 0) Hud.Text(content, note, x + nw + gap, y, tw + 2, 19, 16.2f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
+        return y + (note.Length > 0 ? 19 : 16) + 11.6f;
     }
 
-    const float BoxW = 150, BoxH = 208, Depth = 12;
+    const float BoxW = 217.5f, BoxH = 302.1f, Depth = 17.4f;
 
-    /// <summary>A grid of deck boxes, four to a row (yours led by a new one); returns where it ends.</summary>
+    /// <summary>
+    /// A grid of deck boxes (the web's .db-boxes: 217.5 across, 40.6 apart, five to a row, each row centred; 20.3 of
+    /// room above them for the lids), yours led by a new one, each its buttons under it; returns where it ends.
+    /// </summary>
     float Boxes(RectTransform content, float y, List<Decks.Saved> decks, bool own)
     {
         int n = decks.Count + (own ? 1 : 0);
-        const float pitchX = BoxW + 28, pitchY = Depth + BoxH + 6 + 30 + 22;
+        float rowH = own && decks.Count == 0 ? Depth + BoxH : Depth + BoxH + 8.7f + 43.5f;
+        float top = y + 20.3f;
         for (int i = 0; i < n; i++)
         {
-            var at = new Vector2(-1.5f * pitchX + (i % 4) * pitchX, y - (i / 4) * pitchY);
-            if (own && i == 0) { NewTile(content, at); continue; }
+            int row = i / 5, col = i % 5, inRow = Mathf.Min(5, n - row * 5);
+            float x = 800 - (inRow * BoxW + (inRow - 1) * 40.6f) / 2 + col * (BoxW + 40.6f);
+            float at = top + row * (rowH + 31.9f) + Depth;
+            if (own && i == 0) { NewTile(content, x, at); continue; }
             var d = decks[i - (own ? 1 : 0)];
             var buttons = new List<(string icon, string name, System.Action act, bool danger)>
             {
@@ -232,19 +238,24 @@ public class BuilderView : MonoBehaviour
                 buttons.Add(("db-delete", "delete", () => { Decks.Delete(d.Id); Draw(); }, true));
             }
             // (Open it by tapping the box: a starter to look through, your own to edit.)
-            DeckBox(content, at, d, () => { Open(d, own ? d.Id : null, d.Name); Draw(); }, buttons);
+            DeckBox(content, x, at, d, () => { Open(d, own ? d.Id : null, d.Name); Draw(); }, buttons);
         }
-        return y - ((n + 3) / 4) * pitchY;
+        int rows = (n + 4) / 5;
+        return top + rows * rowH + (rows - 1) * 31.9f + 23.2f;
     }
 
-    /// <summary>The new deck's tile: a dashed place for a box, a plus in it.</summary>
-    void NewTile(RectTransform parent, Vector2 at)
+    /// <summary>The new deck's tile (the web's .db-new-tile): a dashed place for a box, a slate plus and its words in it.</summary>
+    void NewTile(RectTransform parent, float x, float y)
     {
-        var cell = Hud.Rect(parent, "New deck");
-        Hud.At(cell, new Vector2(0.5f, 1), at, new Vector2(BoxW + Depth, Depth + BoxH));
-        var box = Hud.Glass(cell, "Box", new Color(1, 1, 1, 0.45f), false);
-        Hud.At((RectTransform)box.transform, new Vector2(0, 0), Vector2.zero, new Vector2(BoxW, BoxH));
-        Outline(box.transform, new Color(0.365f, 0.416f, 0.549f, 0.45f), 1.5f);
+        var box = Hud.Box(parent, "New deck", Hud.Rgba(93, 106, 140, 0.45f), 14.5f);
+        Hud.Place((RectTransform)box.transform, x, y, BoxW, BoxH);
+        // (Its dashed edge, drawn as a hairline of the dashes' colour round the pale inside.)
+        var inside = Hud.Box(box.transform, "Inside", Color.white, 13.1f);
+        Hud.Fill((RectTransform)inside.transform);
+        ((RectTransform)inside.transform).offsetMin = new Vector2(1.4f, 1.4f);
+        ((RectTransform)inside.transform).offsetMax = new Vector2(-1.4f, -1.4f);
+        inside.color = new Color(0.98f, 0.98f, 0.98f, 1);
+        box.raycastTarget = true;
         box.gameObject.AddComponent<Button>().onClick.AddListener(() =>
         {
             Sound.Play("click");
@@ -252,72 +263,112 @@ public class BuilderView : MonoBehaviour
             Draw();
         });
         var plus = Hud.Rect(box.transform, "Plus");
-        Hud.At(plus, new Vector2(0.5f, 0.5f), new Vector2(0, 16), new Vector2(46, 46));
+        Hud.Place(plus, 79.75f, 109.2f, 58, 58);
         var pi = plus.gameObject.AddComponent<Image>();
         pi.sprite = Hud.Circle;
         pi.color = Hex("#5d6a8c");
         pi.raycastTarget = false;
-        Hud.Label(plus, "+", 30, Color.white, false, 400, 0).margin = new Vector4(0, 0, 0, 4);
-        var l = Hud.Label(box.transform, "NEW DECK", 11, Look.InkSoft, true, 400, 16);
-        l.margin = new Vector4(0, 70, 0, 0);
+        Hud.Label(plus, "+", 37.1f, Color.white, false, 400, 0).margin = new Vector4(0, 0, 0, 3);
+        Hud.Text(box.transform, "NEW DECK", 0, 175.9f, BoxW, 17, 13.9f, Look.InkSoft, true, 400, 16);
     }
 
     /// <summary>
     /// A deck as a deck box (builder.ts deckBox): a little 3D box in its race's colour, its cover the hero of its most
-    /// expensive Command card (its race's emblem if it has none), its name and races on the front, its buttons beneath.
+    /// expensive Command card (its race's emblem if it has none), its name and races on the front, cards still to
+    /// collect on a tag, its buttons (round, 43.5 across) beneath.
     /// </summary>
-    void DeckBox(RectTransform parent, Vector2 at, Decks.Saved d, System.Action open, List<(string icon, string name, System.Action act, bool danger)> buttons)
+    void DeckBox(RectTransform parent, float x, float y, Decks.Saved d, System.Action open, List<(string icon, string name, System.Action act, bool danger)> buttons)
     {
-        var cell = Hud.Rect(parent, d.Name);
-        Hud.At(cell, new Vector2(0.5f, 1), at, new Vector2(BoxW + Depth, Depth + BoxH + 6 + 30));
+        var cell = DeckBoxMini(parent, x, y, d, false, open, BoxW, true);
         if (DeckRules.DeckProblems(d.Cards, Modes.ModeOf(d)).Count > 0) cell.gameObject.AddComponent<CanvasGroup>().alpha = 0.7f;
+        // Cards still to collect, on a tag 9% down the front.
+        int missing = MissingCopies(d.Cards).Sum(x2 => x2.n);
+        if (missing > 0)
+        {
+            string text = $"{missing} TO COLLECT";
+            float tw = Hud.Wide(text, 13, 400, 12, 11.6f);
+            var tag = Hud.Box(cell, "Tag", Color.white, 10);
+            Hud.Place((RectTransform)tag.transform, (BoxW - tw) / 2, BoxH * 0.09f, tw, 20);
+            Hud.Shadow(tag, 10, new Hud.Drop(Hud.Rgba(212, 149, 42, 0.55f), 0, 0, 1.4f), new Hud.Drop(Hud.Rgba(60, 64, 80, 0.18f), 2.9f, 8.7f));
+            Hud.Label(tag.transform, text, 13, Hex("#a8641c"), true, 400, 12);
+        }
+        // Its buttons, small and round, beneath (centred under the box and its side).
+        float bx = (BoxW + Depth - (buttons.Count * 43.5f + (buttons.Count - 1) * 7.25f)) / 2;
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            var (icon, name, act, danger) = buttons[i];
+            var b = Hud.Rect(cell, name);
+            Hud.Place(b, bx + i * 50.75f, BoxH + 8.7f, 43.5f, 43.5f);
+            var bi = b.gameObject.AddComponent<Image>();
+            bi.sprite = Hud.Circle;
+            Hud.Shadow(bi, 21.75f, new Hud.Drop(Hud.Rgba(150, 156, 172, 0.25f), 0, 0, 1.4f), new Hud.Drop(Hud.Rgba(60, 70, 100, 0.1f), 2.9f, 8.7f));
+            var bb = b.gameObject.AddComponent<Button>();
+            bb.onClick.AddListener(() => { Sound.Play("click"); act(); });
+            Icon(b, icon, new Vector2(0.5f, 0.5f), Vector2.zero, 21.75f, danger ? Hex("#c0503a") : Look.InkSoft);
+        }
+    }
+
+    /// <summary>
+    /// A seat's deck as a small deck box (app.ts deckBoxMini, quickplay's and online's): `bw` across (the web's 133.4),
+    /// its button's top-left at (x, y); the front 0.72 as wide as tall, its lid and right side `bw` × 0.08 deep, the
+    /// cover (68% across) in its middle with a ring of its colour; picked (`on`), lifted 7.25 in a soft slate halo with
+    /// a tick on its front, else faded to 72%; its name beneath (12.1, spaced 0.1em). `act` null: not a button.
+    /// </summary>
+    public static RectTransform DeckBoxMini(RectTransform parent, float x, float y, Decks.Saved d, bool on, System.Action act, float bw = 133.4f, bool big = false)
+    {
+        float bh = bw / 0.72f, depth = bw * 0.08f, lift = on ? 7.25f : 0;
+        var cell = Hud.Rect(parent, d.Name);
+        Hud.Place(cell, x, y, bw, bh + 8.7f + 15);
         var dc = DeckColour(d.Cards);
         var box = Hud.Rect(cell, "Box");
-        Hud.At(box, new Vector2(0, 1), new Vector2(0, -Depth), new Vector2(BoxW, BoxH));
-        // Its shadow, its lid and right side (slanted faces behind the front), then the front.
-        var shade = Hud.Rect(box, "Shadow");
-        Hud.Fill(shade);
-        shade.offsetMin = new Vector2(-14, -30);
-        shade.offsetMax = new Vector2(14, -2);
-        var si = shade.gameObject.AddComponent<Image>();
-        si.sprite = Hud.Soft;
-        si.type = Image.Type.Sliced;
-        si.color = new Color(0.16f, 0.17f, 0.24f, 0.3f);
-        si.raycastTarget = false;
-        Face(box, "Lid", new[] { new Vector2(0, BoxH), new Vector2(BoxW, BoxH), new Vector2(BoxW + Depth, BoxH + Depth), new Vector2(Depth, BoxH + Depth) },
+        Hud.Place(box, 0, -lift, bw, bh);
+        if (!on && !big) box.gameObject.AddComponent<CanvasGroup>().alpha = 0.72f;
+        // Its lid and right side (slanted faces behind the front: the lid sheared right, the side up), then the front.
+        Face(box, "Lid", new[] { new Vector2(0, bh), new Vector2(bw, bh), new Vector2(bw + depth, bh + depth), new Vector2(depth, bh + depth) },
             Mix(dc, 0.14f, Hex("#7a8498")), Mix(dc, 0.14f, Hex("#9aa3b5")));
-        var side = Face(box, "Side", new[] { new Vector2(BoxW, 0), new Vector2(BoxW + Depth, Depth), new Vector2(BoxW + Depth, BoxH + Depth), new Vector2(BoxW, BoxH) },
-            Mix(dc, 0.08f, Hex("#343a47")), Mix(dc, 0.12f, Hex("#434b5b")));
-        side.Colours[1] = side.Colours[2] = Mix(dc, 0.08f, Hex("#343a47"));
+        var side = Face(box, "Side", new[] { new Vector2(bw, 0), new Vector2(bw + depth, depth), new Vector2(bw + depth, bh + depth), new Vector2(bw, bh) }, Color.white, Color.white);
         side.Colours[0] = side.Colours[3] = Mix(dc, 0.12f, Hex("#434b5b"));
-        var front = Face(box, "Front", new[] { Vector2.zero, new Vector2(BoxW, 0), new Vector2(BoxW, BoxH), new Vector2(0, BoxH) },
-            Mix(dc, 0.14f, Hex("#4b5466")), Mix(dc, 0.24f, Hex("#6b7588")));
-        front.raycastTarget = true;
-        var fb = front.gameObject.AddComponent<Button>();
-        fb.onClick.AddListener(() => { Sound.Play("click"); open(); });
-        // A band of its colour just under the lid, and a thin printed frame inside the edge.
+        side.Colours[1] = side.Colours[2] = Mix(dc, 0.08f, Hex("#343a47"));
+        // (The front's slate, lit from its top left and darker at its foot: the web's 160° gradient, its highlight
+        // and its inset shade, at its four corners.)
+        Color c1 = Mix(dc, 0.24f, Hex("#6b7588")), c2 = Mix(dc, 0.14f, Hex("#4b5466"));
+        var front = Face(box, "Front", new[] { Vector2.zero, new Vector2(bw, 0), new Vector2(bw, bh), new Vector2(0, bh) }, Color.white, Color.white);
+        front.Colours[3] = Color.Lerp(c1, Color.white, 0.12f);
+        front.Colours[2] = Color.Lerp(Color.Lerp(c1, c2, 0.3f), Color.white, 0.06f);
+        front.Colours[0] = Color.Lerp(c2, Hex("#141822"), 0.12f);
+        front.Colours[1] = Color.Lerp(c2, Hex("#141822"), 0.14f);
+        var drop = new Hud.Drop(Hud.Rgba(40, 44, 60, 0.25f), 20.3f, 34.8f);
+        // (Picked: the halo round it too.)
+        if (on) Hud.Shadow(front, 4, drop, new Hud.Drop(Hud.Rgba(93, 106, 140, 0.28f), 0, 7.25f, 1.4f));
+        else Hud.Shadow(front, 4, drop);
+        Outline(front.transform, Mix(dc, 0.25f, Hex("#7a8498")), 1);
+        if (act != null)
+        {
+            front.raycastTarget = true;
+            front.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); act(); });
+        }
+        // A band of its colour just under the lid, and a thin printed frame 6% inside the edge.
         var band = Hud.Rect(front.transform, "Band");
-        Hud.At(band, new Vector2(0.5f, 1), new Vector2(0, -BoxH * 0.022f), new Vector2(BoxW, Mathf.Max(1.5f, BoxH * 0.01f)));
+        Hud.Place(band, 0, bh * 0.022f, bw, bh * 0.01f);
         band.gameObject.AddComponent<Image>().color = Mix(dc, 0.75f, Color.white);
         var frame = Hud.Rect(front.transform, "Frame");
         Hud.Fill(frame);
-        frame.offsetMin = new Vector2(BoxW * 0.045f, BoxW * 0.045f);
+        frame.offsetMin = new Vector2(bw * 0.06f, bh * 0.06f);
         frame.offsetMax = -frame.offsetMin;
         Outline(frame, new Color(1, 1, 1, 0.16f), 1);
-        // The cover.
-        float cs = BoxW * 0.72f;
+        // The cover: white under it, a ring of its colour, a shadow.
+        // (A big box, as the deck lists show it, has its cover higher, its name and races under it on the front.)
+        float cs = bw * (big ? 0.598f : 0.669f);
         var cover = Hud.Rect(front.transform, "Cover");
-        Hud.At(cover, new Vector2(0.5f, 1), new Vector2(0, -24), new Vector2(cs + 8, cs + 8));
-        var ring = cover.gameObject.AddComponent<Image>();
-        ring.sprite = Hud.Circle;
-        ring.color = Mix(dc, 0.7f, Color.white);
-        ring.raycastTarget = false;
-        var inner = Hud.Rect(cover, "White");
-        Hud.At(inner, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(cs + 6, cs + 6));
-        var wi = inner.gameObject.AddComponent<Image>();
-        wi.sprite = Hud.Circle;
-        wi.color = new Color(1, 1, 1, 0.9f);
-        wi.raycastTarget = false;
+        Hud.At(cover, new Vector2(0.5f, 1), new Vector2(0, -(big ? 0.424f : 0.5f) * bh), new Vector2(cs, cs));
+        cover.pivot = new Vector2(0.5f, 0.5f);
+        var ci = cover.gameObject.AddComponent<Image>();
+        ci.sprite = Hud.Circle;
+        ci.color = Color.white;
+        ci.raycastTarget = false;
+        // (A big box's cover has a white ring inside its coloured one.)
+        if (big) Hud.Shadow(ci, cs / 2, new Hud.Drop(new Color(1, 1, 1, 0.9f), 0, 0, 4.3f), new Hud.Drop(Mix(dc, 0.7f, Color.white), 0, 0, 5.8f), new Hud.Drop(Hud.Rgba(30, 34, 44, 0.3f), 8.7f, 20.3f));
+        else Hud.Shadow(ci, cs / 2, new Hud.Drop(Mix(dc, 0.6f, Color.white), 0, 0, 2.2f), new Hud.Drop(Hud.Rgba(20, 24, 34, 0.4f), 4.3f, 11.6f));
         var hero = d.Cover ?? CoverCard(d.Cards);
         int? race = Campaign.MainRace(d.Cards);
         if (hero != null) Portrait(cover, hero, cs);
@@ -329,31 +380,23 @@ public class BuilderView : MonoBehaviour
             ei.texture = Resources.Load<Texture2D>(race == null ? "Icons/collection-small" : $"Icons/faction-f{race.Value + 1}");
             ei.raycastTarget = false;
         }
-        var nm = Hud.Label(front.transform, d.Name.ToUpperInvariant(), 11, Color.white, true, 500, 14, TextAlignmentOptions.Bottom);
-        nm.textWrappingMode = TextWrappingModes.Normal;
-        nm.margin = new Vector4(10, 0, 10, 36);
-        var rl = Hud.Label(front.transform, RacesLabel(d.Cards).ToUpperInvariant(), 9, new Color(1, 1, 1, 0.85f), false, 500, 20, TextAlignmentOptions.Bottom);
-        rl.margin = new Vector4(6, 0, 6, 18);
-        // Cards still to collect, on a tag.
-        int missing = MissingCopies(d.Cards).Sum(x => x.n);
-        if (missing > 0)
+        if (on)
         {
-            var tag = Hud.Glass(front.transform, "Tag", Color.white, false);
-            Hud.At((RectTransform)tag.transform, new Vector2(0.5f, 1), new Vector2(0, -BoxH * 0.09f), new Vector2(124, 22));
-            Hud.Label(tag.transform, $"{missing} TO COLLECT", 9, Hex("#a8641c"), true, 500, 12);
+            // (The tick: the app's ticked box, larger: 17% of the box across, 6% down and 7% in from its right.)
+            float t = Mathf.Max(21.75f, bw * 0.17f);
+            var tick = Hud.Box(front.transform, "Tick", Hex("#5d6a8c"), t * 0.28f);
+            Hud.Place((RectTransform)tick.transform, bw * 0.93f - t, bh * 0.06f, t, t);
+            Hud.Shadow(tick, t * 0.28f, new Hud.Drop(new Color(1, 1, 1, 0.7f), 0, 0, 1.4f));
+            Hud.Label(tick.transform, "✓", t * 0.72f, Color.white, false, 600, 0);
         }
-        // Its buttons, small and round, beneath.
-        for (int i = 0; i < buttons.Count; i++)
+        if (big)
         {
-            var (icon, name, act, danger) = buttons[i];
-            var b = Hud.Glass(cell, name, Color.white, false);
-            Hud.At((RectTransform)b.transform, new Vector2(0, 0), new Vector2(BoxW / 2 - (buttons.Count * 36 - 6) / 2f + i * 36, 0), new Vector2(30, 30));
-            b.sprite = Hud.Circle;
-            b.type = Image.Type.Simple;
-            var bb = b.gameObject.AddComponent<Button>();
-            bb.onClick.AddListener(() => { Sound.Play("click"); act(); });
-            Icon(b.transform, icon, new Vector2(0.5f, 0.5f), Vector2.zero, 16, danger ? Hex("#c0503a") : Look.InkSoft);
+            var nm = Hud.Text(front.transform, d.Name.ToUpperInvariant(), bw * 0.08f, bh * 0.83f - 11, bw * 0.84f, 22, 16.7f, Color.white, true, 500, 14);
+            nm.textWrappingMode = TextWrappingModes.Normal;
+            Hud.Text(front.transform, RacesLabel(d.Cards).ToUpperInvariant(), bw * 0.05f, bh * 0.9f - 8, bw * 0.9f, 16, 13.5f, new Color(1, 1, 1, 0.85f), false, 500, 20);
         }
+        else Hud.Text(cell, d.Name.ToUpperInvariant(), -10, bh + 8.7f, bw + 20, 15, 12.1f, on ? Look.Ink : Look.InkFaint, true, 400, 10);
+        return cell;
     }
 
     /// <summary>A deck's cover: its most expensive Command card (by energy, then rarity, then name), if it has one (cover.ts).</summary>
