@@ -15,7 +15,9 @@ concurrency:
   group: unity-${{ github.ref }}
 
 jobs:
+  # (A preview, "[play]", goes straight to the browser's build: no Mac build or screenshots first.)
   build:
+    if: github.event_name != 'workflow_dispatch' && !contains(github.event.head_commit.message, '[play]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +59,6 @@ jobs:
   # when a commit's message asks for it ("[play]") or by hand. The baked pictures go beside it, each its own file (see
   # Pictures.cs), with their list; the build is committed to public/play/.
   web:
-    needs: build
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[play]')
     runs-on: ubuntu-latest
     steps:
