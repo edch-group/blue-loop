@@ -72,7 +72,7 @@ public static class BuildScript
         UnityEngine.Object.DestroyImmediate(cam.gameObject);
         UnityEngine.Object.DestroyImmediate(battle.gameObject);
         var app = App.Make();
-        foreach (var page in new[] { "title", "hub", "quickplay", "collection", "glossary", "tutorial", "challenges", "campaign", "stellari", "captain" })
+        foreach (var page in new[] { "title", "hub", "quickplay", "collection", "glossary", "tutorial", "challenges", "campaign", "stellari", "captain", "hangar" })
         {
             var menu = app.Menu(page);
             app.MenuCam.targetTexture = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };
@@ -85,6 +85,8 @@ public static class BuildScript
             {
                 scene.At = 30;
                 scene.Into(app.MenuCam.targetTexture);
+                // (The hangar's marks laid on the ship as these cameras see it.)
+                foreach (var h in menu.GetComponentsInChildren<HangarView>()) h.Place();
                 foreach (var c in scene.Cameras) c.Render();
             }
             Shot(app.MenuCam, Path.Combine(dir, $"menu-{page}.png"));

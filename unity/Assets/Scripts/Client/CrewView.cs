@@ -229,7 +229,7 @@ public class CrewView : MonoBehaviour
             tb.sprite = Hud.Rounded;
             tb.type = Image.Type.Sliced;
             tb.color = Look.Paper;
-            var tt = Hud.Label(tl, $"{roman[tier - 1]} · {names.ElementAtOrDefault(tier - 1) ?? ""}   {Ascent.TierPicksTaken(tree, a, tier)}/{Ascent.TierPicks}", 12, tier == a.Gates + 1 ? Look.Ink : Look.InkSoft, true, 400, 26);
+            var tt = Hud.Label(tl, $"{roman[tier - 1]} · {(names.ElementAtOrDefault(tier - 1) ?? "").ToUpperInvariant()}   {Ascent.TierPicksTaken(tree, a, tier)}/{Ascent.TierPicks}", 12, tier == a.Gates + 1 ? Look.Ink : Look.InkSoft, true, 400, 26);
             tt.alpha = reached ? 1 : 0.5f;
             y -= Head;
             Place(tiers[tier - 1].Select(n =>

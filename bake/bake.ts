@@ -226,3 +226,11 @@ function currency(name: string, size: number): void {
   stage.querySelector('svg')?.setAttribute('style', `width:${size}px;height:${size}px;display:block`);
 }
 Object.assign(window, { currency });
+
+// ---- Loot (loot3d.ts): a ship part by its kind and rarity, the petal, the cache, as their small 3D views draw them ----
+import { mountLoot3d } from '../src/ui/loot3d';
+function loot(what: string, size: number): void {
+  stage.innerHTML = `<canvas id="piece" class="part-3d" data-loot3d="${what}" style="display:block;width:${size}px;height:${size}px"></canvas>`;
+  mountLoot3d(stage);
+}
+Object.assign(window, { loot });

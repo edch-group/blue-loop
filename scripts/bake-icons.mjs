@@ -40,6 +40,13 @@ for (const id of await page.evaluate(() => window.upIds())) {
   await settle();
   writeFileSync(`${out}/up-${id}.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
 }
+// The ship's parts as the hangar shows them (each kind in each rarity), turned a moment in.
+for (const kind of ['armour', 'shield', 'weapon', 'booster', 'warp'])
+  for (const rarity of ['dwarf', 'stellar', 'anomaly']) {
+    await page.evaluate((w) => window.loot(w, 96), `${kind}:${rarity}`);
+    await page.waitForTimeout(700);
+    writeFileSync(`${out}/part-${kind}-${rarity}.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
+  }
 await page.evaluate(() => window.currency('petal', 64));
 await settle();
 writeFileSync(`${out}/petal.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));

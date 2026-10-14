@@ -36,6 +36,8 @@ public class CampaignBackdrop : MonoBehaviour
     public void Focus(string section)
     {
         zone = section;
+        // (Opened afresh in the editor's pictures: settled at once.)
+        if (!Application.isPlaying) calm = zone == "hangar" ? 1 : 0;
         bool alone = zone == "captain";
         landCam.enabled = !alone;
         shipCam.clearFlags = alone ? CameraClearFlags.SolidColor : CameraClearFlags.Depth;
@@ -89,9 +91,8 @@ public class CampaignBackdrop : MonoBehaviour
         ship.SetParent(transform, false);
         ship.localScale = Flip;
         var meta = CampaignView.LoadMeta();
-        var spec = Spec(meta);
-        build = CaptainShip.CaptainShipModel(spec);
-        shipModel = Model("Ship", ModelMesh.From(build.Mesh));
+        shipModel = Model("Ship", null);
+        Refit();
         captain = Model("Captain", ModelMesh.Of("captain", CaptainModels.CaptainModel));
         tail = Model("Tails", ModelMesh.Of("captain-tails", CaptainModels.StreamerModel));
         foreach (var id in Meta.ActiveCrew(meta))
@@ -101,6 +102,34 @@ public class CampaignBackdrop : MonoBehaviour
         shipCam.clearFlags = CameraClearFlags.Depth;
         Pose();
     }
+
+    double level;
+    Dictionary<string, V3> slots;
+    Matrix4x4 shipNow = Matrix4x4.identity;
+    float calm;
+
+    /// <summary>The ship as fitted and levelled now (rebuilt: a part fitted is built onto it at once).</summary>
+    public void Refit()
+    {
+        var spec = Spec(CampaignView.LoadMeta());
+        level = spec.Level;
+        build = CaptainShip.CaptainShipModel(spec);
+        slots = CaptainShip.SlotSpots(level);
+        var mf = shipModel.GetComponent<MeshFilter>();
+        if (mf.sharedMesh != null && mf.sharedMesh.name == "") Mats.Kill(mf.sharedMesh);
+        mf.sharedMesh = ModelMesh.From(build.Mesh);
+    }
+
+    /// <summary>Where a part's slot is on the screen now (pixels), as the ship moves.</summary>
+    public Vector3? SlotScreen(string slot)
+    {
+        if (slots == null || !slots.TryGetValue(slot, out var v)) return null;
+        var local = shipNow.MultiplyPoint(B(v.X, v.Y, v.Z));
+        var p = shipCam.WorldToScreenPoint(ship.TransformPoint(local));
+        return p.z > 0 ? p : (Vector3?)null;
+    }
+
+    public Camera ShipCamera => shipCam;
 
     static CaptainShipSpec Spec(MetaState meta)
     {
@@ -192,7 +221,9 @@ public class CampaignBackdrop : MonoBehaviour
         ground.SetFloat("_Gone", fx - 1.1f);
         ground.SetFloat("_Crack", fx - 0.5f);
         {
-            float yaw = -0.85f, pitch = 0.2f, dist = 3.4f;
+            // (The ship tab open: the land's camera swings up over the ship as the ship's own does.)
+            float h = calm * calm * (3 - 2 * calm);
+            float yaw = -0.85f + 0.52f * h, pitch = 0.2f + 1.05f * h, dist = 3.4f - 0.6f * h;
             var target = new Vector3(fx, 0, 0.15f);
             var dir = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch));
             Aim(landCam, target + dir * dist, target);
@@ -200,7 +231,12 @@ public class CampaignBackdrop : MonoBehaviour
 
         // The ship drifts on: rising and falling, rolling and pitching a little.
         const float SS = 4.2f;
-        var shipM = T(new Vector3(0, 0.05f * Mathf.Sin(t * 0.7f), 0)) * RX(0.035f * Mathf.Sin(t * 0.5f)) * RZ(0.025f * Mathf.Sin(t * 0.6f + 1)) * S(SS);
+        // (In the hangar, looked down on as parts are fitted, it rides almost still: its slots held under the finger.)
+        float dt = Application.isPlaying ? Mathf.Min(0.2f, Time.deltaTime) : 1;
+        calm += ((zone == "hangar" ? 1 : 0) - calm) * Mathf.Min(1, dt * 2.6f);
+        float sway = 1 - 0.8f * calm;
+        var shipM = T(new Vector3(0, 0.05f * Mathf.Sin(t * 0.7f) * sway, 0)) * RX(0.035f * Mathf.Sin(t * 0.5f) * sway) * RZ(0.025f * Mathf.Sin(t * 0.6f + 1) * sway) * S(SS);
+        shipNow = shipM;
         Place(shipModel, shipM);
         // The Captain on the foredeck, facing ahead and a little toward us; the tails and scarf streaming.
         var at = B(32, 12, build.Deck);
@@ -228,11 +264,12 @@ public class CampaignBackdrop : MonoBehaviour
         float half = Mathf.Tan(16 * Mathf.Deg2Rad);
         {
             float narrow = Mathf.Min(1, aspect / 1.6f);
-            bool cap = zone == "captain";
-            float dist = cap ? 2.3f / narrow : Mathf.Max(3.7f / (half * aspect), 2.4f / half);
-            float yaw = (cap ? 1.0f : -0.52f) + 0.03f * Mathf.Sin(t * 0.17f), pitch = cap ? 0.04f : 0.1f;
-            float off = cap ? -0.29f : -0.1f;
-            var target = cap ? (Vector3)(capM.MultiplyPoint(B(20, 12, 30))) + new Vector3(0, 0.1f, 0) : new Vector3(-0.3f, 0.74f, 0);
+            bool cap = zone == "captain", hangar = zone == "hangar";
+            // (The ship from above: its nose to the right, on the left of the screen beside the hangar's page.)
+            float dist = cap ? 2.3f / narrow : hangar ? 9.2f / narrow : Mathf.Max(3.7f / (half * aspect), 2.4f / half);
+            float yaw = (cap ? 1.0f : hangar ? 0 : -0.52f) + 0.03f * Mathf.Sin(t * 0.17f), pitch = cap ? 0.04f : hangar ? 1.25f : 0.1f;
+            float off = cap ? -0.29f : hangar ? -0.15f * narrow : -0.1f;
+            var target = cap ? (Vector3)(capM.MultiplyPoint(B(20, 12, 30))) + new Vector3(0, 0.1f, 0) : hangar ? B(20, 12, 5) * SS : new Vector3(-0.3f, 0.74f, 0);
             var dir = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch));
             Aim(shipCam, target + dir * dist, target);
             shipCam.ResetProjectionMatrix();
