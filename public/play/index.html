@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Blue Loop</title>
+  <style>
+    /* The game fills the window, on the paper it is drawn on; a fine bar while it loads. */
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #f3f2ee; }
+    #unity-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: #f3f2ee; }
+    #loading { position: fixed; left: 50%; top: 50%; width: 220px; height: 2px; transform: translate(-50%, -50%); background: rgba(62, 66, 74, 0.12); }
+    #loading i { display: block; height: 100%; width: 0; background: #3e424a; transition: width 0.2s; }
+  </style>
+</head>
+<body>
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="loading"><i></i></div>
+  <script src="Build/86e6f0ebf20c75d9a7435c96b236a586.loader.js"></script>
+  <script>
+    const bar = document.querySelector('#loading i');
+    createUnityInstance(document.querySelector('#unity-canvas'), {
+      dataUrl: 'Build/120d167f07348f68de652bb99c784a22.data.unityweb',
+      frameworkUrl: 'Build/c84afffa85e1542a10e1e9533f5ee795.framework.js.unityweb',
+      codeUrl: 'Build/a4d25e6dd9eb3a273b656c39aed3077b.wasm.unityweb',
+      streamingAssetsUrl: 'StreamingAssets',
+      companyName: "DefaultCompany",
+      productName: "Blue Loop",
+      productVersion: "1.0",
+      matchWebGLToCanvasSize: true,
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+    }, (p) => { bar.style.width = `${Math.round(p * 100)}%`; })
+      .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; })
+      .catch((e) => { document.getElementById('loading').textContent = String(e); });
+  </script>
+</body>
+</html>
