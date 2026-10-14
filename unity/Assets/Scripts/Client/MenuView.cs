@@ -85,7 +85,7 @@ public class MenuView : MonoBehaviour
             case "challenges": ChallengesView.Make(page, this); break;
             case "campaign": CampaignMenu(); break;
             case "stellari": StellariView.Make(page, this); break;
-            case "captain": CrewView.Make(page, this); break;
+            case "captain": CrewView.Make(page, this, scene); break;
             case "hangar": HangarView.Make(page, this, scene); break;
             default: Title(); break;
         }

@@ -28,6 +28,7 @@ public class CampaignBackdrop : MonoBehaviour
     CaptainShipBuild build;
     float t0;
     string zone;
+    readonly Dictionary<string, Matrix4x4> crewM = new Dictionary<string, Matrix4x4>();
 
     /// <summary>
     /// Frame a section (its page open beside it), or (null) the whole ship. The Captain's: the camera close on the
@@ -38,12 +39,15 @@ public class CampaignBackdrop : MonoBehaviour
         zone = section;
         // (Opened afresh in the editor's pictures: settled at once.)
         if (!Application.isPlaying) calm = zone == "hangar" ? 1 : 0;
-        bool alone = zone == "captain";
+        // (The Captain or one of the crew, alone: everything else covered.)
+        bool alone = zone != null && zone != "hangar";
         landCam.enabled = !alone;
         shipCam.clearFlags = alone ? CameraClearFlags.SolidColor : CameraClearFlags.Depth;
         shipCam.backgroundColor = Look.Paper;
         shipModel.gameObject.SetActive(!alone);
-        foreach (var c in crew) c.t.gameObject.SetActive(!alone);
+        captain.gameObject.SetActive(!alone || zone == "captain");
+        tail.gameObject.SetActive(!alone || zone == "captain");
+        foreach (var c in crew) c.t.gameObject.SetActive(!alone || zone == c.id);
         Pose();
     }
 
@@ -255,6 +259,7 @@ public class CampaignBackdrop : MonoBehaviour
                 : B(pl.X + 0.5 * Mathf.Sin(t * 0.37f), pl.Y + 0.3 * Mathf.Sin(t * 0.29f + 2), pl.Z + 0.9 * Mathf.Sin(t * 0.83f + 1.7f));
             var o = B(pl.Anchor.X, pl.Anchor.Y, pl.Anchor.Z);
             var local = RY((float)pl.Turn) * S(kk) * T(-o);
+            crewM[id] = pl.On == "air" ? S(SS) * T(spot) * RX(0.06f * Mathf.Sin(t * 0.61f)) * RZ(0.07f * Mathf.Sin(t * 0.83f + 2.6f)) * local : shipM * T(spot) * local;
             Place(tr, pl.On == "air" ? S(SS) * T(spot) * RX(0.06f * Mathf.Sin(t * 0.61f)) * RZ(0.07f * Mathf.Sin(t * 0.83f + 2.6f)) * local : shipM * T(spot) * local);
         }
 
@@ -264,12 +269,15 @@ public class CampaignBackdrop : MonoBehaviour
         float half = Mathf.Tan(16 * Mathf.Deg2Rad);
         {
             float narrow = Mathf.Min(1, aspect / 1.6f);
-            bool cap = zone == "captain", hangar = zone == "hangar";
+            // (One of the crew: their chest, on the figure as it stands, crouches or flies.)
+            bool mate = zone != null && crewM.ContainsKey(zone);
+            bool cap = zone == "captain" || mate, hangar = zone == "hangar";
             // (The ship from above: its nose to the right, on the left of the screen beside the hangar's page.)
             float dist = cap ? 2.3f / narrow : hangar ? 9.2f / narrow : Mathf.Max(3.7f / (half * aspect), 2.4f / half);
             float yaw = (cap ? 1.0f : hangar ? 0 : -0.52f) + 0.03f * Mathf.Sin(t * 0.17f), pitch = cap ? 0.04f : hangar ? 1.25f : 0.1f;
             float off = cap ? -0.29f : hangar ? -0.15f * narrow : -0.1f;
-            var target = cap ? (Vector3)(capM.MultiplyPoint(B(20, 12, 30))) + new Vector3(0, 0.1f, 0) : hangar ? B(20, 12, 5) * SS : new Vector3(-0.3f, 0.74f, 0);
+            var target = mate ? crewM[zone].MultiplyPoint(B(20, 12, zone == "engineer" ? 20 : zone == "shade" || zone == "seer" ? 22 : 28)) + new Vector3(0, 0.1f, 0)
+                : cap ? (Vector3)(capM.MultiplyPoint(B(20, 12, 30))) + new Vector3(0, 0.1f, 0) : hangar ? B(20, 12, 5) * SS : new Vector3(-0.3f, 0.74f, 0);
             var dir = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch));
             Aim(shipCam, target + dir * dist, target);
             shipCam.ResetProjectionMatrix();

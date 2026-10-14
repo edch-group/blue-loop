@@ -21,6 +21,10 @@ public class CrewView : MonoBehaviour
     MenuView menu;
     readonly List<string> placed = new List<string>();
     readonly List<CaptainMeta> history = new List<CaptainMeta>();
+    readonly List<CompanionMeta> compHistory = new List<CompanionMeta>();
+    /// <summary>Whose tree is open: the Captain's (null) or one of the crew's.</summary>
+    string tab;
+    CampaignBackdrop scene;
     bool resetArmed;
     ScrollRect scroll;
     float keepScroll = -1;
@@ -28,13 +32,14 @@ public class CrewView : MonoBehaviour
     static readonly float[] Cols = { 40, 275, 545, 780 };
     const float Spine = 512, Row = 96, Head = 46, GateH = 110, RootH = 110, Top = 30, SheetW = 900;
 
-    public static CrewView Make(RectTransform parent, MenuView menu)
+    public static CrewView Make(RectTransform parent, MenuView menu, CampaignBackdrop scene = null)
     {
         var r = Hud.Rect(parent, "Crew");
         Hud.Fill(r);
         var v = r.gameObject.AddComponent<CrewView>();
         v.root = r;
         v.menu = menu;
+        v.scene = scene;
         v.Draw();
         return v;
     }
@@ -46,38 +51,150 @@ public class CrewView : MonoBehaviour
         if (scroll != null) keepScroll = scroll.verticalNormalizedPosition;
         foreach (Transform c in root) Mats.Kill(c.gameObject);
         var meta = CampaignView.LoadMeta();
-        var c0 = Meta.CaptainMeta(meta);
-        int left = Meta.PointsLeft(meta);
-        // The header: back, undo, clear, reset.
+        var crew = Meta.CompanionsFound(meta);
+        if (tab != null && !crew.Contains(tab)) tab = null;
+        scene?.Focus(tab ?? "captain");
+        // The header: back, undo, clear, and the page's own tools.
         var back = Hud.Pill(root, "‹ Back", () => menu.Show("campaign"), 15);
         Hud.At((RectTransform)back.transform, new Vector2(0, 1), new Vector2(26, -26), new Vector2(110, 44));
-        float x = 150;
-        void Small(string label, System.Action act, Color ink)
-        {
-            var r = Hud.Rect(root, label);
-            Hud.At(r, new Vector2(0, 1), new Vector2(x, -26), new Vector2(18 + label.Length * 11, 44));
-            var hit = r.gameObject.AddComponent<Image>();
-            hit.color = new Color(1, 1, 1, 0);
-            r.gameObject.AddComponent<Button>().onClick.AddListener(() => act());
-            Hud.Label(r, label.ToUpperInvariant(), 13, ink, true, 500, 20);
-            x += 30 + label.Length * 11;
-        }
+        x = 150;
         if (placed.Count > 0)
         {
             Small("undo", Undo, Look.InkSoft);
             Small("clear", Clear, Look.InkSoft);
         }
-        if (Meta.CaptainPointsSpent(meta) > 0) Small(resetArmed ? $"confirm reset · {Meta.SkillResetPetals} petals" : $"reset · {Meta.SkillResetPetals} petals", Reset, resetArmed ? Look.Danger : Look.InkSoft);
-        // Who: the Captain's title (by the gates passed), the points to spend, the level.
+        // A tab each: the Captain and each of the crew found, their points to spend beside them.
+        if (crew.Count > 0) Tabs(meta, crew);
+        if (tab == null) CaptainPage(meta);
+        else CompanionPage(meta, tab);
+    }
+
+    float x;
+
+    void Small(string label, System.Action act, Color ink)
+    {
+        var r = Hud.Rect(root, label);
+        Hud.At(r, new Vector2(0, 1), new Vector2(x, -26), new Vector2(18 + label.Length * 11, 44));
+        var hit = r.gameObject.AddComponent<Image>();
+        hit.color = new Color(1, 1, 1, 0);
+        r.gameObject.AddComponent<Button>().onClick.AddListener(() => act());
+        Hud.Label(r, label.ToUpperInvariant(), 13, ink, true, 500, 20);
+        x += 30 + label.Length * 11;
+    }
+
+    void Tabs(MetaState meta, List<string> crew)
+    {
+        var ids = new List<string> { null };
+        ids.AddRange(crew);
+        var names = ids.Select(id => id == null ? "CAPTAIN" : Companions.CompanionDef(id).Name.Split(' ')[0].ToUpperInvariant()).ToList();
+        var widths = names.Select(n => 36 + n.Length * 11f + 22).ToList();
+        float total = widths.Sum() + 8;
+        var bar = Hud.Glass(root, "Tabs", new Color(1, 1, 1, 0.92f), false);
+        Hud.At((RectTransform)bar.transform, new Vector2(0.5f, 1), new Vector2(0, -26), new Vector2(total, 44));
+        float at = 4;
+        for (int i = 0; i < ids.Count; i++)
+        {
+            var id = ids[i];
+            int pts = id == null ? Meta.PointsLeft(meta) : Meta.CompanionPoints(meta, id);
+            bool on = id == tab;
+            var t = Hud.Glass(bar.transform, names[i], on ? Color.white : new Color(1, 1, 1, 0), false);
+            Hud.At((RectTransform)t.transform, new Vector2(0, 0.5f), new Vector2(at, 0), new Vector2(widths[i], 36));
+            var l = Hud.Label(t.transform, names[i], 11, on ? Look.Ink : Look.InkFaint, true, 500, 24, TextAlignmentOptions.Left);
+            l.margin = new Vector4(16, 0, 0, 0);
+            if (pts > 0)
+            {
+                var badge = Hud.Rect(t.transform, "Points");
+                Hud.At(badge, new Vector2(1, 0.5f), new Vector2(-12, 0), new Vector2(18, 18));
+                var bi = badge.gameObject.AddComponent<Image>();
+                bi.sprite = Hud.Circle;
+                bi.color = new Color32(0x3a, 0x42, 0x56, 255);
+                Hud.Label(badge, pts.ToString(), 9, Color.white, true, 500, 0);
+            }
+            t.gameObject.AddComponent<Button>().onClick.AddListener(() =>
+            {
+                tab = id;
+                placed.Clear();
+                history.Clear();
+                compHistory.Clear();
+                keepScroll = -1;
+                scroll = null;
+                Sound.Play("hover");
+                Draw();
+            });
+            at += widths[i];
+        }
+    }
+
+    /// <summary>Who, on the left: their title (by the gates passed), the points to spend, the level (and a note).</summary>
+    void Who(string title, string xp, string note = null)
+    {
         var who = Hud.Rect(root, "Who");
-        Hud.At(who, new Vector2(0, 1), new Vector2(0, -90), new Vector2(Hud.W * 0.4f, 120));
-        var title = (Ascent.CaptainTitles.ElementAtOrDefault(c0.Gates ?? 0) ?? "The Captain").ToUpperInvariant();
-        var h = Hud.Label(who, title, 34, Look.Ink, true, 400, 45, TextAlignmentOptions.Top);
+        Hud.At(who, new Vector2(0, 1), new Vector2(0, -90), new Vector2(Hud.W * 0.4f, 150));
+        var h = Hud.Label(who, title.ToUpperInvariant(), 34, Look.Ink, true, 400, 45, TextAlignmentOptions.Top);
         h.raycastTarget = false;
-        var xp = Hud.Label(who, $"<b>{left}</b>  <size=60%><color=#9aa0ac>SKILL POINT{(left == 1 ? "" : "S")} · LEVEL {Meta.LevelFor(meta.Xp).Level}</color></size>", 22, Look.Ink, true, 500, 6, TextAlignmentOptions.Top);
-        xp.margin = new Vector4(0, 56, 0, 0);
-        xp.raycastTarget = false;
-        Tree(meta, c0, left);
+        var x2 = Hud.Label(who, xp, 22, Look.Ink, true, 500, 6, TextAlignmentOptions.Top);
+        x2.margin = new Vector4(0, 56, 0, 0);
+        x2.raycastTarget = false;
+        if (note != null)
+        {
+            var n = Hud.Label(who, note.ToLowerInvariant(), 13, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
+            n.margin = new Vector4(40, 96, 40, 0);
+            n.textWrappingMode = TextWrappingModes.Normal;
+            n.raycastTarget = false;
+        }
+    }
+
+    void CaptainPage(MetaState meta)
+    {
+        var c = Meta.CaptainMeta(meta);
+        int left = Meta.PointsLeft(meta);
+        if (Meta.CaptainPointsSpent(meta) > 0) Small(resetArmed ? $"confirm reset · {Meta.SkillResetPetals} petals" : $"reset · {Meta.SkillResetPetals} petals", Reset, resetArmed ? Look.Danger : Look.InkSoft);
+        Who(Ascent.CaptainTitles.ElementAtOrDefault(c.Gates ?? 0) ?? "The Captain", $"<b>{left}</b>  <size=60%><color=#9aa0ac>SKILL POINT{(left == 1 ? "" : "S")} · LEVEL {Meta.LevelFor(meta.Xp).Level}</color></size>");
+        var g = Meta.CaptainGifts(meta);
+        var a = new AscentState { Nodes = c.Nodes ?? new List<string>(), Gates = c.Gates ?? 0 };
+        var wall = Cards.Rules.CaptainSingularities["wall"];
+        var brace = Captain.CaptainAbility(Captain.CaptainStartAbility).Ability;
+        bool wallOn = (c.Sing ?? "wall") == "wall", braceOn = c.Equipped.Contains(Captain.CaptainStartAbility);
+        var known = new List<Known>
+        {
+            new Known { arg = "start:brace", title = brace.Name.ToLowerInvariant(), what = BattleView.Words(brace.Text), colour = "#4fae9b", on = braceOn, sub = braceOn ? "carried" : "tap to carry" },
+            new Known { arg = "start:wall", title = wall.Name.ToLowerInvariant(), what = SingWords(wall), colour = "#6f8fd8", on = wallOn, sub = wallOn ? "carried" : "tap to carry" },
+        };
+        var names = Ascent.CaptainTitles.Select(t => t.Replace("The ", "").ToLowerInvariant()).ToList();
+        Tree(Ascent.CaptainTree, a, left, names, (n, owned) => Describe(n, owned, c, g), known);
+    }
+
+    /// <summary>
+    /// A companion's tree: their stats, each a path, and what they can learn; laid out as the Captain's is. Experience
+    /// comes only from what they do in battle. Aboard for the next run, or ashore (only so many fly at once).
+    /// </summary>
+    void CompanionPage(MetaState meta, string id)
+    {
+        var d = Companions.CompanionDef(id);
+        var a = Meta.CompanionTree(meta, id);
+        int left = Meta.CompanionPoints(meta, id);
+        var crew = Meta.ActiveCrew(meta);
+        bool aboard = crew.Contains(id), full = !aboard && crew.Count >= Companions.ActiveCrew;
+        if (Meta.CompanionsFound(meta).Count > Companions.ActiveCrew || !aboard)
+            Small(aboard ? "aboard" : full ? $"ashore · {Companions.ActiveCrew} aboard" : "ashore · send aboard", () =>
+            {
+                if (full) { Sound.Play("error"); return; }
+                CampaignView.SaveMeta(Meta.SetCrewAboard(CampaignView.LoadMeta(), id, !aboard));
+                Sound.Play("hover");
+                Draw();
+            }, aboard ? Look.Ink : Look.InkSoft);
+        var lv = Companions.CompanionLevel(meta.Companions[id].Xp);
+        var title = d.Titles.ElementAtOrDefault(a.Gates) ?? d.Name;
+        var parts = title.Split(new[] { ", " }, System.StringSplitOptions.None);
+        Who(parts.Length > 1 ? parts[1] : title, $"<b>{left}</b>  <size=60%><color=#9aa0ac>SKILL POINT{(left == 1 ? "" : "S")} · LEVEL {lv.Level} · {lv.Into}/{lv.Need}</color></size>", d.LearnsText);
+        var first = d.Traits.First(k => k.Id == d.Start);
+        var known = new List<Known> { new Known { arg = "", title = first.Name.ToLowerInvariant(), what = BattleView.Words(first.Text), colour = "#4fae9b", on = true, sub = "known" } };
+        var names = d.Titles.Select(t => { var p = t.Split(new[] { ", " }, System.StringSplitOptions.None); return (p.Length > 1 ? p[1] : t).ToLowerInvariant(); }).ToList();
+        Tree(Ascent.CompanionTrees[id], a, left, names, (n, owned) =>
+        {
+            var tr = n.Give.Trait != null ? d.Traits.FirstOrDefault(k => k.Id == n.Give.Trait) : null;
+            return tr != null ? new Look_ { title = tr.Name.ToLowerInvariant(), what = BattleView.Words(tr.Text), colour = "#4fae9b", owned = "" } : StatLook(n);
+        }, known);
     }
 
     // ---- What each pad is ----
@@ -116,26 +233,19 @@ public class CrewView : MonoBehaviour
             bool on = (c.Sing ?? "wall") == x.Give.Sing;
             return new Look_ { title = k.Name.ToLowerInvariant(), what = SingWords(k), colour = "#6f8fd8", on = owned && on, owned = owned ? (on ? "carried" : "tap to carry") : "" };
         }
+        return StatLook(x);
+    }
+
+    static Look_ StatLook(AscentNode x)
+    {
         var colour = (x.Give.Attack ?? 0) > 0 ? "#d9644a" : (x.Give.Stability ?? 0) > 0 ? "#d8a53c" : (x.Give.Cheaper ?? 0) > 0 ? "#5cae7c" : "#8a93a8";
         return new Look_ { title = x.Name, what = "", colour = colour, owned = "" };
     }
 
     // ---- The sheet: the tiers from the foot up, the gates between them, the spine ----
 
-    void Tree(MetaState meta, CaptainMeta c, int left)
+    void Tree(List<AscentNode> tree, AscentState a, int left, List<string> names, System.Func<AscentNode, bool, Look_> describe, List<Known> known)
     {
-        var g = Meta.CaptainGifts(meta);
-        var a = new AscentState { Nodes = c.Nodes ?? new List<string>(), Gates = c.Gates ?? 0 };
-        var tree = Ascent.CaptainTree;
-        var wall = Cards.Rules.CaptainSingularities["wall"];
-        var brace = Captain.CaptainAbility(Captain.CaptainStartAbility).Ability;
-        bool wallOn = (c.Sing ?? "wall") == "wall", braceOn = c.Equipped.Contains(Captain.CaptainStartAbility);
-        var known = new List<Known>
-        {
-            new Known { arg = "start:brace", title = brace.Name.ToLowerInvariant(), what = BattleView.Words(brace.Text), colour = "#4fae9b", on = braceOn, sub = braceOn ? "carried" : "tap to carry" },
-            new Known { arg = "start:wall", title = wall.Name.ToLowerInvariant(), what = SingWords(wall), colour = "#6f8fd8", on = wallOn, sub = wallOn ? "carried" : "tap to carry" },
-        };
-        var names = Ascent.CaptainTitles.Select(t => t.Replace("The ", "").ToLowerInvariant()).ToList();
         string[] roman = { "I", "II", "III", "IV" };
         int Rows(int n) => Mathf.Max(1, (n + Cols.Length - 1) / Cols.Length);
         var tiers = Enumerable.Range(1, Ascent.Tiers).Select(t => tree.Where(n => n.Tier == t).ToList()).ToList();
@@ -235,7 +345,7 @@ public class CrewView : MonoBehaviour
             Place(tiers[tier - 1].Select(n =>
             {
                 bool owned = a.Nodes.Contains(n.Id);
-                var look = Describe(n, owned, c, g);
+                var look = describe(n, owned);
                 var why = owned ? null : Ascent.AscentProblem(tree, a, n.Id, left);
                 bool plan = owned && placed.Contains(n.Id);
                 var sub = owned ? (look.owned != "" ? look.owned : "learnt") : why != null ? why.TrimEnd('.').ToLowerInvariant() : "1 point";
@@ -382,6 +492,7 @@ public class CrewView : MonoBehaviour
 
     void Pick(string arg)
     {
+        if (tab != null) { CompanionPick(arg); return; }
         var meta = CampaignView.LoadMeta();
         var c = Meta.CaptainMeta(meta);
         var g = Meta.CaptainGifts(meta);
@@ -423,8 +534,42 @@ public class CrewView : MonoBehaviour
         Draw();
     }
 
+    /// <summary>As on the Captain's tree: a tap learns it there and then, or passes the Astral Gate.</summary>
+    void CompanionPick(string arg)
+    {
+        var meta = CampaignView.LoadMeta();
+        if (meta.Companions == null || !meta.Companions.TryGetValue(tab, out var c) || c == null) return;
+        if (arg != "gate" && Meta.CompanionTree(meta, tab).Nodes.Contains(arg)) return;
+        if (Meta.CompanionProblem(meta, tab, arg) != null) { Sound.Play("error"); return; }
+        compHistory.Add(Clone(c));
+        placed.Add(arg);
+        CampaignView.SaveMeta(Meta.BuyCompanion(meta, tab, arg));
+        Sound.Play(arg == "gate" ? "upgrade" : "charge-" + Mathf.Clamp(placed.Count - 1, 0, 3));
+        Draw();
+    }
+
+    static CompanionMeta Clone(CompanionMeta c) => new CompanionMeta { Xp = c.Xp, Nodes = c.Nodes != null ? new List<string>(c.Nodes) : null, Gates = c.Gates };
+
+    void CompanionRestore(CompanionMeta snap)
+    {
+        var meta = CampaignView.LoadMeta();
+        if (meta.Companions != null && snap != null) meta.Companions[tab] = snap;
+        CampaignView.SaveMeta(meta);
+        Sound.Play("hover");
+        Draw();
+    }
+
     void Undo()
     {
+        if (tab != null)
+        {
+            if (compHistory.Count == 0) return;
+            var cs = compHistory[compHistory.Count - 1];
+            compHistory.RemoveAt(compHistory.Count - 1);
+            placed.RemoveAt(placed.Count - 1);
+            CompanionRestore(cs);
+            return;
+        }
         if (history.Count == 0) return;
         var snap = history[history.Count - 1];
         history.RemoveAt(history.Count - 1);
@@ -434,6 +579,15 @@ public class CrewView : MonoBehaviour
 
     void Clear()
     {
+        if (tab != null)
+        {
+            if (compHistory.Count == 0) return;
+            var cs = compHistory[0];
+            compHistory.Clear();
+            placed.Clear();
+            CompanionRestore(cs);
+            return;
+        }
         if (history.Count == 0) return;
         var snap = history[0];
         history.Clear();
