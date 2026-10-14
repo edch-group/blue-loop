@@ -106,6 +106,22 @@ public static class BuildScript
         view.Settle();
         Shot(view.Cam, Path.Combine(dir, "campaign-map.png"));
         UnityEngine.Object.DestroyImmediate(view.gameObject);
+        // A story scene: a merchant come alongside, the ship and its crew in 3D, the talk beneath.
+        var meeting = BlueLoop.Engine.Campaign.Create(new BlueLoop.Engine.CampaignSetup { Seed = 5, Captain = BlueLoop.Engine.Meta.CaptainCard(meta), Run = BlueLoop.Engine.Meta.RunBonuses(meta) });
+        meeting.Encounter = new BlueLoop.Engine.EncounterPlaying { NodeId = meeting.Nodes[0].Id, Kind = "merchant", Price = 6, Stage = 0 };
+        var scene = CampaignView.Make(meeting);
+        var rt = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };
+        scene.Cam.targetTexture = rt;
+        scene.Settle();
+        var ship = scene.GetComponentInChildren<CampaignBackdrop>();
+        if (ship != null)
+        {
+            ship.At = 30;
+            ship.Into(rt);
+            foreach (var c in ship.Cameras) c.Render();
+        }
+        Shot(scene.Cam, Path.Combine(dir, "campaign-encounter.png"));
+        UnityEngine.Object.DestroyImmediate(scene.gameObject);
     }
 
     static BlueLoop.Engine.GameState GlossaryBoard(BlueLoop.Engine.GameState s)

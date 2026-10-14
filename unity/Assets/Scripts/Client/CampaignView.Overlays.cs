@@ -149,6 +149,10 @@ public partial class CampaignView
     {
         foreach (Transform c in overlay) Mats.Kill(c.gameObject);
         var s = state;
+        // A story scene up (a companion joining, an encounter): the ship and whoever is alongside, in 3D, over the map.
+        bool joining = (s.Joined?.Count ?? 0) > 0 && s.CardRewards.Count == 0 && s.Winner == null && s.Boon == null && s.Battle == null && s.Conquest == null && s.Loot == null;
+        bool meeting = !joining && s.Encounter != null && s.CardRewards.Count == 0 && s.Winner == null && s.Boon == null && s.Battle == null && s.Conquest == null && s.Loot == null;
+        StoryShip(joining || meeting, meeting ? Encounters.VisitorLook(s.Encounter.Kind).Ship : null);
         if (s.Winner != null) { RunOver(); return; }
         if (s.Boon != null && s.Battle == null)
         {
@@ -434,9 +438,27 @@ public partial class CampaignView
 
     // ---- Scenes: a companion joining, an encounter, a power struggle, a rival beaten, a dream ----
 
+    CampaignBackdrop storyShip;
+
+    /// <summary>The story scene's 3D (base3d.ts): the run's ship, its crew, and (an encounter) whoever comes alongside.</summary>
+    void StoryShip(bool on, string visitor)
+    {
+        if (!on)
+        {
+            if (storyShip != null) { Mats.Kill(storyShip.gameObject); storyShip = null; }
+            if (world != null) world.gameObject.SetActive(true);
+            return;
+        }
+        if (storyShip == null) storyShip = CampaignBackdrop.Story(Cam, transform, ShipSpec(), Crew());
+        // (The map put away under it.)
+        world.gameObject.SetActive(false);
+        storyShip.SetVisitor(visitor);
+    }
+
     /// <summary>A scene (the web's scene overlay): who it is, their words a line at a time, and the choices under them.</summary>
     void Scene(string kicker, string title, List<(string who, string text)> lines, System.Action<RectTransform> actions, string portrait = null)
     {
+        if (storyShip != null) { ShipScene(kicker, title, lines, actions); return; }
         var v = Veil(overlay);
         if (portrait != null) Portrait(v, portrait, new Vector2(800 - 60, 210), 120);
         var k = Hud.Label(v, kicker.ToUpperInvariant(), 13, Look.InkFaint, true, 500, 30, TextAlignmentOptions.Top);
@@ -457,6 +479,43 @@ public partial class CampaignView
         var acts = Hud.Rect(v, "Actions");
         Hud.At(acts, new Vector2(0.5f, 1), new Vector2(0, y - 10), new Vector2(900, 60));
         actions(acts);
+    }
+
+    /// <summary>
+    /// A scene with the ship in it (campaign.ts scene): its kind and title at the top, over the ship; the talk at the
+    /// foot, each line its speaker's (the visitor's in italics, set in), the choices under them.
+    /// </summary>
+    void ShipScene(string kicker, string title, List<(string who, string text)> lines, System.Action<RectTransform> actions)
+    {
+        var v = Hud.Rect(overlay, "Scene");
+        Hud.Fill(v);
+        v.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0);
+        var k = Hud.Label(v, kicker.ToUpperInvariant(), 11, Look.InkSoft, true, 500, 30, TextAlignmentOptions.Top);
+        k.margin = new Vector4(0, 18, 0, 0);
+        var t = Hud.Label(v, title.ToUpperInvariant(), 22, Look.Ink, true, 400, 26, TextAlignmentOptions.Top);
+        t.margin = new Vector4(0, 36, 0, 0);
+        var talk = Hud.Rect(v, "Talk");
+        Hud.At(talk, new Vector2(0.5f, 0), new Vector2(0, 18), new Vector2(720, 0));
+        float y = 0;
+        // (From the foot up: the choices, then the lines, the last nearest them.)
+        var acts = Hud.Rect(talk, "Actions");
+        Hud.At(acts, new Vector2(0.5f, 0), new Vector2(0, 0), new Vector2(900, 56));
+        actions(acts);
+        y += 66;
+        for (int i = lines.Count - 1; i >= 0; i--)
+        {
+            var (who, text) = lines[i];
+            bool them = who == title;
+            var w = Hud.Label(talk, $"<size=55%><color=#737780>{who.ToUpperInvariant()}</color></size>\n{(them ? "<i>" : "")}{text}{(them ? "</i>" : "")}", 17, Look.Ink, false, 400, 0, TextAlignmentOptions.BottomLeft);
+            w.textWrappingMode = TextWrappingModes.Normal;
+            var r = w.rectTransform;
+            r.anchorMin = r.anchorMax = new Vector2(0.5f, 0);
+            r.pivot = new Vector2(0.5f, 0);
+            float h = w.GetPreferredValues(w.text, them ? 676 : 720, 0).y;
+            r.sizeDelta = new Vector2(them ? 676 : 720, h);
+            r.anchoredPosition = new Vector2(them ? 22 : 0, y);
+            y += h + 10;
+        }
     }
 
     static void Buttons(RectTransform row, params (string label, bool primary, string why, System.Action act)[] bs)

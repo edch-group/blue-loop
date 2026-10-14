@@ -73,10 +73,12 @@ public partial class CampaignView : MonoBehaviour
     {
         var meta = LoadMeta();
         var hero = Meta.CaptainCard(meta);
+        // (The run's bonuses as the account stands, the card kept from the last run among them; then it is used up.)
+        var run = Meta.RunBonuses(meta);
         meta.Kept = null;
         meta.Runs += 1;
         SaveMeta(meta);
-        var s = Campaign.Create(new CampaignSetup { Seed = Random.Range(1, int.MaxValue), Captain = hero, Run = Meta.RunBonuses(LoadMeta()) });
+        var s = Campaign.Create(new CampaignSetup { Seed = Random.Range(1, int.MaxValue), Captain = hero, Run = run });
         // (The hero's arrival comes first: whatever else the opening brought on waits behind it.)
         s.Story.Queue = s.Story.Queue.Where(q => q.Id == "intro").Concat(s.Story.Queue.Where(q => q.Id != "intro")).ToList();
         return s;
