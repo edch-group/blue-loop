@@ -535,6 +535,11 @@ public partial class CampaignView
         var nodeId = n.Id;
         if (taken) Buttons(acts, ("fly on", true, null, () => LeaveStation()));
         else Buttons(acts, ("not today", false, null, () => LeaveStation()), ("volunteer", true, pick == null ? "" : null, () => TakeProject(nodeId, pick)));
+        // (The talk comes in a line at a time, the experiments after it, the choices with the first of them; a pick
+        // drawing it again carries on where it was.)
+        float from = RevealFrom($"lab|{nodeId}|{taken}");
+        int said = taken ? 1 : 2;
+        RiseIn.On(acts, from, LineDelay(said));
         float y = 66;
         if (!taken)
         {
@@ -549,6 +554,7 @@ public partial class CampaignView
                 var r = Hud.At(Hud.Rect(talk, p.Id), new Vector2(0.5f, 0), new Vector2((i - (offers.Count - 1) / 2f) * (OfferW + OfferGap), y + (mode == "picked" ? 3 : 0)), new Vector2(OfferW, h));
                 var id = p.Id;
                 Kit.Experiment(r, p, mode, why == null ? () => { Sound.Play("hover"); rsPick = rsPick == id ? null : id; Station(); } : (System.Action)null);
+                RiseIn.On(r, from, LineDelay(said + i));
             }
             y += h + 14;
         }
@@ -559,16 +565,21 @@ public partial class CampaignView
         {
             var (who, text) = lines[i];
             bool them = who == "visitor";
-            var said = Hud.Label(talk, $"<size=62%><color=#737780>{(them ? "THE SCIENTIST" : "THE CAPTAIN")}</color></size>\n{(them ? "<i>" : "")}{text}{(them ? "</i>" : "")}", 17, Look.Ink, false, 400, 0, TextAlignmentOptions.BottomLeft);
-            said.textWrappingMode = TextWrappingModes.Normal;
-            var lr = said.rectTransform;
+            var line = Hud.Label(talk, $"<size=62%><color=#737780>{(them ? "THE SCIENTIST" : "THE CAPTAIN")}</color></size>\n{(them ? "<i>" : "")}{text}{(them ? "</i>" : "")}", 17, Look.Ink, false, 400, 0, TextAlignmentOptions.BottomLeft);
+            line.textWrappingMode = TextWrappingModes.Normal;
+            var lr = line.rectTransform;
             lr.anchorMin = lr.anchorMax = new Vector2(0.5f, 0);
             lr.pivot = new Vector2(0.5f, 0);
-            float lh = said.GetPreferredValues(said.text, 676, 0).y;
+            float lh = line.GetPreferredValues(line.text, 676, 0).y;
             lr.sizeDelta = new Vector2(676, lh);
             lr.anchoredPosition = new Vector2(22, y);
+            RiseIn.On(lr, from, LineDelay(i));
             // (The Captain's face beside their words; the scientist's set in as far, without one.)
-            if (!them) Kit.Disc(talk, EngineData.Art(Captain.CaptainCard), new Vector2(0.5f, 0), new Vector2(-343, y + lh - 34), 34);
+            if (!them)
+            {
+                Kit.Disc(talk, EngineData.Art(Captain.CaptainCard), new Vector2(0.5f, 0), new Vector2(-343, y + lh - 34), 34);
+                RiseIn.On((RectTransform)talk.GetChild(talk.childCount - 1), from, LineDelay(i));
+            }
             y += lh + 10;
         }
     }

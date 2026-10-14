@@ -890,36 +890,17 @@ public class BuilderView : MonoBehaviour
         Draw();
     }
 
-    /// <summary>Craft a copy of a card with flux (server/economy.ts craft), against this device's profile.</summary>
-    void Craft(string id)
-    {
-        var me = Profile.Me;
-        var def = Cards.Def(id);
-        int cost = Progression.CraftCost(id);
-        if (Profile.Owned(id) >= Campaign.CopyLimit(id)) menu.Toast($"You already have as many {def.Name} as a deck can hold.");
-        else if (me.Flux < cost) menu.Toast($"Crafting {def.Name} takes ⟁{cost} flux.");
-        else
-        {
-            me.Flux -= cost;
-            me.Collection[id] = Profile.Owned(id) + 1;
-            Profile.Save();
-            Sound.Play("upgrade");
-        }
-        Draw();
-    }
+    /// <summary>Craft a copy of a card with flux (builder.ts db-craft): asked of the server, or made here with no server (EconomyCalls).</summary>
+    void Craft(string id) => EconomyCalls.Craft(id, why => Crafted(why, "upgrade"));
 
-    /// <summary>Break a copy of a card down for flux (server/economy.ts breakDown): starter cards can't be.</summary>
-    void BreakDown(string id)
+    /// <summary>Break a copy of a card down for flux (builder.ts db-break): starter cards can't be.</summary>
+    void BreakDown(string id) => EconomyCalls.BreakDown(id, why => Crafted(why, "crack"));
+
+    void Crafted(string why, string sound)
     {
-        var me = Profile.Me;
-        if (Progression.Breakable(me.Collection, id) <= 0) menu.Toast($"{Cards.Def(id).Name} is one of your starter cards: it can't be broken down.");
-        else
-        {
-            me.Collection[id] = Profile.Owned(id) - 1;
-            me.Flux += Progression.BreakdownValue(id);
-            Profile.Save();
-            Sound.Play("crack");
-        }
+        if (this == null) return;
+        if (why != null) menu.Toast(why);
+        else Sound.Play(sound);
         Draw();
     }
 

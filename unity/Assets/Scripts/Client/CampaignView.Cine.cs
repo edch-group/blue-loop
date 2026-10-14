@@ -38,7 +38,7 @@ public partial class CampaignView
     float Whole => Mathf.Max(2.4f, (StripWidth / 2 + 0.3f) / (Mathf.Tan(18 * Mathf.Deg2Rad) * Mathf.Min(1, Mathf.Max(0.1f, Cam.aspect))) * 0.6f);
 
     /// <summary>The whole strip at once, from the near end to the wormhole and the Stellari past it: where the pull back ends.</summary>
-    Pose Overview() => new Pose { X = 0.25f, Y = 0, Z = 0, Yaw = -0.95f, Pitch = 0.66f, Dist = Whole * 1.05f };
+    Pose Overview() => new Pose { X = 0.25f, Y = 0, Z = 0, Yaw = -0.95f + spin, Pitch = 0.66f, Dist = Whole * 1.05f };
 
     /// <summary>The camera put at a pose (the web's eye: off from what it looks at by yaw and pitch, z flipped here).</summary>
     void Aim(Pose p)
@@ -138,7 +138,7 @@ public partial class CampaignView
         pitchNow = b.Pitch;
         var f = Campaign.Flagship(state, state.PlayerId);
         if (f != null) focusGoal = Home(f.NodeId);
-        distanceGoal = HomeDist;
+        distanceGoal = RestDist;
         glideRate = 1.6f;
         cine = "done";
         cineDone = Clock;

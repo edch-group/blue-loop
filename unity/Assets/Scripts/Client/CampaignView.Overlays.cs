@@ -486,11 +486,32 @@ public partial class CampaignView
     }
 
     /// <summary>
+    /// When the scene showing first showed (its key: what it says), so its talk comes in from then, a redraw carrying
+    /// on where it was.
+    /// </summary>
+    string revealKey;
+    float revealAt;
+    float RevealFrom(string key)
+    {
+        if (key != revealKey)
+        {
+            revealKey = key;
+            revealAt = Time.time;
+        }
+        return revealAt;
+    }
+
+    /// <summary>A line of a scene's talk comes in after the one before (styles.css .enc-line: 0.9s, then 1.1s apart); its choices after the last.</summary>
+    static float LineDelay(int i) => 0.9f + i * 1.1f;
+
+    /// <summary>
     /// A scene with the ship in it (campaign.ts scene): its kind and title at the top, over the ship; the talk at the
-    /// foot, each line its speaker's (the visitor's in italics, set in), the choices under them.
+    /// foot, each line its speaker's (the visitor's in italics, set in), the choices under them, coming in one after
+    /// another.
     /// </summary>
     void ShipScene(string kicker, string title, List<(string who, string text)> lines, System.Action<RectTransform> actions)
     {
+        float from = RevealFrom(kicker + "|" + title + "|" + string.Join("|", lines.Select(l => l.who + ":" + l.text)));
         var v = Hud.Rect(overlay, "Scene");
         Hud.Fill(v);
         v.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0);
@@ -505,6 +526,7 @@ public partial class CampaignView
         var acts = Hud.Rect(talk, "Actions");
         Hud.At(acts, new Vector2(0.5f, 0), new Vector2(0, 0), new Vector2(900, 56));
         actions(acts);
+        RiseIn.On(acts, from, LineDelay(lines.Count(l => l.who != "found" && l.who != "damage")));
         y += 66;
         for (int i = lines.Count - 1; i >= 0; i--)
         {
@@ -518,6 +540,8 @@ public partial class CampaignView
             float h = w.GetPreferredValues(w.text, them ? 676 : 720, 0).y;
             r.sizeDelta = new Vector2(them ? 676 : 720, h);
             r.anchoredPosition = new Vector2(them ? 22 : 0, y);
+            // (What came of it, a part found or a slot wrecked, comes in with the first: styles.css .enc-result.)
+            RiseIn.On(r, from, who == "found" || who == "damage" ? 0.9f : LineDelay(i));
             y += h + 10;
         }
     }

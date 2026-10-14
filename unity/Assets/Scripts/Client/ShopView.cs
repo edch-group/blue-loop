@@ -7,7 +7,7 @@ using UnityEngine.UI;
 /// <summary>
 /// The shop (app.ts renderShop): booster packs, one for each race and a general one, at ✦100 each; one bought tears
 /// open and its five cards come out, each new, another copy, or (already held as many as a deck can use) spare flux.
-/// Bought against the profile on this device (server/economy.ts buyBooster, as the server does it).
+/// Bought from the server, which keeps the account's economy (EconomyCalls); with no server, against this device's profile.
 /// </summary>
 public class ShopView : MonoBehaviour
 {
@@ -16,6 +16,8 @@ public class ShopView : MonoBehaviour
     // The booster just opened: its kind (null: the general one) and its cards.
     int? openedKind;
     List<BoosterCard> opened;
+    // (A booster asked of the server, not yet answered.)
+    bool buying;
 
     public static ShopView Make(RectTransform parent, MenuView menu)
     {
@@ -77,29 +79,30 @@ public class ShopView : MonoBehaviour
         }
     }
 
-    /// <summary>Buy and open a booster (server/economy.ts buyBooster): its cards join the collection, spare copies come as flux.</summary>
+    /// <summary>
+    /// Buy and open a booster (account.ts buyBooster): the server opens it (it keeps the collection), and the pack tears
+    /// open once it answers; with no server, opened here as the server would (server/economy.ts buyBooster).
+    /// </summary>
     void Buy(int? kind)
     {
-        var me = Profile.Me;
-        if (me.Stardust < Progression.BoosterPrice)
+        if (buying) return;
+        buying = true;
+        EconomyCalls.Booster(kind, (cards, why) =>
         {
-            Sound.Play("error");
-            menu.Toast($"A booster costs ✦{Progression.BoosterPrice} stardust.");
-            return;
-        }
-        me.Stardust -= Progression.BoosterPrice;
-        var rng = new System.Random();
-        var cards = Progression.OpenBooster(kind, me.Collection, () => rng.NextDouble());
-        foreach (var c in cards)
-        {
-            if (c.Flux != null) me.Flux += c.Flux.Value;
-            else me.Collection[c.Id] = Profile.Owned(c.Id) + 1;
-        }
-        Profile.Save();
-        openedKind = kind;
-        opened = cards;
-        Sound.Play("shuffle");
-        Draw();
+            buying = false;
+            if (this == null) return;
+            if (why != null)
+            {
+                Sound.Play("error");
+                menu.Toast(why);
+                Draw();
+                return;
+            }
+            openedKind = kind;
+            opened = cards;
+            Sound.Play("shuffle");
+            Draw();
+        });
     }
 
     // ---- A booster torn open: the wrapper drops away, the cards come out ----
