@@ -45,37 +45,38 @@ public class ShopView : MonoBehaviour
         else Packs();
     }
 
-    // ---- The packs: two rows of the wrappers, each its name and price ----
+    // ---- The packs: rows of the wrappers, each its name and price ----
 
     void Packs()
     {
-        var head = Hud.Label(root, $"BOOSTERS · ✦ {Progression.BoosterPrice} EACH", 13, Look.InkSoft, true, 500, 30);
-        head.rectTransform.anchoredPosition = new Vector2(0, 296);
+        // (The web's: its label 13 spaced 0.3em at 103 down; the slots 191.4 by 361.6, 41.6 apart, six to a row, each
+        // row centred, from 143.4 down; under each wrapper its name, 15.3 bold, and its price.)
+        Hud.Text(root, $"BOOSTERS · ✦ {Progression.BoosterPrice} EACH", 0, 103.4f, 1600, 16, 13, Look.InkSoft, true, 400, 30);
         bool afford = Profile.Me.Stardust >= Progression.BoosterPrice;
-        const float pw = 132, ph = 211, slotH = 262, gap = 30;
+        const float sw = 191.4f, sh = 361.6f, gap = 41.6f;
         var kinds = Progression.Boosters;
         for (int i = 0; i < kinds.Count; i++)
         {
             int row = i / 6, col = i % 6, inRow = Mathf.Min(6, kinds.Count - row * 6);
             int? kind = kinds[i];
             var slot = Hud.Rect(root, $"Pack {PackName(kind)}");
-            Hud.At(slot, new Vector2(0.5f, 0.5f), new Vector2((col - (inRow - 1) / 2f) * (pw + gap), 120 - row * (slotH + gap)), new Vector2(pw, slotH));
+            Hud.Place(slot, 800 - (inRow * sw + (inRow - 1) * gap) / 2 + col * (sw + gap), 143.4f + row * (sh + gap), sw, sh);
             var hit = slot.gameObject.AddComponent<Image>();
             hit.color = new Color(1, 1, 1, 0.001f);
             var b = slot.gameObject.AddComponent<Button>();
             b.transition = Selectable.Transition.None;
+            b.interactable = afford;
             b.onClick.AddListener(() => Buy(kind));
-            // (The baked wrapper has room round it for its turn and its shadow: 24 left and above.)
+            // (The baked wrapper, turned and with its shadow, has room round it: 34.8 left and above.)
             var face = Hud.Rect(slot, "Wrapper");
-            Hud.At(face, new Vector2(0.5f, 1), new Vector2(5, 24), new Vector2(190, 276));
+            Hud.Place(face, -34.8f, -34.8f, 275.5f, 400.2f);
             var img = face.gameObject.AddComponent<RawImage>();
             img.texture = PackFace(kind);
-            img.color = afford ? Color.white : new Color(0.85f, 0.85f, 0.85f, 0.6f);
+            // (Too dear: greyed and faded, as the web's.)
+            img.color = afford ? Color.white : new Color(0.8f, 0.8f, 0.8f, 0.6f);
             img.raycastTarget = false;
-            var n = Hud.Label(slot, PackName(kind).ToUpperInvariant(), 13, Look.Ink, true, 500, 18, TextAlignmentOptions.Top);
-            n.margin = new Vector4(-20, ph + 8, -20, 0);
-            var price = Hud.Label(slot, $"✦ {Progression.BoosterPrice}", 13, new Color(0.725f, 0.522f, 0.165f), true, 500, 0, TextAlignmentOptions.Top);
-            price.margin = new Vector4(0, ph + 30, 0, 0);
+            Hud.Text(slot, PackName(kind).ToUpperInvariant(), -20, 314.9f, sw + 40, 19, 15.3f, Look.Ink, true, 700, 18);
+            Hud.Text(slot, $"✦ {Progression.BoosterPrice}", 0, 342.6f, sw, 19, 15.3f, Hud.Rgba(185, 133, 42), true, 400, 0);
         }
     }
 
@@ -109,13 +110,16 @@ public class ShopView : MonoBehaviour
 
     void Opened()
     {
-        const float cw = 170, ch = 238, gap = 14;
+        // (The web's .booster-cards: faces 208 by 291.2, 17.4 apart, centred on the page, their words 13.9 under
+        // them; the wrapper over them, 14.5 below their top.)
+        const float cw = 208, ch = 291.2f, gap = 17.4f, top = 343;
         var reveal = root.gameObject.AddComponent<BoosterReveal>();
+        float x0 = 800 - (opened.Count * cw + (opened.Count - 1) * gap) / 2;
         for (int i = 0; i < opened.Count; i++)
         {
             var c = opened[i];
             var slot = Hud.Rect(root, c.Id);
-            Hud.At(slot, new Vector2(0.5f, 0.5f), new Vector2((i - (opened.Count - 1) / 2f) * (cw + gap), 10), new Vector2(cw, ch + 34));
+            Hud.Place(slot, x0 + i * (cw + gap), top, cw, ch + 8.7f + 17);
             var face = Hud.Rect(slot, "Face");
             Hud.At(face, new Vector2(0.5f, 1), Vector2.zero, new Vector2(cw, ch));
             var raw = face.gameObject.AddComponent<RawImage>();
@@ -123,24 +127,23 @@ public class ShopView : MonoBehaviour
             raw.raycastTarget = false;
             bool isNew = c.IsNew == true;
             var tag = c.Flux != null ? $"SPARE · +⟁{c.Flux}" : isNew ? "NEW" : "ANOTHER COPY";
-            var colour = c.Flux != null ? new Color(0.427f, 0.435f, 0.816f) : isNew ? Look.Good : Look.InkSoft;
-            var t = Hud.Label(slot, tag, 12, colour, true, isNew ? 700 : 500, 14, TextAlignmentOptions.Bottom);
-            t.margin = new Vector4(-10, 0, -10, 4);
+            var colour = c.Flux != null ? Hud.Rgba(109, 111, 208) : isNew ? Look.Good : Look.InkSoft;
+            Hud.Text(slot, tag, -10, ch + 8.7f, cw + 20, 17, 13.9f, colour, true, isNew ? 700 : 400, 14);
             reveal.Shown.Add(slot.gameObject.AddComponent<CanvasGroup>());
         }
         // The wrapper, over the cards, falling away.
         var pack = Hud.Rect(root, "Wrapper");
-        Hud.At(pack, new Vector2(0.5f, 0.5f), new Vector2(5, 120), new Vector2(190, 276));
+        Hud.Place(pack, 800 - 95.7f - 34.8f, top + 14.5f - 34.8f, 275.5f, 400.2f);
         var img = pack.gameObject.AddComponent<RawImage>();
         img.texture = PackFace(openedKind);
         img.raycastTarget = false;
         reveal.Pack = pack.gameObject.AddComponent<CanvasGroup>();
         reveal.Begin();
 
-        var what = Hud.Label(root, $"{PackName(openedKind)} booster", 17, Look.InkSoft, false, 400, 0, TextAlignmentOptions.BottomLeft);
-        what.margin = new Vector4(250, 0, 0, 52);
-        var done = Hud.Pill(root, "Done", () => { opened = null; Draw(); }, 17, Look.Ink, Color.white);
-        Hud.At((RectTransform)done.transform, new Vector2(1, 0), new Vector2(-250, 36), new Vector2(190, 58));
+        // The foot (the web's .setup-foot): what was opened, quiet, on the left; done, the primary button, on the right.
+        Hud.Text(root, $"{PackName(openedKind)} booster", 26.1f, 924.7f, 600, 23, 18.6f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
+        var done = Hud.Primary(root, "Done", () => { opened = null; Draw(); }, 15.3f, 24);
+        Hud.Place((RectTransform)done.transform, 1341.9f, 909.7f, 232, 52.9f);
     }
 }
 
@@ -170,7 +173,7 @@ public class BoosterReveal : MonoBehaviour
             k = k * k;
             Pack.alpha = 1 - k;
             var r = (RectTransform)Pack.transform;
-            r.anchoredPosition = packAt + new Vector2(0, -166 * k);
+            r.anchoredPosition = packAt + new Vector2(0, -186 * k);
             r.localScale = Vector3.one * (1 - 0.1f * k);
             if (t > 1.1f) Pack.gameObject.SetActive(false);
         }
@@ -184,7 +187,7 @@ public class BoosterReveal : MonoBehaviour
             var r = (RectTransform)g.transform;
             r.localScale = new Vector3(Mathf.Lerp(0.05f, 1, e), Mathf.Lerp(0.7f, 1, e), 1);
             // (Its face drops in from a little above.)
-            if (r.childCount > 0) ((RectTransform)r.GetChild(0)).anchoredPosition = new Vector2(0, 40 * (1 - e));
+            if (r.childCount > 0) ((RectTransform)r.GetChild(0)).anchoredPosition = new Vector2(0, 58 * (1 - e));
         }
         if (t > 2.5f) enabled = false;
     }
