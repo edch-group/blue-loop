@@ -20,6 +20,7 @@ public class CampaignBackdrop : MonoBehaviour
 
     Camera ui, landCam, shipCam;
     CameraClearFlags uiClear;
+    int uiMask;
     Transform land, ship;
     Material ground;
     Transform shipModel, captain, tail;
@@ -43,6 +44,9 @@ public class CampaignBackdrop : MonoBehaviour
         ui = uiCam;
         uiClear = ui.clearFlags;
         ui.clearFlags = CameraClearFlags.Depth;
+        // (The page's camera draws the page alone, not the scene's layers again from where it stands.)
+        uiMask = ui.cullingMask;
+        ui.cullingMask &= ~((1 << LandLayer) | (1 << ShipLayer));
         t0 = Time.realtimeSinceStartup;
         // The land: the menu's own (one seed, a straight line west to east), drawn soft.
         land = new GameObject("Land").transform;
@@ -124,7 +128,9 @@ public class CampaignBackdrop : MonoBehaviour
 
     void OnDestroy()
     {
-        if (ui != null) ui.clearFlags = uiClear;
+        if (ui == null) return;
+        ui.clearFlags = uiClear;
+        ui.cullingMask = uiMask;
     }
 
     void LateUpdate()
