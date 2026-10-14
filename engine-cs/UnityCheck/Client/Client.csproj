@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- unity/Assets/Scripts/Client (Unity's Assembly-CSharp), against the stubs, the engine and the models.
+       Variant (check.sh): editor = in the editor (UNITY_EDITOR, sees UnityEditor), osx = the Mac player, webgl = the browser's player. -->
+  <PropertyGroup>
+    <AssemblyName>Assembly-CSharp</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../unity/Assets/Scripts/**/*.cs" Exclude="../../../unity/Assets/Scripts/Engine/**;../../../unity/Assets/Scripts/Models/**" />
+    <ProjectReference Include="../Stubs/UnityStubs.csproj" />
+    <ProjectReference Include="../../BlueLoop.Engine.csproj" />
+    <ProjectReference Include="../../Models/BlueLoop.Models.csproj" />
+    <ProjectReference Include="../EditorStubs/UnityEditorStubs.csproj" Condition="'$(Variant)' == 'editor'" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+</Project>

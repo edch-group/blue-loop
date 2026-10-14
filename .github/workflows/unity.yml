@@ -103,6 +103,8 @@ jobs:
           targetPlatform: WebGL
           buildMethod: BuildScript.Build
           buildName: Game
+          # (The pictures moved out above leave the checkout changed: built as it stands.)
+          allowDirtyBuild: true
       - name: Publish to the site
         run: |
           sudo chown -R "$(id -u)" build

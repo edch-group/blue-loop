@@ -1,0 +1,26 @@
+<Project>
+  <!-- Every project here compiles as Unity 6 does (C# 9, .NET Standard 2.1), once per variant (see check.sh), each
+       variant into its own obj/ and bin/ so switching between them stays incremental:
+         editor = in the editor (UNITY_EDITOR; the game's scripts and Assets/Editor, which see UnityEditor),
+         osx    = the Mac player (no UnityEditor),
+         webgl  = the browser's player (UNITY_WEBGL, so the `#if UNITY_WEBGL && !UNITY_EDITOR` code is checked). -->
+  <PropertyGroup>
+    <Variant Condition="'$(Variant)' == ''">editor</Variant>
+    <BaseIntermediateOutputPath>obj/$(Variant)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin/$(Variant)/</BaseOutputPath>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <DebugType>none</DebugType>
+    <WarningLevel>0</WarningLevel>
+    <NoWarn>$(NoWarn);CS0649;CS0169;CS0414;CS0067;CS0108;CS0114;CS0162;CS0168;CS0219;CS0618;CS0612;CS8321;CS0109</NoWarn>
+    <DefineConstants>UNITY_6000_0_OR_NEWER;UNITY_2023_1_OR_NEWER;UNITY_2022_3_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2020_1_OR_NEWER;UNITY_5_3_OR_NEWER;NET_STANDARD_2_1;NET_STANDARD;CSHARP_7_3_OR_NEWER</DefineConstants>
+    <DefineConstants Condition="'$(Variant)' == 'editor'">$(DefineConstants);UNITY_EDITOR;UNITY_EDITOR_64;UNITY_EDITOR_LINUX;UNITY_STANDALONE_OSX;UNITY_STANDALONE;DEBUG;TRACE</DefineConstants>
+    <DefineConstants Condition="'$(Variant)' == 'osx'">$(DefineConstants);UNITY_STANDALONE_OSX;UNITY_STANDALONE</DefineConstants>
+    <DefineConstants Condition="'$(Variant)' == 'webgl'">$(DefineConstants);UNITY_WEBGL</DefineConstants>
+  </PropertyGroup>
+</Project>

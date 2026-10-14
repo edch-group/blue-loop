@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Hand-written stand-ins for the UnityEngine, UI, TextMeshPro API the game uses: signatures only (bodies throw). -->
+  <PropertyGroup>
+    <AssemblyName>UnityEngine</AssemblyName>
+    
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="*.cs" />
+  </ItemGroup>
+</Project>
