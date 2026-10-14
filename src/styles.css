@@ -7594,10 +7594,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cx-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .cx-lines path { fill: none; stroke: rgba(120, 132, 160, 0.38); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .cx-lines path.spine { stroke-width: 3.5; stroke: rgba(120, 132, 160, 0.3); }
-.cx-lines path.lit { stroke: var(--bc, #6f8fd8); filter: drop-shadow(0 0 3px var(--bc, #6f8fd8)); }
-.cx-lines path.spine.lit { stroke: #d8b65a; filter: drop-shadow(0 0 4px rgba(226, 194, 106, 0.8)); }
+.cx-lines path.lit { stroke: rgba(74, 82, 104, 0.75); }
+.cx-lines path.spine.lit { stroke: rgba(74, 82, 104, 0.75); }
 .cx-lines circle.via { fill: #f4f6fa; stroke: rgba(120, 132, 160, 0.5); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.cx-lines circle.via.lit { fill: var(--bc); stroke: var(--bc); }
+.cx-lines circle.via.lit { fill: #4a5268; stroke: #4a5268; }
 /* The pad: a solder ring (the trace leaves it downward), its label to the right. */
 .cx-pad { position: absolute; z-index: 1; display: flex; align-items: flex-start; gap: 10px; width: 21%; margin: -9px 0 0 -9px; padding: 0; border: 0; background: none; text-align: left; cursor: var(--cur-pointer); }
 .cx-solder { flex: none; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #f4f6fa 0 3px, transparent 3.5px), #c4ccdb; box-shadow: 0 0 0 1.5px rgba(120, 132, 160, 0.6); transition: box-shadow 0.2s, background 0.2s; }
