@@ -252,7 +252,7 @@ export type ChallengeKind = 'mine' | 'lord' | 'frost' | 'rift';
  * The Frost Line, harder each time it is held: what stands there at first (with a Rime Golem in front), then the
  * waves (what comes, how many a day, and the days to hold).
  */
-const FROST_LINES: { start: string[]; waves: { days: number; spawn: string[]; per: number } }[] = [
+export const FROST_LINES: { start: string[]; waves: { days: number; spawn: string[]; per: number } }[] = [
   { start: ['frost_wraith', 'frost_shade'], waves: { days: 6, spawn: ['frost_wraith', 'frost_shade'], per: 1 } },
   { start: ['frost_wraith', 'frost_wraith', 'frost_shade'], waves: { days: 6, spawn: ['frost_wraith', 'frost_shade'], per: 1 } },
   { start: ['frost_wraith', 'frost_wraith', 'blizzard_herald'], waves: { days: 7, spawn: ['frost_wraith', 'frost_shade'], per: 2 } },

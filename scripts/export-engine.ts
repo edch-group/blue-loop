@@ -4,7 +4,8 @@
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { CARDS, PRESET_DECKS, registeredCardDefs } from '../src/engine/cards';
-import { BOSS_CARDS } from '../src/engine/cards-bosses';
+import { BOSS_CARDS, LOST_LORDS, OVERLORDS } from '../src/engine/cards-bosses';
+import { ENIGMA_CARDS } from '../src/engine/cards-enigma';
 import { COMPANIONS } from '../src/engine/companions';
 import { CAPTAIN_SINGULARITIES, SINGULARITIES, singularityLine } from '../src/engine/singularities';
 import { CAPTAIN_ABILITIES, CAPTAIN_BASE, CAPTAIN_LEADS, CAPTAIN_SLOT_PRICES, CAPTAIN_STABILITY_STEP, CAPTAIN_START_ABILITY, captainSlots } from '../src/engine/captain';
@@ -14,6 +15,7 @@ import { BOONS } from '../src/engine/boons';
 import { GEAR_NAMES, RACE_SLOTS, SKILL_TREES, SLOT_NAME } from '../src/engine/heroes';
 import { plainText } from '../src/engine/keywords';
 import { CAPTAIN_TREE, COMPANION_TREES } from '../src/engine/ascent';
+import { ARMORY_PRICE, CAMPAIGN, CAMPAIGN_MISSIONS, CHALLENGES, FROST_LINES, GALAXIES, GALAXY_KINDS, OFFER_WEIGHT, STAR_FINDS, STAR_TYPES } from '../src/engine/campaign';
 
 const out = 'unity/Assets/Resources/Engine';
 mkdirSync(out, { recursive: true });
@@ -64,4 +66,24 @@ writeFileSync(
 );
 // The Captain's and the companions' ascent trees (ascent.ts: see Ascent.cs).
 writeFileSync(`${out}/ascent.json`, JSON.stringify({ captainTree: CAPTAIN_TREE, companionTrees: COMPANION_TREES }));
+// The campaign's tuning and tables (Campaign.cs).
+writeFileSync(
+  `${out}/campaign.json`,
+  JSON.stringify({
+    tuning: CAMPAIGN,
+    armoryPrice: ARMORY_PRICE,
+    offerWeight: OFFER_WEIGHT,
+    starTypes: STAR_TYPES,
+    // (Each star's finds as [kind, weight] pairs, in order: the order they are rolled in.)
+    starFinds: Object.fromEntries(Object.entries(STAR_FINDS).map(([k, v]) => [k, { find: v.find, kinds: Object.entries(v.kinds) }])),
+    galaxies: GALAXIES,
+    galaxyKinds: GALAXY_KINDS,
+    challenges: CHALLENGES,
+    frostLines: FROST_LINES,
+    overlords: OVERLORDS,
+    lostLords: LOST_LORDS,
+    enigmaIds: ENIGMA_CARDS.map((c) => c.id),
+    missions: CAMPAIGN_MISSIONS.map(({ id, name, text, target, counting }) => ({ id, name, text, target, counting })),
+  }),
+);
 console.log(`${registeredCardDefs().length} cards, ${PRESET_DECKS.length} decks → ${out}`);
