@@ -438,6 +438,7 @@ public partial class CampaignView : MonoBehaviour
         if (cine == "ride" && !launching && now >= rideEnds) EndRide();
         if (cine == "done" && now - cineDone > 1.2f) cine = null;
         HudFade(now);
+        StepTurn();
         bool still = !flying && !Cining && !launching && overlay.childCount == 0 && sheetRoot.childCount == 0;
         bool overUi = UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
         // The system under the pointer swells and flares.
@@ -579,6 +580,9 @@ public partial class CampaignView : MonoBehaviour
     /// <summary>A move made on the run (the engine's): saved; what it says can't be done, said; time moves on once the ship has moved.</summary>
     bool Apply(CampaignAction action)
     {
+        // (A turn of Time Dense Space still playing out ends where it ends; its rings and routes before the move, to turn from.)
+        EndTurnAnim();
+        var was = TimeNow(state);
         int universe = state.Universe;
         string rift = state.Rift?.Kind;
         try
@@ -594,6 +598,7 @@ public partial class CampaignView : MonoBehaviour
         SkipSilentScenes();
         BankPetals();
         Save(state);
+        if (state.Universe == universe && state.Rift?.Kind == rift) BeginTurn(was);
         if (state.Universe != universe || state.Rift?.Kind != rift)
         {
             // (Into a new galaxy, or through a rift: the ships are simply there, not flown across from the last.)

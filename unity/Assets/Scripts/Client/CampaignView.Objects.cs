@@ -453,17 +453,22 @@ public partial class CampaignView
 
     // ---- The routes ----
 
-    /// <summary>A route between two systems (the web's world x, y, z at each end): its colour, gone (a faint dashed trace), lit.</summary>
-    struct RouteLine { public Vector3 A, B; public Color Colour; public bool Gone; }
+    /// <summary>A route between two systems (the web's world x, y, z at each end): its colour, gone (a faint dashed trace), lit (and flaring, just linked).</summary>
+    struct RouteLine { public Vector3 A, B; public Color Colour; public bool Gone; public float Glow; }
+
+    Transform routesT;
 
     /// <summary>
     /// The routes, as tubes of soft light in the scene (campaign.ts rays): each once; none into the fog or to a hidden
     /// challenge; a route to a fallen system a faint trace; a challenge's in its own colour (a trace once it is done);
     /// between two systems held by the same holder, in the holder's colour. In Time Dense Space, from each star in
-    /// reach, dashed, the routes it would have once the rings have turned.
+    /// reach, dashed, the routes it would have once the rings have turned; mid-turn, the routes breaking drawn back into
+    /// their moving star, the new ones reaching out from it and flaring as they link (TurnRoutes).
     /// </summary>
     void Routes(HashSet<string> seen)
     {
+        if (routesT != null) KillAll(routesT.gameObject);
+        routesT = null;
         var s = state;
         var lines = new List<RouteLine>();
         Vector3 At(CampaignNode q) { var w = Web(q.X, q.Y); return new Vector3(w.x, (float)(q.H ?? 0) * MapK, w.y); }
@@ -475,13 +480,15 @@ public partial class CampaignView
                 if (b == null || a.Vanished == true || b.Vanished == true) continue;
                 if (a.Challenge?.Hidden == true || b.Challenge?.Hidden == true) continue;
                 if (!seen.Contains(a.Id) || !seen.Contains(b.Id)) continue;
+                if (Turning(a.Id, b.Id)) continue;
                 if (a.Collapsed == true || b.Collapsed == true) { lines.Add(new RouteLine { A = At(a), B = At(b), Colour = Color.white, Gone = true }); continue; }
                 var ch = a.Challenge ?? b.Challenge;
                 bool same = a.Owner != null && a.Owner == b.Owner;
                 lines.Add(new RouteLine { A = At(a), B = At(b), Colour = ch != null ? ChallengeColour(ch.Kind) : same ? ColourOf(a.Owner) : Color.white, Gone = ch?.Done != null });
             }
         var mine = Campaign.Flagship(s, s.PlayerId);
-        if (s.Rift?.Kind == "time" && s.Battle == null && mine != null)
+        if (turnAnim != null) TurnRoutes(lines, seen, At);
+        else if (s.Rift?.Kind == "time" && s.Battle == null && mine != null)
             foreach (var m in Campaign.ArmyMoves(s, mine))
             {
                 var from = s.Nodes.FirstOrDefault(q => q.Id == m.ToId);
@@ -509,7 +516,7 @@ public partial class CampaignView
             {
                 pos.Add(a);
                 ends.Add(new Vector4(b.x, b.y, b.z, 0));
-                side.Add(new Vector4(sx, sy, len, l.Gone ? 0 : 1));
+                side.Add(new Vector4(sx, sy, len, l.Gone ? 0 : 1 + l.Glow));
                 cols.Add(l.Colour);
             }
             tris.AddRange(new[] { at, at + 1, at + 2, at, at + 2, at + 3 });
@@ -526,6 +533,7 @@ public partial class CampaignView
         mat.renderQueue = 3000;
         var go = Thing("Routes", mapRoot, mesh, mat);
         go.gameObject.AddComponent<MeshOwner>();
+        routesT = go;
     }
 
     /// <summary>A mesh made for one object, taken away with it.</summary>
