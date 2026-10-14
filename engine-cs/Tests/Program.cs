@@ -31,6 +31,21 @@ void Check(string name, bool ok, string detail = "")
     Check($"decks round trip ({CardData.Decks.Count})", decksBack == null, decksBack);
     Cards.LoadRules(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/rules.json")));
     Builds.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/builds.json")));
+    Heroes.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/heroes.json")));
+    Ascent.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(root, "unity/Assets/Resources/Engine/ascent.json")));
+}
+
+// Growth: heroes, boons, modules, ascent, relic rolls, the companions, the Captain and progression, each function called
+// with the arguments the TypeScript engine was (npx vite-node scripts/record-growth.ts), returning the same.
+{
+    var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/growth.json");
+    if (!System.IO.File.Exists(path)) Console.WriteLine("skip growth (no engine-cs/traces/growth.json: npx vite-node scripts/record-growth.ts)");
+    else
+    {
+        var (total, bad, shown) = Growth.Check(Newtonsoft.Json.Linq.JArray.Parse(System.IO.File.ReadAllText(path)));
+        foreach (var line in shown) Console.WriteLine("  " + line);
+        Check($"growth ({total} cases)", bad == 0, $"{bad} differ");
+    }
 }
 
 // Built cards: fused, marked, the Captain's builds and the crew's, each as the TypeScript engine builds it.

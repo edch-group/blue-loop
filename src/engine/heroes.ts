@@ -263,7 +263,7 @@ export function boonsText(boons: string[]): string {
 // ---------------------------------------------------------------------------
 
 /** What each kind of gear is called, by race (a Vorthane helm is not an Aureline one). */
-const GEAR_NAMES: Record<SlotKind, string[]> = {
+export const GEAR_NAMES: Record<SlotKind, string[]> = {
   weapon: ['Sunlance', 'Shard Blade', 'Tide Trident', 'Barbed Stinger', 'Voidglass Blade', 'Forge Maul', "Star-Reader's Staff", 'Flare Brand'],
   helm: ['Halo Crown', 'Prism Circlet', 'Pressure Helm', 'Chitin Crest', 'Veil Hood', 'Forge Helm', 'Star Circlet', 'Cinder Crown'],
   mantle: ['Mantle of Dawn', 'Mantle of Dawn', 'Mantle of Dawn', 'Mantle of Dawn', 'Shroud of the Unlit', 'Smithing Mantle', 'Mantle of Constellations', 'Mantle of Cinders'],

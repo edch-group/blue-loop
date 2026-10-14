@@ -10,6 +10,10 @@ import { CAPTAIN_SINGULARITIES, SINGULARITIES, singularityLine } from '../src/en
 import { CAPTAIN_ABILITIES, CAPTAIN_BASE, CAPTAIN_LEADS, CAPTAIN_SLOT_PRICES, CAPTAIN_STABILITY_STEP, CAPTAIN_START_ABILITY, captainSlots } from '../src/engine/captain';
 import { CAPTAIN_TITLES, GATE, TIERS } from '../src/engine/ascent';
 import { NYX_MARKS } from '../src/engine/rifts';
+import { BOONS } from '../src/engine/boons';
+import { GEAR_NAMES, RACE_SLOTS, SKILL_TREES, SLOT_NAME } from '../src/engine/heroes';
+import { plainText } from '../src/engine/keywords';
+import { CAPTAIN_TREE, COMPANION_TREES } from '../src/engine/ascent';
 
 const out = 'unity/Assets/Resources/Engine';
 mkdirSync(out, { recursive: true });
@@ -47,4 +51,17 @@ writeFileSync(
     nyxMarks: NYX_MARKS,
   }),
 );
+// Heroes' gear slots and skill trees, gear names, and each boon's words (heroes.ts: see Heroes.cs).
+writeFileSync(
+  `${out}/heroes.json`,
+  JSON.stringify({
+    raceSlots: RACE_SLOTS,
+    slotName: SLOT_NAME,
+    skillTrees: SKILL_TREES,
+    gearNames: GEAR_NAMES,
+    boonText: Object.fromEntries(BOONS.map((b) => [b.id, plainText(b.text)])),
+  }),
+);
+// The Captain's and the companions' ascent trees (ascent.ts: see Ascent.cs).
+writeFileSync(`${out}/ascent.json`, JSON.stringify({ captainTree: CAPTAIN_TREE, companionTrees: COMPANION_TREES }));
 console.log(`${registeredCardDefs().length} cards, ${PRESET_DECKS.length} decks → ${out}`);

@@ -4,7 +4,7 @@ name: C# engine
 
 on:
   push:
-    paths: ['src/engine/**', 'unity/Assets/Scripts/Engine/**', 'unity/Assets/Resources/Engine/**', 'engine-cs/**', 'scripts/record-battles.ts', 'scripts/record-builds.ts', 'scripts/export-engine.ts', '.github/workflows/engine-cs.yml']
+    paths: ['src/engine/**', 'unity/Assets/Scripts/Engine/**', 'unity/Assets/Resources/Engine/**', 'engine-cs/**', 'scripts/record-battles.ts', 'scripts/record-builds.ts', 'scripts/record-growth.ts', 'scripts/export-engine.ts', '.github/workflows/engine-cs.yml']
 
 jobs:
   parity:
@@ -18,8 +18,8 @@ jobs:
       - run: npm ci
       - name: Card data up to date
         run: npm run export-engine && git diff --exit-code unity/Assets/Resources/Engine
-      - name: Record battles and built cards
-        run: GAMES=80 npm run record-battles && npm run record-builds
+      - name: Record battles, built cards and growth
+        run: GAMES=80 npm run record-battles && npm run record-builds && npm run record-growth
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'

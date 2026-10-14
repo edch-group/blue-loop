@@ -21,7 +21,7 @@ namespace BlueLoop.Engine
         public System.Func<int, RelicAbility> Ability;
     }
 
-    public static class Relics
+    public static partial class Relics
     {
         static RelicPowerDef P(string kind, int a, int b, int c, System.Func<int, string> text) => new RelicPowerDef { Kind = kind, Amounts = new[] { a, b, c }, Text = text };
         static List<Effect> L(params Effect[] e) => e.ToList();
@@ -108,7 +108,7 @@ namespace BlueLoop.Engine
         }
     }
 
-    public static class Companions
+    public static partial class Companions
     {
         /// <summary>The companion a card is (its base id, before any build), or null.</summary>
         public static string Of(string defId)

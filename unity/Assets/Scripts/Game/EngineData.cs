@@ -11,6 +11,8 @@ public static class EngineData
         if (loaded) return;
         string Text(string name) => Resources.Load<TextAsset>("Engine/" + name).text;
         Cards.Load(Text("cards"), Text("decks"), Text("rules"), Text("builds"));
+        Heroes.Load(Text("heroes"));
+        Ascent.Load(Text("ascent"));
         loaded = true;
     }
 
