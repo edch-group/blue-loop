@@ -393,7 +393,8 @@ public class MenuView : MonoBehaviour
         Hud.Place((RectTransform)pane.transform, 0, 0, PaneW, 1000);
         Hud.Shadow(pane, 0.5f, new Hud.Drop(Hud.Rgba(150, 156, 172, 0.22f), 0, 0, 0, 1.4f), new Hud.Drop(Hud.Rgba(60, 70, 100, 0.07f), 0, 49.3f, 0, 14.5f));
         pane.raycastTarget = true;
-        BackButton(pane.transform, () => Show("hub"), 26.1f, 20.3f, 310.3f);
+        // (Back from online play leaves its search too.)
+        BackButton(pane.transform, () => { if (from == "online") Online.Leave(); Show("hub"); }, 26.1f, 20.3f, 310.3f);
         var split = Hud.Box(pane.transform, "Between", Hud.Rgba(150, 156, 172, 0.25f), 0.5f);
         Hud.Place((RectTransform)split.transform, 0, 78.9f, PaneW, 921.1f);
         foreach (var m in new[] { "core", "lost" })
@@ -405,9 +406,7 @@ public class MenuView : MonoBehaviour
             art.texture = Resources.Load<Texture2D>($"Icons/pane-{m}{(on ? "" : "-off")}");
             var b = card.gameObject.AddComponent<Button>();
             b.targetGraphic = art;
-            var colors = b.colors;
-            colors.highlightedColor = on ? Color.white : new Color(1.25f, 1.25f, 1.25f);
-            b.colors = colors;
+            b.transition = Selectable.Transition.None;
             b.onClick.AddListener(() =>
             {
                 if (PlayMode == m) return;
