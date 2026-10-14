@@ -314,35 +314,7 @@ public class MenuView : MonoBehaviour
     /// The campaign's menu (campaign.ts renderSetup): A DYING UNIVERSE, your Captain, the ship and the Stellari to build
     /// up between runs, and the run to begin (or the one under way to carry on).
     /// </summary>
-    void CampaignMenu()
-    {
-        var back = Hud.Pill(page, "‹ Back", () => Show("hub"), 15);
-        Hud.At((RectTransform)back.transform, new Vector2(0, 1), new Vector2(26, -36), new Vector2(92, 40));
-        var title = Hud.Label(page, "A DYING UNIVERSE", 40, Look.Ink, true, 400, 40, TextAlignmentOptions.Top);
-        title.margin = new Vector4(0, 34, 0, 0);
-        var meta = CampaignView.LoadMeta();
-        var level = Meta.LevelFor(meta.Xp);
-        var sections = new[] { ("THE CAPTAIN", $"{Meta.PointsLeft(meta)} skill points"), ("THE SHIP", "fit parts"), ("THE STELLARI", $"{meta.Petals} petals") };
-        for (int i = 0; i < sections.Length; i++)
-        {
-            var (name, sub) = sections[i];
-            var r = Hud.Rect(page, name);
-            Hud.At(r, new Vector2(0.5f, 0.5f), new Vector2(380 + (i == 1 ? 60 : 0), 190 - i * 190), new Vector2(360, 70));
-            var dot = Hud.Rect(r, "Dot");
-            Hud.At(dot, new Vector2(0, 0.5f), Vector2.zero, new Vector2(64, 64));
-            var di = dot.gameObject.AddComponent<Image>();
-            di.sprite = Hud.Circle;
-            di.color = new Color(1, 1, 1, 0.8f);
-            var l = Hud.Label(r, $"{name}\n<size=75%><color=#9aa0ac>{sub}</color></size>", 18, Look.InkSoft, true, 500, 20, TextAlignmentOptions.Left);
-            l.margin = new Vector4(80, 0, 0, 0);
-            r.gameObject.AddComponent<Button>().onClick.AddListener(() => { if (name == "THE STELLARI") Show("stellari"); else if (name == "THE CAPTAIN") Show("captain"); else Show("hangar"); });
-        }
-        var saved = CampaignView.Saved();
-        var begin = Hud.Pill(page, saved != null ? "Continue run" : "Begin run", () => App.Instance.Run(saved ?? CampaignView.NewRun()), 18, Color.white);
-        Hud.At((RectTransform)begin.transform, new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(290, 64));
-        var lv = Hud.Label(page, $"COMMANDER · LEVEL {level.Level}", 13, Look.InkFaint, true, 500, 24, TextAlignmentOptions.Bottom);
-        lv.margin = new Vector4(0, 0, 0, 116);
-    }
+    void CampaignMenu() => CampaignMenuPage.Make(page, this);
 
     /// <summary>You, top right: your name and level, your stardust and flux (the hub's chip, on the pages off it too). Tap it for your profile.</summary>
     public void Chip(Transform parent) => Chip(parent, new Vector2(-182, -18));
