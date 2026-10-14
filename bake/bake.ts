@@ -188,3 +188,34 @@ async function bakeScore(scene: 'ambient' | 'battle' | 'boss' | 'voyage', loop: 
 import { HEROES } from '../src/ui/voice';
 import { factionAvatar } from '../src/ui/factions';
 Object.assign(window, { bakeEffect, bakeScore, heroLines: () => Object.fromEntries(Object.entries(HEROES).map(([id, h]) => [id, h.lines])) });
+
+// ---- The Stellari's skill tree (campaign.ts renderShop): each skill's mark, what each level says, the flower ----
+import { UPGRADE_LOOK, UP_BRANCHES } from '../src/ui/campaign';
+import { META_UPGRADES } from '../src/engine/meta';
+/** A skill's mark, in white (the game tints it), as its disc draws it. */
+function upIcon(id: string, size: number): void {
+  const look = UPGRADE_LOOK[id];
+  stage.innerHTML = `<span id="piece" style="display:block;width:${size}px;height:${size}px;color:#fff">${look?.icon ?? ''}</span>`;
+  const svg = stage.querySelector('svg');
+  if (svg) svg.setAttribute('style', `width:${size}px;height:${size}px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block`);
+}
+/** The Stellari as the tree draws it: fine white lines, a faint white veil. */
+function upFlower(size: number): void {
+  stage.innerHTML = `<span id="piece" style="display:block;width:${size}px">${stellariaFlower()}</span>`;
+  const svg = stage.querySelector('svg')!;
+  svg.setAttribute('style', `width:${size}px;height:auto;display:block`);
+  for (const e of svg.querySelectorAll('ellipse, path')) e.setAttribute('style', 'fill:rgba(255,255,255,0.26);stroke:rgba(255,255,255,0.95);stroke-width:1.4;vector-effect:non-scaling-stroke');
+  for (const e of svg.querySelectorAll('.petal-inner path')) (e as SVGElement).style.strokeWidth = '1';
+}
+/** Each skill's words at each level (say, value), and the branches (their names, directions and colours). */
+const upLooks = () => ({
+  branches: UP_BRANCHES,
+  skills: Object.fromEntries(
+    META_UPGRADES.filter((u) => u.group !== 'unlock').map((u) => {
+      const look = UPGRADE_LOOK[u.id];
+      const levels = Array.from({ length: u.max + 1 }, (_, i) => i + 1);
+      return [u.id, { icon: !!look, say: levels.map((l) => (look ? look.say(l) : u.text)), value: levels.map((l) => (look ? look.value(l) : '')) }];
+    }),
+  ),
+});
+Object.assign(window, { upIcon, upFlower, upLooks, upIds: () => META_UPGRADES.filter((u) => u.group !== 'unlock').map((u) => u.id) });

@@ -289,7 +289,7 @@ const PETAL =
   '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.8C15.6 6 15.6 14 10 18.2 4.4 14 4.4 6 10 1.8Z" fill="#d8e4f6" stroke="#97a2ba" stroke-width=".9" stroke-linejoin="round"/><path d="M10 4.6v10.8" stroke="#97a2ba" stroke-width=".7" stroke-linecap="round" opacity=".7"/></svg>';
 
 /** The skill tree's seven branches, one off each petal of the Stellari, each its own colour. */
-const UP_BRANCHES: { g: MetaGroup; title: string; dir: number; colour: string }[] = [
+export const UP_BRANCHES: { g: MetaGroup; title: string; dir: number; colour: string }[] = [
   // (One off each of the seven petals the flower shows above the foot of the screen, every 30° from left to right.)
   { g: 'sun', title: 'a cooler sun', dir: 180, colour: '#5f9fdc' },
   { g: 'command', title: 'kinder planets', dir: 210, colour: '#4fae84' },
@@ -311,7 +311,7 @@ const RESEARCH_MARK = (): Record<string, string> => ({
 });
 
 /** Each lasting upgrade's mark, what it gives at a level as a plain sentence (its total, not what each point adds), and its number. */
-const UPGRADE_LOOK: Record<string, { icon: string; say: (level: number) => string; value: (level: number) => string }> = {
+export const UPGRADE_LOOK: Record<string, { icon: string; say: (level: number) => string; value: (level: number) => string }> = {
   materials: { icon: glyph('M12 2.5 20 7v10l-8 4.5L4 17V7ZM4 7l8 4.5L20 7M12 11.5v10'), say: (l) => `Start each run with ${3 * l} materials.`, value: (l) => `+${3 * l}` },
   cards: { icon: glyph('M7 3.5h9a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5ZM11.5 8.5v7M8 12h7'), say: (l) => `${l} more race card${l === 1 ? '' : 's'} in your starting deck.`, value: (l) => `+${l}` },
   pick: { icon: glyph('M6 4.5h8.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V6A1.5 1.5 0 0 1 6 4.5ZM16 7.5l2.6.7a1.5 1.5 0 0 1 1 1.8l-3 11.2M8 12.5l2 2 3.5-4.5'), say: (l) => `Choose ${l} card${l === 1 ? '' : 's'} for your starting deck.`, value: (l) => `+${l}` },

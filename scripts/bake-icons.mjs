@@ -34,6 +34,16 @@ for (let i = 1; i <= 8; i++) {
   await settle();
   writeFileSync(`${out}/faction-f${i}.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
 }
+// The Stellari's skill tree: each skill's mark (white, tinted in the game), the flower, and the skills' words.
+for (const id of await page.evaluate(() => window.upIds())) {
+  await page.evaluate((n) => window.upIcon(n, 48), id);
+  await settle();
+  writeFileSync(`${out}/up-${id}.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
+}
+await page.evaluate(() => window.upFlower(1100));
+await settle();
+writeFileSync(`${out}/up-flower.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
+writeFileSync('unity/Assets/Resources/Engine/upgrades-look.json', JSON.stringify(await page.evaluate(() => window.upLooks()), null, 1));
 await page.evaluate(() => window.icon('title', 0));
 await settle();
 writeFileSync(`${out}/title.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));

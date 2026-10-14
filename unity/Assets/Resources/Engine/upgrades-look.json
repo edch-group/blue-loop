@@ -1,0 +1,439 @@
+{
+ "branches": [
+  {
+   "g": "sun",
+   "title": "a cooler sun",
+   "dir": 180,
+   "colour": "#5f9fdc"
+  },
+  {
+   "g": "command",
+   "title": "kinder planets",
+   "dir": 210,
+   "colour": "#4fae84"
+  },
+  {
+   "g": "flagship",
+   "title": "stronger defences",
+   "dir": 240,
+   "colour": "#c99a3e"
+  },
+  {
+   "g": "perk",
+   "title": "the long road",
+   "dir": 270,
+   "colour": "#9a7fd0"
+  },
+  {
+   "g": "start",
+   "title": "a stronger start",
+   "dir": 300,
+   "colour": "#d9814f"
+  },
+  {
+   "g": "spoils",
+   "title": "spoils of war",
+   "dir": 330,
+   "colour": "#c4564a"
+  },
+  {
+   "g": "lore",
+   "title": "lasting wisdom",
+   "dir": 360,
+   "colour": "#3fa9a4"
+  }
+ ],
+ "skills": {
+  "materials": {
+   "icon": true,
+   "say": [
+    "Start each run with 3 materials.",
+    "Start each run with 6 materials.",
+    "Start each run with 9 materials.",
+    "Start each run with 12 materials."
+   ],
+   "value": [
+    "+3",
+    "+6",
+    "+9",
+    "+12"
+   ]
+  },
+  "cards": {
+   "icon": true,
+   "say": [
+    "1 more race card in your starting deck.",
+    "2 more race cards in your starting deck.",
+    "3 more race cards in your starting deck."
+   ],
+   "value": [
+    "+1",
+    "+2",
+    "+3"
+   ]
+  },
+  "pick": {
+   "icon": true,
+   "say": [
+    "Choose 1 card for your starting deck.",
+    "Choose 2 cards for your starting deck.",
+    "Choose 3 cards for your starting deck."
+   ],
+   "value": [
+    "+1",
+    "+2",
+    "+3"
+   ]
+  },
+  "heirloom": {
+   "icon": true,
+   "say": [
+    "Start each run with a Stellar emblem.",
+    "Start each run with a Stellar emblem."
+   ],
+   "value": [
+    "1",
+    "2"
+   ]
+  },
+  "walls": {
+   "icon": true,
+   "say": [
+    "+1 defence on every tableau slot.",
+    "+2 defence on every tableau slot.",
+    "+3 defence on every tableau slot."
+   ],
+   "value": [
+    "+1",
+    "+2",
+    "+3"
+   ]
+  },
+  "shields": {
+   "icon": true,
+   "say": [
+    "Your sun starts each battle with 1 shield.",
+    "Your sun starts each battle with 2 shields.",
+    "Your sun starts each battle with 3 shields."
+   ],
+   "value": [
+    "+1",
+    "+2",
+    "+3"
+   ]
+  },
+  "bastion": {
+   "icon": true,
+   "say": [
+    "Your Guards have +2 defence.",
+    "Your Guards have +4 defence."
+   ],
+   "value": [
+    "+2",
+    "+4"
+   ]
+  },
+  "mantle": {
+   "icon": true,
+   "say": [
+    "Your sun gains 1 shield every day of battle.",
+    "Your sun gains 2 shield every day of battle."
+   ],
+   "value": [
+    "+1",
+    "+2"
+   ]
+  },
+  "grace": {
+   "icon": true,
+   "say": [
+    "Stability holds 1 longer in every galaxy.",
+    "Stability holds 2 longer in every galaxy.",
+    "Stability holds 3 longer in every galaxy.",
+    "Stability holds 4 longer in every galaxy."
+   ],
+   "value": [
+    "+1",
+    "+2",
+    "+3",
+    "+4"
+   ]
+  },
+  "armory": {
+   "icon": true,
+   "say": [
+    "Space station cards cost 1 less.",
+    "Space station cards cost 2 less.",
+    "Space station cards cost 3 less."
+   ],
+   "value": [
+    "−1",
+    "−2",
+    "−3"
+   ]
+  },
+  "hoard": {
+   "icon": true,
+   "say": [
+    "6 materials in every new galaxy.",
+    "12 materials in every new galaxy."
+   ],
+   "value": [
+    "+6",
+    "+12"
+   ]
+  },
+  "stock": {
+   "icon": true,
+   "say": [
+    "3 more cards in every space station.",
+    "6 more cards in every space station."
+   ],
+   "value": [
+    "+3",
+    "+6"
+   ]
+  },
+  "cryo": {
+   "icon": true,
+   "say": [
+    "Your sun starts each battle 1 cooler.",
+    "Your sun starts each battle 2 cooler.",
+    "Your sun starts each battle 3 cooler.",
+    "Your sun starts each battle 4 cooler."
+   ],
+   "value": [
+    "1",
+    "2",
+    "3",
+    "4"
+   ]
+  },
+  "plating": {
+   "icon": true,
+   "say": [
+    "+2 max health on your sun.",
+    "+4 max health on your sun.",
+    "+6 max health on your sun."
+   ],
+   "value": [
+    "+2",
+    "+4",
+    "+6"
+   ]
+  },
+  "mend": {
+   "icon": true,
+   "say": [
+    "Your sun cools 1 each jump.",
+    "Your sun cools 2 each jump.",
+    "Your sun cools 3 each jump."
+   ],
+   "value": [
+    "1",
+    "2",
+    "3"
+   ]
+  },
+  "favour": {
+   "icon": true,
+   "say": [
+    "Your sun cools 3 after each battle won.",
+    "Your sun cools 6 after each battle won."
+   ],
+   "value": [
+    "3",
+    "6"
+   ]
+  },
+  "abundance": {
+   "icon": true,
+   "say": [
+    "The abundant planet draws 1 more card.",
+    "The abundant planet draws 2 more cards.",
+    "The abundant planet draws 3 more cards."
+   ],
+   "value": [
+    "+1",
+    "+2",
+    "+3"
+   ]
+  },
+  "foundry": {
+   "icon": true,
+   "say": [
+    "The industrial planet gives 1 more energy.",
+    "The industrial planet gives 2 more energy."
+   ],
+   "value": [
+    "+1",
+    "+2"
+   ]
+  },
+  "coldworld": {
+   "icon": true,
+   "say": [
+    "The dead planet cools your sun 2 each dawn.",
+    "The dead planet cools your sun 4 each dawn."
+   ],
+   "value": [
+    "2",
+    "4"
+   ]
+  },
+  "aligned": {
+   "icon": true,
+   "say": [
+    "Every planet gives 1 more card, 1 more energy and 2 more cooling.",
+    "Every planet gives 2 more card, 2 more energy and 4 more cooling."
+   ],
+   "value": [
+    "+1 card, +1 energy, +2 cooling",
+    "+2 card, +2 energy, +4 cooling"
+   ]
+  },
+  "kinship": {
+   "icon": true,
+   "say": [
+    "Your favoured race's cards come up 2× as often.",
+    "Your favoured race's cards come up 3× as often.",
+    "Your favoured race's cards come up 5× as often.",
+    "Your favoured race's cards come up 1× as often."
+   ],
+   "value": [
+    "2×",
+    "3×",
+    "5×",
+    "1×"
+   ]
+  },
+  "scouts": {
+   "icon": true,
+   "say": [
+    "10% more chance of emblems.",
+    "20% more chance of emblems.",
+    "30% more chance of emblems.",
+    "40% more chance of emblems."
+   ],
+   "value": [
+    "+10%",
+    "+20%",
+    "+30%",
+    "+40%"
+   ]
+  },
+  "fellowship": {
+   "icon": true,
+   "say": [
+    "A second race's cards come up 1.5× as often.",
+    "A second race's cards come up 2× as often.",
+    "A second race's cards come up 1× as often."
+   ],
+   "value": [
+    "1.5×",
+    "2×",
+    "1×"
+   ]
+  },
+  "salvage": {
+   "icon": true,
+   "say": [
+    "1 more card to choose from when salvaging.",
+    "2 more cards to choose from when salvaging."
+   ],
+   "value": [
+    "+1",
+    "+2"
+   ]
+  },
+  "choice": {
+   "icon": true,
+   "say": [
+    "1 more card to choose from in every reward.",
+    "2 more cards to choose from in every reward."
+   ],
+   "value": [
+    "+1",
+    "+2"
+   ]
+  },
+  "plunder": {
+   "icon": true,
+   "say": [
+    "2 materials for every battle won.",
+    "4 materials for every battle won.",
+    "6 materials for every battle won."
+   ],
+   "value": [
+    "+2",
+    "+4",
+    "+6"
+   ]
+  },
+  "vault": {
+   "icon": true,
+   "say": [
+    "2 more cards in every Overlord's hoard.",
+    "4 more cards in every Overlord's hoard."
+   ],
+   "value": [
+    "+2",
+    "+4"
+   ]
+  },
+  "study": {
+   "icon": true,
+   "say": [
+    "10% more experience.",
+    "20% more experience.",
+    "30% more experience.",
+    "40% more experience."
+   ],
+   "value": [
+    "+10%",
+    "+20%",
+    "+30%",
+    "+40%"
+   ]
+  },
+  "petals": {
+   "icon": true,
+   "say": [
+    "20% more petals at every wormhole.",
+    "40% more petals at every wormhole.",
+    "60% more petals at every wormhole.",
+    "80% more petals at every wormhole."
+   ],
+   "value": [
+    "+20%",
+    "+40%",
+    "+60%",
+    "+80%"
+   ]
+  },
+  "tithe": {
+   "icon": true,
+   "say": [
+    "2 petals from every Overlord beaten.",
+    "4 petals from every Overlord beaten.",
+    "6 petals from every Overlord beaten."
+   ],
+   "value": [
+    "+2",
+    "+4",
+    "+6"
+   ]
+  },
+  "legacy": {
+   "icon": true,
+   "say": [
+    "1 petal for every battle won.",
+    "2 petals for every battle won."
+   ],
+   "value": [
+    "+1",
+    "+2"
+   ]
+  }
+ }
+}

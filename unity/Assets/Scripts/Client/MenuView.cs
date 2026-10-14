@@ -81,6 +81,7 @@ public class MenuView : MonoBehaviour
             case "tutorial": TutorialView.Make(page, this); break;
             case "challenges": ChallengesView.Make(page, this); break;
             case "campaign": CampaignMenu(); break;
+            case "stellari": StellariView.Make(page, this); break;
             default: Title(); break;
         }
     }
@@ -245,7 +246,7 @@ public class MenuView : MonoBehaviour
             di.color = new Color(1, 1, 1, 0.8f);
             var l = Hud.Label(r, $"{name}\n<size=75%><color=#9aa0ac>{sub}</color></size>", 18, Look.InkSoft, true, 500, 20, TextAlignmentOptions.Left);
             l.margin = new Vector4(80, 0, 0, 0);
-            r.gameObject.AddComponent<Button>().onClick.AddListener(() => Soon(name.ToLowerInvariant()));
+            r.gameObject.AddComponent<Button>().onClick.AddListener(() => { if (name == "THE STELLARI") Show("stellari"); else Soon(name.ToLowerInvariant()); });
         }
         var saved = CampaignView.Saved();
         var begin = Hud.Pill(page, saved != null ? "Continue run" : "Begin run", () => App.Instance.Run(saved ?? CampaignView.NewRun()), 18, Color.white);
