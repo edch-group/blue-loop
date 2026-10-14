@@ -8,8 +8,8 @@ using UnityEngine;
 /// </summary>
 public static class Faces
 {
-    public class Place { public float x, y, w, h; }
-    public class Places { public Place atk, stab, def, guard; }
+    [System.Serializable] public class Place { public float x, y, w, h; }
+    [System.Serializable] public class Places { public Place atk, stab, def, guard; }
 
     static readonly Dictionary<string, Texture2D> cache = new Dictionary<string, Texture2D>();
     static Places places;

@@ -68,6 +68,8 @@ public class CardView : MonoBehaviour
     {
         if (!badges.TryGetValue(slot, out var r))
         {
+            // (Nothing to show, and never shown: nothing to make.)
+            if (n == null) return;
             var p = slot == "atk" ? Faces.Where.atk : slot == "stab" ? Faces.Where.stab : kind == "guard" ? Faces.Where.guard : Faces.Where.def;
             r = Mats.Flat(slot, transform, Mats.Make("Card"), p.w, p.h, 0.004f);
             r.material.SetFloat("_Radius", 0);
