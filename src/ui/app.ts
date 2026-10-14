@@ -6904,7 +6904,7 @@ export class App {
   /** A wreckage, looked through: top first (the next to reach the discard pile), as everyone saw them go. */
   private renderWreckSheet(of: PlayerState): string {
     const mine = of.id === this.viewer().id;
-    const rows = (of.wreck ?? []).map((c, i) => `<div class="pile-card">${this.renderCard(c, { static: true })}${i === 0 ? '<small class="pile-next">next dawn</small>' : ''}</div>`).join('');
+    const rows = (of.wreck ?? []).map((c, i) => `<div class="pile-card">${this.renderCard(c, { static: true })}${i < BALANCE.wreckPerDawn ? '<small class="pile-next">next dawn</small>' : ''}</div>`).join('');
     return this.sheetFrame(`${mine ? 'your' : `${esc(of.name.toLowerCase())}'s`} wreckage · ${of.wreck?.length ?? 0}`, `<div class="pile-grid">${rows || '<p class="muted">Empty.</p>'}</div>`);
   }
 
