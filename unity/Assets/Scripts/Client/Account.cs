@@ -304,7 +304,18 @@ public static class Account
     public static void CheckIn(System.Action<bool> done = null)
     {
         var a = Current;
-        if (a == null || !Net.Available) { done?.Invoke(false); return; }
+        if (!Net.Available) { done?.Invoke(false); return; }
+        // (Not signed in here, but perhaps on the web game on this same site: its session is a cookie the browser
+        // sends by itself. If the server knows this browser, carry on as that account, its progress taken up.)
+        if (a == null)
+        {
+            Net.Api("me", "GET", null, r =>
+            {
+                if (r.Ok && r.Data["account"] != null && r.Data["account"].Type != JTokenType.Null) Began(r.Data);
+                done?.Invoke(r.Ok);
+            });
+            return;
+        }
         Net.Api("me", "GET", null, r =>
         {
             if (!r.Ok)

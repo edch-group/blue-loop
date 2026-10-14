@@ -75,8 +75,8 @@ public static class AccountView
         y -= 66;
         if (Mode != "forgot")
         {
-            var pass = Field(page, "", new Vector2(0, y), new Vector2(420, 54), Mode == "signin" ? "password" : "password (8+ characters)", true, 200);
-            password = "";
+            // (What was typed stays through a redraw, as the web's form keeps it: the busy one as it is sent, too.)
+            var pass = Field(page, password, new Vector2(0, y), new Vector2(420, 54), Mode == "signin" ? "password" : "password (8+ characters)", true, 200);
             pass.onValueChanged.AddListener(v => password = v);
             y -= 66;
         }
@@ -101,6 +101,9 @@ public static class AccountView
         {
             Link(page, "new here? create an account", y, () => { Mode = "signup"; error = note = ""; redraw(); });
             if (resetOffered) Link(page, "forgot password?", y - 40, () => { Mode = "forgot"; error = note = ""; redraw(); });
+            // (Apple and Google sign in on the web game's own page, on this same site: its session is then this
+            // game's too, taken up when it is next opened.)
+            if (Net.Available) Link(page, "google or apple? sign in on the web game", y - (resetOffered ? 80 : 40), () => Application.OpenURL(Net.Base + "/index.html"));
         }
         else Link(page, Mode == "signup" ? "I have an account: sign in" : "back to sign in", y, () => { Mode = "signin"; error = note = ""; redraw(); });
     }
@@ -136,6 +139,8 @@ public static class AccountView
             redraw();
             return;
         }
+        // (What was typed, taken before the form is drawn again busy.)
+        string sentEmail = email, sentPassword = password;
         busy = true;
         error = note = "";
         redraw();
@@ -162,8 +167,8 @@ public static class AccountView
                 redraw();
             });
         }
-        else if (Mode == "signup") Account.SignUp(email, password, agreeTerms, agreePrivacy, done);
-        else Account.LogIn(email, password, done);
+        else if (Mode == "signup") Account.SignUp(sentEmail, sentPassword, agreeTerms, agreePrivacy, done);
+        else Account.LogIn(sentEmail, sentPassword, done);
     }
 
     static void Heading(RectTransform page, string text, float y)
