@@ -15,7 +15,7 @@ const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbo
 const page = await browser.newPage({ deviceScaleFactor: 2, viewport: { width: 1000, height: 600 } });
 await page.goto('http://localhost:5199/bake/index.html');
 await page.waitForFunction(() => window.ready === true);
-await page.addStyleTag({ content: 'body,#stage{background:transparent!important} .card::before,.card::after{display:none!important}' });
+await page.addStyleTag({ content: 'html,body,#stage{background:transparent!important} .card::before,.card::after{display:none!important}' });
 const shot = async (sel, name) => {
   const el = await page.$(sel);
   if (el) writeFileSync(`${out}/${name}.png`, await el.screenshot({ type: 'png', omitBackground: true }));

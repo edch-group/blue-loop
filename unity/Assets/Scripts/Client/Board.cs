@@ -81,7 +81,7 @@ public class Board : MonoBehaviour
         flower.sharedMaterial.mainTexture = Resources.Load<Texture2D>("Board/flower");
         flower.sharedMaterial.SetFloat("_Radius", 0);
         flower.sharedMaterial.SetFloat("_Aspect", 1);
-        flower.sharedMaterial.color = Color.white;
+        flower.sharedMaterial.color = new Color(0.8f, 0.85f, 0.97f, 0.9f);
         flower.sharedMaterial.renderQueue = 2920;
         phases = new[] { "dawn", "day", "dusk" }.Select((k, i) =>
         {
@@ -196,8 +196,10 @@ public class Board : MonoBehaviour
         var label = Mats.FlatText("Name", go.transform, title, 1.5f, Look.InkFaint, true, 500, 10);
         label.transform.localPosition = new Vector3(0, 0.03f, 0);
         label.gameObject.SetActive(!back);
-        count = Mats.FlatText("Count", go.transform, "", 2.6f, Look.InkSoft, true, 700, 4);
-        count.transform.localPosition = new Vector3(0, 0.03f, -0.9f);
+        // (How many, small in its corner.)
+        count = Mats.FlatText("Count", go.transform, "", 2.4f, Look.InkSoft, true, 700, 0, TextAlignmentOptions.Right);
+        count.rectTransform.sizeDelta = new Vector2(1, 0.4f);
+        count.transform.localPosition = new Vector3(-0.08f, 0.03f, -0.5f);
         return face;
     }
 
