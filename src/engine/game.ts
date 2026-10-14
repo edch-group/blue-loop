@@ -1107,9 +1107,9 @@ function drawCards(state: GameState, p: PlayerState, count: number) {
   // (A Lost Overlord draws nothing: it fights with the body it has.)
   if (p.boss) return;
   for (let i = 0; i < count; i++) {
-    // (A campaign deck can be small: with nothing left to draw or shuffle back, it gives no
-    // more, without the strain. Its sun would burn out before the battle began.)
-    if (state.campaign && p.deck.length === 0 && p.discard.length === 0) return;
+    // With nothing left to draw or shuffle back, it gives no more [direction: drawing from a deck with no cards or
+    // reserves does nothing]: what is still in the wreckage waits its turn.
+    if (p.deck.length === 0 && p.discard.length === 0) return;
     if (p.deck.length === 0 && p.discard.length > 0) {
       reshuffle(state, p);
       if (p.eliminated) return;
@@ -1126,6 +1126,24 @@ function drawCards(state: GameState, p: PlayerState, count: number) {
   }
 }
 
+/**
+ * The wreckage [direction: a card going to the discard pile goes to another pile first, which feeds 1 card a turn
+ * (its top card; new cards always go to the bottom) into the discard pile; it stops cards you or the AI kill coming
+ * straight back the next turn, and caps the power of card draw]. Everything that would be discarded (destroyed,
+ * played out, discarded from hand) goes to the bottom of it.
+ */
+export function toWreck(p: PlayerState, ...cards: CardInstance[]) {
+  (p.wreck ??= []).push(...cards);
+}
+
+/** A dawn: the wreckage's top card reaches the discard pile. */
+function salvageWreck(state: GameState, p: PlayerState) {
+  const card = p.wreck?.shift();
+  if (!card) return;
+  p.discard.push(card);
+  log(state, `${p.name}'s ${cardDef(card.defId).name} comes back from the wreckage to their discard pile.`);
+}
+
 /** An empty deck: the discard pile is shuffled back in to be used again (it costs nothing). */
 function reshuffle(state: GameState, p: PlayerState) {
   p.deck = shuffleInPlace(state, p.discard);
@@ -1139,7 +1157,7 @@ function reshuffle(state: GameState, p: PlayerState) {
 
 /** A player's card by uid, wherever it is. */
 function cardIn(p: PlayerState, uid: string): CardInstance | undefined {
-  return [...p.tableau, ...p.hand, ...p.discard, ...p.deck, ...(p.lightspeed ? [p.lightspeed] : [])].find((c) => c.uid === uid);
+  return [...p.tableau, ...p.hand, ...p.discard, ...(p.wreck ?? []), ...p.deck, ...(p.lightspeed ? [p.lightspeed] : [])].find((c) => c.uid === uid);
 }
 
 /**
@@ -1584,6 +1602,17 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       }
       case 'recover': {
         // (A Command card's dawn takes back the card most recently discarded: there is no one to choose.)
+        // (The most recently discarded lies at the wreckage's bottom: taken from there first.)
+        if (e.latest && p.wreck?.length) {
+          const w = p.wreck.map((c, k) => (returnable(c) && kindMatches(c, e.kind) ? k : -1)).filter((k) => k >= 0).pop() ?? -1;
+          if (w >= 0) {
+            const [back] = p.wreck.splice(w, 1);
+            p.hand.push(back);
+            log(state, `${p.name} recovers ${cardDef(back.defId).name} from the wreckage.`);
+            resolveEffects(state, p, back, cardDef(back.defId).onRecover, 'recover');
+            break;
+          }
+        }
         const latest = e.latest ? p.discard.map((c, k) => (returnable(c) && kindMatches(c, e.kind) ? k : -1)).filter((k) => k >= 0).pop() ?? -1 : -1;
         const i = e.latest ? latest : p.discard.findIndex((c) => c.uid === ctx.recoverUid && kindMatches(c, e.kind));
         if (i < 0) {
@@ -1794,13 +1823,13 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
     /* nothing to keep */
   } else if (to === 'deck') owner.deck.splice(randomInt(state, owner.deck.length + 1), 0, card);
   else if (to === 'hand') owner.hand.push(card);
-  else owner.discard.push(card);
+  else toWreck(owner, card);
   resolveEffects(state, owner, card, leaving.onLeave, 'leave');
   // Its Fusion cards go with it (and their leave effects fire too).
   const fused = card.fused ?? [];
   delete card.fused;
   for (const f of fused) {
-    owner.discard.push(f);
+    toWreck(owner, f);
     if (!state.winnerId && !owner.eliminated) resolveEffects(state, owner, card, cardDef(f.defId).onLeave, 'leave');
   }
   // Cards that answer another card leaving (Kyr'Vessa).
@@ -2000,6 +2029,8 @@ function startTurn(state: GameState) {
     charge(state, p, 'orbit');
     if (currentPlanet(p) !== before) log(state, `The ${currentPlanet(p)} planet swings round to face ${p.name}'s sun.`);
   }
+  // One card back from the wreckage to the discard pile, before the day's draw.
+  salvageWreck(state, p);
   const abundance = currentPlanet(p, state) === 'abundant' ? BALANCE.abundantDraw + (p.modifiers?.abundantDraw ?? 0) : 0;
   // Draw (your opening hand covers your first day).
   if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);
@@ -2161,7 +2192,7 @@ function trimHand(state: GameState, p: PlayerState, picked: string[] = []) {
     .sort((a, b) => Number(keepHero && cardDef(a.defId).kind === 'command') - Number(keepHero && cardDef(b.defId).kind === 'command') || cardCost(b.defId) - cardCost(a.defId));
   const out = [...chosen, ...rest.slice(0, over - chosen.length)];
   p.hand = p.hand.filter((c) => !out.includes(c));
-  p.discard.push(...out);
+  toWreck(p, ...out);
   log(state, `${p.name} holds more than ${maxHand(p)} cards and discards ${out.map((c) => cardDef(c.defId).name).join(', ')}.`);
 }
 
@@ -2402,6 +2433,7 @@ export function createDream(spec: DreamSpec, opts: { seed: number; name: string;
     p.tableau = [];
     p.deck = [];
     p.discard = [];
+    p.wreck = [];
     p.hand = [];
     for (const c of side.cards) {
       const card = newCard(state, c.id);
@@ -2602,7 +2634,7 @@ function springTrap(state: GameState, r: Reaction, o: PlayerState, enemy: Player
     place(o, card, slot);
     r.redirect = card.uid;
     log(state, `${o.name}'s ${def.name} lands in their tableau, and takes the attack.`);
-  } else o.discard.push(card);
+  } else toWreck(o, card);
   resolveEffects(state, o, card, t.effects, 'spring', { against: enemy, event: ev, reaction: r });
   if (t.counter) r.cancelled = true;
 }
@@ -2653,7 +2685,7 @@ function cancelPending(state: GameState, enemy: PlayerState, r: Reaction) {
       return;
     }
     enemy.hand = enemy.hand.filter((c) => c !== card);
-    enemy.discard.push(card);
+    toWreck(enemy, card);
     log(state, `${action.faceDown || def.kind === 'trap' ? 'The face-down card' : def.name} is cancelled.`);
     return;
   }
@@ -2711,7 +2743,7 @@ function resume(state: GameState, r: Reaction) {
     if (card) {
       const def = cardDef(card.defId);
       enemy.hand = enemy.hand.filter((c) => c !== card);
-      enemy.discard.push(card);
+      toWreck(enemy, card);
       enemy.playsLeft = Math.max(0, enemy.playsLeft - playCost(def.id, def.kind === 'trap' || !!action.faceDown));
       log(state, `${enemy.name}'s ${def.name} fizzles: what it aimed at is out of reach.`);
     }
@@ -2840,7 +2872,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
       log(state, `${def.name} replaces ${cardDef(old.defId).name}.`);
       leaveTableau(state, p, old);
       if (state.winnerId || p.eliminated) {
-        p.discard.push(card);
+        toWreck(p, card);
         return;
       }
     }
@@ -2854,7 +2886,7 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
       const at = back.slot;
       leaveTableau(state, p, back, 'hand');
       if (state.winnerId || p.eliminated) {
-        p.discard.push(card);
+        toWreck(p, card);
         return;
       }
       action = { ...action, slot: at };
@@ -2870,14 +2902,14 @@ function playCard(state: GameState, p: PlayerState, action: Extract<Action, { ty
   // A card that does nothing once played resolves and goes straight to the discard pile.
   if (isBurst(def)) {
     resolveEffects(state, p, card, def.onPlay, 'play', action);
-    if (!p.discard.includes(card)) p.discard.push(card);
+    if (!p.discard.includes(card) && !p.wreck?.includes(card)) toWreck(p, card);
     return;
   }
   // The chosen slot, or else the safest one free.
   const open = freeSlots(p);
   const slot = def.kind === 'command' ? COMMAND_SLOT : action.slot !== undefined && open.includes(action.slot) ? action.slot : slotsBySafety().find((i) => open.includes(i));
   if (slot === undefined) {
-    p.discard.push(card);
+    toWreck(p, card);
     return;
   }
   place(p, card, slot);

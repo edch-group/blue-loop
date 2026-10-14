@@ -274,7 +274,7 @@ function removalRisk(state: GameState, p: PlayerState, card: CardInstance): numb
   if (!rival || RISK_PER <= 0) return 0;
   const defence = cardDefence(p, card);
   let seen = 0;
-  for (const c of [...rival.discard, ...rival.tableau]) {
+  for (const c of [...rival.discard, ...(rival.wreck ?? []), ...rival.tableau]) {
     const def = cardDef(c.defId);
     for (const e of [...(def.onPlay ?? []), ...(def.abilities ?? []).flatMap((k) => k.effects)]) {
       if ((e.type === 'destroy' || e.type === 'bounce') && (e.maxDefence === undefined || e.maxDefence >= defence) && (e.type !== 'destroy' || !e.kind || e.kind === cardDef(card.defId).kind)) {

@@ -37,7 +37,7 @@ export interface GameStats {
 
 /** Every card a player has, wherever it is (sorted card ids): at the start of a game, its deck. */
 export function deckCards(p: PlayerState): string[] {
-  const all = [...p.deck, ...p.hand, ...p.discard, ...p.tableau.flatMap((c) => [c, ...(c.fused ?? [])]), ...(p.lightspeed ? [p.lightspeed] : [])];
+  const all = [...p.deck, ...p.hand, ...p.discard, ...(p.wreck ?? []), ...p.tableau.flatMap((c) => [c, ...(c.fused ?? [])]), ...(p.lightspeed ? [p.lightspeed] : [])];
   return all.map((c) => c.defId).sort();
 }
 

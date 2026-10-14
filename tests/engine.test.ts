@@ -166,9 +166,9 @@ describe('the tableau', () => {
     expect(replaces(me, 'plasma_relay')).toBe(true);
     s = play(s, 'plasma_relay', { sacrificeUid: wall[4].uid } as never);
     expect(s.players[0].tableau.find((c) => c.slot === wall[4].slot)?.defId).toBe('plasma_relay');
-    expect(s.players[0].discard.some((c) => c.uid === wall[4].uid)).toBe(true);
+    expect((s.players[0].wreck ?? []).some((c) => c.uid === wall[4].uid)).toBe(true);
     s = play(s, 'plasma_relay');
-    expect(s.players[0].discard.some((c) => c.uid === wall[2].uid)).toBe(true);
+    expect((s.players[0].wreck ?? []).some((c) => c.uid === wall[2].uid)).toBe(true);
     s = play(s, 'null_field');
     expect(s.players[0].lightspeed?.defId).toBe('null_field');
   });
@@ -197,7 +197,7 @@ describe('the tableau', () => {
     give(activePlayer(s), ['entropy_pulse']);
     s = play(s, 'entropy_pulse', { enemyUid: anchor.uid });
     expect(s.players[0].tableau.some((c) => c.uid === anchor.uid)).toBe(false);
-    expect(s.players[0].discard.some((c) => c.uid === anchor.uid)).toBe(true);
+    expect((s.players[0].wreck ?? []).some((c) => c.uid === anchor.uid)).toBe(true);
   });
 
   it('lets Ion Cannon destroy a card of your choice in your target\'s tableau', () => {
@@ -208,7 +208,7 @@ describe('the tableau', () => {
     expect(() => play(s, 'ion_cannon')).toThrow(GameError);
     s = play(s, 'ion_cannon', { enemyUid: victim.uid });
     expect(s.players[1].tableau.map((c) => c.defId)).toEqual(['coolant_array']);
-    expect(s.players[1].discard.map((c) => c.uid)).toContain(victim.uid);
+    expect((s.players[1].wreck ?? []).map((c) => c.uid)).toContain(victim.uid);
   });
 
   it('allows only one global card on the table', () => {
@@ -325,7 +325,7 @@ describe('commands', () => {
     s = play(s, 'war_council');
     const after = activePlayer(s);
     expect(after.tableau.filter((c) => c.slot === COMMAND_SLOT).map((c) => c.defId)).toEqual(['war_council']);
-    expect(after.discard.some((c) => c.defId === 'command_directive')).toBe(true);
+    expect((after.wreck ?? []).some((c) => c.defId === 'command_directive')).toBe(true);
     expect(after.tableau).toHaveLength(6);
   });
 
@@ -362,7 +362,7 @@ describe('recall', () => {
     s = play(s, 'recall_beacon', { allyUid: back.uid });
     const t = s.players[0].tableau;
     expect(t).toHaveLength(BALANCE.tableauSlots - 1);
-    expect(s.players[0].discard.some((c) => c.defId === 'recall_beacon')).toBe(true);
+    expect((s.players[0].wreck ?? []).some((c) => c.defId === 'recall_beacon')).toBe(true);
     expect(s.players[0].hand.some((c) => c.uid === back.uid)).toBe(true);
   });
 });
@@ -456,7 +456,7 @@ describe('attacks and dimming', () => {
     give(me, ['coronal_lance']);
     s = play(s, 'coronal_lance');
     expect(s.players[0].tableau).toHaveLength(0);
-    expect(s.players[0].discard.some((c) => c.defId === 'coronal_lance')).toBe(true);
+    expect((s.players[0].wreck ?? []).some((c) => c.defId === 'coronal_lance')).toBe(true);
   });
 });
 
@@ -754,14 +754,28 @@ describe('the new heroes', () => {
 });
 
 describe('the end', () => {
-  it('heats a sun drawing from an empty deck', () => {
+  it('draws nothing from an empty deck with an empty discard pile (no strain), the wreckage waiting its turn', () => {
     let s = endTurn(twoPlayer()); // Bo's first turn: the opening hand covers it.
     s.players[0].deck = [];
     s.players[0].discard = [];
     s.players[0].orbit = 2; // (Ada's next day at the dead planet: no extra card)
     const before = s.players[0].heat;
+    const hand = s.players[0].hand.length;
     s = endTurn(s);
-    expect(s.players[0].heat).toBe(before + BALANCE.drawPerTurn * BALANCE.fatigueHeat);
+    expect(s.players[0].hand.length).toBe(hand);
+    expect(s.players[0].heat).toBeLessThanOrEqual(before);
+  });
+
+  it('the wreckage feeds the discard pile one card a dawn, from its top; new ones go to its bottom', () => {
+    let s = endTurn(twoPlayer());
+    const ada = s.players[0];
+    const [a, b] = give(ada, ['coronal_lance', 'heat_sink']);
+    ada.hand = ada.hand.filter((c) => c !== a && c !== b);
+    ada.wreck = [a, b];
+    ada.discard = [];
+    s = endTurn(s);
+    expect(s.players[0].discard.map((c) => c.uid)).toEqual([a.uid]);
+    expect(s.players[0].wreck!.map((c) => c.uid)).toEqual([b.uid]);
   });
 
   it('shuffles the discard pile back in when the deck runs out, at no cost', () => {
@@ -924,7 +938,7 @@ describe('recovery and removal', () => {
     expect(s.players[1].hand.some((c) => c.uid === relay.uid)).toBe(true);
     s = play(s, 'command_breaker', { enemyUid: cmd.uid });
     expect(s.players[1].tableau).toHaveLength(0);
-    expect(s.players[1].discard.some((c) => c.uid === cmd.uid)).toBe(true);
+    expect((s.players[1].wreck ?? []).some((c) => c.uid === cmd.uid)).toBe(true);
   });
 
   it('Event Horizon destroys a card and flings its neighbours back to hand', () => {
@@ -934,7 +948,7 @@ describe('recovery and removal', () => {
     give(activePlayer(s), ['event_horizon']);
     s = play(s, 'event_horizon', { enemyUid: b.uid });
     expect(s.players[1].tableau).toHaveLength(0);
-    expect(s.players[1].discard.map((x) => x.uid)).toContain(b.uid);
+    expect((s.players[1].wreck ?? []).map((x) => x.uid)).toContain(b.uid);
     expect(s.players[1].hand.map((x) => x.uid)).toEqual(expect.arrayContaining([a.uid, c.uid]));
   });
 });
@@ -949,9 +963,9 @@ describe('hand limit', () => {
     s = applyAction(s, { type: 'endTurn', discard: [lance.uid] });
     const after = s.players.find((p) => p.id === me.id)!;
     expect(after.hand.length).toBe(BALANCE.maxHand);
-    expect(after.discard.map((c) => c.defId)).toContain('coronal_lance');
+    expect((after.wreck ?? []).map((c) => c.defId)).toContain('coronal_lance');
     // The other two over the limit: the costliest went (Star Breaker, 4).
-    expect(after.discard.map((c) => c.defId)).toContain('star_breaker');
+    expect((after.wreck ?? []).map((c) => c.defId)).toContain('star_breaker');
   });
 
   it('rests a card played today at dusk; one that attacked or acted still has its dusk', () => {
@@ -1016,7 +1030,7 @@ describe('lightspeed', () => {
     expect(s.reaction).toBeUndefined();
     expect(s.players[0].heat).toBe(ada);
     expect(s.players[0].lightspeed).toBeNull();
-    expect(s.players[1].discard.some((c) => c.defId === 'coronal_lance')).toBe(true);
+    expect((s.players[1].wreck ?? []).some((c) => c.defId === 'coronal_lance')).toBe(true);
     expect(s.players[1].tableau).toHaveLength(0);
   });
 
@@ -2014,7 +2028,7 @@ describe('emblem hero abilities', () => {
     atk.attackBonus = 30;
     s.players[0].tableau.find((c) => c.uid === lancer.uid)!.health = 1;
     s = applyAction(s, { type: 'attack', attackerUid: atk.uid, targetUid: lancer.uid });
-    const gone = s.players[0].discard.find((c) => c.uid === lancer.uid)!;
+    const gone = (s.players[0].wreck ?? []).find((c) => c.uid === lancer.uid)!;
     expect(gone.defId).toBe('helio_lancer');
     expect(gone.echoOf).toBeUndefined();
   });

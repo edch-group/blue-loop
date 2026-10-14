@@ -3167,7 +3167,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
   position: absolute; right: 0; top: 50%; transform: translateY(-50%) translateZ(6px);
   display: flex; gap: clamp(8px, calc(1.2 * var(--vw)), 16px); align-items: center;
 }
-.tableau-piles { --pw: min(calc(var(--tcw) * 0.72), calc((var(--row-side) - clamp(8px, calc(1.2 * var(--vw)), 16px)) / 2 - 6px)); }
+.tableau-piles { --pw: min(calc(var(--tcw) * 0.6), calc((var(--row-side) - 2 * clamp(8px, calc(1.2 * var(--vw)), 16px)) / 3 - 6px)); }
 .tpile {
   position: relative; width: var(--pw); height: calc(var(--pw) * 1.4);
   display: grid; justify-items: center; align-content: center; padding: 0; border: 0; background: none;
@@ -7555,3 +7555,8 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 /* An attacker whose attack is all gone: 0, on a blue stone. */
 .jewel.jewel-zero { filter: hue-rotate(205deg) saturate(1.15) brightness(1.05); }
 .enc-note { margin: 0; text-align: center; font-size: 0.72rem; letter-spacing: 0.08em; color: var(--ink-soft); animation: run-over-in 0.6s ease 1.6s both; }
+
+/* The wreckage: what was discarded, waiting its turn for the discard pile (its top card showing, the count on it). */
+.tpile-wreck .tpile-wreck-face { filter: grayscale(0.55) brightness(0.97); }
+.tpile-n { position: absolute; right: -6px; top: -6px; z-index: 3; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 999px; background: #3a4256; color: #fff; font-size: 0.6rem; font-weight: 700; }
+.pile-next { display: block; margin-top: 4px; text-align: center; font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-soft); }

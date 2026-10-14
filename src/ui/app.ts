@@ -238,7 +238,7 @@ type Sheet =
   | { kind: 'log' }
   | { kind: 'rules' }
   /** A deck or discard pile: the viewer's, or (`playerId`) a rival's discard pile. */
-  | { kind: 'pile'; pile: 'discard'; playerId?: string }
+  | { kind: 'pile'; pile: 'discard' | 'wreck'; playerId?: string }
   /** A player's summary: deck, commands and conditions. */
   | { kind: 'player'; playerId: string }
   /** Tap-to-inspect on touch screens: a readable card with its action. */
@@ -2837,13 +2837,16 @@ export class App {
       // The pile on the table it went to, if any.
       let pile: string | null = null;
       if (vNext.discard.some((c) => c.uid === uid)) pile = 'discard';
+      else if (vNext.wreck?.some((c) => c.uid === uid)) pile = 'wreck';
       else {
         const binned = next.players.find((p) => p.id !== vNext.id && p.discard.some((c) => c.uid === uid));
+        const wrecked = next.players.find((p) => p.id !== vNext.id && p.wreck?.some((c) => c.uid === uid));
         if (binned) pile = `discard:${binned.id}`;
+        else if (wrecked) pile = `wreck:${wrecked.id}`;
       }
       if (pile) to = anchorRect(root, pile);
       if (!to) {
-        const owner = next.players.find((p) => [...p.deck, ...p.hand, ...p.discard].some((c) => c.uid === uid));
+        const owner = next.players.find((p) => [...p.deck, ...p.hand, ...p.discard, ...(p.wreck ?? [])].some((c) => c.uid === uid));
         if (owner) to = orbRect(owner.id);
       }
       const at = removalAt.get(uid);
@@ -4367,8 +4370,8 @@ export class App {
         {
           // Only discard piles can be looked through: what is left in a deck stays hidden.
           const [pile, playerId] = arg.split(':');
-          if (pile !== 'discard') return;
-          this.sheet = { kind: 'pile', pile: 'discard', playerId };
+          if (pile !== 'discard' && pile !== 'wreck') return;
+          this.sheet = { kind: 'pile', pile, playerId };
         }
         return this.render();
       case 'view-player':
@@ -6030,7 +6033,13 @@ export class App {
       const edges = Array.from({ length: depth }, (_, i) => `calc(var(--lean, 0) * ${i + 1}px) ${i + 1}px 0 ${i % 2 ? '#d9dadf' : '#f4f4f2'}`).join(', ');
       return { style: `--depth:${depth};--edges:${edges}, calc(var(--lean, 0) * ${depth + 3}px) ${depth + 3}px 8px rgba(80, 84, 100, 0.22)`, layers: '' };
     };
-    const deckStack = stack(p.deck.length), discardStack = stack(p.discard.length);
+    const deckStack = stack(p.deck.length), discardStack = stack(p.discard.length), wreckStack = stack(p.wreck?.length ?? 0);
+    // The wreckage: what was discarded, waiting its turn to reach the discard pile (one a dawn, its top card first),
+    // face up, its top card showing (the next to go).
+    const next = p.wreck?.[0];
+    const wreck = next
+      ? `<span class="tpile-face tpile-stacked tpile-wreck-face" style="${wreckStack.style}">${this.renderCard(next, { static: true }).replace(/^(\s*)<button /, '$1<div ').replace(/<\/button>\s*$/, '</div>')}</span><b class="tpile-n">${p.wreck!.length}</b>`
+      : `<span class="tpile-empty"></span><small>wreckage</small>`;
     const deck = p.deck.length
       ? `${deckStack.layers}<span class="tpile-face tpile-back tpile-stacked" style="${deckStack.style}">${cardBackFace()}</span>`
         : `<span class="tpile-empty"></span><small>deck</small>`;
@@ -6046,6 +6055,7 @@ export class App {
       ${mine ? name + hand : hand + name}
       <div class="tpile" data-anchor="${mine ? 'deck' : `deck:${p.id}`}" title="${mine ? `${p.deck.length} cards left in your deck (what they are, and their order, stay hidden)` : `${p.deck.length} cards left in ${esc(p.name)}'s deck`}">${deck}</div>
       <div class="tpile tpile-discard tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'discard' : `discard:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'discard' : `discard:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} discard pile (${p.discard.length}): look through it">${discard}</div>
+      <div class="tpile tpile-wreck tpile-open" role="button" tabindex="0" data-anchor="${mine ? 'wreck' : `wreck:${p.id}`}" data-act="view-pile" data-arg="${mine ? 'wreck' : `wreck:${p.id}`}" title="${mine ? 'Your' : `${esc(p.name)}'s`} wreckage (${p.wreck?.length ?? 0}): what was discarded waits here, and one card a dawn (the top one) goes on to the discard pile">${wreck}</div>
     </div>`;
   }
 
@@ -6814,7 +6824,7 @@ export class App {
           <div class="log-pop sheet"><div class="log-pop-head"><span class="section-label">game log</span><button class="pill-btn" data-act="cancel">close</button></div><div class="log-list">${lines}</div></div>`;
       }
       case 'pile':
-        return this.renderPileSheet(s?.players.find((p) => p.id === sh.playerId));
+        return sh.pile === 'wreck' ? this.renderWreckSheet(s?.players.find((p) => p.id === sh.playerId) ?? this.viewer()) : this.renderPileSheet(s?.players.find((p) => p.id === sh.playerId));
       case 'player':
         return this.renderPlayerSheet(s!.players.find((p) => p.id === sh.playerId) ?? this.viewer());
       case 'card': {
@@ -6888,6 +6898,13 @@ export class App {
   }
 
   /** A discard pile, looked through (a deck can't be: what is left in it stays hidden). */
+  /** A wreckage, looked through: top first (the next to reach the discard pile), as everyone saw them go. */
+  private renderWreckSheet(of: PlayerState): string {
+    const mine = of.id === this.viewer().id;
+    const rows = (of.wreck ?? []).map((c, i) => `<div class="pile-card">${this.renderCard(c, { static: true })}${i === 0 ? '<small class="pile-next">next dawn</small>' : ''}</div>`).join('');
+    return this.sheetFrame(`${mine ? 'your' : `${esc(of.name.toLowerCase())}'s`} wreckage · ${of.wreck?.length ?? 0}`, `<div class="pile-grid">${rows || '<p class="muted">Empty.</p>'}</div>`);
+  }
+
   private renderPileSheet(of?: PlayerState): string {
     const me = this.viewer();
     // A rival's discard pile is public: every card in it was seen.

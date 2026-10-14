@@ -186,7 +186,8 @@ export function glossarySections(): Record<string, [string, () => string]> {
           [keywordHtml('shield', undefined, { named: true }), 'Each blocks 1 heat aimed at your sun. They drop away at your dawn.'],
           ['Orbit', `Three planets face your sun in turn, ${B.orbitTurns === 1 ? 'a day' : `${B.orbitTurns} days`} each. Dead: nothing. Abundant: draw ${B.abundantDraw} more. Industrial: ${B.industrialPlays} more energy.`],
           ['Instability', `From round ${B.instabilityStartsRound}, every sun takes heat at dawn, 1 more every few rounds. Games end.`],
-          ['An empty deck', `Your discard pile is shuffled back in, free. With both empty, each card you should draw heats your sun ${B.fatigueHeat} instead.`],
+          ['The wreckage', 'Every card discarded or destroyed goes to the bottom of your wreckage. Each dawn its top card moves on to your discard pile.'],
+          ['An empty deck', 'Your discard pile is shuffled back in, free. With both empty, you draw nothing.'],
         ])}`,
     ],
     types: [

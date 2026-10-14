@@ -488,6 +488,11 @@ export interface TurnStats {
 }
 
 export interface PlayerState {
+  /**
+   * The wreckage: cards discarded, destroyed or played out, waiting (new ones at the bottom) to reach the discard pile,
+   * its top card at each of its owner's dawns.
+   */
+  wreck?: CardInstance[];
   /** Tableau slots closed for this battle (a campaign flagship's wrecked one): no card can stand in them. */
   closedSlots?: number[];
   /**

@@ -67,7 +67,7 @@ describe('campaign battles', () => {
     s = applyAction(s, { type: 'attack', attackerUid: them.tableau[0].uid, targetUid: myHero.uid });
     const me = s.players[0];
     expect(me.tableau.some((c) => c.defId === HERO)).toBe(false);
-    expect(me.discard.some((c) => c.defId === HERO)).toBe(true);
+    expect((me.wreck ?? []).some((c) => c.defId === HERO)).toBe(true);
     expect(me.wounded).toBeUndefined();
     // An empty deck: the discard pile goes back in.
     me.deck = [];

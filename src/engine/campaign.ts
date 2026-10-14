@@ -3132,7 +3132,7 @@ export function salvageKind(s: CampaignState, game: GameState): 'defectors' | 'p
   if (seat < 0 || game.players[seat].id !== game.winnerId) return null;
   const foe = game.players[1 - seat];
   const counts = new Map<number, number>();
-  for (const c of [...foe.deck, ...foe.hand, ...foe.tableau, ...foe.discard, ...(foe.fallen ?? [])]) {
+  for (const c of [...foe.deck, ...foe.hand, ...foe.tableau, ...foe.discard, ...(foe.wreck ?? []), ...(foe.fallen ?? [])]) {
     const r = cardDef(c.defId).race;
     if (r !== undefined) counts.set(r, (counts.get(r) ?? 0) + 1);
   }
@@ -3156,7 +3156,7 @@ export function salvageOptions(s: CampaignState, game: GameState): string[] {
   const seat = b.attacker === s.playerId ? 0 : 1;
   const foe = game.players[1 - seat];
   const myRace = factionById(s, s.playerId).race;
-  const cards = [...foe.deck, ...foe.hand, ...foe.tableau, ...foe.discard, ...(foe.fallen ?? []), ...(foe.lightspeed ? [foe.lightspeed] : [])];
+  const cards = [...foe.deck, ...foe.hand, ...foe.tableau, ...foe.discard, ...(foe.wreck ?? []), ...(foe.fallen ?? []), ...(foe.lightspeed ? [foe.lightspeed] : [])];
   const usable = (id: string) => {
     const def = cardDef(id);
     return !def.token && def.kind !== 'command' && !def.overlordPart && legalIn(s.mode, id);

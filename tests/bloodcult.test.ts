@@ -33,7 +33,7 @@ describe('the Blood Cult', () => {
     const a = t.players[0];
     expect(a.tableau.some((c) => c.uid === thrall.uid)).toBe(false);
     expect(a.tableau.some((c) => c.uid === chalice.uid)).toBe(true);
-    expect(a.discard.some((c) => c.uid === thrall.uid)).toBe(true);
+    expect((a.wreck ?? []).some((c) => c.uid === thrall.uid)).toBe(true);
     // The Rite's 5, the Thrall's 3 as it leaves, the Hemomancer's 2 as another of hers leaves.
     expect(t.players[1].heat).toBe(heat + 5 + 3 + 2);
   });
