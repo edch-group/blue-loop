@@ -10,6 +10,7 @@ public static class BuildScript
     {
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         var cam = new GameObject("Camera").AddComponent<Camera>();
+        cam.tag = "MainCamera";
         cam.transform.position = new Vector3(0, 1.2f, -3.5f);
         cam.transform.LookAt(Vector3.zero);
         cam.backgroundColor = new Color(0.09f, 0.1f, 0.14f);
