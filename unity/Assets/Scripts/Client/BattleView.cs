@@ -101,6 +101,18 @@ public partial class BattleView : MonoBehaviour
         Sound.Scene("battle");
     }
 
+    CampaignView campaignOf;
+
+    /// <summary>A battle of the campaign's: fought as any other, its end handed back to the run.</summary>
+    public void LoadCampaign(GameState game, CampaignView from)
+    {
+        campaignOf = from;
+        Load(game);
+        Sound.Scene(game.Players.Any(p => p.Boss != null) ? "boss" : "battle");
+    }
+
+    void BackToCampaign() => App.Instance.EndCampaignBattle(this, state, campaignOf);
+
     /// <summary>Show a battle as it stands (a state set up elsewhere: a lesson, a puzzle, a picture).</summary>
     public void Load(GameState s)
     {
@@ -251,6 +263,12 @@ public partial class BattleView : MonoBehaviour
     void Quit()
     {
         CloseSheet();
+        // (A battle of the run's: retreat, which loses it.)
+        if (campaignOf != null)
+        {
+            sheet = Hud.Sheet(hud.transform, "quit game", new[] { new Hud.Row("retreat", () => { CloseSheet(); state = Game.Apply(state, new EngineAction { Type = "concede", PlayerId = you }); BackToCampaign(); }, null, true), new Hud.Row("keep playing", CloseSheet) }, CloseSheet);
+            return;
+        }
         // (A lesson or a challenge is quick to begin again: only leave.)
         if (puzzleKind != null)
         {
@@ -268,7 +286,7 @@ public partial class BattleView : MonoBehaviour
     /// <summary>Autosave (storage.ts): a game in play kept to continue later; a finished one let go.</summary>
     void Persist()
     {
-        if (state == null || Autoplay || !Application.isPlaying || puzzleKind != null) return;
+        if (state == null || Autoplay || !Application.isPlaying || puzzleKind != null || campaignOf != null) return;
         if (state.WinnerId != null) Store.Remove(SaveKey);
         else Store.Write(SaveKey, state);
     }
@@ -859,7 +877,8 @@ public partial class BattleView : MonoBehaviour
             : $"The last sun standing after {state.Round} round{(state.Round == 1 ? "" : "s")}.";
         var w = Hud.Label(card.transform, why, 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
         w.margin = new Vector4(20, 96, 20, 0);
-        var menu = Hud.Pill(card.transform, "Return to menu", () => App.Instance?.Menu("hub"), 17, Look.Ink, Color.white);
+        // (A battle of the run's goes back to the map, what it won waiting there.)
+        var menu = campaignOf != null ? Hud.Pill(card.transform, "Continue", BackToCampaign, 17, Look.Ink, Color.white) : Hud.Pill(card.transform, "Return to menu", () => App.Instance?.Menu("hub"), 17, Look.Ink, Color.white);
         Hud.At((RectTransform)menu.transform, new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(250, 56));
     }
 

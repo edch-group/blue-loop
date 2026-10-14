@@ -72,7 +72,7 @@ public static class BuildScript
         UnityEngine.Object.DestroyImmediate(cam.gameObject);
         UnityEngine.Object.DestroyImmediate(battle.gameObject);
         var app = App.Make();
-        foreach (var page in new[] { "title", "hub", "quickplay", "collection", "glossary", "tutorial", "challenges" })
+        foreach (var page in new[] { "title", "hub", "quickplay", "collection", "glossary", "tutorial", "challenges", "campaign" })
         {
             var menu = app.Menu(page);
             app.MenuCam.targetTexture = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };
@@ -81,9 +81,23 @@ public static class BuildScript
                 foreach (var t in menu.GetComponentsInChildren<TMPro.TMP_Text>(true)) t.ForceMeshUpdate(true);
             Shot(app.MenuCam, Path.Combine(dir, $"menu-{page}.png"));
         }
+        UnityEngine.Object.DestroyImmediate(app.gameObject);
+        CampaignShot(dir);
     }
 
     /// <summary>The board the web glossary photographs: both suns, Heroes, armed cards, a Guard, a trap set, shields, a hand.</summary>
+    /// <summary>A new run's map, as it opens.</summary>
+    static void CampaignShot(string dir)
+    {
+        var meta = BlueLoop.Engine.Meta.MigrateMeta(new BlueLoop.Engine.MetaState());
+        var run = BlueLoop.Engine.Campaign.Create(new BlueLoop.Engine.CampaignSetup { Seed = 5, Captain = BlueLoop.Engine.Meta.CaptainCard(meta), Run = BlueLoop.Engine.Meta.RunBonuses(meta) });
+        var view = CampaignView.Make(run);
+        view.Cam.targetTexture = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };
+        view.Settle();
+        Shot(view.Cam, Path.Combine(dir, "campaign-map.png"));
+        UnityEngine.Object.DestroyImmediate(view.gameObject);
+    }
+
     static BlueLoop.Engine.GameState GlossaryBoard(BlueLoop.Engine.GameState s)
     {
         int n = 0;

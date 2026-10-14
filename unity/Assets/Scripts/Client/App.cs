@@ -1,3 +1,4 @@
+using BlueLoop.Engine;
 using UnityEngine;
 
 /// <summary>
@@ -20,6 +21,8 @@ public class App : MonoBehaviour
 
     void Clear()
     {
+        // (A battle of the run's lies outside the current screen: it goes too.)
+        foreach (var b in FindObjectsByType<BattleView>(FindObjectsInactive.Include, FindObjectsSortMode.None)) if (b.gameObject != current) Mats.Kill(b.gameObject);
         if (current != null) Mats.Kill(current);
         current = null;
         if (MenuCam != null) Mats.Kill(MenuCam.gameObject);
@@ -51,6 +54,34 @@ public class App : MonoBehaviour
         battle.Cam.transform.SetParent(current.transform, true);
         battle.Board.transform.SetParent(current.transform, true);
         battle.Load(saved);
+    }
+
+    CampaignView campaign;
+
+    /// <summary>The campaign: a run (the saved one, or a new one), its map.</summary>
+    public void Run(CampaignState run)
+    {
+        Clear();
+        campaign = CampaignView.Make(run);
+        current = campaign.gameObject;
+    }
+
+    /// <summary>A battle of the run's: the map put aside (not gone) while it is fought.</summary>
+    public void CampaignBattle(GameState game, CampaignView from)
+    {
+        from.gameObject.SetActive(false);
+        var battle = BattleView.Make();
+        battle.Cam.transform.SetParent(battle.transform, true);
+        battle.Board.transform.SetParent(battle.transform, true);
+        battle.LoadCampaign(game, from);
+    }
+
+    /// <summary>Back from a battle of the run's, with how it ended (or retreated from).</summary>
+    public void EndCampaignBattle(BattleView battle, GameState game, CampaignView to)
+    {
+        Mats.Kill(battle.gameObject);
+        to.gameObject.SetActive(true);
+        to.FinishBattle(game);
     }
 
     /// <summary>A lesson ("lesson") or a challenge ("challenge"), as a battle.</summary>
