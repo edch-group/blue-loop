@@ -447,11 +447,13 @@ public partial class CampaignView
         {
             if (storyShip != null) { Mats.Kill(storyShip.gameObject); storyShip = null; }
             if (world != null) world.gameObject.SetActive(true);
+            if (top != null) top.gameObject.SetActive(true);
             return;
         }
         if (storyShip == null) storyShip = CampaignBackdrop.Story(Cam, transform, ShipSpec(), Crew());
         // (The map put away under it.)
         world.gameObject.SetActive(false);
+        top.gameObject.SetActive(false);
         storyShip.SetVisitor(visitor);
     }
 
@@ -506,7 +508,7 @@ public partial class CampaignView
         {
             var (who, text) = lines[i];
             bool them = who == title;
-            var w = Hud.Label(talk, $"<size=55%><color=#737780>{who.ToUpperInvariant()}</color></size>\n{(them ? "<i>" : "")}{text}{(them ? "</i>" : "")}", 17, Look.Ink, false, 400, 0, TextAlignmentOptions.BottomLeft);
+            var w = Hud.Label(talk, $"<size=62%><color=#737780>{who.ToUpperInvariant()}</color></size>\n{(them ? "<i>" : "")}{text}{(them ? "</i>" : "")}", 17, Look.Ink, false, 400, 0, TextAlignmentOptions.BottomLeft);
             w.textWrappingMode = TextWrappingModes.Normal;
             var r = w.rectTransform;
             r.anchorMin = r.anchorMax = new Vector2(0.5f, 0);

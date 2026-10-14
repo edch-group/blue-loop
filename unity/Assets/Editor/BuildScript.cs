@@ -116,7 +116,8 @@ public static class BuildScript
         var ship = scene.GetComponentInChildren<CampaignBackdrop>();
         if (ship != null)
         {
-            ship.At = 30;
+            // (Some seconds on: the visitor come alongside and holding there.)
+            ship.At = 40;
             ship.Into(rt);
             foreach (var c in ship.Cameras) c.Render();
         }
