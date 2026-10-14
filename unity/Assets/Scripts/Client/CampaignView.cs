@@ -122,6 +122,8 @@ public partial class CampaignView : MonoBehaviour
         Map();
         var f = Campaign.Flagship(state, state.PlayerId);
         if (f != null) focus = focusGoal = Home(f.NodeId);
+        distance = distanceGoal = RestDist;
+        pitchNow = RestPitch;
         Refresh();
     }
 
@@ -313,10 +315,46 @@ public partial class CampaignView : MonoBehaviour
     {
         var n = Campaign.NodeById(state, id);
         var f = Web(n.X, n.Y);
+        // A turning galaxy: looking between the ship and the galaxy's heart (where the wormhole is).
+        if (Spinning) return new Vector3(f.x * 0.55f * G, 0, -f.y * 0.55f * G);
         float dist = HomeDist / G;
         float reach = StripWidth / 2 - dist * 0.35f;
         float x = Mathf.Clamp(f.x + dist * 0.28f, -reach, reach);
         return new Vector3(x * G, 0, -(0.1f + f.y * 0.35f) * G);
+    }
+
+    /// <summary>
+    /// A galaxy turning slowly round its heart (a spiral arm's, nebula3d.ts setSpin): the camera circles it, round about
+    /// once every six minutes, from a little further off and higher; how far it has turned.
+    /// </summary>
+    bool Spinning => state?.Layout == "spiral";
+    float spin;
+    float RestDist => Spinning ? HomeDist * 1.125f : HomeDist;
+    float RestYaw => CamYaw + spin;
+    float RestPitch => Spinning ? 0.66f : CamPitch;
+
+    /// <summary>Turning with the camera, the systems' names and marks still read from it.</summary>
+    void FaceLabels()
+    {
+        float yaw = yawNow;
+        var rot = Quaternion.Euler(90, -yaw * Mathf.Rad2Deg, 0);
+        var toward = new Vector3(Mathf.Sin(yaw), 0, -Mathf.Cos(yaw));
+        foreach (var t in nodes.Values)
+        {
+            if (t == null) continue;
+            var name = t.Find("Name");
+            if (name != null)
+            {
+                name.localRotation = rot;
+                name.localPosition = toward * 0.45f + Vector3.up * 0.03f;
+            }
+            var mark = t.Find("Mark");
+            if (mark != null)
+            {
+                mark.localRotation = rot;
+                mark.localPosition = -toward * 0.42f + Vector3.up * 0.03f;
+            }
+        }
     }
 
     Vector3 NodePos(string id)
@@ -439,6 +477,13 @@ public partial class CampaignView : MonoBehaviour
         if (cine == "done" && now - cineDone > 1.2f) cine = null;
         HudFade(now);
         StepTurn();
+        // A turning galaxy: round about once every six minutes, the camera easing after it.
+        if (!Spinning) spin = 0;
+        else if (Application.isPlaying && !Cining && !launching)
+        {
+            spin += Mathf.Min(0.1f, Time.deltaTime) * (Mathf.PI * 2 / 360);
+            glideRate = Mathf.Min(glideRate, 2.5f);
+        }
         bool still = !flying && !Cining && !launching && overlay.childCount == 0 && sheetRoot.childCount == 0;
         bool overUi = UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
         // The system under the pointer swells and flares.
@@ -450,7 +495,8 @@ public partial class CampaignView : MonoBehaviour
         if (!still || overUi) return;
         // A drag pans across the floor; a tap picks a system; the wheel zooms.
         if (Input.GetMouseButtonDown(0)) { dragFrom = Input.mousePosition; dragging = false; }
-        if (Input.GetMouseButton(0) && (Input.mousePosition - dragFrom).magnitude > 8)
+        // (Never in a turning galaxy: the camera circles it.)
+        if (Input.GetMouseButton(0) && !Spinning && (Input.mousePosition - dragFrom).magnitude > 8)
         {
             dragging = true;
             var a = FloorPoint(dragFrom);
@@ -461,7 +507,7 @@ public partial class CampaignView : MonoBehaviour
         }
         if (Input.GetMouseButtonUp(0) && !dragging) Tap();
         float wheel = Input.mouseScrollDelta.y;
-        if (wheel != 0) distanceGoal = Mathf.Clamp(distanceGoal * (1 - wheel * 0.08f), HomeDist * 0.4f, HomeDist * 2);
+        if (wheel != 0) distanceGoal = Mathf.Clamp(distanceGoal * (1 - wheel * 0.08f), RestDist * 0.4f, RestDist * 2);
     }
 
     Vector3? FloorPoint(Vector3 screen)
@@ -487,9 +533,10 @@ public partial class CampaignView : MonoBehaviour
         focus = Vector3.Lerp(focus, focusGoal, k);
         distance = Mathf.Lerp(distance, distanceGoal, k);
         // (The web's pose: yaw -0.95, pitch 0.62 rad; its eye off toward the strip's near end, looking along it.)
-        yawNow += Wrap(CamYaw - yawNow) * k;
-        pitchNow += (CamPitch - pitchNow) * k;
-        if (glideRate < 4 && (focus - focusGoal).magnitude < 1e-3f && Mathf.Abs(distance - distanceGoal) < 1e-3f && Mathf.Abs(Wrap(CamYaw - yawNow)) < 1e-4f) glideRate = 4;
+        yawNow += Wrap(RestYaw - yawNow) * k;
+        pitchNow += (RestPitch - pitchNow) * k;
+        if (glideRate < 4 && !Spinning && (focus - focusGoal).magnitude < 1e-3f && Mathf.Abs(distance - distanceGoal) < 1e-3f && Mathf.Abs(Wrap(RestYaw - yawNow)) < 1e-4f) glideRate = 4;
+        if (Spinning) FaceLabels();
         Aim(new Pose { X = focus.x / G, Y = focus.y / G, Z = -focus.z / G, Yaw = yawNow, Pitch = pitchNow, Dist = distance / G });
     }
 
@@ -610,6 +657,7 @@ public partial class CampaignView : MonoBehaviour
             Map();
             var f = Campaign.Flagship(state, state.PlayerId);
             if (f != null) focus = focusGoal = Home(f.NodeId);
+            distanceGoal = RestDist;
             Toast($"Galaxy {state.Universe}: through the wormhole.");
         }
         if (action.Type != "endTurn" && action.Type != "aiStep" && MoveSpent()) Invoke(nameof(PassTime), 0.42f);
@@ -738,8 +786,8 @@ public partial class CampaignView : MonoBehaviour
     {
         focus = focusGoal;
         distance = distanceGoal;
-        yawNow = CamYaw;
-        pitchNow = CamPitch;
+        yawNow = RestYaw;
+        pitchNow = RestPitch;
         Animate();
         Camera();
         PlaceDarkness();
