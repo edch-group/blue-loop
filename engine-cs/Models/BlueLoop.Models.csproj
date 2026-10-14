@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The procedural 3D models' C# sources (unity/Assets/Scripts/Models: ships, the Captain and his crew, the campaign's
+       land), built here too, outside Unity, so the tests check them against the TypeScript's. Plain C#, no UnityEngine. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>BlueLoop.Models</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../unity/Assets/Scripts/Models/**/*.cs" />
+  </ItemGroup>
+</Project>
