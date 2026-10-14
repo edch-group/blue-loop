@@ -746,7 +746,7 @@ public partial class BattleView : MonoBehaviour
             raw.raycastTarget = false;
         }
         // A word when something can't be done.
-        var t = Hud.Glass(root, "Toast", Look.GlassStrong);
+        var t = Hud.Glass(root, "Toast", Look.GlassStrong, false);
         Hud.At((RectTransform)t.transform, new Vector2(0.5f, 1), new Vector2(0, -40), new Vector2(820, 70));
         toast = Hud.Label(t.transform, "", 22, Look.Ink, false, 500, 0);
         toast = t.GetComponentInChildren<TextMeshProUGUI>();

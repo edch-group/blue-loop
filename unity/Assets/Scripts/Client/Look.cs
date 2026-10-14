@@ -41,7 +41,12 @@ public static class Look
         var ttf = Resources.Load<Font>("Fonts/" + file);
         // (Atlases that grow into more pages as glyphs are added, so a long page of words never runs out of room.)
         f = ttf != null ? TMP_FontAsset.CreateFontAsset(ttf, 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic, true) : null;
-        if (f != null) f.name = file;
+        if (f != null)
+        {
+            f.name = file;
+            // (The usual characters drawn into the atlas at once, so it is not redrawn under text already laid out.)
+            f.TryAddCharacters(" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~·–—‘’“”…×−‹›→", out _);
+        }
         fonts[file] = f;
         // (Signs the game's faces lack, ✦ ⟁ ✓ × and the like, from small fallback faces.)
         if (f != null && !file.StartsWith("Symbols"))

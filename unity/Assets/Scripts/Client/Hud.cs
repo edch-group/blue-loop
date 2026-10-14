@@ -88,22 +88,12 @@ public static class Hud
     public static Image Glass(Transform parent, string name, Color? color = null, bool shadow = true)
     {
         var r = Rect(parent, name);
-        if (shadow)
-        {
-            var sh = Rect(r, "Shadow");
-            Fill(sh);
-            sh.offsetMin = new Vector2(-16, -22);
-            sh.offsetMax = new Vector2(16, 10);
-            var si = sh.gameObject.AddComponent<Image>();
-            si.sprite = Soft;
-            si.type = Image.Type.Sliced;
-            si.color = new Color(0.35f, 0.35f, 0.43f, 0.16f);
-            si.raycastTarget = false;
-        }
         var img = r.gameObject.AddComponent<Image>();
         img.sprite = Rounded;
         img.type = Image.Type.Sliced;
         img.color = color ?? Look.Glass;
+        // (Its shadow is a sibling drawn just before it: a child would be drawn over it.)
+        if (shadow) r.gameObject.AddComponent<GlassShadow>();
         return img;
     }
 
@@ -219,4 +209,48 @@ public static class Hud
         }
         return veil;
     }
+}
+
+/// <summary>A glass panel's soft shadow: a sibling just under it, kept to its place and size, shown and gone with it.</summary>
+[ExecuteAlways]
+public class GlassShadow : MonoBehaviour
+{
+    RectTransform shadow;
+
+    void Awake()
+    {
+        var go = new GameObject("Shadow", typeof(RectTransform));
+        shadow = (RectTransform)go.transform;
+        shadow.SetParent(transform.parent, false);
+        shadow.SetSiblingIndex(transform.GetSiblingIndex());
+        var si = go.AddComponent<Image>();
+        si.sprite = Hud.Soft;
+        si.type = Image.Type.Sliced;
+        si.color = new Color(0.35f, 0.35f, 0.43f, 0.16f);
+        si.raycastTarget = false;
+        Follow();
+    }
+
+    void Follow()
+    {
+        if (shadow == null) return;
+        var r = (RectTransform)transform;
+        if (shadow.parent != r.parent) shadow.SetParent(r.parent, false);
+        // (Just before the panel: moved down to the panel's place if after it, or up to the place before it.)
+        int si = shadow.GetSiblingIndex(), pi = r.GetSiblingIndex();
+        if (si > pi) shadow.SetSiblingIndex(pi);
+        else if (si < pi - 1) shadow.SetSiblingIndex(pi - 1);
+        shadow.anchorMin = r.anchorMin;
+        shadow.anchorMax = r.anchorMax;
+        shadow.pivot = r.pivot;
+        shadow.offsetMin = r.offsetMin + new Vector2(-16, -22);
+        shadow.offsetMax = r.offsetMax + new Vector2(16, 10);
+        shadow.localScale = r.localScale;
+    }
+
+    void OnRectTransformDimensionsChange() => Follow();
+    void LateUpdate() => Follow();
+    void OnEnable() { if (shadow != null) shadow.gameObject.SetActive(true); Follow(); }
+    void OnDisable() { if (shadow != null) shadow.gameObject.SetActive(false); }
+    void OnDestroy() { if (shadow != null) Mats.Kill(shadow.gameObject); }
 }
