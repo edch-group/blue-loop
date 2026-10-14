@@ -123,6 +123,34 @@ public static class BuildScript
         }
         Shot(scene.Cam, Path.Combine(dir, "campaign-encounter.png"));
         UnityEngine.Object.DestroyImmediate(scene.gameObject);
+        StationShots(dir, meta);
+    }
+
+    /// <summary>The ship at a space station (its armoury open) and at a research station (its lab come alongside).</summary>
+    static void StationShots(string dir, BlueLoop.Engine.MetaState meta)
+    {
+        foreach (var kind in new[] { "armory", "research" })
+        {
+            var run = BlueLoop.Engine.Campaign.Create(new BlueLoop.Engine.CampaignSetup { Seed = 5, Captain = BlueLoop.Engine.Meta.CaptainCard(meta), Run = BlueLoop.Engine.Meta.RunBonuses(meta) });
+            var station = run.Nodes.FirstOrDefault(x => x.Station?.Kind == kind);
+            var flagship = BlueLoop.Engine.Campaign.Flagship(run, run.PlayerId);
+            if (station == null || flagship == null) continue;
+            flagship.NodeId = station.Id;
+            var view = CampaignView.Make(run);
+            var rt = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };
+            view.Cam.targetTexture = rt;
+            view.OpenStation(station.Id);
+            view.Settle();
+            var ship = view.GetComponentInChildren<CampaignBackdrop>();
+            if (ship != null)
+            {
+                ship.At = 40;
+                ship.Into(rt);
+                foreach (var c in ship.Cameras) c.Render();
+            }
+            Shot(view.Cam, Path.Combine(dir, $"campaign-{kind}.png"));
+            UnityEngine.Object.DestroyImmediate(view.gameObject);
+        }
     }
 
     static BlueLoop.Engine.GameState GlossaryBoard(BlueLoop.Engine.GameState s)
