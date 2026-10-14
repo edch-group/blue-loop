@@ -47,14 +47,22 @@ const encode = (name, b64, quality) => {
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', wavPath, '-c:a', 'libvorbis', '-q:a', String(quality), `${out}/${name}.ogg`]);
   rmSync(wavPath);
 };
-for (const [name, method, args, seconds] of effects) {
+// (VOICES_ONLY=1: just the heroes' lines, leaving the effects and scores as they are.)
+const only = !!process.env.VOICES_ONLY;
+for (const [name, method, args, seconds] of only ? [] : effects) {
   try {
     encode(name, await page.evaluate(([m, a, s]) => window.bakeEffect(m, a, s), [method, args, seconds]), 5);
   } catch (e) {
     console.error(`${name}: ${e.message}`);
   }
 }
-for (const [scene, loop] of scores) encode(`music-${scene}`, await page.evaluate(([s, l]) => window.bakeScore(s, l), [scene, loop]), 4);
-console.log(`${effects.length} effects and ${scores.length} scores`);
+for (const [scene, loop] of only ? [] : scores) encode(`music-${scene}`, await page.evaluate(([s, l]) => window.bakeScore(s, l), [scene, loop]), 4);
+// The heroes' lines (voice.ts), and those recorded (src/assets/voice/<card id>-<line>.mp3).
+writeFileSync('unity/Assets/Resources/Engine/voices.json', JSON.stringify(await page.evaluate(() => window.heroLines())));
+mkdirSync(`${out}/Voice`, { recursive: true });
+for (const f of globSync('src/assets/voice/*.mp3')) {
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', f, '-c:a', 'libvorbis', '-q:a', '5', `${out}/Voice/${f.replace(/^.*\/|\.mp3$/g, '')}.ogg`]);
+}
+console.log(`${effects.length} effects, ${scores.length} scores and the heroes' lines`);
 await browser.close();
 await server.close();

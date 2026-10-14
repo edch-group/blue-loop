@@ -177,4 +177,5 @@ async function bakeScore(scene: 'ambient' | 'battle' | 'boss' | 'voyage', loop: 
   }
   return wav(buf, length);
 }
-Object.assign(window, { bakeEffect, bakeScore });
+import { HEROES } from '../src/ui/voice';
+Object.assign(window, { bakeEffect, bakeScore, heroLines: () => Object.fromEntries(Object.entries(HEROES).map(([id, h]) => [id, h.lines])) });

@@ -266,7 +266,11 @@ public class BattleView : MonoBehaviour
             case "playCard":
                 Sound.Play("play");
                 var played = actor.Hand.FirstOrDefault(c => c.Uid == a.CardUid);
-                if (played != null && Cards.Def(played.DefId).Kind == "command") Sound.Play("hero", Mathf.Max(0, delay - 0.3f));
+                if (played != null && Cards.Def(played.DefId).Kind == "command")
+                {
+                    Sound.Play("hero", Mathf.Max(0, delay - 0.3f));
+                    StartCoroutine(SpeakLater(played.DefId, played.Uid, delay + 0.25f));
+                }
                 break;
             case "endTurn":
                 Sound.Play("end-turn");
@@ -282,6 +286,19 @@ public class BattleView : MonoBehaviour
         int drawn = mine.Hand.Count(c => !Was(mine).Hand.Any(x => x.Uid == c.Uid));
         for (int i = 0; i < drawn; i++) Sound.Play("draw", 0.35f + i * 0.12f);
         if (next.WinnerId != null && prev.WinnerId == null) Sound.Play("supernova", 0.4f);
+    }
+
+    /// <summary>A Hero's line as it lands: a caption over its card on the board.</summary>
+    IEnumerator SpeakLater(string defId, string uid, float after)
+    {
+        yield return new WaitForSeconds(after);
+        var v = Board.View(uid);
+        if (v == null || hud == null) yield break;
+        var canvas = (RectTransform)hud.transform;
+        var screen = Cam.WorldToScreenPoint(v.transform.position + new Vector3(0, 0, 0.7f));
+        bool below = screen.y > Screen.height * 0.93f;
+        if (below) screen = Cam.WorldToScreenPoint(v.transform.position - new Vector3(0, 0, 0.7f));
+        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, Cam, out var at)) Voices.Speak(defId, canvas, at, below);
     }
 
     /// <summary>A blow on a card: its defence cracking if the blow wore it, and the crunch of what got through.</summary>

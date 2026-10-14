@@ -22,7 +22,7 @@ interface Hero {
   lines: string[];
 }
 
-const HEROES: Record<string, Hero> = {
+export const HEROES: Record<string, Hero> = {
   // Aureline: the sun-priests.
   command_directive: { lines: ['The light holds. Take your places.', 'By the white flame, we stand.', 'Solarch Veyra, at your side.'] },
   ignition_protocol: { lines: ['Light them up!', 'Sol-Marshal Aurex. Let them burn.', 'Every star can be made to blaze.'] },

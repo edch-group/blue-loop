@@ -76,6 +76,17 @@ public class Sound : MonoBehaviour
         else v.Play();
     }
 
+    /// <summary>A recording (a voice line) through the same voices as the effects.</summary>
+    public static void PlayClip(AudioClip clip, float volume = 0.85f)
+    {
+        var s = Get();
+        if (s == null || clip == null) return;
+        var v = s.voices.Find(x => !x.isPlaying) ?? s.NewVoice();
+        v.clip = clip;
+        v.volume = volume;
+        v.Play();
+    }
+
     AudioSource NewVoice()
     {
         var v = gameObject.AddComponent<AudioSource>();
