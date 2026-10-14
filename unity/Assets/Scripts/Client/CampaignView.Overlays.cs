@@ -116,27 +116,6 @@ public partial class CampaignView
         return face;
     }
 
-    /// <summary>A card's portrait in a circle (a hero, a speaker).</summary>
-    static void Portrait(Transform parent, string defId, Vector2 at, float size)
-    {
-        var face = Hud.Rect(parent, "Portrait");
-        Hud.At(face, new Vector2(0, 0.5f), at, new Vector2(size, size));
-        var ring = face.gameObject.AddComponent<Image>();
-        ring.sprite = Hud.Circle;
-        ring.color = new Color(0.82f, 0.68f, 0.38f);
-        var inner = Hud.Rect(face, "Inner");
-        Hud.Fill(inner);
-        inner.offsetMin = new Vector2(2, 2);
-        inner.offsetMax = new Vector2(-2, -2);
-        inner.gameObject.AddComponent<Image>().sprite = Hud.Circle;
-        inner.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-        var pic = Hud.Rect(inner, "Picture");
-        Hud.Fill(pic);
-        var raw = pic.gameObject.AddComponent<RawImage>();
-        raw.texture = defId != null ? EngineData.Art(defId) : null;
-        raw.raycastTarget = false;
-    }
-
     /// <summary>
     /// A scene's word (campaign.ts renderStory, .cmp-guide), under you: one line, never a conversation (its first); the
     /// speaker's portrait ringed in their colour, their name small over their words; × puts it away. Guidance, not a
@@ -773,30 +752,45 @@ public partial class CampaignView
         storyShip.SetVisitor(visitor);
     }
 
-    /// <summary>A scene (the web's scene overlay): who it is, their words a line at a time, and the choices under them.</summary>
-    void Scene(string kicker, string title, List<(string who, string text)> lines, System.Action<RectTransform> actions, string portrait = null)
+    /// <summary>
+    /// A hero come to you (renderOverlay's .struggle): no box, on the veil; their face large in a ring of rust, the kind of
+    /// moment small in rust capitals, their name large, their words in italics, and the choices under them.
+    /// </summary>
+    void Standoff(string kicker, string hero, string line, System.Action<RectTransform, float> actions, float actionsH)
     {
-        if (storyShip != null) { ShipScene(kicker, title, lines, actions); return; }
-        var v = Veil(overlay);
-        if (portrait != null) Portrait(v, portrait, new Vector2(800 - 60, 210), 120);
-        var k = Hud.Label(v, kicker.ToUpperInvariant(), 13, Look.InkFaint, true, 500, 30, TextAlignmentOptions.Top);
-        k.margin = new Vector4(0, 300, 0, 0);
-        var t = Hud.Label(v, title.ToUpperInvariant(), 34, Look.Ink, true, 400, 34, TextAlignmentOptions.Top);
-        t.margin = new Vector4(0, 326, 0, 0);
-        float y = -390;
-        foreach (var (who, text) in lines)
+        var v = Veil(overlay, true);
+        float t0 = RevealFrom(kicker + hero);
+        var rust = WebLook.Hex("#c2401c");
+        float face = 140 * Z, gap = 12 * Z, kH = 0.66f * 16 * Z * 1.25f, nH = 2 * 16 * Z * 0.9f * 1.26f, lH = line != null ? 1.1f * 16 * Z * 1.5f : 0;
+        float total = face + gap + kH + gap + nH + (line != null ? gap + lH : 0) + gap + 6 * Z + actionsH, y = 500 - total / 2;
+        var f = Face(v, hero, 800, y + face / 2, face, WebLook.Hex("#1a1f2a"), (3 * Z, Color.white), (5 * Z, rust));
+        var glow = WebLook.Rounded(f, "Glow", new Color(rust.r, rust.g, rust.b, 0.35f), 999);
+        glow.sprite = Hud.Soft;
+        glow.type = Image.Type.Sliced;
+        glow.pixelsPerUnitMultiplier = 41f / (face / 2 + 40 * Z);
+        Hud.Fill(glow.rectTransform);
+        glow.rectTransform.offsetMin = new Vector2(-40 * Z, -40 * Z - 10 * Z);
+        glow.rectTransform.offsetMax = new Vector2(40 * Z, 40 * Z - 10 * Z);
+        glow.transform.SetAsFirstSibling();
+        RiseIn.On(f, t0, 0);
+        y += face + gap;
+        WebLook.Words(WebLook.Box(v, "Kicker", 0, y, 1600, kH), kicker.ToUpperInvariant(), 0.66f * 16 * Z, 0.32f, rust, true, 400);
+        y += kH + gap;
+        WebLook.Words(WebLook.Box(v, "Name", 0, y, 1600, nH), Cards.Def(hero).Name.ToUpperInvariant(), 2 * 16 * Z * 0.9f, 0.24f, Look.Ink, true, 400);
+        y += nH;
+        if (line != null)
         {
-            var w = Hud.Label(v, $"<size=70%><color=#8a8f99>{who.ToUpperInvariant()}</color></size>\n“{text}”", 18, Look.Ink, false, 400, 0, TextAlignmentOptions.Top);
-            w.textWrappingMode = TextWrappingModes.Normal;
-            w.rectTransform.anchorMin = w.rectTransform.anchorMax = new Vector2(0.5f, 1);
-            w.rectTransform.pivot = new Vector2(0.5f, 1);
-            w.rectTransform.sizeDelta = new Vector2(760, 80);
-            w.rectTransform.anchoredPosition = new Vector2(0, y);
-            y -= 84;
+            y += gap;
+            var said = WebLook.Words(WebLook.Box(v, "Line", 800 - 17 * 1.1f * 16 * Z, y, 34 * 1.1f * 16 * Z, lH), $"“{line}”", 1.1f * 16 * Z, 0, Look.InkSoft, false, 400);
+            said.fontStyle = FontStyles.Italic;
+            said.textWrappingMode = TextWrappingModes.Normal;
+            RiseIn.On(said.rectTransform, t0, 0.4f);
+            y += lH;
         }
-        var acts = Hud.Rect(v, "Actions");
-        Hud.At(acts, new Vector2(0.5f, 1), new Vector2(0, y - 10), new Vector2(900, 60));
-        actions(acts);
+        y += gap + 6 * Z;
+        var acts = WebLook.Box(v, "Actions", 0, y, 1600, actionsH);
+        actions(acts, actionsH);
+        RiseIn.On(acts, t0, 1);
     }
 
     /// <summary>
@@ -818,57 +812,128 @@ public partial class CampaignView
     /// <summary>A line of a scene's talk comes in after the one before (styles.css .enc-line: 0.9s, then 1.1s apart); its choices after the last.</summary>
     static float LineDelay(int i) => 0.9f + i * 1.1f;
 
+    /// <summary>Who says a line of a scene, as the web names them: the visitor (the scene's title), the Captain, one of the crew.</summary>
+    static string SpeakerName(string who, string title) => who == "visitor" ? title : who == "captain" ? "the captain" : Companions.All.FirstOrDefault(c => c.Id == who)?.Name ?? who;
+
+    /// <summary>The face beside a line: the Captain's or a crew member's (the visitor's lines have none).</summary>
+    static string SpeakerCard(string who) => who == "captain" ? Builds.CaptainId : who == "visitor" ? null : Companions.All.FirstOrDefault(c => c.Id == who)?.Card;
+
     /// <summary>
-    /// A scene with the ship in it (campaign.ts scene): its kind and title at the top, over the ship; the talk at the
-    /// foot, each line its speaker's (the visitor's in italics, set in), the choices under them, coming in one after
-    /// another.
+    /// A scene with the ship in it (campaign.ts scene, .enc): its kind small and its title in spaced capitals at the top,
+    /// over the ship; the talk at the foot, 720 (CSS) across: each line its speaker's face (the visitor's none, set in,
+    /// in italics), their name small over their words; a note; the choices under them, coming in one after another.
     /// </summary>
-    void ShipScene(string kicker, string title, List<(string who, string text)> lines, System.Action<RectTransform> actions)
+    void ShipScene(string kicker, string title, List<(string who, string text)> lines, System.Action<RectTransform> actions, string note = null)
     {
         float from = RevealFrom(kicker + "|" + title + "|" + string.Join("|", lines.Select(l => l.who + ":" + l.text)));
         var v = Hud.Rect(overlay, "Scene");
         Hud.Fill(v);
         v.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0);
-        var k = Hud.Label(v, kicker.ToUpperInvariant(), 11, Look.InkSoft, true, 500, 30, TextAlignmentOptions.Top);
-        k.margin = new Vector4(0, 18, 0, 0);
-        var t = Hud.Label(v, title.ToUpperInvariant(), 22, Look.Ink, true, 400, 26, TextAlignmentOptions.Top);
-        t.margin = new Vector4(0, 36, 0, 0);
-        var talk = Hud.Rect(v, "Talk");
-        Hud.At(talk, new Vector2(0.5f, 0), new Vector2(0, 18), new Vector2(720, 0));
-        float y = 0;
-        // (From the foot up: the choices, then the lines, the last nearest them.)
-        var acts = Hud.Rect(talk, "Actions");
-        Hud.At(acts, new Vector2(0.5f, 0), new Vector2(0, 0), new Vector2(900, 56));
+        var head = WebLook.Box(v, "Head", 0, 14 * Z, 1600, 52);
+        WebLook.Words(WebLook.Box(head, "Kicker", 0, 0, 1600, 14), kicker.ToUpperInvariant(), 0.5f * 16 * Z, 0.24f, Look.InkSoft, false, 400);
+        WebLook.Words(WebLook.Box(head, "Title", 0, 17, 1600, 35), title.ToUpperInvariant(), 1.2f * 16 * Z, 0.2f, Look.Ink, true, 400);
+        RiseIn.On(head, from, 0);
+        const float W = 720 * Z, X = 800 - 720 * Z / 2;
+        float fs = 0.98f * 16 * Z, lh = fs * 1.45f, textX = 44 * Z, textW = W - textX;
+        // (From the foot up: the choices, the note, then the lines, the last nearest them.)
+        float y = 1000 - 14 * Z;
+        float actsH = 4 * Z + 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
+        y -= actsH;
+        var acts = WebLook.Box(v, "Actions", 0, y + 4 * Z, 1600, actsH - 4 * Z);
         actions(acts);
         RiseIn.On(acts, from, LineDelay(lines.Count(l => l.who != "found" && l.who != "damage")));
-        y += 66;
+        if (note != null)
+        {
+            float nh = 0.72f * 16 * Z * 1.25f;
+            y -= 10 * Z + nh;
+            var n = WebLook.Words(WebLook.Box(v, "Note", X, y, W, nh), note, 0.72f * 16 * Z, 0.08f, Look.InkSoft, false, 400);
+            RiseIn.On(n.rectTransform, from, 1.6f);
+        }
+        y -= 10 * Z;
         for (int i = lines.Count - 1; i >= 0; i--)
         {
             var (who, text) = lines[i];
-            bool them = who == title;
-            var w = Hud.Label(talk, $"<size=62%><color=#737780>{who.ToUpperInvariant()}</color></size>\n{(them ? "<i>" : "")}{text}{(them ? "</i>" : "")}", 17, Look.Ink, false, 400, 0, TextAlignmentOptions.BottomLeft);
-            w.textWrappingMode = TextWrappingModes.Normal;
-            var r = w.rectTransform;
-            r.anchorMin = r.anchorMax = new Vector2(0.5f, 0);
-            r.pivot = new Vector2(0.5f, 0);
-            float h = w.GetPreferredValues(w.text, them ? 676 : 720, 0).y;
-            r.sizeDelta = new Vector2(them ? 676 : 720, h);
-            r.anchoredPosition = new Vector2(them ? 22 : 0, y);
-            // (What came of it, a part found or a slot wrecked, comes in with the first: styles.css .enc-result.)
-            RiseIn.On(r, from, who == "found" || who == "damage" ? 0.9f : LineDelay(i));
-            y += h + 10;
+            if (who == "found" || who == "damage")
+            {
+                // (What came of it, a part found or a slot wrecked: .enc-result, with the first line.)
+                var part = who == "found" ? Parts.ShipPart(state.Encounter?.Part) : null;
+                float rh = (part != null ? 84 * Z + 4 * Z : 0) + 0.78f * 16 * Z * 1.25f + 4 * Z + 0.78f * 16 * Z * 1.3f;
+                y -= rh;
+                var res = WebLook.Box(v, "Result", X, y, W, rh);
+                float ry = 0;
+                if (part != null)
+                {
+                    var glow = WebLook.Centred(res, "Glow", W / 2, 42 * Z, 84 * Z * 2.3f, 84 * Z * 2.3f).gameObject.AddComponent<RawImage>();
+                    glow.texture = Resources.Load<Texture2D>("Icons/loot-glow");
+                    glow.raycastTarget = false;
+                    var art = WebLook.Centred(res, "Part", W / 2, 42 * Z, 84 * Z * 0.8f, 84 * Z * 0.8f).gameObject.AddComponent<RawImage>();
+                    art.texture = Resources.Load<Texture2D>($"Icons/part-{part.Kind}-{part.Rarity}");
+                    art.raycastTarget = false;
+                    ry = 84 * Z + 4 * Z;
+                }
+                string head2 = part != null ? part.Name : $"slot {(state.Encounter?.Slot ?? 0) + 1} wrecked", sub = part != null ? part.Text : "until a space station";
+                WebLook.Words(WebLook.Box(res, "Name", 0, ry, W, 0.78f * 16 * Z * 1.25f), head2.ToUpperInvariant(), 0.78f * 16 * Z, 0.22f, Look.Ink, true, 400);
+                WebLook.Words(WebLook.Box(res, "What", 0, ry + 0.78f * 16 * Z * 1.25f + 4 * Z, W, 0.78f * 16 * Z * 1.3f), sub, 0.78f * 16 * Z, 0, Look.InkSoft, false, 400);
+                RiseIn.On(res, from, 0.9f);
+                y -= 10 * Z;
+                continue;
+            }
+            bool them = who == "visitor";
+            var p = WebLook.Words(Hud.Rect(v, "Words"), text, fs, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
+            p.textWrappingMode = TextWrappingModes.Normal;
+            if (them) p.fontStyle = FontStyles.Italic;
+            p.lineSpacing = (1.45f - 1.26f) * 100 / 1.26f;
+            float ph = p.GetPreferredValues(text, textW, 0).y;
+            float h = 0.48f * 16 * Z * 1.2f + 1 * Z + ph;
+            y -= h;
+            var line = WebLook.Box(v, "Line", X, y, W, h);
+            p.transform.SetParent(line, false);
+            var card = SpeakerCard(who);
+            if (card != null) Face(line, card, 17 * Z, 17 * Z, 34 * Z, WebLook.Hex("#1a1f2a"));
+            WebLook.Words(WebLook.Box(line, "Who", textX, 0, textW, 0.48f * 16 * Z * 1.2f), SpeakerName(who, title).ToUpperInvariant(), 0.48f * 16 * Z, 0.2f, Look.InkSoft, false, 400, TextAlignmentOptions.Left);
+            WebLook.Box(p.rectTransform, textX, 0.48f * 16 * Z * 1.2f + 1 * Z, textW, ph + 2);
+            RiseIn.On(line, from, LineDelay(i));
+            y -= 8 * Z;
         }
     }
 
-    static void Buttons(RectTransform row, params (string label, bool primary, string why, System.Action act)[] bs)
+    /// <summary>
+    /// A row of the web's buttons, centred, 10 (CSS) apart (primary or plain; held back, faded); and, if asked, the
+    /// purse after them: the materials token and how many.
+    /// </summary>
+    void Buttons(RectTransform row, params (string label, bool primary, string why, System.Action act)[] bs) => Buttons(row, -1, bs);
+
+    void Buttons(RectTransform row, int purse, params (string label, bool primary, string why, System.Action act)[] bs)
     {
-        float w = 230, gap = 16, total = bs.Length * w + (bs.Length - 1) * gap;
-        for (int i = 0; i < bs.Length; i++)
+        float h = row.sizeDelta.y, gap = 10 * Z;
+        var made = new List<RectTransform>();
+        float total = 0;
+        foreach (var (label, primary, why, act) in bs)
         {
-            var (label, primary, why, act) = bs[i];
-            var b = Hud.Pill(row, label, () => act(), 15, primary ? Look.Ink : Color.white, primary ? Color.white : Look.Ink);
-            b.interactable = why == null;
-            Hud.At((RectTransform)b.transform, new Vector2(0.5f, 0.5f), new Vector2(-total / 2 + w / 2 + i * (w + gap), 0), new Vector2(w, 54));
+            var b = WebButton(row, label.Replace("⬢", "").ToLowerInvariant(), () => act(), primary, 0, 0, why == null);
+            var r = (RectTransform)b.transform;
+            made.Add(r);
+            total += r.sizeDelta.x;
+        }
+        TextMeshProUGUI count = null;
+        if (purse >= 0)
+        {
+            count = WebLook.Words(Hud.Rect(row, "Purse"), purse.ToString(), 0.8f * 16 * Z, 0, Look.InkSoft, false, 700, TextAlignmentOptions.Left);
+            total += 20 + 4 * Z + count.GetPreferredValues(count.text).x;
+        }
+        total += gap * (made.Count - (purse >= 0 ? 0 : 1));
+        float x = 800 - total / 2;
+        foreach (var r in made)
+        {
+            WebLook.Box(r, x, (h - r.sizeDelta.y) / 2, r.sizeDelta.x, r.sizeDelta.y);
+            x += r.sizeDelta.x + gap;
+        }
+        if (count != null)
+        {
+            var mark = WebLook.Centred(row, "Materials", x + 10, h / 2, 20, 20).gameObject.AddComponent<RawImage>();
+            mark.texture = Resources.Load<Texture2D>("Icons/purse-materials");
+            mark.raycastTarget = false;
+            WebLook.Box(count.rectTransform, x + 20 + 4 * Z, 0, count.GetPreferredValues(count.text).x + 4, h);
         }
     }
 
@@ -878,17 +943,20 @@ public partial class CampaignView
     {
         var c = Companions.All.FirstOrDefault(x => x.Id == joined.Id);
         string name = c?.Name ?? joined.Id;
-        Scene("joins the crew", name, new List<(string, string)> { (name, joined.Line) }, row =>
+        var lines = new List<(string, string)> { (joined.Id, joined.Line) };
+        if (joined.Swap == true)
         {
-            if (joined.Swap == true)
+            // (Three aboard already: one stands down for this run, or the new one waits ashore for another.)
+            ShipScene("joins the crew", name, lines, row =>
             {
                 var aboard = Crew().Where(x => x != joined.Id).ToList();
-                var bs = aboard.Select(id => ($"{(Companions.All.FirstOrDefault(x => x.Id == id)?.Name ?? id).Split(' ')[0]} stays ashore", false, (string)null, (System.Action)(() => Act(new CampaignAction { Type = "crewSwap", Out = id }, "hover")))).ToList();
+                var bs = aboard.Select(id => ($"{(Companions.All.FirstOrDefault(x => x.Id == id)?.Name ?? id).Split(' ')[0]} stands down", false, (string)null, (System.Action)(() => Act(new CampaignAction { Type = "crewSwap", Out = id }, "hover")))).ToList();
                 bs.Add(($"{name.Split(' ')[0]} waits ashore", false, null, () => Act(new CampaignAction { Type = "crewSwap", Out = null }, "hover")));
                 Buttons(row, bs.ToArray());
-            }
-            else Buttons(row, ("Welcome aboard", true, null, () => Act(new CampaignAction { Type = "joinedSeen" }, "hover")));
-        }, c?.Card);
+            }, $"only {Companions.ActiveCrew} fly at once · who stays ashore this run?");
+            return;
+        }
+        ShipScene("joins the crew", name, lines, row => Buttons(row, ("welcome aboard", true, null, () => Act(new CampaignAction { Type = "joinedSeen" }, "hover"))), $"{(c?.Title ?? "").ToLowerInvariant()} · in your deck now");
     }
 
     void Encounter()
@@ -899,38 +967,37 @@ public partial class CampaignView
         string kicker = e.Kind == "hunters" ? "bounty hunters" : "encounter";
         if (e.Outcome == null)
         {
-            var lines = Encounters.OpeningLines(e.Kind, e.Price, e.Stage, Crew()).Select(l => (l.Who == "visitor" ? title : l.Who, l.Text)).ToList();
-            Scene(kicker, title, lines, row =>
+            var lines = Encounters.OpeningLines(e.Kind, e.Price, e.Stage, Crew()).Select(l => (l.Who, l.Text)).ToList();
+            ShipScene(kicker, title, lines, row =>
             {
                 var choices = Encounters.EncounterChoices(e.Kind, e.Price, e.Stage)
-                    .Select(c => (System.Text.RegularExpressions.Regex.Replace(c.Label, @" · (\d+)$", " · ⬢$1"), c.Id == "fight" || c.Id == "buy", Campaign.EncounterProblem(state, c.Id), (System.Action)(() => Act(new CampaignAction { Type = "encounter", Choice = c.Id }))))
+                    .Select(c => (c.Label, c.Id == "fight" || c.Id == "buy", Campaign.EncounterProblem(state, c.Id), (System.Action)(() => Act(new CampaignAction { Type = "encounter", Choice = c.Id }))))
                     .ToArray();
-                Buttons(row, choices);
-                var purse = Hud.Label(row, $"⬢ {me.Materials}", 15, Look.InkSoft, false, 500, 0, TextAlignmentOptions.Right);
-                purse.margin = new Vector4(0, 0, -130, 0);
+                Buttons(row, me.Materials, choices);
             });
             return;
         }
-        var closing = Encounters.ClosingLines(e.Kind, e.Outcome, e.Stage, Crew()).Select(l => (l.Who == "visitor" ? title : l.Who, l.Text)).ToList();
-        if (e.Part != null) closing.Add(("found", $"{Parts.ShipPart(e.Part)?.Name}: {Parts.ShipPart(e.Part)?.Text}"));
-        else if (e.Outcome == "bad" && e.Slot != null) closing.Add(("damage", $"Slot {e.Slot + 1} wrecked, until a space station."));
-        Scene(kicker, title, closing, row => Buttons(row, ("Fly on", true, null, () => Act(new CampaignAction { Type = "encounter", Choice = "done" }))));
+        var closing = Encounters.ClosingLines(e.Kind, e.Outcome, e.Stage, Crew()).Select(l => (l.Who, l.Text)).ToList();
+        if (e.Part != null) closing.Insert(0, ("found", ""));
+        else if (e.Outcome == "bad" && e.Slot != null) closing.Insert(0, ("damage", ""));
+        ShipScene(kicker, title, closing, row => Buttons(row, ("fly on", true, null, () => Act(new CampaignAction { Type = "encounter", Choice = "done" }))));
     }
 
     void Struggle()
     {
         var hero = state.Struggle.Hero;
         bool human = Campaign.Player(state).Human == true;
-        Scene("power struggle", Cards.Def(hero).Name, new List<(string, string)> { (Cards.Def(hero).Name, Campaign.StruggleLine(hero, human)) },
-            row => Buttons(row, (human ? "Fight for your ship" : "Fight for your command", true, null, () => Act(new CampaignAction { Type = "struggle" }))), hero);
+        float bh = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
+        Standoff("power struggle", hero, Campaign.StruggleLine(hero, human), (row, h) => Buttons(row, (human ? "fight for your ship" : "fight for your command", true, null, () => Act(new CampaignAction { Type = "struggle" }))), bh);
     }
 
     void Beaten()
     {
         var hero = state.Beaten.Hero;
-        Scene("beaten", Cards.Def(hero).Name, new List<(string, string)>(), row => Buttons(row,
-            ("Recruit · joins your deck", true, null, () => Act(new CampaignAction { Type = "struggleChoice", Recruit = true }, "upgrade")),
-            ("Slay · for their hoard", false, null, () => Act(new CampaignAction { Type = "struggleChoice", Recruit = false }, "buy"))), hero);
+        float bh = 0.66f * 16 * Z * 1.25f + 2 * 12 * Z + 0.66f * 16 * Z * 1.2f + 3 * Z;
+        Standoff("beaten", hero, null, (row, h) => Buttons(row,
+            ("recruit · joins your deck", true, null, () => Act(new CampaignAction { Type = "struggleChoice", Recruit = true }, "upgrade")),
+            ("slay · for their hoard", false, null, () => Act(new CampaignAction { Type = "struggleChoice", Recruit = false }, "buy"))), bh);
     }
 
     /// <summary>A Dream of the Lost: the screen drifts into dark, with a line; then the dream begins by itself.</summary>
@@ -938,15 +1005,44 @@ public partial class CampaignView
     {
         bool spoils = state.Loot != null || state.CardRewards.Count > 0 || state.Conquest != null;
         if (spoils) return;
-        var v = Veil(overlay);
-        v.GetComponent<Image>().color = new Color(0.06f, 0.07f, 0.12f, 0.88f);
-        var t = Hud.Label(v, "you drift into a sorrowful slumber", 22, new Color(0.85f, 0.87f, 0.95f), false, 400, 0);
-        t.fontStyle = FontStyles.Italic;
+        // (.dream-fade: a dusk of violet at the middle darkening to near black, fading in over 3.6s; the line in spaced
+        // lowercase, pale violet, coming in as it settles.)
+        var v = Hud.Rect(overlay, "Dream");
+        Hud.Fill(v);
+        var dark = v.gameObject.AddComponent<RawImage>();
+        dark.texture = DreamDark();
+        var t = WebLook.Words(v, "you drift into a sorrowful slumber", 1.3f * 16 * Z * 0.78f, 0.32f, WebLook.Hex("#d9d4f0"), true, 400);
+        t.margin = new Vector4(0, 0, 0.32f * 1.3f * 16 * Z * 0.78f, 0);
+        float t0 = RevealFrom("dream");
+        v.gameObject.AddComponent<CanvasGroup>();
+        RiseIn.On(v, t0, 0);
+        RiseIn.On(t.rectTransform, t0, 1.2f);
         if (!dreamStarting && Application.isPlaying)
         {
             dreamStarting = true;
             Invoke(nameof(BeginDream), 4.2f);
         }
+    }
+
+    static Texture2D dreamDark;
+
+    /// <summary>The dream's dark: rgba(30, 26, 52, 0.55) at the middle (a little below it), rgba(6, 5, 12, 0.96) by 70% out.</summary>
+    static Texture2D DreamDark()
+    {
+        if (dreamDark != null) return dreamDark;
+        const int W = 128, H = 80;
+        dreamDark = new Texture2D(W, H, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        Color a = new Color(30 / 255f, 26 / 255f, 52 / 255f, 0.55f), b = new Color(6 / 255f, 5 / 255f, 12 / 255f, 0.96f);
+        for (int y = 0; y < H; y++)
+            for (int x = 0; x < W; x++)
+            {
+                // (An ellipse to the farthest corner from its middle, 55% down.)
+                float dx = (x + 0.5f) / W - 0.5f, dy = 1 - (y + 0.5f) / H - 0.55f;
+                float d = Mathf.Sqrt(dx * dx / (0.5f * 0.5f * 2) + dy * dy / (0.55f * 0.55f * 2));
+                dreamDark.SetPixel(x, y, Color.Lerp(a, b, Mathf.Clamp01(d / 0.7f)));
+            }
+        dreamDark.Apply();
+        return dreamDark;
     }
 
     void BeginDream()

@@ -169,7 +169,9 @@ if (parts.includes('loot') && parts.includes('map')) {
     await page.evaluate(() => document.querySelectorAll('.loot-res .loot-glow')[1].id = 'petal-glow');
     await cut('#petal-glow', 'loot-petal', await margin('#petal-glow'));
   }
-  // (The glow alone, behind a card or a part.)
+  // (The glow alone, behind a card or a part: the other rewards hidden.)
+  await page.addStyleTag({ content: '.loot-res, .loot-card, .loot-emblem { visibility: hidden !important; }' });
+  await page.waitForTimeout(300);
   await cut('.loot-part .loot-glow', 'loot-glow', await margin('.loot-part .loot-glow'));
   console.log('loot baked');
 }
