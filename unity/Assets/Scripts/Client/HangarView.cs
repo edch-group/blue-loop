@@ -120,7 +120,7 @@ public class HangarView : MonoBehaviour
         WebLook.UpBack(root, () => menu.Show("campaign"), px, 20);
         // (.up-title-big: SHIP, and under it how many parts are found of how many.)
         var title = WebLook.Words(WebLook.Box(root, "Title", px, 20, pw, 68), "SHIP", 54, 0.5f, Look.Ink, true, 400);
-        title.margin = new Vector4(0.5f * 54, 0, 0, 0);
+        // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
         var count = WebLook.Words(Hud.Rect(root, "Found"), have.Count.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
         var of = WebLook.Words(Hud.Rect(root, "Of"), $"OF {Parts.ShipParts.Count} PARTS FOUND", 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
         float cw = count.GetPreferredValues(count.text).x, ow = of.GetPreferredValues(of.text).x, x0 = mid - (cw + 10 * Z + ow) / 2;

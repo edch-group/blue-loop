@@ -191,7 +191,7 @@ public class StellariView : MonoBehaviour
         if (Meta.TreePetalsSpent(meta) > 0) Small(resetArmed ? "confirm reset" : "reset", Reset, resetArmed ? Look.Ink : Look.InkSoft, true);
         // (.up-title-big: SKILLS at 54 across 0.5em, its petals under it: the petal, how many, PETALS small.)
         var title = WebLook.Words(WebLook.Box(root, "Title", 0, 20, 1600, 68), "SKILLS", 54, 0.5f, Look.Ink, true, 400);
-        title.margin = new Vector4(0.5f * 54, 0, 0, 0);
+        // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
         var count = WebLook.Words(Hud.Rect(root, "Petals"), meta.Petals.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
         var unit = WebLook.Words(Hud.Rect(root, "Unit"), "PETALS", 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
         float cw = count.GetPreferredValues(count.text).x, uw = unit.GetPreferredValues(unit.text).x;

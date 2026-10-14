@@ -248,7 +248,8 @@ public partial class CampaignView
         // (.bar-title: 14 above its words and 10 below; a 44 wide hairline at its foot.)
         float barH = 14 * Z + 0.7f * 16 * Z * 1.25f + 10 * Z;
         var t = WebLook.Words(WebLook.Box(cr, "Title", 0, 14 * Z, width, 0.7f * 16 * Z * 1.25f), title.ToUpperInvariant(), 0.7f * 16 * Z, 0.28f, Look.Ink, true, 500);
-        t.margin = new Vector4(44 * Z, 0, 44 * Z - 0.28f * 0.7f * 16 * Z, 0);
+        // (Padded 44 either side; CSS letter-spacing trails the last letter too, so the words sit that much left.)
+        t.margin = new Vector4(44 * Z, 0, 44 * Z + 0.28f * 0.7f * 16 * Z, 0);
         var rule = WebLook.Box(cr, "Rule", width / 2 - 22 * Z, barH - 1, 44 * Z, 1.4f).gameObject.AddComponent<RawImage>();
         rule.texture = Hairline();
         rule.color = new Color(120 / 255f, 124 / 255f, 134 / 255f, 0.45f);

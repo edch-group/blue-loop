@@ -171,7 +171,7 @@ public class CrewView : MonoBehaviour
         const float W = 619, X = 26;
         var h = WebLook.Words(Hud.Rect(root, "Title"), title.ToUpperInvariant(), 50, 0.45f, Look.Ink, true, 400, TextAlignmentOptions.Top);
         h.textWrappingMode = TextWrappingModes.Normal;
-        h.margin = new Vector4(0.45f * 50, 0, 0, 0);
+        // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
         float th = h.GetPreferredValues(h.text, W - 0.45f * 50, 0).y;
         WebLook.Box(h.rectTransform, X, 92, W, th + 4);
         float y = 92 + th + 6 * Z;
