@@ -399,6 +399,30 @@ public class BattleView : MonoBehaviour
             Hud.At((RectTransform)keep.transform, new Vector2(1, 0.5f), new Vector2(-10, 0), new Vector2(190, 40));
             return;
         }
+        if (d == null && MyDay && (picked != null || attacker != null))
+        {
+            // A card picked or an attacker readied: what to choose next, and a way back out.
+            string ask;
+            if (attacker != null)
+            {
+                var a = Me.Tableau.FirstOrDefault(c => c.Uid == attacker);
+                bool guarded = !(Game.AimChoices(state, Me, true)?.Sun ?? true);
+                ask = guarded ? "attack a guard" : $"attack with {(a != null ? Cards.Def(a.DefId).Name.ToLowerInvariant() : "it")}";
+            }
+            else
+            {
+                bool slots = options != null && options.Select(o => o.SlotIndex).Distinct().Count() > 1;
+                ask = slots ? "place it" : "choose a target";
+            }
+            hint.gameObject.SetActive(true);
+            var p = Hud.Glass(hint, "Hint", Look.GlassStrong);
+            Hud.Fill((RectTransform)p.transform);
+            var l = Hud.Label(p.transform, ask.ToUpperInvariant(), 17, Look.Ink, true, 500, 12, TextAlignmentOptions.Left);
+            l.margin = new Vector4(26, 0, 0, 0);
+            var cancel = Hud.Pill(p.transform, "Cancel", () => { Clear(); Refresh(); }, 14);
+            Hud.At((RectTransform)cancel.transform, new Vector2(1, 0.5f), new Vector2(-10, 0), new Vector2(120, 40));
+            return;
+        }
         hint.gameObject.SetActive(d != null);
         if (d == null) { dawnPick = null; return; }
         var panel = Hud.Glass(hint, "Hint", Look.GlassStrong);
@@ -466,6 +490,8 @@ public class BattleView : MonoBehaviour
         if (!Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 100)) return;
         var v = hit.collider.GetComponentInParent<CardView>();
         if (v == null) return;
+        // (A rival's trap stays hidden.)
+        if (state.Players.Any(p => p.Id != you && p.Lightspeed?.Uid == v.Uid)) return;
         foreach (Transform c in inspector) Mats.Kill(c.gameObject);
         inspector.gameObject.SetActive(true);
         var veil = inspector.gameObject.GetComponent<Image>() ?? inspector.gameObject.AddComponent<Image>();
@@ -509,7 +535,7 @@ public class BattleView : MonoBehaviour
         hud.transform.SetParent(transform, false);
         var root = hud.transform;
         // End Day, and your energy over it (sizes as the web's, in a 1600 × 1000 frame).
-        endDay = Hud.Pill(root, "End day", EndDay, 19);
+        endDay = Hud.Pill(root, "End day", EndDay, 19, Color.white);
         Hud.At((RectTransform)endDay.transform, new Vector2(1, 0), new Vector2(-18, 20), new Vector2(224, 62));
         var energy = Hud.Rect(root, "Energy");
         Hud.At(energy, new Vector2(1, 0), new Vector2(-18, 86), new Vector2(224, 52));
@@ -673,14 +699,22 @@ public class BattleView : MonoBehaviour
         bool over = state.WinnerId != null && !Autoplay;
         overPanel.gameObject.SetActive(over);
         if (!over) return;
-        Hud.Fill(overPanel);
-        var veil = overPanel.gameObject.GetComponent<Image>() ?? overPanel.gameObject.AddComponent<Image>();
-        veil.color = new Color(0.96f, 0.96f, 0.95f, 0.85f);
+        // (As the web's: a white card a little above the middle, the result, why, and the way out.)
+        Hud.At(overPanel, new Vector2(0.5f, 0.55f), Vector2.zero, new Vector2(560, 230));
+        var card = Hud.Glass(overPanel, "Result", Color.white);
+        Hud.Fill((RectTransform)card.transform);
+        bool draw = Game.IsDraw(state);
         bool won = state.WinnerId == you;
-        var t = Hud.Label(overPanel, Game.IsDraw(state) ? "A DRAW" : won ? "VICTORY" : "DEFEAT", 96, won ? Look.Gold : Look.Danger, true, 700, 40);
-        t.rectTransform.offsetMin = new Vector2(0, 120);
-        var again = Hud.Pill(overPanel, "New battle", () => NewBattle(Random.Range(1, 100000)), 24);
-        Hud.At((RectTransform)again.transform, new Vector2(0.5f, 0.5f), new Vector2(0, -90), new Vector2(320, 80));
+        var quitter = state.ConcededBy != null ? Player(state.ConcededBy) : null;
+        var t = Hud.Label(card.transform, draw ? "DRAW" : won ? "VICTORY" : "DEFEAT", 38, draw ? Look.Ink : won ? new Color(0.76f, 0.48f, 0.12f) : new Color(0.42f, 0.46f, 0.56f), true, 500, 32, TextAlignmentOptions.Top);
+        t.margin = new Vector4(0, 34, 0, 0);
+        string why = draw ? $"Every sun went supernova together in round {state.Round}."
+            : quitter != null ? $"{(quitter.Id == you ? "You" : "Your rival")} conceded in round {state.Round}."
+            : $"The last sun standing after {state.Round} round{(state.Round == 1 ? "" : "s")}.";
+        var w = Hud.Label(card.transform, why, 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
+        w.margin = new Vector4(20, 96, 20, 0);
+        var menu = Hud.Pill(card.transform, "Return to menu", () => App.Instance?.Menu("hub"), 17, Look.Ink, Color.white);
+        Hud.At((RectTransform)menu.transform, new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(250, 56));
     }
 
     /// <summary>Everything settled where it is going (for a still picture).</summary>

@@ -97,6 +97,14 @@ public class SunView : MonoBehaviour
         tag.sharedMaterial.SetFloat("_Soft", 0.01f);
         tag.sharedMaterial.renderQueue = 3000;
         tag.transform.localPosition = new Vector3(-0.26f, -0.53f, z);
+        var edge = Mats.Flat("Planet pill edge", transform, Mats.Make("Soft", new Color(0.7f, 0.72f, 0.78f, 0.7f)), 0.7f, 0.28f, -0.53f);
+        edge.sharedMaterial.SetFloat("_Aspect", 0.28f / 0.7f);
+        edge.sharedMaterial.SetFloat("_Size", 0.48f);
+        edge.sharedMaterial.SetFloat("_Radius", 0.13f);
+        edge.sharedMaterial.SetFloat("_Soft", 0.004f);
+        edge.sharedMaterial.SetFloat("_Ring", 1);
+        edge.sharedMaterial.renderQueue = 3001;
+        edge.transform.localPosition = new Vector3(-0.26f, -0.529f, z);
         planet = Mats.FlatText("Planet", transform, "", 1.5f, Look.InkSoft, true, 500, 14);
         planet.transform.localPosition = new Vector3(-0.26f, -0.52f, z);
         shield = Mats.Flat("Shields", transform, Mats.Make("Card"), 0.42f, 0.47f, -0.52f);

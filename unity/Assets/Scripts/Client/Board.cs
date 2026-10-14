@@ -262,8 +262,8 @@ public class Board : MonoBehaviour
                 seen.Add(p.Lightspeed.Uid);
                 v.transform.SetParent(table, false);
                 v.MoveTo((mine ? MyTrap : RivalTrap) + new Vector3(0, 0.03f, 0), Quaternion.identity);
-                if (mine) v.SetCard(p.Lightspeed.DefId);
-                else v.FaceDown();
+                // (Set face down, yours too, as the web's: hold it to read it.)
+                v.FaceDown();
                 for (int k = 0; k < 3; k++) v.Badge(new[] { "atk", "stab", "def" }[k], "atk", null);
             }
             var sunView = SunFor(p, mine);
