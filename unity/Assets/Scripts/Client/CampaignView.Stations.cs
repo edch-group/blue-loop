@@ -110,33 +110,34 @@ public partial class CampaignView
         area.anchorMin = new Vector2(0.5f, 0);
         area.anchorMax = new Vector2(0.5f, 1);
         area.pivot = new Vector2(0.5f, 0.5f);
-        area.offsetMin = new Vector2(-560, 136);
-        area.offsetMax = new Vector2(560, -134);
+        area.offsetMin = new Vector2(-630, 182);
+        area.offsetMax = new Vector2(630, -151);
         if (list.Count == 0)
             Hud.Label(area, (arTab == "buy" ? "sold out" : "nothing in your deck").ToUpperInvariant(), 13, Look.InkFaint, true, 500, 30);
         else
         {
-            float areaH = StationH - 270;
-            int cols = Mathf.Max(1, Mathf.FloorToInt((1080 + 22) / (Kit.CardW + 22)));
+            const float GapX = 22 * WebLook.Zoom, GapY = 26 * WebLook.Zoom;
+            float areaH = 1000 - 182 - 151;
+            int cols = Mathf.Max(1, Mathf.FloorToInt((1260 - 40 * WebLook.Zoom + GapX) / (Kit.CardW + GapX)));
             int rows = (list.Count + cols - 1) / cols;
-            float need = 30 + rows * Kit.CellH + (rows - 1) * 26 + 24;
+            float need = 30 * WebLook.Zoom + rows * Kit.CellH + (rows - 1) * GapY + 24;
             var content = Kit.Scroller(area, Mathf.Max(need, areaH));
-            float top = 30 + Mathf.Max(0, (areaH - need) / 2);
+            float top = 30 * WebLook.Zoom + Mathf.Max(0, (areaH - need) / 2);
             for (int i = 0; i < list.Count; i++)
             {
                 var id = list[i];
                 int row = i / cols, inRow = Mathf.Min(cols, list.Count - row * cols);
-                float x = ((i % cols) - (inRow - 1) / 2f) * (Kit.CardW + 22);
+                float x = ((i % cols) - (inRow - 1) / 2f) * (Kit.CardW + GapX);
                 bool picked = arTab == "fuse" ? arFuse.Contains(id) : arPick == id;
                 string tag = arTab == "buy" ? $"⬢{Campaign.BuyPrice(state, me, id)}" : arTab == "recycle" ? $"×{Have(deck, id)} · +⬢{Campaign.RecycleValue(id)}" : $"×{Have(deck, id)}";
                 Color ink = arTab == "buy" && me.Materials < Campaign.BuyPrice(state, me, id) ? Kit.Short : Look.Ink;
-                var cell = Hud.At(Hud.Rect(content, id), new Vector2(0.5f, 1), new Vector2(x, -(top + row * (Kit.CellH + 26))), new Vector2(Kit.CardW, Kit.CellH));
+                var cell = Hud.At(Hud.Rect(content, id), new Vector2(0.5f, 1), new Vector2(x, -(top + row * (Kit.CellH + GapY))), new Vector2(Kit.CardW, Kit.CellH));
                 ShelfCard(cell, id, i, picked, tag, ink, picked && arTab != "fuse");
             }
         }
 
         // The one action, beneath the row (once each here: a buy, a recycle, a fusion).
-        var act = Hud.At(Hud.Rect(page, "Act"), new Vector2(0.5f, 0), new Vector2(0, 74), new Vector2(1000, 54));
+        var act = Hud.At(Hud.Rect(page, "Act"), new Vector2(0.5f, 0), new Vector2(0, 1000 - 857 - 27), new Vector2(1000, 54));
         bool used = arTab == "buy" ? st.Used?.Buy == true : arTab == "recycle" ? st.Used?.Recycle == true : st.Used?.Fuse == true;
         var nodeId = n.Id;
         if (used) Kit.Across(act, 14, Kit.Hint(act, $"{(arTab == "buy" ? "bought here" : arTab == "recycle" ? "recycled here" : "fused here")} · one per station"));
@@ -184,14 +185,14 @@ public partial class CampaignView
         var lines = buying ? BlueLoop.Engine.Story.QuartermasterLines : BlueLoop.Engine.Story.RecyclerLines;
         if (keeper != null && lines != null && lines.Count > 0)
         {
-            var foot = Hud.At(Hud.Rect(page, "Keeper"), new Vector2(0, 0), new Vector2(26, 16), new Vector2(540, 54));
-            Kit.Disc(foot, Resources.Load<Texture2D>(buying ? "Portraits/hesk" : "Portraits/tallow"), new Vector2(0, 0.5f), Vector2.zero, 50);
-            var who = Hud.Label(foot, keeper.Name.ToUpperInvariant(), 11, Look.InkSoft, true, 400, 26, TextAlignmentOptions.TopLeft);
-            who.margin = new Vector4(64, 6, 0, 0);
-            var said = Hud.Label(foot, $"“{lines[(state.Turn * 3 + keeperVisit) % lines.Count]}”", 15, Look.InkFaint, false, 400, 0, TextAlignmentOptions.TopLeft);
+            var foot = Hud.At(Hud.Rect(page, "Keeper"), new Vector2(0, 0), new Vector2(29, 20), new Vector2(812, 66));
+            Kit.Disc(foot, Resources.Load<Texture2D>(buying ? "Portraits/hesk" : "Portraits/tallow"), new Vector2(0, 0.5f), Vector2.zero, 64);
+            var who = WebLook.Words(foot, keeper.Name.ToUpperInvariant(), 13.5f, 0.26f, Look.InkSoft, true, 400, TextAlignmentOptions.TopLeft);
+            who.margin = new Vector4(81, 0, 0, 0);
+            var said = WebLook.Words(foot, $"“{lines[(state.Turn * 3 + keeperVisit) % lines.Count]}”", 18.6f, 0, Look.InkFaint, false, 400, TextAlignmentOptions.TopLeft);
             said.fontStyle = FontStyles.Italic;
             said.textWrappingMode = TextWrappingModes.Normal;
-            said.margin = new Vector4(64, 24, 0, 0);
+            said.margin = new Vector4(81, 20, 0, 0);
         }
     }
 
@@ -236,7 +237,7 @@ public partial class CampaignView
         var b = card.gameObject.AddComponent<Button>();
         b.targetGraphic = raw;
         b.onClick.AddListener(() => ArPick(id, inspect));
-        Kit.Inline(cell, tag, 13, ink, new Vector2(0.5f, 0), Vector2.zero, true, 700, 8);
+        Kit.Inline(cell, tag, 0.82f * 16 * WebLook.Zoom, ink, new Vector2(0.5f, 0), Vector2.zero, true, 700, 8);
     }
 
     /// <summary>A card on the shelf tapped: lifted (or, fusing, one of the two); tapped again, looked over.</summary>
@@ -304,11 +305,10 @@ public partial class CampaignView
     void StationFrame(RectTransform page, CampaignNode n, Faction me)
     {
         Kit.Paper(page);
-        var back = Hud.Pill(page, "‹ map", LeaveStation, 11, new Color(1, 1, 1, 0.7f), Look.InkSoft);
-        Hud.At((RectTransform)back.transform, new Vector2(0, 1), new Vector2(18, -16), new Vector2(108, 36));
-        // Materials; before them, your sun's damage and its repair.
-        float x = -24;
-        x -= Kit.Inline(page, $"⬢{me.Materials}", 19, Look.Ink, new Vector2(1, 1), new Vector2(x, -18), true, 700, 0) + 18;
+        WebLook.UpBack(page, LeaveStation, 26, 20, "‹ map");
+        // Materials (.ar-purse); before them, your sun's damage and its repair.
+        float x = -29;
+        x -= Kit.Inline(page, $"⬢{me.Materials}", 1.05f * 16 * WebLook.Zoom, Look.Ink, new Vector2(1, 1), new Vector2(x, -23), true, 700, 0) + 14 * WebLook.Zoom;
         var flag = Campaign.Flagship(state, state.PlayerId);
         if (flag != null && flag.Damage > 0)
         {
@@ -318,48 +318,51 @@ public partial class CampaignView
             var armyId = flag.Id;
             if (flag.Damage > 1)
             {
-                var whole = Kit.Go(page, $"repair all · ⬢{Mathf.Max(1, most) * cost}", false, why, () => StationRepair(armyId, true), 10, 32);
-                Hud.At(whole, new Vector2(1, 1), new Vector2(x, -18), whole.sizeDelta);
+                var whole = Kit.Go(page, $"repair all · ⬢{Mathf.Max(1, most) * cost}", false, why, () => StationRepair(armyId, true), 0.56f * 16 * WebLook.Zoom, 32);
+                Hud.At(whole, new Vector2(1, 1), new Vector2(x, -22), whole.sizeDelta);
                 Kit.Nudge(whole);
                 x -= whole.sizeDelta.x + 8;
             }
-            var one = Kit.Go(page, $"repair 1 · ⬢{cost}", false, why, () => StationRepair(armyId, false), 10, 32);
-            Hud.At(one, new Vector2(1, 1), new Vector2(x, -18), one.sizeDelta);
+            var one = Kit.Go(page, $"repair 1 · ⬢{cost}", false, why, () => StationRepair(armyId, false), 0.56f * 16 * WebLook.Zoom, 32);
+            Hud.At(one, new Vector2(1, 1), new Vector2(x, -22), one.sizeDelta);
             Kit.Nudge(one);
             x -= one.sizeDelta.x + 10;
             var sun = Hud.Rect(page, "Sun");
-            var heat = Hud.Label(sun, $"SUN ✸{flag.Damage}", 12, Kit.Warn, true, 500, 20);
-            Hud.At(sun, new Vector2(1, 1), new Vector2(x, -18), new Vector2(heat.GetPreferredValues(heat.text).x + 4, 32));
+            var heat = WebLook.Words(sun, $"SUN ✸{flag.Damage}", 0.6f * 16 * WebLook.Zoom, 0.2f, Kit.Warn, true, 400);
+            Hud.At(sun, new Vector2(1, 1), new Vector2(x, -22), new Vector2(heat.GetPreferredValues(heat.text).x + 4, 32));
         }
         Kit.Head(page, "space station", n.Name);
         // The tabs: buy, recycle, fuse (where the station can), the ship (the Captain's runs).
         var tabs = new List<string> { "buy", "recycle" };
         if (n.Station.Fuse == true) tabs.Add("fuse");
         if (me.Human == true) tabs.Add("ship");
-        var row = Hud.At(Hud.Rect(page, "Tabs"), new Vector2(0.5f, 1), new Vector2(0, -100), new Vector2(0, 28));
+        // (.ar-tabs: 22 (CSS) apart under the name, small spaced capitals; the one open inked, a dot under it.)
+        const float TabGap = 22 * WebLook.Zoom;
+        var row = Hud.At(Hud.Rect(page, "Tabs"), new Vector2(0.5f, 1), new Vector2(0, -121), new Vector2(0, 30));
         float tx = 0;
         foreach (var tab in tabs)
         {
             bool open = tab == arTab;
             var r = Hud.Rect(row, tab);
-            var t = Hud.Label(r, tab.ToUpperInvariant(), 12, open ? Look.Ink : Look.InkFaint, true, 500, 30);
-            float w = t.GetPreferredValues(t.text).x + 8;
-            Hud.At(r, new Vector2(0, 0.5f), new Vector2(tx, 0), new Vector2(w, 28));
+            var t = WebLook.Words(r, tab.ToUpperInvariant(), 0.62f * 16 * WebLook.Zoom, 0.3f, open ? Look.Ink : Look.InkFaint, true, 400);
+            t.margin = new Vector4(0, 0, 0.3f * 0.62f * 16 * WebLook.Zoom, 0);
+            float w = t.GetPreferredValues(t.text).x + 4 * WebLook.Zoom;
+            Hud.At(r, new Vector2(0, 0.5f), new Vector2(tx, 0), new Vector2(w, 30));
             r.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0.001f);
             var which = tab;
             r.gameObject.AddComponent<Button>().onClick.AddListener(() => StationTab(which));
             if (open)
             {
                 // (The tab open: a dot beneath it.)
-                var dot = Hud.At(Hud.Rect(r, "Dot"), new Vector2(0.5f, 0), new Vector2(-2, -4), new Vector2(5, 5));
+                var dot = Hud.At(Hud.Rect(r, "Dot"), new Vector2(0.5f, 0), new Vector2(-0.2f * 0.62f * 16 * WebLook.Zoom, -4 * WebLook.Zoom), new Vector2(4 * WebLook.Zoom, 4 * WebLook.Zoom));
                 var di = dot.gameObject.AddComponent<Image>();
                 di.sprite = Hud.Circle;
                 di.color = Look.Ink;
                 di.raycastTarget = false;
             }
-            tx += w + 22;
+            tx += w + TabGap;
         }
-        row.sizeDelta = new Vector2(Mathf.Max(0, tx - 22), 28);
+        row.sizeDelta = new Vector2(Mathf.Max(0, tx - TabGap), 30);
     }
 
     void StationTab(string tab)
@@ -487,7 +490,7 @@ public partial class CampaignView
             }
         }
 
-        var act = Hud.At(Hud.Rect(page, "Act"), new Vector2(0.5f, 0), new Vector2(0, 74), new Vector2(1000, 54));
+        var act = Hud.At(Hud.Rect(page, "Act"), new Vector2(0.5f, 0), new Vector2(0, 1000 - 857 - 27), new Vector2(1000, 54));
         var held = Parts.ShipPart(pick);
         Kit.Across(act, 14, Kit.Hint(act, used ? "refitted here · one part per station" : held != null ? $"{held.Text} · tap its slot" : have.Count > 0 ? "swap one part · pick it, then its slot" : "no parts in your hangar yet"));
     }
@@ -525,63 +528,36 @@ public partial class CampaignView
         var options = st.Options ?? new List<string>();
         var pick = rsPick != null && options.Contains(rsPick) && !taken ? rsPick : null;
         page.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0);
-        var kicker = Hud.Label(page, "RESEARCH STATION", 11, Look.InkSoft, true, 500, 30, TextAlignmentOptions.Top);
-        kicker.margin = new Vector4(0, 18, 0, 0);
-        var title = Hud.Label(page, n.Name.ToUpperInvariant(), 22, Look.Ink, true, 400, 26, TextAlignmentOptions.Top);
-        title.margin = new Vector4(0, 36, 0, 0);
-        var talk = Hud.At(Hud.Rect(page, "Talk"), new Vector2(0.5f, 0), new Vector2(0, 18), new Vector2(720, 0));
-        // (From the foot up: the choices, the experiments, then the lines, the last nearest them.)
-        var acts = Hud.At(Hud.Rect(talk, "Actions"), new Vector2(0.5f, 0), Vector2.zero, new Vector2(900, 56));
         var nodeId = n.Id;
-        if (taken) Buttons(acts, ("fly on", true, null, () => LeaveStation()));
-        else Buttons(acts, ("not today", false, null, () => LeaveStation()), ("volunteer", true, pick == null ? "" : null, () => TakeProject(nodeId, pick)));
-        // (The talk comes in a line at a time, the experiments after it, the choices with the first of them; a pick
-        // drawing it again carries on where it was.)
-        float from = RevealFrom($"lab|{nodeId}|{taken}");
-        int said = taken ? 1 : 2;
-        RiseIn.On(acts, from, LineDelay(said));
-        float y = 66;
-        if (!taken)
-        {
-            var offers = options.Where(o => !Research.RetiredResearch.Contains(o)).Select(o => Research.ResearchProject(o)).Where(o => o != null).ToList();
-            const float OfferW = 190, OfferGap = 10;
-            float h = offers.Count > 0 ? offers.Max(o => Kit.ExperimentHeight(o, OfferW)) : 0;
-            for (int i = 0; i < offers.Count; i++)
-            {
-                var p = offers[i];
-                var why = Campaign.ResearchProblem(state, me, n, p.Id);
-                string mode = why != null ? "gone" : pick == p.Id ? "picked" : "";
-                var r = Hud.At(Hud.Rect(talk, p.Id), new Vector2(0.5f, 0), new Vector2((i - (offers.Count - 1) / 2f) * (OfferW + OfferGap), y + (mode == "picked" ? 3 : 0)), new Vector2(OfferW, h));
-                var id = p.Id;
-                Kit.Experiment(r, p, mode, why == null ? () => { Sound.Play("hover"); rsPick = rsPick == id ? null : id; Station(); } : (System.Action)null);
-                RiseIn.On(r, from, LineDelay(said + i));
-            }
-            y += h + 14;
-        }
         var lines = taken
             ? new List<(string who, string text)> { ("visitor", "The experiment is done, Captain. There is nothing left here to try.") }
             : new List<(string who, string text)> { ("visitor", "Captain! Volunteers, at last. Everything we make here works. Mostly. There is always a price."), ("captain", "Show us what you have.") };
-        for (int i = lines.Count - 1; i >= 0; i--)
-        {
-            var (who, text) = lines[i];
-            bool them = who == "visitor";
-            var line = Hud.Label(talk, $"<size=62%><color=#737780>{(them ? "THE SCIENTIST" : "THE CAPTAIN")}</color></size>\n{(them ? "<i>" : "")}{text}{(them ? "</i>" : "")}", 17, Look.Ink, false, 400, 0, TextAlignmentOptions.BottomLeft);
-            line.textWrappingMode = TextWrappingModes.Normal;
-            var lr = line.rectTransform;
-            lr.anchorMin = lr.anchorMax = new Vector2(0.5f, 0);
-            lr.pivot = new Vector2(0.5f, 0);
-            float lh = line.GetPreferredValues(line.text, 676, 0).y;
-            lr.sizeDelta = new Vector2(676, lh);
-            lr.anchoredPosition = new Vector2(22, y);
-            RiseIn.On(lr, from, LineDelay(i));
-            // (The Captain's face beside their words; the scientist's set in as far, without one.)
-            if (!them)
+        // (As an encounter's scene (campaign.ts renderLab): the scientist's word and the Captain's, the experiments
+        // (.enc-offers: each 190 (CSS) across, 10 apart) between them and the choices.)
+        System.Func<RectTransform, float, float> offers = null;
+        if (!taken)
+            offers = (mid, from) =>
             {
-                Kit.Disc(talk, EngineData.Art(Captain.CaptainCard), new Vector2(0.5f, 0), new Vector2(-343, y + lh - 34), 34);
-                RiseIn.On((RectTransform)talk.GetChild(talk.childCount - 1), from, LineDelay(i));
-            }
-            y += lh + 10;
-        }
+                const float Z = WebLook.Zoom, OfferW = 190 * Z, OfferGap = 10 * Z;
+                var list = options.Where(o => !Research.RetiredResearch.Contains(o)).Select(o => Research.ResearchProject(o)).Where(o => o != null).ToList();
+                float h = list.Count > 0 ? list.Max(o => Kit.ExperimentHeight(o, OfferW)) : 0, w = mid.sizeDelta.x;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    var p = list[i];
+                    var why = Campaign.ResearchProblem(state, me, n, p.Id);
+                    string mode = why != null ? "gone" : pick == p.Id ? "picked" : "";
+                    var r = WebLook.Box(mid, p.Id, w / 2 + (i - list.Count / 2f) * (OfferW + OfferGap) + OfferGap / 2, mode == "picked" ? -3 * Z : 0, OfferW, h);
+                    var id = p.Id;
+                    Kit.Experiment(r, p, mode, why == null ? () => { Sound.Play("hover"); rsPick = rsPick == id ? null : id; Station(); } : (System.Action)null);
+                    RiseIn.On(r, from, LineDelay(lines.Count + i));
+                }
+                return h;
+            };
+        ShipScene("research station", n.Name, lines, acts =>
+        {
+            if (taken) Buttons(acts, ("fly on", true, null, () => LeaveStation()));
+            else Buttons(acts, ("not today", false, null, () => LeaveStation()), ("volunteer", true, pick == null ? "" : null, () => TakeProject(nodeId, pick)));
+        }, null, page, offers, "the scientist");
     }
 
     /// <summary>
@@ -678,7 +654,7 @@ static class StationKit
     public static readonly Color PickRing = new Color32(0xd6, 0xbd, 0x7a, 255);
 
     /// <summary>A card on the shelf: its width, its height, and its cell's (its price beneath it).</summary>
-    public const float CardW = 124, CardH = 174, CellH = CardH + 8 + 22;
+    public const float CardW = 120 * WebLook.Zoom, CardH = 168 * WebLook.Zoom, CellH = CardH + 10 * WebLook.Zoom + 25;
 
     /// <summary>A rarity's colours on the schematic (hangar.ts RARITY_INK): its fill and its line.</summary>
     public static readonly Dictionary<string, (Color fill, Color line)> RarityInk = new Dictionary<string, (Color fill, Color line)>
@@ -726,28 +702,42 @@ static class StationKit
     /// <summary>A station's kind small at the top, its name under it in wide capitals.</summary>
     public static void Head(RectTransform page, string kind, string name)
     {
-        var k = Hud.At(Hud.Rect(page, "Kind"), new Vector2(0.5f, 1), new Vector2(0, -24), new Vector2(900, 18));
-        Hud.Label(k, kind.ToUpperInvariant(), 12, Look.InkFaint, true, 500, 36);
-        var t = Hud.At(Hud.Rect(page, "Name"), new Vector2(0.5f, 1), new Vector2(0, -44), new Vector2(1400, 46));
-        Hud.Label(t, name.ToUpperInvariant(), 34, Look.Ink, true, 400, 42);
+        var k = Hud.At(Hud.Rect(page, "Kind"), new Vector2(0.5f, 1), new Vector2(0, -29), new Vector2(900, 17));
+        WebLook.Words(k, kind.ToUpperInvariant(), 0.6f * 16 * WebLook.Zoom, 0.36f, Look.InkFaint, true, 400).margin = new Vector4(0, 0, 0.36f * 0.6f * 16 * WebLook.Zoom, 0);
+        var t = Hud.At(Hud.Rect(page, "Name"), new Vector2(0.5f, 1), new Vector2(0, -52), new Vector2(1400, 55));
+        WebLook.Words(t, name.ToUpperInvariant(), 44, 0.42f, Look.Ink, true, 400);
     }
 
     /// <summary>A hint in small spaced capitals (a warning in red); sized to its words.</summary>
     public static RectTransform Hint(Transform row, string text, bool warn = false, Color? colour = null)
     {
         var r = Hud.Rect(row, "Hint");
-        var t = Hud.Label(r, text.ToUpperInvariant(), 12, warn ? Warn : colour ?? Look.InkFaint, true, 500, warn ? 14 : 30);
+        var t = WebLook.Words(r, text.ToUpperInvariant(), 0.6f * 16 * WebLook.Zoom, warn ? 0.14f : 0.3f, warn ? Warn : colour ?? Look.InkFaint, true, 400);
         r.sizeDelta = new Vector2(t.GetPreferredValues(t.text).x + 4, 24);
         return r;
     }
 
     /// <summary>A pill button whose words may carry materials (⬢): primary (ink, white words) or plain; held back (why) faded.</summary>
-    public static RectTransform Go(Transform parent, string text, bool primary, string why, System.Action act, float size = 13, float height = 48)
+    public static RectTransform Go(Transform parent, string text, bool primary, string why, System.Action act, float size = 0.7f * 16 * WebLook.Zoom, float height = 0.7f * 16 * WebLook.Zoom * 1.25f + 22 * WebLook.Zoom)
     {
-        var b = Hud.Pill(parent, "", () => act(), size, primary ? Look.Ink : new Color(1, 1, 1, 0.8f), primary ? Color.white : Look.InkSoft);
-        var r = (RectTransform)b.transform;
-        float w = Inline(r, text.ToUpperInvariant(), size, primary ? Color.white : Look.InkSoft, new Vector2(0.5f, 0.5f), Vector2.zero, true, 500, size < 12 ? 16 : 26);
-        r.sizeDelta = new Vector2(w + (size < 12 ? 30 : 56), height);
+        const float Z = WebLook.Zoom;
+        var img = WebLook.Rounded(parent, text, primary ? Color.white : new Color(1, 1, 1, 0.75f), 999);
+        img.raycastTarget = true;
+        img.sprite = Hud.Rounded;
+        img.type = UnityEngine.UI.Image.Type.Sliced;
+        img.pixelsPerUnitMultiplier = 22f / (height / 2);
+        var r = img.rectTransform;
+        if (primary)
+        {
+            WebLook.Fade(img, Color.white, WebLook.Hex("#eeeff1"));
+            var line = new Color(120 / 255f, 124 / 255f, 134 / 255f, 0.22f);
+            WebLook.Shadow(img, 6 * Z, 20 * Z, line, height / 2, Z, line);
+        }
+        else WebLook.Shadow(img, 0, 0, Color.clear, height / 2, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.12f));
+        var b = img.gameObject.AddComponent<UnityEngine.UI.Button>();
+        b.onClick.AddListener(() => { Sound.Play("click"); act(); });
+        float w = Inline(r, text.ToUpperInvariant(), size, primary ? Look.Ink : Look.InkSoft, new Vector2(0.5f, 0.5f), Vector2.zero, true, primary ? 700 : 500, primary ? 26 : 16);
+        r.sizeDelta = new Vector2(w + (primary ? 52 : 22) * Z, height);
         b.interactable = why == null;
         if (why != null) r.gameObject.AddComponent<CanvasGroup>().alpha = 0.45f;
         return r;
@@ -781,7 +771,7 @@ static class StationKit
         var line = Hud.Rect(parent, "Inline");
         var bits = text.Split('⬢');
         float x = 0, tok = size * 1.35f, h = Mathf.Max(tok, size * 1.6f);
-        var mark = Resources.Load<Texture2D>("Icons/materials");
+        var mark = Resources.Load<Texture2D>("Icons/purse-materials");
         for (int i = 0; i < bits.Length; i++)
         {
             if (i > 0)
@@ -891,51 +881,52 @@ static class StationKit
     /// <summary>How tall an experiment's card stands, at a width (its mark, its name, what it gives and what it costs).</summary>
     public static float ExperimentHeight(ResearchProject p, float w)
     {
+        const float Z = WebLook.Zoom;
         var probe = new GameObject("Probe", typeof(RectTransform));
         var t = probe.AddComponent<TextMeshProUGUI>();
-        float h = 10 + 52 + 6;
-        Look.Style(t, 10, Look.Ink, true, 400, 20);
+        // (.enc-offer: 10 above and below, 8 either side, 5 between its mark, its name and its words.)
+        float h = 10 * Z + 52 * Z + 5 * Z, inner = w - 16 * Z;
+        Look.Style(t, 0.7f * 16 * Z, Look.Ink, true, 400, 20);
         t.textWrappingMode = TextWrappingModes.Normal;
-        h += t.GetPreferredValues(p.Name.ToUpperInvariant(), w - 16, 0).y + 5;
-        Look.Style(t, 13, Boon, false, 400, 0);
+        h += t.GetPreferredValues(p.Name.ToUpperInvariant(), inner, 0).y + 5 * Z;
+        Look.Style(t, 0.78f * 16 * Z, Boon, false, 400, 0);
         t.textWrappingMode = TextWrappingModes.Normal;
         bool twoSided = !string.IsNullOrEmpty(p.Boon);
-        h += t.GetPreferredValues(twoSided ? p.Boon : p.Text ?? "", w - 16, 0).y;
-        if (twoSided) h += 4 + t.GetPreferredValues(p.Bane ?? "", w - 16, 0).y;
+        h += t.GetPreferredValues(twoSided ? p.Boon : p.Text ?? "", inner, 0).y;
+        if (twoSided) h += 5 * Z + t.GetPreferredValues(p.Bane ?? "", inner, 0).y;
         Mats.Kill(probe);
-        return h + 12;
+        return h + 10 * Z;
     }
 
     /// <summary>An experiment: its mark, its name, what it gives (in green) and what it costs (in red); picked, ringed in ink.</summary>
     public static void Experiment(RectTransform r, ResearchProject p, string mode, System.Action act)
     {
-        if (mode == "picked" || mode == "chosen")
-        {
-            var ring = Hud.Glass(r, "Ring", Look.Ink, mode == "picked");
-            var rr = (RectTransform)ring.transform;
-            Hud.Fill(rr);
-            rr.offsetMin = new Vector2(-2, -2);
-            rr.offsetMax = new Vector2(2, 2);
-            ring.raycastTarget = false;
-        }
-        var card = Hud.Glass(r, "Card", new Color(1, 1, 1, 0.82f), false);
-        Hud.Fill((RectTransform)card.transform);
-        float w = r.sizeDelta.x - 16;
-        ResearchMark(card.transform, p, 52, mode == "picked" || mode == "chosen", new Vector2(0.5f, 1), new Vector2(0, -10));
-        var called = Hud.Label(card.transform, p.Name.ToUpperInvariant(), 10, Look.Ink, true, 400, 20, TextAlignmentOptions.Top);
+        const float Z = WebLook.Zoom;
+        // (.enc-offer: white glass, rounded 14, a hairline round it; picked, ringed in ink and lifted, shadowed.)
+        var card = WebLook.Rounded(r, "Card", new Color(1, 1, 1, 0.55f), 14 * Z);
+        card.raycastTarget = true;
+        Hud.Fill(card.rectTransform);
+        if (mode == "picked") WebLook.Shadow(card, 10 * Z, 24 * Z, new Color(60 / 255f, 70 / 255f, 110 / 255f, 0.18f), 14 * Z, 2 * Z, Look.Ink);
+        else if (mode == "chosen") WebLook.Shadow(card, 0, 0, Color.clear, 14 * Z, 2 * Z, Look.Ink);
+        else WebLook.Shadow(card, 0, 0, Color.clear, 14 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.08f));
+        float w = r.sizeDelta.x - 16 * Z, y = 10 * Z;
+        ResearchMark(card.transform, p, 52 * Z, mode == "picked" || mode == "chosen", new Vector2(0.5f, 1), new Vector2(0, -y));
+        y += 52 * Z + 5 * Z;
+        var called = WebLook.Words(card.transform, p.Name.ToUpperInvariant(), 0.7f * 16 * Z, 0.2f, Look.Ink, true, 400, TextAlignmentOptions.Top);
         called.textWrappingMode = TextWrappingModes.Normal;
-        called.margin = new Vector4(8, 68, 8, 0);
         float nh = called.GetPreferredValues(called.text, w, 0).y;
+        WebLook.Box(called.rectTransform, 8 * Z, y, w, nh + 2);
+        y += nh + 5 * Z;
         bool twoSided = !string.IsNullOrEmpty(p.Boon);
-        var boon = Hud.Label(card.transform, twoSided ? p.Boon : p.Text ?? "", 13, Boon, false, 400, 0, TextAlignmentOptions.Top);
+        var boon = WebLook.Words(card.transform, twoSided ? p.Boon : p.Text ?? "", 0.78f * 16 * Z, 0, Boon, false, 400, TextAlignmentOptions.Top);
         boon.textWrappingMode = TextWrappingModes.Normal;
-        boon.margin = new Vector4(8, 68 + nh + 5, 8, 0);
+        float bh = boon.GetPreferredValues(boon.text, w, 0).y;
+        WebLook.Box(boon.rectTransform, 8 * Z, y, w, bh + 2);
         if (twoSided)
         {
-            float bh = boon.GetPreferredValues(boon.text, w, 0).y;
-            var bane = Hud.Label(card.transform, p.Bane ?? "", 13, Bane, false, 400, 0, TextAlignmentOptions.Top);
+            var bane = WebLook.Words(card.transform, p.Bane ?? "", 0.78f * 16 * Z, 0, Bane, false, 400, TextAlignmentOptions.Top);
             bane.textWrappingMode = TextWrappingModes.Normal;
-            bane.margin = new Vector4(8, 68 + nh + 5 + bh + 4, 8, 0);
+            WebLook.Box(bane.rectTransform, 8 * Z, y + bh + 5 * Z, w, bane.GetPreferredValues(bane.text, w, 0).y + 2);
         }
         var b = card.gameObject.AddComponent<Button>();
         if (act != null) b.onClick.AddListener(() => act());

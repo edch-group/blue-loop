@@ -116,14 +116,14 @@ public static class WebLook
     /// The skill trees' back button (.up-back): ‹ BACK in soft ink, spaced wide, on a capsule of white glass ringed by a
     /// fine line, at the page's top left (26, 20), as wide as its words.
     /// </summary>
-    public static UnityEngine.UI.Button UpBack(Transform parent, System.Action act, float x = 26, float y = 20)
+    public static UnityEngine.UI.Button UpBack(Transform parent, System.Action act, float x = 26, float y = 20, string label = "‹ back")
     {
         var img = Rounded(parent, "Back", new Color(1, 1, 1, 0.7f), 999);
         img.raycastTarget = true;
         img.sprite = Hud.Rounded;
         img.type = Image.Type.Sliced;
         img.pixelsPerUnitMultiplier = 22f / 21;
-        var w = Words(img.transform, "‹ BACK", 0.66f * 16 * Zoom, 0.24f, Look.InkSoft, true, 400);
+        var w = Words(img.transform, label.ToUpperInvariant(), 0.66f * 16 * Zoom, 0.24f, Look.InkSoft, true, 400);
         float width = w.GetPreferredValues(w.text).x + 2 * 14 * Zoom;
         Box(img.rectTransform, x, y, width, 42);
         Shadow(img, 0, 0, Color.clear, 21, Zoom, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.14f));

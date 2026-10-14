@@ -823,10 +823,10 @@ public partial class CampaignView
     /// over the ship; the talk at the foot, 720 (CSS) across: each line its speaker's face (the visitor's none, set in,
     /// in italics), their name small over their words; a note; the choices under them, coming in one after another.
     /// </summary>
-    void ShipScene(string kicker, string title, List<(string who, string text)> lines, System.Action<RectTransform> actions, string note = null)
+    void ShipScene(string kicker, string title, List<(string who, string text)> lines, System.Action<RectTransform> actions, string note = null, Transform parent = null, System.Func<RectTransform, float, float> body = null, string visitor = null)
     {
         float from = RevealFrom(kicker + "|" + title + "|" + string.Join("|", lines.Select(l => l.who + ":" + l.text)));
-        var v = Hud.Rect(overlay, "Scene");
+        var v = Hud.Rect(parent ?? overlay, "Scene");
         Hud.Fill(v);
         v.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0);
         var head = WebLook.Box(v, "Head", 0, 14 * Z, 1600, 52);
@@ -848,6 +848,14 @@ public partial class CampaignView
             y -= 10 * Z + nh;
             var n = WebLook.Words(WebLook.Box(v, "Note", X, y, W, nh), note, 0.72f * 16 * Z, 0.08f, Look.InkSoft, false, 400);
             RiseIn.On(n.rectTransform, from, 1.6f);
+        }
+        if (body != null)
+        {
+            // (What the scene offers, between its talk and its choices: laid out by `body`, which says how tall it is.)
+            var mid = WebLook.Box(v, "Offers", X, 0, W, 10);
+            float mh = body(mid, from);
+            y -= 10 * Z + mh;
+            WebLook.Box(mid, X, y, W, mh);
         }
         y -= 10 * Z;
         for (int i = lines.Count - 1; i >= 0; i--)
@@ -890,7 +898,7 @@ public partial class CampaignView
             p.transform.SetParent(line, false);
             var card = SpeakerCard(who);
             if (card != null) Face(line, card, 17 * Z, 17 * Z, 34 * Z, WebLook.Hex("#1a1f2a"));
-            WebLook.Words(WebLook.Box(line, "Who", textX, 0, textW, 0.48f * 16 * Z * 1.2f), SpeakerName(who, title).ToUpperInvariant(), 0.48f * 16 * Z, 0.2f, Look.InkSoft, false, 400, TextAlignmentOptions.Left);
+            WebLook.Words(WebLook.Box(line, "Who", textX, 0, textW, 0.48f * 16 * Z * 1.2f), SpeakerName(who, visitor ?? title).ToUpperInvariant(), 0.48f * 16 * Z, 0.2f, Look.InkSoft, false, 400, TextAlignmentOptions.Left);
             WebLook.Box(p.rectTransform, textX, 0.48f * 16 * Z * 1.2f + 1 * Z, textW, ph + 2);
             RiseIn.On(line, from, LineDelay(i));
             y -= 8 * Z;
