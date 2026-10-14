@@ -30,7 +30,8 @@
     "server": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy",
     "power": "vite-node scripts/power.ts",
-    "train-ai": "vite-node scripts/train-ai.ts"
+    "train-ai": "vite-node scripts/train-ai.ts",
+    "export-engine": "vite-node scripts/export-engine.ts"
   },
   "build": {
     "appId": "com.coronalmassgames.blueloop",

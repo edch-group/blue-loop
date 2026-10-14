@@ -806,6 +806,8 @@ for (const t of TOKENS) Object.assign(t, { cost: 0 });
 // (Tokens are cards in play, but not in the pool: no deck, shop or collection has them.)
 // (Enigmas too: in play and in campaign decks, never in the pool.)
 const BY_ID = new Map([...CARDS, ...TOKENS, ...BOONS, ...BOSS_CARDS, ...ENIGMA_CARDS].map((c) => [c.id, c]));
+/** Every card with a fixed id (not the ones built from an id: fused, marked, the Captain's builds), as they play. */
+export const registeredCardDefs = (): CardDef[] => [...BY_ID.values()];
 
 /**
  * Dawn heat as attack: each card's plain dawn heat at the rival (no condition) becomes that much more
