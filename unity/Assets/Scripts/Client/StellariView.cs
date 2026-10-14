@@ -117,11 +117,16 @@ public class StellariView : MonoBehaviour
             Small("undo", () => Undo(1), Look.InkSoft);
             Small("clear", () => Undo(placed.Count), Look.InkSoft);
         }
-        if (Meta.TreePetalsSpent(meta) > 0) Small(resetArmed ? $"confirm reset ✿{Meta.SkillResetPetals}" : $"reset ✿{Meta.SkillResetPetals}", Reset, resetArmed ? Look.Danger : Look.InkSoft);
+        if (Meta.TreePetalsSpent(meta) > 0) Small(resetArmed ? $"confirm reset · {Meta.SkillResetPetals} petals" : $"reset · {Meta.SkillResetPetals} petals", Reset, resetArmed ? Look.Danger : Look.InkSoft);
         var title = Hud.Label(root, "SKILLS", 30, Look.Ink, true, 400, 40, TextAlignmentOptions.Top);
         title.margin = new Vector4(0, 22, 0, 0);
-        var purse = Hud.Label(root, $"✿ <b>{meta.Petals}</b> <size=60%><color=#9aa0ac>PETALS</color></size>", 22, Look.Ink, true, 500, 6, TextAlignmentOptions.Top);
-        purse.margin = new Vector4(0, 64, 0, 0);
+        var purse = Hud.Rect(root, "Purse");
+        Hud.At(purse, new Vector2(0.5f, 1), new Vector2(0, -66), new Vector2(200, 30));
+        var pi = Hud.Rect(purse, "Petal");
+        Hud.At(pi, new Vector2(0.5f, 0.5f), new Vector2(-58, 0), new Vector2(26, 26));
+        pi.gameObject.AddComponent<RawImage>().texture = Resources.Load<Texture2D>("Icons/petal");
+        var pt = Hud.Label(purse, $"<b>{meta.Petals}</b>  <size=60%><color=#9aa0ac>PETALS</color></size>", 22, Look.Ink, true, 500, 6, TextAlignmentOptions.Left);
+        pt.margin = new Vector4(58, 0, 0, 0);
     }
 
     // ---- The flower, its petals filling in their branches' colours ----
@@ -417,7 +422,7 @@ public class StellariView : MonoBehaviour
         var cancel = Hud.Pill(pop.transform, "cancel", () => { aff = null; Draw(); }, 14);
         Hud.At((RectTransform)cancel.transform, new Vector2(0.5f, 0), new Vector2(-110, 26), new Vector2(170, 48));
         var why = Meta.BuyUpgradeProblem(meta, skill);
-        var ok = Hud.Pill(pop.transform, $"confirm · ✿{Meta.PriceOf(u, 0)}", () =>
+        var ok = Hud.Pill(pop.transform, $"confirm · {Meta.PriceOf(u, 0)} petals", () =>
         {
             var m = CampaignView.LoadMeta();
             if (aff?.race == null || Meta.BuyUpgradeProblem(m, skill) != null) { Sound.Play("error"); return; }

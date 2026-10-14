@@ -285,7 +285,7 @@ const MENU_EMBLEM: Record<'captain' | 'ship' | 'stellari' | CompanionId, string>
 };
 
 
-const PETAL =
+export const PETAL =
   '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.8C15.6 6 15.6 14 10 18.2 4.4 14 4.4 6 10 1.8Z" fill="#d8e4f6" stroke="#97a2ba" stroke-width=".9" stroke-linejoin="round"/><path d="M10 4.6v10.8" stroke="#97a2ba" stroke-width=".7" stroke-linecap="round" opacity=".7"/></svg>';
 
 /** The skill tree's seven branches, one off each petal of the Stellari, each its own colour. */

@@ -190,7 +190,7 @@ import { factionAvatar } from '../src/ui/factions';
 Object.assign(window, { bakeEffect, bakeScore, heroLines: () => Object.fromEntries(Object.entries(HEROES).map(([id, h]) => [id, h.lines])) });
 
 // ---- The Stellari's skill tree (campaign.ts renderShop): each skill's mark, what each level says, the flower ----
-import { UPGRADE_LOOK, UP_BRANCHES } from '../src/ui/campaign';
+import { PETAL, UPGRADE_LOOK, UP_BRANCHES } from '../src/ui/campaign';
 import { META_UPGRADES } from '../src/engine/meta';
 /** A skill's mark, in white (the game tints it), as its disc draws it. */
 function upIcon(id: string, size: number): void {
@@ -219,3 +219,10 @@ const upLooks = () => ({
   ),
 });
 Object.assign(window, { upIcon, upFlower, upLooks, upIds: () => META_UPGRADES.filter((u) => u.group !== 'unlock').map((u) => u.id) });
+/** One of the campaign's currency marks (the petal), on its own. */
+function currency(name: string, size: number): void {
+  const svg = ({ petal: PETAL } as Record<string, string>)[name] ?? '';
+  stage.innerHTML = `<span id="piece" style="display:block;width:${size}px;height:${size}px">${svg}</span>`;
+  stage.querySelector('svg')?.setAttribute('style', `width:${size}px;height:${size}px;display:block`);
+}
+Object.assign(window, { currency });

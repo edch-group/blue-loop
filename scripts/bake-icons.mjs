@@ -40,6 +40,9 @@ for (const id of await page.evaluate(() => window.upIds())) {
   await settle();
   writeFileSync(`${out}/up-${id}.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
 }
+await page.evaluate(() => window.currency('petal', 64));
+await settle();
+writeFileSync(`${out}/petal.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
 await page.evaluate(() => window.upFlower(1100));
 await settle();
 writeFileSync(`${out}/up-flower.png`, await (await page.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
