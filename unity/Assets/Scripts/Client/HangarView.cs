@@ -37,6 +37,8 @@ public class HangarView : MonoBehaviour
         return v;
     }
 
+    const float Z = WebLook.Zoom;
+
     void Draw()
     {
         foreach (Transform c in root) Mats.Kill(c.gameObject);
@@ -45,8 +47,8 @@ public class HangarView : MonoBehaviour
         var fitted = meta.Fitted ?? new Dictionary<string, string>();
         var have = meta.Hangar ?? new List<string>();
         var fits = pick != null ? Parts.PartSlots(pick) : new List<string>();
-        // The marks on the ship: each slot, dashed while empty, ringed in its part's rarity once fitted; lit where the
-        // part in hand goes, the rest dimmed.
+        // The marks on the ship (.hg-mark): each slot a ring 30 across, dashed while empty (a pale dot in it), ringed in
+        // its part's rarity once fitted; lit gold where the part in hand goes, the rest dimmed; its name beneath.
         marks = Hud.Rect(root, "Marks");
         Hud.Fill(marks);
         foreach (var sl in Parts.ShipSlots)
@@ -54,37 +56,49 @@ public class HangarView : MonoBehaviour
             fitted.TryGetValue(sl.Id, out var there);
             var part = Parts.ShipPart(there);
             string state = pick != null && fits.Contains(sl.Id) && there != pick ? "lit" : pick != null ? "dim" : part != null ? "fitted" : "empty";
+            float d = 30 * Z;
             var m = Hud.Rect(marks, sl.Id);
             m.anchorMin = m.anchorMax = new Vector2(0.5f, 0.5f);
-            m.sizeDelta = new Vector2(30, 30);
-            var ring = m.gameObject.AddComponent<Image>();
-            ring.sprite = Hud.Circle;
-            ring.color = state == "lit" ? new Color32(0xd6, 0xbd, 0x7a, 255) : state == "fitted" ? RarityRing.GetValueOrDefault(part.Rarity, RarityRing["dwarf"]) : new Color32(0x8e, 0xa6, 0xc8, 255);
-            var inner = Hud.Rect(m, "Inner");
-            Hud.Fill(inner);
-            float w = state == "lit" ? 2 : 1.5f;
-            inner.offsetMin = new Vector2(w, w);
-            inner.offsetMax = new Vector2(-w, -w);
-            var ii = inner.gameObject.AddComponent<Image>();
-            ii.sprite = Hud.Circle;
-            ii.color = state == "lit" ? new Color(1, 0.98f, 0.92f, 0.9f) : state == "fitted" ? new Color(1, 1, 1, 0.15f) : new Color(1, 1, 1, 0.72f);
-            ii.raycastTarget = false;
-            if (state != "fitted")
+            m.sizeDelta = new Vector2(d, d);
+            var hit = m.gameObject.AddComponent<Image>();
+            hit.sprite = Hud.Circle;
+            hit.color = new Color(1, 1, 1, 0);
+            var ringBox = Hud.Rect(m, "Ring");
+            Hud.Fill(ringBox);
+            if (state == "empty" || state == "dim")
             {
-                var dot = Hud.Rect(m, "Dot");
-                Hud.At(dot, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(12, 12));
-                var di = dot.gameObject.AddComponent<Image>();
-                di.sprite = Hud.Circle;
-                di.color = state == "lit" ? new Color32(0xd6, 0xbd, 0x7a, 230) : new Color(0x8e / 255f, 0xa6 / 255f, 0xc8 / 255f, 0.45f);
+                var bg = Disc(ringBox, "Back", d, new Color(1, 1, 1, 0.72f));
+                WebLook.Shadow(bg, 2 * Z, 8 * Z, new Color(40 / 255f, 50 / 255f, 70 / 255f, 0.18f), 999);
+                var dash = Hud.Rect(ringBox, "Dashes");
+                Hud.Fill(dash);
+                var di = dash.gameObject.AddComponent<RawImage>();
+                di.texture = DashedRing();
+                di.color = WebLook.Hex("#8ea6c8");
                 di.raycastTarget = false;
+                Disc(ringBox, "Dot", d - 2 * 9 * Z, new Color(0x8e / 255f, 0xa6 / 255f, 0xc8 / 255f, 0.45f));
             }
-            var tag = Hud.Glass(m, "Name", new Color(1, 1, 1, 0.8f), false);
-            var tr = (RectTransform)tag.transform;
+            else if (state == "lit")
+            {
+                Disc(ringBox, "Border", d, WebLook.Hex("#d6bd7a"));
+                Disc(ringBox, "Back", d - 2 * 2 * Z, new Color(1, 250 / 255f, 235 / 255f, 0.9f));
+                Disc(ringBox, "Dot", d - 2 * 9 * Z, new Color(0xd6 / 255f, 0xbd / 255f, 0x7a / 255f, 0.9f));
+                ringBox.gameObject.AddComponent<WebLook.Pulse>();
+            }
+            else
+            {
+                // (Fitted: a ring only, in its part's rarity, the part on the ship showing through it.)
+                Disc(ringBox, "Rim", d, RarityRing.GetValueOrDefault(part.Rarity, RarityRing["dwarf"])).sprite = Ring15();
+            }
+            // Its name beneath (.hg-mark small): small spaced capitals on a wash of white.
             string name = (part != null ? part.Name : sl.Name).ToUpperInvariant();
-            Hud.At(tr, new Vector2(0.5f, 0), new Vector2(0, -24), new Vector2(16 + name.Length * 8, 20));
+            var tag = WebLook.Rounded(m, "Name", new Color(1, 1, 1, 0.8f), 6 * Z);
+            var tt = WebLook.Words(tag.transform, name, 0.5f * 16 * Z, 0.14f, state == "empty" || state == "dim" ? Look.InkFaint : Look.Ink, true, 400);
+            float tw = tt.GetPreferredValues(name).x + 2 * 6 * Z;
+            var tr = tag.rectTransform;
+            tr.anchorMin = tr.anchorMax = new Vector2(0.5f, 0.5f);
             tr.pivot = new Vector2(0.5f, 1);
-            Hud.Label(tag.transform, name, 9, state == "empty" || state == "dim" ? Look.InkFaint : Look.Ink, true, 500, 14).raycastTarget = false;
-            tag.raycastTarget = false;
+            tr.anchoredPosition = new Vector2(0, -19 * Z);
+            tr.sizeDelta = new Vector2(tw, 21);
             var cg = m.gameObject.AddComponent<CanvasGroup>();
             cg.alpha = state == "dim" ? 0.35f : 1;
             cg.blocksRaycasts = state != "dim";
@@ -94,95 +108,167 @@ public class HangarView : MonoBehaviour
         }
         Place();
 
-        // The page: the right of the screen, beside the ship.
+        // The page (.hangar-panel): the right 42% of the screen beside the ship, the paper washing in over the land.
         var panel = Hud.Rect(root, "Panel");
         panel.anchorMin = new Vector2(0.58f, 0);
         panel.anchorMax = new Vector2(1, 1);
-        panel.offsetMin = new Vector2(0, 24);
-        panel.offsetMax = new Vector2(-28, -24);
-        var back = Hud.Pill(root, "‹ Back", () => menu.Show("campaign"), 15);
-        Hud.At((RectTransform)back.transform, new Vector2(0, 1), new Vector2(26, -26), new Vector2(110, 44));
-        var title = Hud.Label(panel, "SHIP", 30, Look.Ink, true, 400, 40, TextAlignmentOptions.Top);
-        title.raycastTarget = false;
-        var count = Hud.Label(panel, $"<b>{have.Count}</b>  <size=60%><color=#9aa0ac>OF {Parts.ShipParts.Count} PARTS FOUND</color></size>", 20, Look.Ink, true, 500, 6, TextAlignmentOptions.Top);
-        count.margin = new Vector4(0, 44, 0, 0);
-        count.raycastTarget = false;
-        // Every part found: its small 3D view, its name; fitted, marked so.
-        var grid = Hud.Rect(panel, "Parts");
-        grid.anchorMin = new Vector2(0, 0);
-        grid.anchorMax = new Vector2(1, 1);
-        grid.offsetMin = new Vector2(0, 90);
-        grid.offsetMax = new Vector2(0, -96);
+        panel.offsetMin = panel.offsetMax = Vector2.zero;
+        var wash = panel.gameObject.AddComponent<RawImage>();
+        wash.texture = Wash();
+        wash.raycastTarget = false;
+        float px = 928 + 26, pw = 620, mid = px + pw / 2;
+        WebLook.UpBack(root, () => menu.Show("campaign"), px, 20);
+        // (.up-title-big: SHIP, and under it how many parts are found of how many.)
+        var title = WebLook.Words(WebLook.Box(root, "Title", px, 20, pw, 68), "SHIP", 54, 0.5f, Look.Ink, true, 400);
+        title.margin = new Vector4(0.5f * 54, 0, 0, 0);
+        var count = WebLook.Words(Hud.Rect(root, "Found"), have.Count.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
+        var of = WebLook.Words(Hud.Rect(root, "Of"), $"OF {Parts.ShipParts.Count} PARTS FOUND", 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
+        float cw = count.GetPreferredValues(count.text).x, ow = of.GetPreferredValues(of.text).x, x0 = mid - (cw + 10 * Z + ow) / 2;
+        WebLook.Box((RectTransform)count.transform, x0, 97, cw + 4, 33);
+        WebLook.Box((RectTransform)of.transform, x0 + cw + 10 * Z, 105, ow + 8, 16);
+        // Every part found (.hg-parts): its turning 3D view, its name; fitted, marked so; picked, ringed in gold.
         var owned = Parts.ShipParts.Where(p => have.Contains(p.Id)).ToList();
         var on = new HashSet<string>(fitted.Values.Where(v => v != null));
+        float gx = px + 6 + 3, gw = 608 - 6;
         if (owned.Count == 0)
         {
-            var none = Hud.Label(grid, "No parts yet.", 15, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Top);
-            none.margin = new Vector4(0, 30, 0, 0);
+            var none = WebLook.Words(WebLook.Box(root, "None", gx, 142, gw, 30), "No parts yet.", 0.85f * 16 * Z, 0, Look.InkFaint, false, 400, TextAlignmentOptions.TopLeft);
+            none.raycastTarget = false;
         }
-        const float TileW = 112, TileH = 116, Gap = 8;
-        int cols = Mathf.Max(1, Mathf.FloorToInt((Hud.W * 0.42f - 28 + Gap) / (TileW + Gap)));
+        float gap = 8 * Z, minW = 104 * Z;
+        int cols = Mathf.Max(1, Mathf.FloorToInt((gw + gap) / (minW + gap)));
+        float tileW = (gw - (cols - 1) * gap) / cols, tileH = 8 * Z + 64 * Z + 4 * Z + 15 + 8 * Z;
         for (int i = 0; i < owned.Count; i++)
         {
             var p = owned[i];
-            var at = new Vector2((i % cols) * (TileW + Gap), -(i / cols) * (TileH + Gap));
-            // (Picked: a gold ring round it.)
-            if (pick == p.Id)
-            {
-                var ring = Hud.Glass(grid, p.Id + " ring", new Color32(0xd6, 0xbd, 0x7a, 255), false);
-                Hud.At((RectTransform)ring.transform, new Vector2(0, 1), at + new Vector2(-2.5f, 2.5f), new Vector2(TileW + 5, TileH + 5));
-                ring.raycastTarget = false;
-            }
-            var tile = Hud.Glass(grid, p.Id, on.Contains(p.Id) ? new Color32(0xf6, 0xf9, 0xfd, 255) : Color.white, false);
-            Hud.At((RectTransform)tile.transform, new Vector2(0, 1), at, new Vector2(TileW, TileH));
-            var icon = Hud.Rect(tile.transform, "Icon");
-            Hud.At(icon, new Vector2(0.5f, 1), new Vector2(0, -8), new Vector2(64, 64));
+            bool fit = on.Contains(p.Id);
+            float h = tileH + (fit ? 4 * Z + 17 : 0);
+            var tile = WebLook.Rounded(root, p.Id, fit ? WebLook.Hex("#f6f9fd") : Color.white, 12 * Z);
+            tile.raycastTarget = true;
+            WebLook.Box(tile.rectTransform, gx + (i % cols) * (tileW + gap), 142 + (i / cols) * (tileH + gap), tileW, h);
+            if (pick == p.Id) WebLook.Shadow(tile, 3 * Z, 10 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.12f), 12 * Z, 2.5f * Z, WebLook.Hex("#d6bd7a"));
+            else WebLook.Shadow(tile, 3 * Z, 8 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.06f), 12 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
+            var icon = WebLook.Box(tile.transform, "Icon", (tileW - 64 * Z) / 2, 8 * Z, 64 * Z, 64 * Z);
             var ii = icon.gameObject.AddComponent<RawImage>();
             ii.texture = Resources.Load<Texture2D>($"Icons/part-{p.Kind}-{p.Rarity}");
             ii.raycastTarget = false;
-            var nm = Hud.Label(tile.transform, p.Name.ToUpperInvariant() + (on.Contains(p.Id) ? "\n<size=110%><color=#a6a9b0>fitted</color></size>" : ""), 9, Look.Ink, true, 500, 14, TextAlignmentOptions.Top);
-            nm.textWrappingMode = TextWrappingModes.Normal;
-            nm.margin = new Vector4(6, 76, 6, 0);
+            var nm = WebLook.Words(WebLook.Box(tile.transform, "Name", 6 * Z, 8 * Z + 64 * Z + 4 * Z, tileW - 12 * Z, 15), p.Name.ToUpperInvariant(), 0.5f * 16 * Z, 0.14f, Look.Ink, true, 500);
             nm.raycastTarget = false;
+            if (fit) WebLook.Words(WebLook.Box(tile.transform, "Fitted", 6 * Z, tileH - 8 * Z + 4 * Z, tileW - 12 * Z, 17), "fitted", 0.6f * 16 * Z, 0, Look.InkFaint, false, 400).raycastTarget = false;
             var id = p.Id;
             tile.gameObject.AddComponent<Button>().onClick.AddListener(() => { pick = pick == id ? null : id; Sound.Play("hover"); Draw(); });
         }
-        Detail(panel, fitted, have);
+        Detail(px, pw, fitted, have);
     }
 
-    /// <summary>The part picked: its name and what it does, and where it goes (or, fitted there, remove).</summary>
-    void Detail(RectTransform panel, Dictionary<string, string> fitted, List<string> have)
+    /// <summary>
+    /// The part picked (.hp-detail), at the foot of the page: its name and what it does, and where it goes (or, fitted
+    /// there, remove); none picked, a hint in faint words.
+    /// </summary>
+    void Detail(float px, float pw, Dictionary<string, string> fitted, List<string> have)
     {
-        var box = Hud.Glass(panel, "Detail", Color.white);
-        var r = (RectTransform)box.transform;
-        r.anchorMin = new Vector2(0, 0);
-        r.anchorMax = new Vector2(1, 0);
-        r.pivot = new Vector2(0.5f, 0);
-        r.offsetMin = new Vector2(0, 0);
-        r.offsetMax = new Vector2(0, 70);
+        var box = WebLook.Rounded(root, "Detail", Color.white, 16 * Z);
+        box.raycastTarget = true;
+        WebLook.Box(box.rectTransform, px, 985 - 56 * Z, pw, 56 * Z);
+        WebLook.Shadow(box, 6 * Z, 18 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.1f), 16 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
         var p = Parts.ShipPart(pick);
         if (p == null)
         {
-            Hud.Label(box.transform, have.Count > 0 ? "Pick a part, then its slot." : "Parts are found on runs: every boss leaves one.", 15, Look.InkSoft, false, 400, 0);
+            WebLook.Words(box.transform, have.Count > 0 ? "Pick a part, then its slot." : "Parts are found on runs: every boss leaves one.", 0.8f * 16 * Z, 0, Look.InkFaint, false, 400);
             return;
         }
-        var t = Hud.Label(box.transform, $"<b>{p.Name.ToUpperInvariant()}</b>", 13, Look.Ink, true, 500, 14, TextAlignmentOptions.TopLeft);
-        t.margin = new Vector4(18, 14, 200, 0);
-        var w = Hud.Label(box.transform, p.Text, 14, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
-        w.textWrappingMode = TextWrappingModes.Normal;
-        w.margin = new Vector4(18, 34, 220, 0);
         var where = Parts.ShipSlots.Where(sl => sl.Kind == p.Kind).ToList();
-        float x = -14;
+        float x = pw - 16 * Z;
         foreach (var sl in Enumerable.Reverse(where))
         {
             bool here = fitted.TryGetValue(sl.Id, out var f) && f == p.Id;
             var label = here ? "remove" : where.Count > 1 ? sl.Name.Replace(" weapon", "") : "fit";
             var id = sl.Id;
-            var b = Hud.Pill(box.transform, label, () => { if (here) Clear(id); else Slot(id); }, 13, here ? Look.GlassStrong : Look.Ink, here ? Look.Ink : Color.white);
-            float bw = 30 + label.Length * 11;
-            Hud.At((RectTransform)b.transform, new Vector2(1, 0.5f), new Vector2(x, 0), new Vector2(bw, 44));
-            x -= bw + 8;
+            var b = WebLook.Button(box.transform, label, () => { if (here) Clear(id); else Slot(id); }, !here, 0.66f * 16 * Z, 0.14f);
+            var t = b.GetComponentInChildren<TextMeshProUGUI>();
+            float bw = t.GetPreferredValues(t.text).x + 2 * 16 * Z;
+            var br = (RectTransform)b.transform;
+            br.anchorMin = br.anchorMax = br.pivot = new Vector2(1, 0.5f);
+            br.anchoredPosition = new Vector2(-(pw - x), 0);
+            br.sizeDelta = new Vector2(bw, 0.66f * 16 * Z * 1.25f + 2 * 9 * Z);
+            x -= bw + 8 * Z;
         }
+        float tw = x - 16 * Z - 16 * Z;
+        var name = WebLook.Words(box.transform, p.Name.ToUpperInvariant(), 0.7f * 16 * Z, 0.22f, Look.Ink, true, 500, TextAlignmentOptions.TopLeft);
+        var what = WebLook.Words(box.transform, p.Text, 0.82f * 16 * Z, 0, Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
+        what.textWrappingMode = TextWrappingModes.Normal;
+        float nh = name.GetPreferredValues(name.text).y, wh = what.GetPreferredValues(p.Text, tw, 0).y, all = nh + 3 * Z + wh;
+        float top = Mathf.Max(10 * Z, (56 * Z - all) / 2);
+        WebLook.Box(name.rectTransform, 16 * Z, top, tw, nh + 2);
+        WebLook.Box(what.rectTransform, 16 * Z, top + nh + 3 * Z, tw, wh + 2);
+    }
+
+    /// <summary>A disc centred in its parent, at a size.</summary>
+    static Image Disc(RectTransform parent, string name, float size, Color colour)
+    {
+        var r = Hud.Rect(parent, name);
+        Hud.At(r, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size, size));
+        var img = r.gameObject.AddComponent<Image>();
+        img.sprite = Hud.Circle;
+        img.color = colour;
+        img.raycastTarget = false;
+        return img;
+    }
+
+    static Texture2D dashed, wash;
+    static Sprite ring15;
+
+    /// <summary>A mark's dashed rim (a 1.5 dashed border round a 30 circle), white to tint.</summary>
+    static Texture2D DashedRing()
+    {
+        if (dashed != null) return dashed;
+        const int S = 96;
+        dashed = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        float w = 1.5f / 30 * S, rad = S / 2f - w / 2;
+        const int dashes = 16;
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                var p = new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f);
+                float d = Mathf.Abs(p.magnitude - rad);
+                float a = (Mathf.Atan2(p.y, p.x) / (Mathf.PI * 2) + 1) % 1 * dashes, f = a - Mathf.Floor(a);
+                float on = Mathf.Clamp01(Mathf.Min(f, 0.55f - f) * rad * Mathf.PI * 2 / dashes + 0.5f);
+                dashed.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(w / 2 - d + 0.5f) * on));
+            }
+        dashed.Apply();
+        return dashed;
+    }
+
+    /// <summary>A fitted mark's rim: a solid ring 1.5 wide round a 30 circle, white to tint.</summary>
+    static Sprite Ring15()
+    {
+        if (ring15 != null) return ring15;
+        const int S = 96;
+        var t = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        float w = 1.5f / 30 * S, rad = S / 2f - w / 2;
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                float d = Mathf.Abs(new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f).magnitude - rad);
+                t.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(w / 2 - d + 0.5f)));
+            }
+        t.Apply();
+        return ring15 = Sprite.Create(t, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f));
+    }
+
+    /// <summary>The page's wash over the land: #fbfbfc, nothing at its left edge, 0.88 by 9% across, 0.94 at its right.</summary>
+    static Texture2D Wash()
+    {
+        if (wash != null) return wash;
+        wash = new Texture2D(64, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        var c = WebLook.Hex("#fbfbfc");
+        for (int x = 0; x < 64; x++)
+        {
+            float k = (x + 0.5f) / 64;
+            wash.SetPixel(x, 0, new Color(c.r, c.g, c.b, k < 0.09f ? 0.88f * k / 0.09f : Mathf.Lerp(0.88f, 0.94f, (k - 0.09f) / 0.91f)));
+        }
+        wash.Apply();
+        return wash;
     }
 
     void Slot(string slot)
