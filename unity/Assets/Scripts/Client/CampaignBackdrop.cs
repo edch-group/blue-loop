@@ -357,8 +357,8 @@ public class CampaignBackdrop : MonoBehaviour
         {
             float vk = Mathf.Min(1, (t - visitorT0) / 3.2f);
             float come = 1 - Mathf.Pow(1 - vk, 3);
-            var at = new Vector3(-14 + (4.9f + 14) * come, 1.35f + 0.07f * Mathf.Sin(t * 0.8f + 1), -3.2f);
-            Place(visitor, T(at) * RX(0.04f * Mathf.Sin(t * 0.6f)) * RZ(0.03f * Mathf.Sin(t * 0.7f + 2) - 0.06f * (1 - vk)) * visitorLocal);
+            var va = new Vector3(-14 + (4.9f + 14) * come, 1.35f + 0.07f * Mathf.Sin(t * 0.8f + 1), -3.2f);
+            Place(visitor, T(va) * RX(0.04f * Mathf.Sin(t * 0.6f)) * RZ(0.03f * Mathf.Sin(t * 0.7f + 2) - 0.06f * (1 - vk)) * visitorLocal);
             visitor.GetComponent<MeshRenderer>().sharedMaterial.SetFloat("_Burn", 0.4f + 0.6f * (1 - vk));
         }
 
