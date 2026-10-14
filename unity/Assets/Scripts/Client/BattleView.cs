@@ -225,6 +225,7 @@ public class BattleView : MonoBehaviour
     const string SpeedKey = "blue-loop:ai-speed", SaveKey = "blue-loop:save:v4";
 
     public static string Speed => System.Array.IndexOf(Speeds, Store.Get(SpeedKey)) >= 0 ? Store.Get(SpeedKey) : "normal";
+    public static void NextSpeed() => Store.Set(SpeedKey, Speeds[(System.Array.IndexOf(Speeds, Speed) + 1) % 3]);
     float Delay => 0.75f * SpeedFactor[System.Array.IndexOf(Speeds, Speed)];
 
     void CloseSheet()

@@ -67,6 +67,7 @@ public class MenuView : MonoBehaviour
             case "hub": Hub(); break;
             case "quickplay": Quickplay(); break;
             case "collection": BuilderView.Make(page, this); break;
+            case "glossary": GlossaryView.Make(page, this); break;
             default: Title(); break;
         }
     }
@@ -113,22 +114,15 @@ public class MenuView : MonoBehaviour
             var hit = r.gameObject.AddComponent<Image>();
             hit.color = new Color(1, 1, 1, 0);
             b.targetGraphic = hit;
-            b.onClick.AddListener(() => { if (icon == "collection") Show("collection"); else Soon(name); });
+            b.onClick.AddListener(() => { if (icon == "collection" || icon == "glossary") Show(icon); else Soon(name); });
             Picture(r, $"Icons/{icon}-small", new Vector2(0, 0.5f), new Vector2(0, 0), new Vector2(40, 40));
             var t = Hud.Label(r, name.ToUpperInvariant(), 18, Look.InkSoft, true, 500, 12, TextAlignmentOptions.Left);
             t.margin = new Vector4(50, 0, 0, 0);
         }
-        // You, and your options, top right.
-        var me = Profile.Me;
-        var chip = Hud.Glass(page, "You", Look.GlassStrong);
-        Hud.At((RectTransform)chip.transform, new Vector2(1, 1), new Vector2(-136, -26), new Vector2(330, 76));
-        var who = Hud.Label(chip.transform, $"<b>{(string.IsNullOrEmpty(me.Name) ? "Commander" : me.Name)}</b>\n<size=70%><color=#737780>LEVEL {me.Level}</color></size>", 22, Look.Ink, true, 500, 4, TextAlignmentOptions.Left);
-        who.margin = new Vector4(24, 0, 0, 0);
-        var cur = Hud.Label(chip.transform, $"✦ {me.Stardust}\n⟁ {me.Flux}", 18, Look.InkSoft, false, 500, 0, TextAlignmentOptions.Right);
-        cur.margin = new Vector4(0, 0, 22, 0);
+        Chip(page);
         var opts = Hud.Glass(page, "Options", Look.GlassStrong);
         Hud.At((RectTransform)opts.transform, new Vector2(1, 1), new Vector2(-34, -26), new Vector2(84, 76));
-        opts.gameObject.AddComponent<Button>().onClick.AddListener(() => Soon("Options"));
+        opts.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); Options(); });
         Picture(opts.transform, "Icons/options-small", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(44, 44));
 
         // The five ways to play.
@@ -203,6 +197,33 @@ public class MenuView : MonoBehaviour
         }
         var launch = Hud.Pill(page, "Launch", () => App.Instance.Battle(seatDeck[0], seatDeck[1]), 26, Look.Ink, Color.white);
         Hud.At((RectTransform)launch.transform, new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(300, 80));
+    }
+
+    RectTransform sheet;
+
+    /// <summary>You, top right: your name and level, your stardust and flux (the hub's chip, on the pages off it too).</summary>
+    public void Chip(Transform parent)
+    {
+        var me = Profile.Me;
+        var chip = Hud.Glass(parent, "You", Look.GlassStrong);
+        Hud.At((RectTransform)chip.transform, new Vector2(1, 1), new Vector2(-136, -26), new Vector2(330, 76));
+        var who = Hud.Label(chip.transform, $"<b>{(string.IsNullOrEmpty(me.Name) ? "Commander" : me.Name)}</b>\n<size=70%><color=#737780>LEVEL {me.Level}</color></size>", 22, Look.Ink, true, 500, 4, TextAlignmentOptions.Left);
+        who.margin = new Vector4(24, 0, 0, 0);
+        var cur = Hud.Label(chip.transform, $"✦ {me.Stardust}\n⟁ {me.Flux}", 18, Look.InkSoft, false, 500, 0, TextAlignmentOptions.Right);
+        cur.margin = new Vector4(0, 0, 22, 0);
+    }
+
+    /// <summary>Options (the web's options page): sound, music, the AI's speed.</summary>
+    void Options()
+    {
+        if (sheet != null) Mats.Kill(sheet.gameObject);
+        System.Action close = () => { if (sheet != null) Mats.Kill(sheet.gameObject); sheet = null; };
+        sheet = Hud.Sheet(page, "options", new[]
+        {
+            new Hud.Row("sound", () => { Sound.Muted = !Sound.Muted; Options(); }, Sound.Muted ? "off" : "on"),
+            new Hud.Row("music", Sound.Muted ? (System.Action)null : () => { Sound.MusicOn = !Sound.MusicOn; Options(); }, Sound.MusicOn && !Sound.Muted ? "on" : "off"),
+            new Hud.Row("ai speed", () => { BattleView.NextSpeed(); Options(); }, BattleView.Speed),
+        }, close);
     }
 
     /// <summary>A page still to come: a word, for now.</summary>
