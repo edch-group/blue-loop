@@ -98,6 +98,7 @@ public class BattleView : MonoBehaviour
         Board.Viewer = you;
         Clear();
         Refresh();
+        Sound.Scene("battle");
     }
 
     /// <summary>Show a battle as it stands (a state set up elsewhere: a lesson, a puzzle, a picture).</summary>
@@ -165,7 +166,10 @@ public class BattleView : MonoBehaviour
         if (state.WinnerId != null) return;
         try
         {
-            state = Game.Apply(state, HumanDawnChoice() ? AI.DawnChoiceFor(state) : AI.Choose(state));
+            var a = HumanDawnChoice() ? AI.DawnChoiceFor(state) : AI.Choose(state);
+            var was = state;
+            state = Game.Apply(state, a);
+            Hear(was, state, a);
         }
         catch (System.Exception e)
         {
@@ -183,11 +187,14 @@ public class BattleView : MonoBehaviour
     {
         try
         {
+            var was = state;
             state = Game.Apply(state, a);
+            Hear(was, state, a);
         }
         catch (GameError e)
         {
             Say(e.Message);
+            Sound.Play("error");
         }
         dawnPick = null;
         discarding = null;
@@ -207,6 +214,86 @@ public class BattleView : MonoBehaviour
     {
         toast.text = text;
         toastUntil = Time.time + 3.5f;
+    }
+
+    // ---- What a move sounds like (app.ts: the same sounds for the same changes) ----
+
+    void Hear(GameState prev, GameState next, EngineAction a)
+    {
+        if (!Application.isPlaying) return;
+        var actor = Game.ActivePlayer(prev);
+        bool ending = a.Type == "endTurn";
+        var source = ending ? Game.ActivePlayer(next) : actor;
+        float delay = ending ? 0.75f : actor.IsAI ? 0.52f : 0.16f;
+        PlayerState Was(PlayerState p) => prev.Players.First(x => x.Id == p.Id);
+        // A sun struck, cooled or shielded: heat taken (yours, by them: hurt; theirs: strike), cooling, shields lost or raised.
+        void Hit(PlayerState p, float at, bool byEnemy)
+        {
+            var w = Was(p);
+            int dHeat = p.Heat - w.Heat;
+            int lost = byEnemy ? Mathf.Max(0, w.Shields - p.Shields) : 0;
+            int gained = Mathf.Max(0, p.Shields - w.Shields);
+            if (dHeat > 0)
+            {
+                if (p.Id == you && byEnemy) Sound.Play("hurt", dHeat);
+                else if (byEnemy) Sound.Play($"strike-{Mathf.Clamp(dHeat, 1, 5)}", at);
+                else Sound.Play("impact-hot", at);
+            }
+            else if (dHeat < 0) Sound.Play("impact-cold", at);
+            if (lost > 0) Sound.Play("block", at);
+            else if (gained > 0 && dHeat == 0) Sound.Play("shield", at);
+        }
+        int volley = 0;
+        foreach (var p in next.Players)
+        {
+            if (p.Id == source.Id) continue;
+            var w = Was(p);
+            bool struck = p.Heat > w.Heat || (p.Shields < w.Shields && !(ending && p.Id == actor.Id)) || (p.Eliminated && !w.Eliminated);
+            if (!struck) continue;
+            if (a.Type == "attack") { Hit(p, 0, true); continue; }
+            Hit(p, delay + 0.11f * volley++ + 0.4f, true);
+        }
+        if (volley > 0) Sound.Play("launch", delay);
+        var me = next.Players.First(p => p.Id == source.Id);
+        var meWas = Was(me);
+        if (me.Heat != meWas.Heat || me.Shields > meWas.Shields)
+        {
+            Hit(me, delay, false);
+            if (me.Heat < meWas.Heat) Sound.Play("thermo", delay);
+        }
+        switch (a.Type)
+        {
+            case "playCard":
+                Sound.Play("play");
+                var played = actor.Hand.FirstOrDefault(c => c.Uid == a.CardUid);
+                if (played != null && Cards.Def(played.DefId).Kind == "command") Sound.Play("hero", Mathf.Max(0, delay - 0.3f));
+                break;
+            case "endTurn":
+                Sound.Play("end-turn");
+                if (Game.ActivePlayer(next).Id == you) Sound.Play("turn", 0.6f);
+                break;
+            case "attack":
+                Sound.Play("swing");
+                if (a.TargetUid != null) CardBlow(prev, next, a.TargetUid);
+                break;
+        }
+        // Cards drawn into your hand, one after another.
+        var mine = next.Players.First(p => p.Id == you);
+        int drawn = mine.Hand.Count(c => !Was(mine).Hand.Any(x => x.Uid == c.Uid));
+        for (int i = 0; i < drawn; i++) Sound.Play("draw", 0.35f + i * 0.12f);
+        if (next.WinnerId != null && prev.WinnerId == null) Sound.Play("supernova", 0.4f);
+    }
+
+    /// <summary>A blow on a card: its defence cracking if the blow wore it, and the crunch of what got through.</summary>
+    static void CardBlow(GameState prev, GameState next, string uid)
+    {
+        CardInstance Find(GameState st) => st.Players.SelectMany(p => p.Tableau).FirstOrDefault(c => c.Uid == uid);
+        var was = Find(prev);
+        var now = Find(next);
+        if (was == null) return;
+        if ((now?.Dented ?? 0) > (was.Dented ?? 0)) Sound.Play("crack");
+        int lost = (was.Health ?? 0) - (now != null ? now.Health ?? 0 : 0);
+        if (lost > 0 || now == null || (now.Dented ?? 0) <= (was.Dented ?? 0)) Sound.Play("clash", Mathf.Max(1, lost));
     }
 
     // ---- Taps on the board ----
@@ -269,6 +356,7 @@ public class BattleView : MonoBehaviour
             }
             picked = uid;
             options = plays;
+            Sound.Play("hand-lift");
             // (Nothing to choose: it's played at once.)
             if (plays.All(o => o.SlotIndex == null) && plays.All(o => Aims(o) == null)) Finish(plays);
             return;

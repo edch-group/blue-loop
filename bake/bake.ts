@@ -83,3 +83,98 @@ void Promise.all(['400 1em Orbitron', '500 1em Orbitron', '700 1em Orbitron', '3
 import { registeredCardDefs } from '../src/engine/cards';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from '../src/ui/menu-icon';
 Object.assign(window, { allIds: () => registeredCardDefs().map((d) => d.id) });
+
+// ---- Sound: the web game's own effects and scores, rendered offline (scripts/bake-sound.mjs) ----
+
+import { sound } from '../src/ui/sound';
+import heatFire from '../src/assets/sfx/heat-fire.mp3?inline';
+import sunHit from '../src/assets/sfx/sun-hit.mp3?inline';
+import cardHit from '../src/assets/sfx/card-hit.mp3?inline';
+import riftTick from '../src/assets/sfx/rift-tick.mp3?inline';
+
+const RATE = 44100;
+// (The board's class, reached through its one instance; its workings are private to TypeScript only.)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Board = any;
+
+/** An offline board on a fresh context, its recordings decoded, its timers run as the render reaches them. */
+async function offlineBoard(seconds: number): Promise<{ r: Board; ctx: OfflineAudioContext }> {
+  const ctx = new OfflineAudioContext(2, Math.ceil(RATE * seconds), RATE);
+  const Ctor = (sound as Board).constructor;
+  const r: Board = new Ctor(true);
+  r.ctx = ctx;
+  r.decoded = new Map<string, AudioBuffer>();
+  for (const url of [heatFire, sunHit, cardHit, riftTick]) {
+    const bytes = Uint8Array.from(atob(url.slice(url.indexOf(',') + 1)), (c) => c.charCodeAt(0)).buffer;
+    r.decoded.set(url, await ctx.decodeAudioData(bytes));
+  }
+  r.build(ctx);
+  r.timers = [];
+  return { r, ctx };
+}
+
+/** Run the board's timers as the render reaches them (every quarter second). */
+function tick(r: Board, ctx: OfflineAudioContext, seconds: number, stopAt = Infinity) {
+  for (let t = 0.25; t < seconds; t += 0.25)
+    void ctx.suspend(t).then(() => {
+      if (t + 0.6 >= stopAt) r.playing = null;
+      const now = ctx.currentTime;
+      const due = r.timers.filter((x: { at: number }) => x.at <= now);
+      r.timers = r.timers.filter((x: { at: number }) => x.at > now);
+      for (const x of due) x.fn();
+      void ctx.resume();
+    });
+}
+
+/** 16-bit stereo WAV of a render's first `frames` frames, as base64. */
+function wav(buf: AudioBuffer, frames = buf.length): string {
+  const bytes = new Uint8Array(44 + frames * 4);
+  const view = new DataView(bytes.buffer);
+  const text = (o: number, t: string) => [...t].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
+  text(0, 'RIFF'); view.setUint32(4, 36 + frames * 4, true); text(8, 'WAVE'); text(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 2, true);
+  view.setUint32(24, RATE, true); view.setUint32(28, RATE * 4, true); view.setUint16(32, 4, true); view.setUint16(34, 16, true);
+  text(36, 'data'); view.setUint32(40, frames * 4, true);
+  const l = buf.getChannelData(0), r = buf.getChannelData(1);
+  for (let i = 0; i < frames; i++) {
+    view.setInt16(44 + i * 4, Math.max(-1, Math.min(1, l[i])) * 32767, true);
+    view.setInt16(46 + i * 4, Math.max(-1, Math.min(1, r[i])) * 32767, true);
+  }
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+/** One effect (a method of the board, with its arguments), rendered with its tail, the silence after it trimmed. */
+async function bakeEffect(method: string, args: unknown[], seconds: number): Promise<string> {
+  const { r, ctx } = await offlineBoard(seconds);
+  tick(r, ctx, seconds);
+  r[method](...args);
+  const buf = await ctx.startRendering();
+  let end = buf.length;
+  const l = buf.getChannelData(0), rr = buf.getChannelData(1);
+  while (end > RATE * 0.05 && Math.abs(l[end - 1]) < 1e-4 && Math.abs(rr[end - 1]) < 1e-4) end--;
+  return wav(buf, Math.min(buf.length, end + Math.round(RATE * 0.02)));
+}
+
+/**
+ * One whole pass of a score (as the reversed scores are made: its form's length, the tails ringing past its end
+ * folded back onto its start), so it loops seamlessly.
+ */
+async function bakeScore(scene: 'ambient' | 'battle' | 'boss' | 'voyage', loop: number): Promise<string> {
+  const tail = 6;
+  const { r, ctx } = await offlineBoard(loop + tail);
+  r.scene = scene;
+  r.playing = scene;
+  for (const [bus, level] of r.faders(scene)) bus.gain.value = level;
+  r.score(ctx, scene);
+  tick(r, ctx, loop + tail, loop);
+  const buf = await ctx.startRendering();
+  const length = Math.round(RATE * loop);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = length; i < d.length; i++) d[i - length] += d[i];
+  }
+  return wav(buf, length);
+}
+Object.assign(window, { bakeEffect, bakeScore });

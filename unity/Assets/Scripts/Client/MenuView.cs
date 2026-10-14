@@ -27,6 +27,7 @@ public class MenuView : MonoBehaviour
         v.canvas.transform.SetParent(v.transform, false);
         v.Background();
         v.Show(page);
+        Sound.Scene("voyage");
         return v;
     }
 

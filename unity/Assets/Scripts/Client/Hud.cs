@@ -124,7 +124,7 @@ public static class Hud
         colors.pressedColor = new Color(0.88f, 0.9f, 0.95f);
         colors.disabledColor = new Color(1, 1, 1, 0.5f);
         b.colors = colors;
-        b.onClick.AddListener(() => onClick());
+        b.onClick.AddListener(() => { Sound.Play("click"); onClick(); });
         Label(img.transform, text.ToUpperInvariant(), size, ink ?? Look.Ink, true, 500, 14);
         return b;
     }
