@@ -59,17 +59,27 @@ public class StellariView : MonoBehaviour
         // The sky: a true circle of reach R round the Stellari's heart, at the foot of the page.
         sky = Hud.Rect(root, "Sky");
         Hud.At(sky, new Vector2(0.5f, 0), new Vector2(0, 0), new Vector2(1100, Hud.H - 96));
-        R = Mathf.Min(0.46f * 1100, 0.9f * (Hud.H - 96) - 48);
+        // (The branch alone, as large as the sky lets it be: R the rows' scale, G the gap between skills across a row.)
+        R = Mathf.Clamp((Hud.H - 96 - 150) / 1.16f, 96, 620);
+        G = Mathf.Clamp((0.5f * 1100 - 220) * 0.9f, 128, 380);
         Layout();
         Flower(meta);
         Lines(meta);
-        foreach (var u in Skills) Node(meta, u);
+        foreach (var u in Skills.Where(u => u.Group == Shown.g)) Node(meta, u);
+        Spin();
         if (tipFor != null) ShowTip(meta, tipFor);
         if (aff != null) Affinity(meta);
     }
 
-    /// <summary>A point of the sky (in R from the heart, y down as the web's) on the canvas.</summary>
-    Vector2 At(Vector2 p) => new Vector2(p.x * R, 40 - p.y * R);
+    /// <summary>A point of the sky (pixels from the heart, y down as the web's) on the canvas.</summary>
+    static Vector2 At(Vector2 p) => new Vector2(p.x, 40 - p.y);
+
+    // The branch shown, and how far the flower is turned to bring its petal straight up (degrees, the web's: clockwise).
+    static int branch;
+    static float turnGoal = 90, turnNow = 90;
+    float G;
+    RectTransform wheel;
+    Branch Shown => L.branches[branch % L.branches.Count];
 
     static Vector2 Place(float deg, float k)
     {
@@ -77,22 +87,64 @@ public class StellariView : MonoBehaviour
         return new Vector2(k * Mathf.Cos(r), k * Mathf.Sin(r));
     }
 
+    /// <summary>
+    /// The branch shown laid out in rows straight up from its petal (once the flower has turned it upright): a tier a
+    /// row, its skills spread across, each named to its right.
+    /// </summary>
     void Layout()
     {
         pos.Clear();
-        foreach (var br in L.branches)
+        var own = Skills.Where(u => u.Group == Shown.g).ToList();
+        for (int tier = 1; tier <= 3; tier++)
         {
-            var own = Skills.Where(u => u.Group == br.g).ToList();
-            for (int tier = 1; tier <= 3; tier++)
+            var row = own.Where(u => (u.Tier ?? 1) == tier).ToList();
+            for (int i = 0; i < row.Count; i++)
             {
-                var row = own.Where(u => (u.Tier ?? 1) == tier).ToList();
-                // (A tier's skills fanned within their own 30° of sky; a branch along the foot fans upward only.)
-                float fan = row.Count > 1 ? (row.Count > 2 ? 18 : 13) : 0;
-                float lift = br.dir == 180 ? fan / 2 : br.dir == 360 ? -fan / 2 : 0;
-                for (int i = 0; i < row.Count; i++)
-                    pos[row[i].Id] = Place(br.dir + lift + (row.Count > 1 ? -fan / 2 + fan * i / (row.Count - 1) : 0), Reach[tier]);
+                float sx = i - (row.Count - 1) / 2f, sy = -(Tip + 0.2f + 0.375f * (tier - 1));
+                pos[row[i].Id] = new Vector2(sx * G, sy * R);
             }
         }
+    }
+
+    /// <summary>The flower turned on to the next branch (or back), the branch's petal brought straight up.</summary>
+    void Turn(int step)
+    {
+        branch = (branch + step + L.branches.Count) % L.branches.Count;
+        float want = 270 - Shown.dir;
+        // (Turning the way the arrow points: on to the right, the flower turns anticlockwise.)
+        float t = turnGoal - step;
+        while ((((t - want) % 360) + 360) % 360 > 0.01f) t -= step;
+        turnGoal = t;
+        tipFor = null;
+        Sound.Play("hover");
+        Draw();
+    }
+
+    void Update()
+    {
+        if (wheel == null) return;
+        turnNow = Mathf.MoveTowards(turnNow, turnGoal, Time.deltaTime * Mathf.Max(90, Mathf.Abs(turnGoal - turnNow) * 6));
+        wheel.localRotation = Quaternion.Euler(0, 0, -turnNow);
+    }
+
+    /// <summary>The arrows, at the foot: the branch's name between them, in its colour.</summary>
+    void Spin()
+    {
+        var nav = Hud.Rect(root, "Spin");
+        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(360, 44));
+        for (int d = -1; d <= 1; d += 2)
+        {
+            int step = d;
+            var b = Hud.Rect(nav, d < 0 ? "Back" : "On");
+            Hud.At(b, new Vector2(d < 0 ? 0 : 1, 0.5f), Vector2.zero, new Vector2(44, 44));
+            var bi = b.gameObject.AddComponent<Image>();
+            bi.sprite = Hud.Circle;
+            bi.color = new Color(1, 1, 1, 0.85f);
+            b.gameObject.AddComponent<Button>().onClick.AddListener(() => Turn(step));
+            Hud.Label(b, d < 0 ? "‹" : "›", 26, Look.InkSoft, false, 400, 0).raycastTarget = false;
+        }
+        var name = Hud.Label(nav, Shown.title.ToUpperInvariant(), 12, Color.Lerp(Hex(Shown.colour), Look.Ink, 0.3f), true, 500, 24);
+        name.raycastTarget = false;
     }
 
     // ---- The header: back, undo, clear, reset; the title and the petals ----
@@ -133,7 +185,15 @@ public class StellariView : MonoBehaviour
 
     void Flower(MetaState meta)
     {
+        // (The flower 0.9 R across, its petals' tips 0.345 R out.)
         float F = R * 0.9f;
+        tipK = R;
+        wheel = Hud.Rect(sky, "Wheel");
+        wheel.anchorMin = wheel.anchorMax = new Vector2(0.5f, 0);
+        wheel.pivot = new Vector2(0.5f, 0.5f);
+        wheel.anchoredPosition = At(Vector2.zero);
+        wheel.sizeDelta = Vector2.zero;
+        wheel.localRotation = Quaternion.Euler(0, 0, -turnNow);
         // Each branch's petal: its outer lobe washed in the branch's colour, deeper the more of it is learnt.
         foreach (var br in L.branches)
         {
@@ -142,10 +202,10 @@ public class StellariView : MonoBehaviour
             float f = all > 0 ? (float)got / all : 0;
             if (f <= 0) continue;
             float deg = Mathf.Round(br.dir / 30) * 30;
-            var lobe = Hud.Rect(sky, "Petal " + br.g);
-            lobe.anchorMin = lobe.anchorMax = new Vector2(0.5f, 0);
+            var lobe = Hud.Rect(wheel, "Petal " + br.g);
+            lobe.anchorMin = lobe.anchorMax = new Vector2(0.5f, 0.5f);
             lobe.pivot = new Vector2(0.5f, 0);
-            lobe.anchoredPosition = At(Vector2.zero);
+            lobe.anchoredPosition = Vector2.zero;
             // (The flower's petals: ellipses 95 by 330 round its heart, in a flower 860 across.)
             lobe.sizeDelta = new Vector2(F * 190 / 860f, F * 330 / 860f);
             // (Pointing its way: web degrees run clockwise from the right, y down.)
@@ -157,10 +217,10 @@ public class StellariView : MonoBehaviour
             img.color = c;
             img.raycastTarget = false;
         }
-        var fl = Hud.Rect(sky, "Flower");
-        fl.anchorMin = fl.anchorMax = new Vector2(0.5f, 0);
+        var fl = Hud.Rect(wheel, "Flower");
+        fl.anchorMin = fl.anchorMax = new Vector2(0.5f, 0.5f);
         fl.pivot = new Vector2(0.5f, 0.5f);
-        fl.anchoredPosition = At(Vector2.zero);
+        fl.anchoredPosition = Vector2.zero;
         fl.sizeDelta = new Vector2(F, F);
         var raw = fl.gameObject.AddComponent<RawImage>();
         raw.texture = Resources.Load<Texture2D>("Icons/up-flower");
@@ -169,15 +229,28 @@ public class StellariView : MonoBehaviour
 
     // ---- The stems and links: dashed until learnt ----
 
+    float tipK;
+
     void Lines(MetaState meta)
     {
-        foreach (var br in L.branches)
+        // A stem up from the petal's tip to each first skill: across beneath the row and up, when there are two or more.
+        var firsts = Skills.Where(u => u.Group == Shown.g && (u.Tier ?? 1) == 1).ToList();
+        var tip = new Vector2(0, -Tip * tipK);
+        var mid = new Vector2(0, -(Tip + 0.07f) * R);
+        foreach (var u in firsts)
         {
-            float deg = Mathf.Round(br.dir / 30) * 30;
-            foreach (var u in Skills.Where(u => u.Group == br.g && (u.Tier ?? 1) == 1))
-                Line(Place(deg, Tip), pos[u.Id], Meta.LevelOf(meta, u.Id) > 0);
+            bool lit = Meta.LevelOf(meta, u.Id) > 0;
+            var to = pos[u.Id];
+            if (firsts.Count > 1)
+            {
+                var under = new Vector2(to.x, mid.y);
+                if (u == firsts[0]) Line(tip, mid, lit);
+                Line(mid, under, lit);
+                Line(under, to, lit);
+            }
+            else Line(tip, to, lit);
         }
-        foreach (var u in Skills)
+        foreach (var u in Skills.Where(u => u.Group == Shown.g))
             foreach (var r in u.Requires ?? new List<MetaRequirement>())
                 if (pos.ContainsKey(r.Id)) Line(pos[r.Id], pos[u.Id], Meta.LevelOf(meta, u.Id) > 0);
     }
@@ -278,6 +351,17 @@ public class StellariView : MonoBehaviour
             pi.color = Rgb(0x6f9fd8);
             Hud.Label(plus, $"+{level - had}", 9, Color.white, true, 500, 0);
         }
+        // Its name to its right, and what it gives.
+        L.skills.TryGetValue(u.Id, out var look);
+        var words = Hud.Rect(n, "Words");
+        Hud.At(words, new Vector2(1, 0.5f), new Vector2(4, 0), new Vector2(Mathf.Min(170, G - 34), 60));
+        words.pivot = new Vector2(0, 0.5f);
+        var nm = Hud.Label(words, u.Name.ToUpperInvariant(), 10, open ? Look.InkSoft : Rgb(0xb9bdc8), true, 500, 14, TextAlignmentOptions.BottomLeft);
+        nm.margin = new Vector4(6, 0, 0, 32);
+        var say = Hud.Label(words, look != null ? look.say[Mathf.Max(level, 1) - 1] : u.Text, 12, open ? Look.InkFaint : Rgb(0xc8ccd6), false, 400, 0, TextAlignmentOptions.TopLeft);
+        say.textWrappingMode = TextWrappingModes.Normal;
+        say.margin = new Vector4(6, 31, 0, 0);
+        nm.raycastTarget = say.raycastTarget = false;
         var b = n.gameObject.AddComponent<Button>();
         b.targetGraphic = disc;
         var id = u.Id;
