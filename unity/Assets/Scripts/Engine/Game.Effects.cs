@@ -966,11 +966,4 @@ namespace BlueLoop.Engine
         static CardInstance DevourVictim(PlayerState t) =>
             Sorted(t.Tableau.Where(c => c.Uid != t.Boss?.Leader && !DestroyImmune(c.DefId)), (a, b) => (a.Health ?? 0) - (b.Health ?? 0)).FirstOrDefault();
     }
-
-    /// <summary>Game modes (modes.ts): what a card is in Core.</summary>
-    public static partial class Modes
-    {
-        /// <summary>Whether a card is legal in Core (ported with the deck builder; every card until then).</summary>
-        public static bool InCore(CardDef def) => true;
-    }
 }

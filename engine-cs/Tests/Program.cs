@@ -46,6 +46,7 @@ void Check(string name, bool ok, string detail = "")
         foreach (var line in shown) Console.WriteLine("  " + line);
         Check($"growth ({total} cases)", bad == 0, $"{bad} differ");
     }
+    World.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(Repo.Root, "unity/Assets/Resources/Engine/world.json")));
 }
 
 // Built cards: fused, marked, the Captain's builds and the crew's, each as the TypeScript engine builds it.
@@ -148,6 +149,9 @@ void Check(string name, bool ok, string detail = "")
         Check("checker sees a difference", JsonDiff.First(g["steps"][0]["state"], g["steps"][1]["state"]) != null);
     }
 }
+
+// The world around the battles: story, races, rifts, modes, encounters, research, ship parts, lessons and puzzles.
+WorldChecks.Run(Check);
 
 Console.WriteLine(failed == 0 ? "All passed." : $"{failed} failed.");
 return failed == 0 ? 0 : 1;

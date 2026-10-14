@@ -26,7 +26,7 @@ namespace BlueLoop.Engine
     }
 
     /// <summary>A race's trait (races.ts).</summary>
-    public class RaceTrait
+    public partial class RaceTrait
     {
         public int Sturdy;
         public int Sting;
@@ -82,7 +82,7 @@ namespace BlueLoop.Engine
             (def.Darkspeed.GetValueOrDefault() || (Races.Trait(def.Race)?.Ambush ?? false)) && def.Kind != "trap" && !IsBurst(def) && ((def.Attack ?? 0) > 0 || def.Kind == "command");
     }
 
-    public static class Races
+    public static partial class Races
     {
         static readonly RaceTrait[] Traits =
         {
