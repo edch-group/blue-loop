@@ -9,6 +9,8 @@ public class ImportRules : AssetPostprocessor
     void OnPreprocessTexture()
     {
         var t = (TextureImporter)assetImporter;
+        // (The baked marks: their see-through pixels' colour bled from their edges, so fine white lines stay white.)
+        if (assetPath.Contains("/Resources/Icons/")) t.alphaIsTransparency = true;
         if (assetPath.Contains("/Resources/Glossary/"))
         {
             t.maxTextureSize = 8192;

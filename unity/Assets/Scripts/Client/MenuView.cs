@@ -92,27 +92,19 @@ public class MenuView : MonoBehaviour
     /// The game's name as the title block draws it (app.ts: the pearl sun over BLUE LOOP), from its baked picture: the
     /// sun and the words placed and sized apart, as the title page and the hub each have them.
     /// </summary>
-    void TitleBlock(float sunY, float sunSize, float wordsY, float wordsWidth)
+    void TitleBlock(float wordsY, float wordsWidth)
     {
-        // (The picture, 2752 x 628: the sun, with its glow, in its top 250 rows, 260 across; the words in rows 400 to
-        // 525, 1116 across, both centred.)
-        var tex = Resources.Load<Texture2D>("Icons/title");
-        float sk = sunSize / 260f, wk = wordsWidth / 1116f;
-        var sun = Hud.Rect(page, "Sun");
-        Hud.At(sun, new Vector2(0.5f, 1), new Vector2(0, -sunY + 125 * sk), new Vector2(752 * sk, 250 * sk));
-        sun.pivot = new Vector2(0.5f, 1);
-        var si = sun.gameObject.AddComponent<RawImage>();
-        si.texture = tex;
-        si.uvRect = new Rect(1000 / 2752f, (628 - 250) / 628f, 752 / 2752f, 250 / 628f);
-        si.raycastTarget = false;
-        var words = Hud.Rect(page, "Words");
-        Hud.At(words, new Vector2(0.5f, 1), new Vector2(0, -wordsY + 62.5f * wk), new Vector2(1156 * wk, 125 * wk));
-        words.pivot = new Vector2(0.5f, 1);
-        var wi = words.gameObject.AddComponent<RawImage>();
-        wi.texture = tex;
-        wi.uvRect = new Rect(800 / 2752f, (628 - 525) / 628f, 1156 / 2752f, 125 / 628f);
-        wi.raycastTarget = false;
+        // (The picture, 2752 x 628: the sun and its glow above, the words in rows 400 to 525, 1116 across, both
+        // centred; drawn whole, so the glow is never cut.)
+        float k = wordsWidth / 1116f;
+        var block = Hud.Rect(page, "Title");
+        Hud.At(block, new Vector2(0.5f, 1), new Vector2(0, -wordsY + 462 * k), new Vector2(2752 * k, 628 * k));
+        block.pivot = new Vector2(0.5f, 1);
+        var bi = block.gameObject.AddComponent<RawImage>();
+        bi.texture = Resources.Load<Texture2D>("Icons/title");
+        bi.raycastTarget = false;
     }
+
 
     public void Show(string name)
     {
@@ -164,7 +156,7 @@ public class MenuView : MonoBehaviour
     void Title()
     {
         // (As the web's: the sun 190 across at 310 down, the words 815 across at 492; start, a white pill, at 642.)
-        TitleBlock(310, 190, 492, 815);
+        TitleBlock(492, 815);
         var start = Hud.Pill(page, "Start", Begin, 20, Look.GlassStrong, Look.Ink);
         Hud.At((RectTransform)start.transform, new Vector2(0.5f, 1), new Vector2(0, -611), new Vector2(262, 62));
         Studio();
@@ -204,7 +196,7 @@ public class MenuView : MonoBehaviour
     void Hub()
     {
         // (As the web's hub: the sun 80 across at 276 down, the words 390 across at 362, the five ways under them.)
-        TitleBlock(276, 80, 362, 390);
+        TitleBlock(362, 390);
         // Shop, collection and glossary as plain links, top left.
         var links = new[] { ("shop", "Shop"), ("collection", "Collection"), ("glossary", "Glossary") };
         // (Where the web has them: each its mark, then its name.)
@@ -252,7 +244,7 @@ public class MenuView : MonoBehaviour
                 else Soon(name);
             });
             Picture(tile.transform, $"Icons/{icon}", new Vector2(0.5f, 0.5f), new Vector2(0, 25), new Vector2(50, 50));
-            var t = Hud.Label(tile.transform, name.ToUpperInvariant(), 20, Look.Ink, true, 700, 20, TextAlignmentOptions.Top);
+            var t = Hud.Label(tile.transform, name.ToUpperInvariant(), 19, Look.Ink, true, 700, 13, TextAlignmentOptions.Top);
             t.margin = new Vector4(12, 138, 12, 0);
             t.textWrappingMode = TextWrappingModes.Normal;
             // (A run left part way: continue it, under its tile.)
@@ -364,7 +356,7 @@ public class MenuView : MonoBehaviour
         Hud.At((RectTransform)b.transform, new Vector2(1, 1), at, new Vector2(66, 66));
         var button = b.gameObject.AddComponent<Button>();
         button.onClick.AddListener(() => { Sound.Play("click"); act(); });
-        Picture(b.transform, icon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(30, 30));
+        Picture(b.transform, icon, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(icon.Contains("hud-") ? 50 : 30, icon.Contains("hud-") ? 50 : 30));
         return button;
     }
 

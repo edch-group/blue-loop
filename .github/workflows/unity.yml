@@ -74,7 +74,7 @@ jobs:
           mkdir -p unity/Assets/StreamingAssets
           # (Only the pictures: anything else there, the glossary's index, stays in the game's data.)
           cd unity/Assets/Resources
-          find CardFaces CardArt Glossary -type f \( -name '*.jpg' -o -name '*.png' \) | while read -r f; do
+          find CardFaces CardArt Glossary Badges -type f \( -name '*.jpg' -o -name '*.png' \) | while read -r f; do
             mkdir -p "../StreamingAssets/$(dirname "$f")"
             mv "$f" "../StreamingAssets/$f"
             rm -f "$f.meta"
