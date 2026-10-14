@@ -22,7 +22,7 @@ public class CampaignBackdrop : MonoBehaviour
     CameraClearFlags uiClear;
     int uiMask;
     Transform land, ship;
-    Material ground;
+    Material ground, abyss;
     Transform shipModel, captain, tail;
     readonly List<(string id, CompanionPlace place, Transform t)> crew = new List<(string, CompanionPlace, Transform)>();
     CaptainShipBuild build;
@@ -164,10 +164,14 @@ public class CampaignBackdrop : MonoBehaviour
         var g = new GameObject("Ground");
         g.layer = LandLayer;
         g.transform.SetParent(land, false);
-        g.AddComponent<MeshFilter>().sharedMesh = CampaignView.GroundMesh(shape.Ground);
+        var groundMesh = CampaignView.GroundMesh(shape.Ground);
+        g.AddComponent<MeshFilter>().sharedMesh = groundMesh;
         ground = Mats.Make("Ground");
         ground.SetFloat("_Soft", 1);
         g.AddComponent<MeshRenderer>().sharedMaterial = ground;
+        // (Where the land has broken away, the starry abyss beneath it, as on the campaign's map.)
+        abyss = CampaignView.AddAbyss(g, groundMesh);
+        abyss.SetFloat("_Soft", 1);
         landCam = MakeCamera("Land camera", ui.depth - 2, LandLayer, 36);
         landCam.clearFlags = CameraClearFlags.SolidColor;
         landCam.backgroundColor = Look.Paper;
@@ -314,6 +318,7 @@ public class CampaignBackdrop : MonoBehaviour
         {
             ground.SetFloat("_Gone", fx - 1.1f);
             ground.SetFloat("_Crack", fx - 0.5f);
+            abyss.SetFloat("_Gone", fx - 1.1f);
             // (The ship tab open: the land's camera swings up over the ship as the ship's own does.)
             float h = calm * calm * (3 - 2 * calm);
             float yaw = -0.85f + 0.52f * h, pitch = 0.2f + 1.05f * h, dist = 3.4f - 0.6f * h;
