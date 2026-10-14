@@ -7,7 +7,8 @@ using UnityEngine.UI;
 
 /// <summary>
 /// The menu (app.ts renderMenu): the title page, the hub (the five ways to play, the shop, collection and glossary
-/// along the top, you and your options in the corner), and quickplay's setup (your deck and your rival's).
+/// along the top, you and your options in the corner), quickplay's setup (your deck and your rival's), the shop and
+/// your profile.
 /// </summary>
 public class MenuView : MonoBehaviour
 {
@@ -80,6 +81,7 @@ public class MenuView : MonoBehaviour
             case "hub": Hub(); break;
             case "quickplay": Quickplay(); break;
             case "collection": BuilderView.Make(page, this); break;
+            case "shop": ShopView.Make(page, this); break;
             case "glossary": GlossaryView.Make(page, this); break;
             case "tutorial": TutorialView.Make(page, this); break;
             case "challenges": ChallengesView.Make(page, this); break;
@@ -133,7 +135,7 @@ public class MenuView : MonoBehaviour
             var hit = r.gameObject.AddComponent<Image>();
             hit.color = new Color(1, 1, 1, 0);
             b.targetGraphic = hit;
-            b.onClick.AddListener(() => { if (icon == "collection" || icon == "glossary") Show(icon); else Soon(name); });
+            b.onClick.AddListener(() => Show(icon));
             Picture(r, $"Icons/{icon}-small", new Vector2(0, 0.5f), new Vector2(0, 0), new Vector2(40, 40));
             var t = Hud.Label(r, name.ToUpperInvariant(), 18, Look.InkSoft, true, 500, 12, TextAlignmentOptions.Left);
             t.margin = new Vector4(50, 0, 0, 0);
@@ -260,16 +262,126 @@ public class MenuView : MonoBehaviour
         lv.margin = new Vector4(0, 0, 0, 116);
     }
 
-    /// <summary>You, top right: your name and level, your stardust and flux (the hub's chip, on the pages off it too).</summary>
-    public void Chip(Transform parent)
+    /// <summary>You, top right: your name and level, your stardust and flux (the hub's chip, on the pages off it too). Tap it for your profile.</summary>
+    public void Chip(Transform parent) => Chip(parent, new Vector2(-136, -26));
+
+    public void Chip(Transform parent, Vector2 at)
     {
         var me = Profile.Me;
         var chip = Hud.Glass(parent, "You", Look.GlassStrong);
-        Hud.At((RectTransform)chip.transform, new Vector2(1, 1), new Vector2(-136, -26), new Vector2(330, 76));
+        Hud.At((RectTransform)chip.transform, new Vector2(1, 1), at, new Vector2(330, 76));
+        chip.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); ProfileView(); });
         var who = Hud.Label(chip.transform, $"<b>{(string.IsNullOrEmpty(me.Name) ? "Commander" : me.Name)}</b>\n<size=70%><color=#737780>LEVEL {me.Level}</color></size>", 22, Look.Ink, true, 500, 4, TextAlignmentOptions.Left);
         who.margin = new Vector4(24, 0, 0, 0);
         var cur = Hud.Label(chip.transform, $"✦ {me.Stardust}\n⟁ {me.Flux}", 18, Look.InkSoft, false, 500, 0, TextAlignmentOptions.Right);
         cur.margin = new Vector4(0, 0, 22, 0);
+    }
+
+    /// <summary>
+    /// Every setup page's header, the same everywhere (app.ts setupTop): back on the left, the page's name centred, you
+    /// on the right.
+    /// </summary>
+    public void SetupTop(Transform parent, string title, System.Action back)
+    {
+        var b = Hud.Pill(parent, "‹ Back", back, 15);
+        Hud.At((RectTransform)b.transform, new Vector2(0, 1), new Vector2(26, -30), new Vector2(110, 44));
+        var h = Hud.Label(parent, title.ToUpperInvariant(), 26, new Color(0.333f, 0.353f, 0.388f), true, 500, 40, TextAlignmentOptions.Top);
+        h.margin = new Vector4(0, 38, 0, 0);
+        Chip(parent, new Vector2(-26, -14));
+    }
+
+    RectTransform toast;
+    float toastUntil;
+
+    /// <summary>A word at the top of the screen for a few seconds (the web's toast): why something can't be done.</summary>
+    public void Toast(string text)
+    {
+        if (toast != null) Mats.Kill(toast.gameObject);
+        var box = Hud.Glass(canvas.transform, "Toast", Look.GlassStrong);
+        box.raycastTarget = false;
+        toast = (RectTransform)box.transform;
+        var words = Hud.Label(toast, text, 19, Look.Ink, false, 500, 0);
+        words.textWrappingMode = TextWrappingModes.Normal;
+        words.margin = new Vector4(28, 8, 28, 8);
+        float w = Mathf.Clamp(words.GetPreferredValues(text, 900, 0).x + 64, 240, 960);
+        Hud.At(toast, new Vector2(0.5f, 1), new Vector2(0, -104), new Vector2(w, w >= 960 ? 92 : 62));
+        toastUntil = Time.realtimeSinceStartup + 3.6f;
+    }
+
+    void Update()
+    {
+        if (toast != null && Time.realtimeSinceStartup > toastUntil)
+        {
+            Mats.Kill(toast.gameObject);
+            toast = null;
+        }
+        // (Over a page drawn after it.)
+        else if (toast != null && toast.GetSiblingIndex() != toast.parent.childCount - 1) toast.SetAsLastSibling();
+    }
+
+    /// <summary>
+    /// Your profile (app.ts renderProfileView): your name and record, then your level and experience, stardust, flux and
+    /// rank. A tap off it closes it.
+    /// </summary>
+    void ProfileView()
+    {
+        if (sheet != null) Mats.Kill(sheet.gameObject);
+        var p = Profile.Me;
+        var view = Hud.Rect(page, "Profile");
+        sheet = view;
+        Hud.Fill(view);
+        view.gameObject.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.94f, 0.8f);
+        System.Action shut = () => { Mats.Kill(view.gameObject); if (sheet == view) sheet = null; };
+        view.gameObject.AddComponent<Button>().onClick.AddListener(() => shut());
+        var card = Hud.Glass(view, "Card", Color.white);
+        Hud.At((RectTransform)card.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620, 330));
+        // (The card itself swallows taps, so only the veil closes.)
+        card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
+        var who = Hud.Label(card.transform, string.IsNullOrEmpty(p.Name) ? "Commander" : p.Name, 28, Look.Ink, true, 500, 4, TextAlignmentOptions.TopLeft);
+        who.margin = new Vector4(34, 30, 140, 0);
+        var record = Hud.Label(card.transform, $"{p.Won} won of {p.Played} played", 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
+        record.margin = new Vector4(34, 74, 0, 0);
+        var close = Hud.Pill(card.transform, "Close", () => shut(), 13);
+        Hud.At((RectTransform)close.transform, new Vector2(1, 1), new Vector2(-28, -30), new Vector2(100, 40));
+        int need = Progression.XpToNext(p.Level);
+        var boxes = new[]
+        {
+            ("LEVEL", p.Level.ToString(), $"{p.Xp} / {need} xp", (float)p.Xp / Mathf.Max(1, need)),
+            ("STARDUST", $"✦ {p.Stardust}", "", -1f),
+            ("FLUX", $"⟁ {p.Flux}", "", -1f),
+            ("RANK", p.RankPoints == null ? "unranked" : Progression.RankName(p.RankPoints.Value).ToLowerInvariant(), "", p.RankPoints == null ? -1f : Progression.RankOf(p.RankPoints.Value).Points / 100f),
+        };
+        for (int i = 0; i < boxes.Length; i++)
+        {
+            var (head, shown, foot, bar) = boxes[i];
+            var box = Hud.Glass(card.transform, head, new Color(0.965f, 0.969f, 0.984f), false);
+            Hud.At((RectTransform)box.transform, new Vector2(0, 0), new Vector2(34 + i * 141, 34), new Vector2(129, 150));
+            var hl = Hud.Label(box.transform, head, 11, Look.InkFaint, true, 500, 16, TextAlignmentOptions.Top);
+            hl.margin = new Vector4(0, 16, 0, 0);
+            var vl = Hud.Label(box.transform, shown, shown.Length > 9 ? 15 : 24, Look.Ink, true, 500, 2);
+            vl.textWrappingMode = TextWrappingModes.Normal;
+            vl.margin = new Vector4(8, 0, 8, 0);
+            if (bar >= 0)
+            {
+                var track = Hud.Rect(box.transform, "Bar");
+                Hud.At(track, new Vector2(0.5f, 0), new Vector2(0, foot.Length > 0 ? 36 : 22), new Vector2(97, 5));
+                var ti = track.gameObject.AddComponent<Image>();
+                ti.sprite = Hud.Rounded;
+                ti.type = Image.Type.Sliced;
+                ti.color = new Color(0.88f, 0.89f, 0.92f);
+                var fill = Hud.Rect(track, "Fill");
+                Hud.At(fill, new Vector2(0, 0.5f), Vector2.zero, new Vector2(97 * Mathf.Clamp01(bar), 5));
+                var fi = fill.gameObject.AddComponent<Image>();
+                fi.sprite = Hud.Rounded;
+                fi.type = Image.Type.Sliced;
+                fi.color = Look.Pick;
+            }
+            if (foot.Length > 0)
+            {
+                var fl = Hud.Label(box.transform, foot, 12, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Bottom);
+                fl.margin = new Vector4(0, 0, 0, 12);
+            }
+        }
     }
 
     /// <summary>Options (the web's options page): sound, music, the AI's speed.</summary>
