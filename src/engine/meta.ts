@@ -115,6 +115,8 @@ export interface MetaState {
   spared?: number;
   /** Stages of Kaelen's hunters beaten, in all runs (encounters.ts): three, and they never come for him again. */
   hunters?: number;
+  /** A card kept from a lost run, to start the next one (once: it is used up as that run begins). */
+  kept?: string;
 }
 
 /** A companion as kept: their experience (from what they did in battle) and their ascent (ascent.ts). */
@@ -558,6 +560,8 @@ export interface RunBonuses {
   hangar?: string[];
   /** The Captain's companions' cards (companions.ts), as their trees have made them; beaten heroes spared so far. */
   companions?: string[];
+  /** A card kept from the last run, in the starting deck this run (a card like any other: it cannot be kept again). */
+  kept?: string;
   spared?: number;
   /** Stages of Kaelen's hunters beaten in runs before (encounters.ts). */
   hunters?: number;
@@ -678,6 +682,7 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
     companions: meta ? companionCards(meta) : [],
     spared: meta?.spared ?? 0,
     hunters: meta?.hunters ?? 0,
+    ...(meta?.kept ? { kept: meta.kept } : {}),
     ...(l('kinship') || l('fellowship')
       ? { affinity: { primary: meta?.affinity?.primary, primaryBoost: KINSHIP_BOOST[l('kinship')] ?? 0, secondary: meta?.affinity?.secondary, secondaryBoost: FELLOWSHIP_BOOST[l('fellowship')] ?? 0 } }
       : {}),

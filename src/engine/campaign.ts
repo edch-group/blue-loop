@@ -680,6 +680,10 @@ export interface CampaignState {
   /** Stars conquered this run (each system taken, finds too), and how many have been banked to the run's hero's tally. */
   starsTaken?: number;
   starsBanked?: number;
+  /** The card kept from the last run, in the starting deck (one copy of it cannot be kept again), and the flagship's
+   *  deck as it fell: what a card may be kept from for the next run (keepableCards). */
+  keptIn?: string;
+  fallenDeck?: string[];
   /** Experience earned this run, and how much of it has been banked (it is kept even if the run is lost). */
   xp?: number;
   xpBanked?: number;
@@ -1576,6 +1580,11 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   for (let k = 0; k < run.picks; k++) s.cardRewards.push({ source: 'Requisition', options: randomCardChoices(s, me), toDeck: army.id });
   // (The Captain's companions found on earlier runs come aboard, as their trees have made them.)
   if (human) army.deck.push(...(run.companions ?? []));
+  // (A card kept from the last run: in the deck like any other, and not to be kept again.)
+  if (run.kept && CARDS.some((c) => c.id === run.kept)) {
+    army.deck.push(run.kept);
+    s.keptIn = run.kept;
+  }
   army.refit = false;
   tell(s, human ? captainIntroScene(me.id, army.general) : introScene(me.race, me.id, army.general));
   noticeStory(s);
@@ -3112,6 +3121,7 @@ function rout(s: CampaignState, army: Army) {
     clog(s, `${armyLeader(army)}'s army falls back to ${refuge.name}.`, [here.id, refuge.id], army.owner);
     return;
   }
+  noteFall(s, army);
   s.armies = s.armies.filter((a) => a !== army);
   if (army.lost) {
     clog(s, `${armyLeader(army)} are gone. Another people the dark has taken.`, here.id, army.owner);
@@ -3425,6 +3435,7 @@ function playerFalls(s: CampaignState) {
   const f = factionById(s, s.playerId);
   const army = flagship(s, f.id);
   if (army) {
+    noteFall(s, army);
     s.armies = s.armies.filter((a) => a !== army);
     clog(s, `${cardDef(army.general).name}'s flagship is destroyed.`, army.nodeId, f.id);
   }
@@ -3737,6 +3748,7 @@ function collapse(s: CampaignState, n: CampaignNode) {
   clog(s, `${n.name} collapses into the dark.`, n.id);
   // (Whatever stands there goes with it.)
   if (army) {
+    noteFall(s, army);
     s.armies = s.armies.filter((a) => a !== army);
     clog(s, `${armyLeader(army)}${army.lost ? '' : "'s flagship"} goes down with ${n.name}.`, n.id, army.owner);
     checkEliminated(s, factionById(s, army.owner));
@@ -3753,6 +3765,29 @@ function markCollapses(s: CampaignState) {
   for (const n of marked) n.collapsing = true;
   clog(s, `Column ${col + 1} of the strip is collapsing: it will be gone next turn.`, marked.map((n) => n.id));
   tell(s, collapseScene());
+}
+
+/** The player's flagship lost: its deck as it fell, what a card may be kept from for the next run. */
+function noteFall(s: CampaignState, army: Army) {
+  if (army.owner === s.playerId && !army.lost && !s.fallenDeck) s.fallenDeck = [...army.deck];
+}
+
+/**
+ * The cards a lost run may keep one of, for the next run: the flagship's deck as it fell and the reserve, each card
+ * once. Not Heroes, companions or the Captain, and not the card this run was given from the last (one copy of it).
+ */
+export function keepableCards(s: CampaignState): string[] {
+  const f = campaignPlayer(s);
+  const pool = [...(s.fallenDeck ?? flagship(s, f.id)?.deck ?? []), ...f.reserve];
+  if (s.keptIn) {
+    const i = pool.indexOf(s.keptIn);
+    if (i >= 0) pool.splice(i, 1);
+  }
+  const companions = new Set(s.run?.companions ?? []);
+  return [...new Set(pool)].filter((id) => {
+    const c = CARDS.find((x) => x.id === id);
+    return !!c && c.kind !== 'command' && !c.token && !companions.has(id);
+  });
 }
 
 /** The run is over once the player's flagship is lost (there is no winning: only how far it got). */
