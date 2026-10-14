@@ -85,6 +85,8 @@ public class MenuView : MonoBehaviour
             // (A starter open in the builder, as its screenshot shows it.)
             case "deck": BuilderView.Make(page, this, Decks.Presets[0]); break;
             case "glossary": GlossaryView.Make(page, this); break;
+            case "online": OnlineView.Make(page, this); break;
+            case "signin": AccountView.Make(page, this); break;
             case "tutorial": TutorialView.Make(page, this); break;
             case "challenges": ChallengesView.Make(page, this); break;
             case "campaign": CampaignMenu(); break;
@@ -110,9 +112,32 @@ public class MenuView : MonoBehaviour
     void Title()
     {
         Picture(page, "Icons/title", new Vector2(0.5f, 0.5f), new Vector2(0, 110), new Vector2(1376, 314));
-        var start = Hud.Pill(page, "Start", () => Show("hub"), 28, Look.Ink, Color.white);
+        var start = Hud.Pill(page, "Start", Begin, 28, Look.Ink, Color.white);
         Hud.At((RectTransform)start.transform, new Vector2(0.5f, 0.5f), new Vector2(0, -150), new Vector2(300, 84));
         Studio();
+    }
+
+    /// <summary>
+    /// Start: on to the hub, or into the room an invite link named; first, where there is a server, signing in (everyone
+    /// plays with an account) and naming yourself.
+    /// </summary>
+    void Begin()
+    {
+        var invite = Online.TakeInvite();
+        if (AccountView.Needed)
+        {
+            AccountView.Begin();
+            AccountView.ThenRoom = invite;
+            Show("signin");
+            return;
+        }
+        if (invite != null)
+        {
+            Show("online");
+            Online.Go(invite);
+            return;
+        }
+        Show("hub");
     }
 
     void Studio()
@@ -162,7 +187,13 @@ public class MenuView : MonoBehaviour
             colors.pressedColor = new Color(0.93f, 0.94f, 0.97f);
             b.colors = colors;
             string target = icon;
-            b.onClick.AddListener(() => { if (target == "quickplay" || target == "tutorial" || target == "challenges" || target == "campaign") Show(target); else Soon(name); });
+            b.onClick.AddListener(() =>
+            {
+                if (target == "quickplay" || target == "tutorial" || target == "challenges" || target == "campaign") Show(target);
+                // (Online play needs the server: not without one.)
+                else if (target == "online") { if (Net.Available) Show(target); else Toast("Offline."); }
+                else Soon(name);
+            });
             Picture(tile.transform, $"Icons/{icon}", new Vector2(0.5f, 0.5f), new Vector2(0, 26), new Vector2(84, 84));
             var t = Hud.Label(tile.transform, name.ToUpperInvariant(), 19, Look.Ink, true, 700, 18, TextAlignmentOptions.Bottom);
             t.margin = new Vector4(10, 0, 10, 44);
@@ -336,7 +367,8 @@ public class MenuView : MonoBehaviour
         System.Action shut = () => { Mats.Kill(view.gameObject); if (sheet == view) sheet = null; };
         view.gameObject.AddComponent<Button>().onClick.AddListener(() => shut());
         var card = Hud.Glass(view, "Card", Color.white);
-        Hud.At((RectTransform)card.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620, 330));
+        // (Signed in, the account's row too: AccountView.ProfileRows.)
+        Hud.At((RectTransform)card.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620, Account.SignedIn ? 440 : 330));
         // (The card itself swallows taps, so only the veil closes.)
         card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
         var who = Hud.Label(card.transform, string.IsNullOrEmpty(p.Name) ? "Commander" : p.Name, 28, Look.Ink, true, 500, 4, TextAlignmentOptions.TopLeft);
@@ -384,6 +416,7 @@ public class MenuView : MonoBehaviour
                 fl.margin = new Vector4(0, 0, 0, 12);
             }
         }
+        AccountView.ProfileRows(card.transform, this, ProfileView);
     }
 
     /// <summary>Options (the web's options page): sound, music, the AI's speed.</summary>

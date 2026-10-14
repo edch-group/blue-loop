@@ -194,11 +194,21 @@ public partial class BattleView : MonoBehaviour
     PlayerState Player(string id) => state.Players.First(p => p.Id == id);
     PlayerState Me => Player(you);
     PlayerState Rival => state.Players.First(p => p.Id != you);
-    bool MyDay => state.Reaction == null && Game.ActivePlayer(state).Id == you && state.WinnerId == null && !Autoplay;
+    bool MyDay => state.Reaction == null && Game.ActivePlayer(state).Id == you && state.WinnerId == null && !Autoplay && !OnlineHeld;
 
     void Do(EngineAction a)
     {
         if (LessonBlocks(a)) return;
+        // (Online, the room plays it and sends back the result: BattleView.Online.)
+        if (online)
+        {
+            Send(a);
+            dawnPick = null;
+            discarding = null;
+            Clear();
+            Refresh();
+            return;
+        }
         try
         {
             var was = state;
@@ -256,13 +266,14 @@ public partial class BattleView : MonoBehaviour
             new Hud.Row("sound", () => { Sound.Muted = !Sound.Muted; Settings(); }, Sound.Muted ? "off" : "on"),
             new Hud.Row("music", Sound.Muted ? (System.Action)null : () => { Sound.MusicOn = !Sound.MusicOn; Settings(); }, Sound.MusicOn && !Sound.Muted ? "on" : "off"),
             new Hud.Row("ai speed", () => { Store.Set(SpeedKey, Speeds[(System.Array.IndexOf(Speeds, Speed) + 1) % 3]); Settings(); }, Speed),
-            over ? new Hud.Row("main menu", () => App.Instance?.Menu("hub")) : new Hud.Row("quit game", Quit),
+            over ? new Hud.Row("main menu", () => { if (online) Online.ToMenu(); else App.Instance?.Menu("hub"); }) : new Hud.Row("quit game", Quit),
         }, CloseSheet);
     }
 
     void Quit()
     {
         CloseSheet();
+        if (online) { OnlineQuit(); return; }
         // (A battle of the run's: retreat, which loses it.)
         if (campaignOf != null)
         {
@@ -286,7 +297,7 @@ public partial class BattleView : MonoBehaviour
     /// <summary>Autosave (storage.ts): a game in play kept to continue later; a finished one let go.</summary>
     void Persist()
     {
-        if (state == null || Autoplay || !Application.isPlaying || puzzleKind != null || campaignOf != null) return;
+        if (state == null || Autoplay || !Application.isPlaying || puzzleKind != null || campaignOf != null || online) return;
         if (state.WinnerId != null) Store.Remove(SaveKey);
         else Store.Write(SaveKey, state);
     }
@@ -877,6 +888,7 @@ public partial class BattleView : MonoBehaviour
             : $"The last sun standing after {state.Round} round{(state.Round == 1 ? "" : "s")}.";
         var w = Hud.Label(card.transform, why, 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
         w.margin = new Vector4(20, 96, 20, 0);
+        if (online) { OnlineEnd(card.transform, quitter != null); return; }
         // (A battle of the run's goes back to the map, what it won waiting there.)
         var menu = campaignOf != null ? Hud.Pill(card.transform, "Continue", BackToCampaign, 17, Look.Ink, Color.white) : Hud.Pill(card.transform, "Return to menu", () => App.Instance?.Menu("hub"), 17, Look.Ink, Color.white);
         Hud.At((RectTransform)menu.transform, new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(250, 56));
