@@ -1,8 +1,8 @@
 /**
  * Bakes the campaign screens' marks for the Unity game (Assets/Resources/Icons), cut from the web game itself as its
  * pages draw them: the campaign menu's section discs (each its emblem on its white disc, open and greyed out), and the
- * skill trees' circuit board, and the map's purse (the sun's orb, cool, warm and hot; materials; petals).
- * `node scripts/bake-campaign.mjs [menu] [circuit] [map]`.
+ * skill trees' circuit board, the map's purse (the sun's orb, cool, warm and hot; materials; petals)
+ * and a battle's loot: its sealed cache, its tokens in their glow. `node scripts/bake-campaign.mjs [menu] [circuit] [map] [loot]`.
  */
 import { mkdirSync, writeFileSync, globSync } from 'node:fs';
 import { createServer } from 'vite';
@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 
 const exe = globSync('/opt/pw-browsers/chromium-*/chrome-linux/chrome')[0] ?? process.env.CHROME;
 const out = 'unity/Assets/Resources/Icons';
-const parts = process.argv.slice(2).length ? process.argv.slice(2) : ['menu', 'circuit', 'map'];
+const parts = process.argv.slice(2).length ? process.argv.slice(2) : ['menu', 'circuit', 'map', 'loot'];
 mkdirSync(out, { recursive: true });
 const server = await createServer({ server: { port: 5241, strictPort: true, fs: { strict: false } }, logLevel: 'error' });
 await server.listen();
@@ -129,6 +129,49 @@ if (parts.includes('map')) {
   await cut('.cmp-purse .cur-materials', 'purse-materials');
   const b = await cut('.cmp-purse .cur-petal', 'purse-petal');
   console.log(`map purse baked (petal ${b.w.toFixed(1)} x ${b.h.toFixed(1)})`);
+}
+
+if (parts.includes('loot') && parts.includes('map')) {
+  // A cache waiting on the map (the run just begun given one): sealed, then opened.
+  await page.evaluate(() => {
+    const k = 'blue-loop:campaign:v6';
+    const s = JSON.parse(localStorage.getItem(k));
+    s.story = { queue: [] };
+    s.loot = { won: true, materials: 12, xp: 0, petals: 2, relics: [], cards: [], parts: ['scrap_plating'] };
+    localStorage.setItem(k, JSON.stringify(s));
+  });
+  await page.reload();
+  for (let i = 0; i < 20 && !(await page.$('[data-act=campaign-continue]')); i++) {
+    await page.mouse.click(800, 642);
+    await page.waitForTimeout(3000);
+  }
+  await page.click('[data-act=campaign-continue]');
+  await page.waitForSelector('.loot-cache-3d', { timeout: 120000 });
+  await page.waitForTimeout(4000);
+  const bare = `html, body, main, .backdrop, .cmp, .overlay { background: transparent !important; backdrop-filter: none !important; }
+    .backdrop, .cmp-nebula, .cmp-nebula-front, .cmp-top, .cmp-stage, .loot-cache-tap, .loot-cache-halo, .loot-burst, .loot-take, .loot-res b, .loot-part b { display: none !important; }
+    .loot-cache, .loot-item, .loot-glow { animation: none !important; transform: none !important; }
+    .loot-glow::before, .loot-glow::after { animation: none !important; }`;
+  let style = await page.addStyleTag({ content: bare });
+  await page.waitForTimeout(500);
+  await cut('.loot-cache-3d', 'loot-cache');
+  await style.evaluate((s) => s.remove());
+  await page.click('.loot-cache');
+  await page.waitForSelector('.loot-res', { timeout: 30000 });
+  await page.waitForTimeout(3500);
+  style = await page.addStyleTag({ content: bare + ' .loot-3d { visibility: hidden !important; }' });
+  await page.waitForTimeout(500);
+  // (Each with its glow and rays round it: 230% of it across.)
+  const margin = async (sel) => page.evaluate((s) => document.querySelector(s).getBoundingClientRect().width * 0.65, sel);
+  await cut('.loot-res:nth-of-type(1) .loot-glow', 'loot-materials', await margin('.loot-res .loot-glow'));
+  const tiles = await page.$$('.loot-res .loot-glow');
+  if (tiles[1]) {
+    await page.evaluate(() => document.querySelectorAll('.loot-res .loot-glow')[1].id = 'petal-glow');
+    await cut('#petal-glow', 'loot-petal', await margin('#petal-glow'));
+  }
+  // (The glow alone, behind a card or a part.)
+  await cut('.loot-part .loot-glow', 'loot-glow', await margin('.loot-part .loot-glow'));
+  console.log('loot baked');
 }
 await browser.close();
 await server.close();

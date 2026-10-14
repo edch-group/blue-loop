@@ -205,14 +205,16 @@ public partial class CampaignView
         if (s.Winner != null) { RunOver(); return; }
         if (s.Boon != null && s.Battle == null)
         {
-            Modal($"{s.Boon.Source.ToLowerInvariant()} held", body => Rows(body, ("+5 max health", "for good", () => Act(new CampaignAction { Type = "takeBoon", Pick = "health" }, "upgrade")), ("cool your sun by 6", "now", () => Act(new CampaignAction { Type = "takeBoon", Pick = "cool" }, "upgrade"))));
+            Modal($"{s.Boon.Source.ToLowerInvariant()} held", body => SetList(body, 0,
+                new SetRow("+5 max health", () => Act(new CampaignAction { Type = "takeBoon", Pick = "health" }, "upgrade"), "for good", true),
+                new SetRow("cool your sun by 6", () => Act(new CampaignAction { Type = "takeBoon", Pick = "cool" }, "upgrade"), "now", true)));
             return;
         }
         if (s.Battle != null) { OpenBattle(); return; }
         if (s.Conquest != null)
         {
             var n = Campaign.NodeById(s, s.Conquest.NodeId);
-            Modal($"{n.Name.ToLowerInvariant()} has fallen", body => Rows(body, ($"take it · ⬢+{n.Yield.Materials}", null, () => Act(new CampaignAction { Type = "conquer", Choice = "settle" }, "upgrade"))));
+            Modal($"{n.Name.ToLowerInvariant()} has fallen", body => SetList(body, 0, new SetRow($"take it · ⬢+{n.Yield.Materials}", () => Act(new CampaignAction { Type = "conquer", Choice = "settle" }, "upgrade"), null, true)), 560 * Z);
             return;
         }
         if (s.Loot != null) { Loot(); return; }
@@ -238,75 +240,178 @@ public partial class CampaignView
 
     // ---- Building blocks: a veil, a white card, its title, rows of choices, cards to pick ----
 
-    RectTransform Veil(Transform parent)
+    const float Z = WebLook.Zoom;
+
+    /// <summary>The page veiled (.overlay): a pale wash over the map (the web blurs it too; soft, a little lighter).</summary>
+    RectTransform Veil(Transform parent, bool soft = false)
     {
         var v = Hud.Rect(parent, "Veil");
         Hud.Fill(v);
         var i = v.gameObject.AddComponent<Image>();
-        i.color = new Color(0.95f, 0.95f, 0.94f, 0.82f);
+        // (No blur here: a touch more of the wash in its place.)
+        i.color = soft ? new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.62f) : new Color(240 / 255f, 240 / 255f, 238 / 255f, 0.72f);
         return v;
     }
 
-    /// <summary>A modal (the web's .modal): a white card with its title in spaced capitals, its body under it.</summary>
-    RectTransform Modal(string title, System.Action<RectTransform> body, float width = 760, float height = 420, Transform parent = null)
+    /// <summary>
+    /// A modal (the web's .modal, campaign.ts modal): a white card 620 (CSS) across, rounded 18, softly shadowed, its
+    /// title in spaced capitals with a hairline under it, its body under that (laid out from its top by `body`, which
+    /// says how tall it is); the card as tall as they are, in the middle of the screen. Closable: × at the title's right.
+    /// </summary>
+    RectTransform Modal(string title, System.Func<RectTransform, float> body, float width = 620 * Z, Transform parent = null, System.Action close = null)
     {
-        var v = Veil(parent ?? overlay);
-        var card = Hud.Glass(v, "Card", Color.white);
-        var cr = (RectTransform)card.transform;
-        Hud.At(cr, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(width, height));
-        var t = Hud.Label(cr, title.ToUpperInvariant(), 18, Look.Ink, true, 500, 30, TextAlignmentOptions.Top);
-        t.margin = new Vector4(24, 26, 24, 0);
-        var rule = Hud.Rect(cr, "Rule");
-        Hud.At(rule, new Vector2(0.5f, 1), new Vector2(0, -60), new Vector2(60, 2));
-        rule.gameObject.AddComponent<Image>().color = new Color(0.55f, 0.57f, 0.63f, 0.6f);
-        var b = Hud.Rect(cr, "Body");
-        Hud.Fill(b);
-        b.offsetMin = new Vector2(24, 24);
-        b.offsetMax = new Vector2(-24, -80);
-        body(b);
-        return v;
-    }
-
-    /// <summary>Rows of choices (the web's settings panel of choice rows): each its words, a note, a chevron.</summary>
-    static void Rows(RectTransform body, params (string label, string note, System.Action act)[] rows)
-    {
-        for (int i = 0; i < rows.Length; i++)
+        var v = Veil(parent ?? overlay, close != null);
+        if (close != null) v.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
+        var card = WebLook.Rounded(v, "Card", Color.white, 18 * Z);
+        card.raycastTarget = true;
+        card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
+        var cr = card.rectTransform;
+        // (.bar-title: 14 above its words and 10 below; a 44 wide hairline at its foot.)
+        float barH = 14 * Z + 0.7f * 16 * Z * 1.25f + 10 * Z;
+        var t = WebLook.Words(WebLook.Box(cr, "Title", 0, 14 * Z, width, 0.7f * 16 * Z * 1.25f), title.ToUpperInvariant(), 0.7f * 16 * Z, 0.28f, Look.Ink, true, 500);
+        t.margin = new Vector4(44 * Z, 0, 44 * Z - 0.28f * 0.7f * 16 * Z, 0);
+        var rule = WebLook.Box(cr, "Rule", width / 2 - 22 * Z, barH - 1, 44 * Z, 1.4f).gameObject.AddComponent<RawImage>();
+        rule.texture = Hairline();
+        rule.color = new Color(120 / 255f, 124 / 255f, 134 / 255f, 0.45f);
+        rule.raycastTarget = false;
+        if (close != null)
         {
-            var (label, note, act) = rows[i];
-            var r = Hud.Glass(body, label, Color.white, false);
-            var rr = (RectTransform)r.transform;
-            Hud.At(rr, new Vector2(0.5f, 1), new Vector2(0, -i * 72), new Vector2(Mathf.Min(520, body.rect.width > 0 ? body.rect.width : 520), 64));
-            r.color = new Color(0.975f, 0.975f, 0.98f);
-            var b = r.gameObject.AddComponent<Button>();
-            if (act != null) b.onClick.AddListener(() => { Sound.Play("click"); act(); });
-            else b.interactable = false;
-            var l = Hud.Label(rr, label.ToUpperInvariant(), 15, Look.Ink, true, 600, 22, TextAlignmentOptions.Left);
-            l.margin = new Vector4(26, 0, 0, note != null ? 16 : 0);
-            if (note != null)
-            {
-                var n = Hud.Label(rr, note, 13, Look.InkSoft, false, 400, 0, TextAlignmentOptions.BottomLeft);
-                n.margin = new Vector4(26, 0, 0, 10);
-            }
-            var chev = Hud.Label(rr, "›", 22, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Right);
-            chev.margin = new Vector4(0, 0, 22, 4);
+            var x = WebLook.Rounded(cr, "Close", new Color(1, 1, 1, 0), 999);
+            x.raycastTarget = true;
+            WebLook.Box(x.rectTransform, width - 12 * Z - 28 * Z, barH / 2 - 14 * Z, 28 * Z, 28 * Z);
+            WebLook.Words(x.transform, "×", 1 * 16 * Z, 0, Look.InkSoft, false, 400);
+            x.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
+        }
+        // (.modal-body: 22 above and below, 28 either side.)
+        float padY = 22 * Z * 0.94f, padX = 28 * Z;
+        var b = WebLook.Box(cr, "Body", padX, barH + padY, width - 2 * padX, 10);
+        float h = body(b);
+        b.sizeDelta = new Vector2(width - 2 * padX, h);
+        float total = barH + padY + h + padY;
+        cr.anchorMin = cr.anchorMax = cr.pivot = new Vector2(0.5f, 0.5f);
+        cr.anchoredPosition = Vector2.zero;
+        cr.sizeDelta = new Vector2(width, total);
+        WebLook.Shadow(card, 30 * Z, 80 * Z, new Color(80 / 255f, 80 / 255f, 100 / 255f, 0.18f), 18 * Z, Z, new Color(120 / 255f, 124 / 255f, 134 / 255f, 0.08f));
+        return v;
+    }
+
+    static Texture2D hairline;
+
+    /// <summary>A hairline fading in from each end (the bar title's rule), white to tint.</summary>
+    static Texture2D Hairline()
+    {
+        if (hairline != null) return hairline;
+        hairline = new Texture2D(32, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int x = 0; x < 32; x++) hairline.SetPixel(x, 0, new Color(1, 1, 1, 1 - Mathf.Abs(x + 0.5f - 16) / 16));
+        hairline.Apply();
+        return hairline;
+    }
+
+    /// <summary>A setting's row: its name (and a note under it), and either its value in a pill or a chevron.</summary>
+    struct SetRow
+    {
+        public string Label, Note, Value;
+        public bool Go;
+        public System.Action Act;
+        public SetRow(string label, System.Action act, string note = null, bool go = false, string value = null)
+        {
+            Label = label;
+            Act = act;
+            Note = note;
+            Go = go;
+            Value = value;
         }
     }
 
-    /// <summary>A card's face, tappable, at a size (its width; its height 1.4 times).</summary>
+    /// <summary>
+    /// Rows of choices as the settings' (settings.ts settingsPanel, .set-list): one column 380 (CSS) across in the middle,
+    /// a panel of white glass, each row its words in spaced capitals (the choice the modal is for a little bolder, its
+    /// chevron blue), a note under them, a hairline between rows; a row held back faded. Its height.
+    /// </summary>
+    static float SetList(RectTransform body, float y, params SetRow[] rows)
+    {
+        float w = Mathf.Min(380 * Z, body.sizeDelta.x), x = (body.sizeDelta.x - w) / 2, rowH = 46 * Z, pad = 4 * Z, gap = 2 * Z;
+        float h = 2 * pad + rows.Length * rowH + (rows.Length - 1) * gap;
+        var list = WebLook.Rounded(body, "List", new Color(1, 1, 1, 0.72f), 16 * Z);
+        WebLook.Box(list.rectTransform, x, y, w, h);
+        WebLook.Shadow(list, 6 * Z, 18 * Z, new Color(40 / 255f, 46 / 255f, 70 / 255f, 0.06f), 16 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.08f));
+        for (int i = 0; i < rows.Length; i++)
+        {
+            var row = rows[i];
+            var r = WebLook.Rounded(list.transform, row.Label, new Color(1, 1, 1, 0), 12 * Z);
+            r.raycastTarget = true;
+            WebLook.Box(r.rectTransform, pad, pad + i * (rowH + gap), w - 2 * pad, rowH);
+            if (i > 0)
+            {
+                var line = WebLook.Box(r.transform, "Line", 0, -1, w - 2 * pad, 1).gameObject.AddComponent<Image>();
+                line.color = new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.06f);
+                line.raycastTarget = false;
+            }
+            var b = r.gameObject.AddComponent<Button>();
+            var colors = b.colors;
+            colors.normalColor = new Color(1, 1, 1, 0);
+            colors.highlightedColor = new Color(95 / 255f, 143 / 255f, 196 / 255f, 0.08f);
+            colors.pressedColor = new Color(95 / 255f, 143 / 255f, 196 / 255f, 0.14f);
+            colors.selectedColor = colors.normalColor;
+            colors.disabledColor = new Color(1, 1, 1, 0);
+            b.colors = colors;
+            r.color = Color.white;
+            var act = row.Act;
+            if (act != null) b.onClick.AddListener(() => { Sound.Play("click"); act(); });
+            else
+            {
+                b.interactable = false;
+                r.gameObject.AddComponent<CanvasGroup>().alpha = 0.45f;
+            }
+            float fs = 0.66f * 16 * Z;
+            var label = WebLook.Words(r.transform, row.Label.ToUpperInvariant(), fs, 0.22f, Look.Ink, true, row.Go ? 700 : 500, TextAlignmentOptions.Left);
+            if (row.Note != null)
+            {
+                float lh = fs * 1.25f, nh = fs * 1.2f, top = (rowH - lh - 3 * Z - nh) / 2;
+                WebLook.Box(label.rectTransform, 16 * Z, top, w - 80 * Z, lh);
+                WebLook.Words(WebLook.Box(r.transform, "Note", 16 * Z, top + lh + 3 * Z, w - 80 * Z, nh), row.Note, fs, 0.02f, Look.InkFaint, false, row.Go ? 600 : 400, TextAlignmentOptions.Left);
+            }
+            else label.margin = new Vector4(16 * Z, 0, 60 * Z, 0);
+            if (row.Value != null)
+            {
+                // (.opt-value: a grey pill, its value in spaced capitals.)
+                var pill = WebLook.Rounded(r.transform, "Value", WebLook.Hex("#f0f2f6"), 999);
+                var vt = WebLook.Words(pill.transform, row.Value.ToUpperInvariant(), 0.6f * 16 * Z, 0.16f, Look.InkSoft, true, 500);
+                float pw = Mathf.Max(44 * Z, vt.GetPreferredValues(vt.text).x + 20 * Z), ph = 0.6f * 16 * Z * 1.25f + 8 * Z;
+                pill.sprite = Hud.Rounded;
+                pill.type = Image.Type.Sliced;
+                pill.pixelsPerUnitMultiplier = 22f / (ph / 2);
+                var pr = pill.rectTransform;
+                pr.anchorMin = pr.anchorMax = pr.pivot = new Vector2(1, 0.5f);
+                pr.anchoredPosition = new Vector2(-12 * Z, 0);
+                pr.sizeDelta = new Vector2(pw, ph);
+            }
+            else
+            {
+                var chev = WebLook.Words(r.transform, "›", 1.1f * 16 * Z, 0, row.Go ? WebLook.Hex("#5f8fc4") : Look.InkFaint, false, 400, TextAlignmentOptions.Right);
+                chev.margin = new Vector4(0, 0, 12 * Z, 4);
+            }
+        }
+        return h;
+    }
+
+    /// <summary>A card to pick (.cmp-pick): its face at a width (its height 1.4 times); picked, ringed violet and glowing.</summary>
     static Button CardPick(Transform parent, string id, Vector2 at, float w, bool on, System.Action act, Vector2? anchor = null)
     {
         var r = Hud.Rect(parent, id);
         Hud.At(r, anchor ?? new Vector2(0.5f, 0.5f), at, new Vector2(w, w * 1.4f));
         if (on)
         {
-            var ring = Hud.Rect(r, "Ring");
-            Hud.Fill(ring);
-            ring.offsetMin = new Vector2(-5, -5);
-            ring.offsetMax = new Vector2(5, 5);
-            var ri = ring.gameObject.AddComponent<Image>();
-            ri.sprite = Hud.Rounded;
-            ri.type = Image.Type.Sliced;
-            ri.color = Look.Ink;
+            var glow = WebLook.Rounded(r, "Glow", new Color(138 / 255f, 111 / 255f, 224 / 255f, 0.45f), 8.56f + 18 * Z);
+            glow.sprite = Hud.Soft;
+            glow.pixelsPerUnitMultiplier = 41f / (18 * Z + 8.56f);
+            Hud.Fill(glow.rectTransform);
+            glow.rectTransform.offsetMin = -Vector2.one * 18 * Z;
+            glow.rectTransform.offsetMax = Vector2.one * 18 * Z;
+            var ring = WebLook.Rounded(r, "Ring", WebLook.Hex("#8a6fe0"), 8.56f + 2.5f * Z);
+            Hud.Fill(ring.rectTransform);
+            ring.rectTransform.offsetMin = -Vector2.one * 2.5f * Z;
+            ring.rectTransform.offsetMax = Vector2.one * 2.5f * Z;
         }
         var face = Hud.Rect(r, "Face");
         Hud.Fill(face);
@@ -318,32 +423,72 @@ public partial class CampaignView
         return b;
     }
 
+    /// <summary>A web button (.btn or .btn-primary) as wide as its words, centred at a point of its parent (from its top left).</summary>
+    static Button WebButton(Transform parent, string label, System.Action act, bool primary, float cx, float y, bool enabled = true)
+    {
+        float fs = 0.66f * 16 * Z;
+        var b = WebLook.Button(parent, label, act, primary, fs, primary ? 0.14f : 0.14f);
+        var t = b.GetComponentInChildren<TextMeshProUGUI>();
+        float w = Mathf.Max(primary ? 140 * Z : 0, t.GetPreferredValues(t.text).x + 2 * 16 * Z), h = fs * 1.25f + 2 * 9 * Z;
+        WebLook.Box((RectTransform)b.transform, cx - w / 2, y, w, h);
+        b.interactable = enabled;
+        if (!enabled) b.gameObject.AddComponent<CanvasGroup>().alpha = 0.4f;
+        return b;
+    }
+
     // ---- The run over ----
 
+    /// <summary>
+    /// The run over (.run-over): no box, on the veil; YOU ARE DEAD large and widely spaced, a line in italics, the petals
+    /// it banked; one card from the run to keep for the next, picked from a row of them; exit.
+    /// </summary>
     void RunOver()
     {
-        var v = Veil(overlay);
-        var title = Hud.Label(v, "YOU ARE DEAD", 44, Look.Ink, true, 400, 40, TextAlignmentOptions.Top);
-        title.margin = new Vector4(0, 140, 0, 0);
-        var said = Hud.Label(v, "The others will follow, soon enough…", 18, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
-        said.margin = new Vector4(0, 210, 0, 0);
-        var petals = Hud.Label(v, $"+ {state.Petals} ◆", 20, new Color(0.45f, 0.55f, 0.85f), true, 500, 10, TextAlignmentOptions.Top);
-        petals.margin = new Vector4(0, 250, 0, 0);
+        var v = Veil(overlay, true);
+        float t0 = RevealFrom("over");
         var keepable = Campaign.KeepableCards(state);
         if (keepPick != null && !keepable.Contains(keepPick)) keepPick = null;
+        float gap = 14 * Z, h2 = 60.3f * 1.26f, p = 24.4f * 1.2f, pet = 32, keepH = keepable.Count > 0 ? 20 + 8 * Z + 180 + 2 * 6 * Z : 0, exitH = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
+        float total = h2 + gap + p + gap + pet + (keepable.Count > 0 ? gap + keepH : 0) + gap + 10 * Z + exitH;
+        float y = 500 - total / 2;
+        var title = WebLook.Words(WebLook.Box(v, "Title", 0, y, 1600, h2), "YOU ARE DEAD", 60.3f, 0.32f, Look.Ink, true, 400);
+        title.margin = new Vector4(0, 0, 0.32f * 60.3f, 0);
+        RiseIn.On(title.rectTransform, t0, 0);
+        y += h2 + gap;
+        var said = WebLook.Words(WebLook.Box(v, "Said", 0, y, 1600, p), "The others will follow, soon enough…", 24.4f, 0, Look.InkSoft, false, 400);
+        said.fontStyle = FontStyles.Italic;
+        RiseIn.On(said.rectTransform, t0, 0.6f);
+        y += p + gap;
+        // (+ its petals, the petal after.)
+        var petals = WebLook.Words(Hud.Rect(v, "Petals"), $"+ {state.Petals}", 25.5f, 0.08f, Look.Ink, true, 400, TextAlignmentOptions.Left);
+        float pw = petals.GetPreferredValues(petals.text).x, rowW = pw + 6 * Z + 29;
+        var pr = WebLook.Box(Hud.Rect(v, "Banked"), 800 - rowW / 2, y, rowW, pet);
+        petals.transform.SetParent(pr, false);
+        WebLook.Box(petals.rectTransform, 0, 0, pw + 4, pet);
+        var mark = WebLook.Centred(pr, "Petal", pw + 6 * Z + 14.5f, pet / 2, 29, 29).gameObject.AddComponent<RawImage>();
+        mark.texture = Resources.Load<Texture2D>("Icons/purse-petal");
+        mark.raycastTarget = false;
+        RiseIn.On(pr, t0, 1.3f);
+        y += pet;
         if (keepable.Count > 0)
         {
-            var k = Hud.Label(v, "KEEP ONE CARD FOR YOUR NEXT RUN", 12, Look.InkFaint, true, 500, 24, TextAlignmentOptions.Top);
-            k.margin = new Vector4(0, 310, 0, 0);
-            int n = Mathf.Min(keepable.Count, 7);
+            y += gap;
+            var keep = WebLook.Box(v, "Keep", 0, y, 1600, keepH);
+            WebLook.Words(WebLook.Box(keep, "Words", 0, 0, 1600, 20), "KEEP ONE CARD FOR YOUR NEXT RUN", 0.7f * 16 * Z, 0.18f, Look.InkSoft, true, 400);
+            int n = keepable.Count;
+            float cw = 88 * Z, cg = 8 * Z + 2 * 6 * Z * 0;
+            float rw = n * cw + (n - 1) * cg;
             for (int i = 0; i < n; i++)
             {
                 var id = keepable[i];
-                CardPick(v, id, new Vector2((i - (n - 1) / 2f) * 150, -40), 136, keepPick == id, () => { Sound.Play("hover"); keepPick = keepPick == id ? null : id; Refresh(); });
+                CardPick(keep, id, new Vector2(800 - rw / 2 + i * (cw + cg), -(20 + 8 * Z + 6 * Z)), cw, keepPick == id, () => { Sound.Play("hover"); keepPick = keepPick == id ? null : id; Refresh(); }, new Vector2(0, 1));
             }
+            RiseIn.On(keep, t0, 1.6f);
+            y += keepH;
         }
-        var exit = Hud.Pill(v, keepPick != null ? $"Keep {Cards.Def(keepPick).Name} · exit" : "Exit", NewRunFromHere, 17, Look.Ink, Color.white);
-        Hud.At((RectTransform)exit.transform, new Vector2(0.5f, 0), new Vector2(0, 80), new Vector2(360, 60));
+        y += gap + 10 * Z;
+        var exit = WebButton(v, keepPick != null ? $"keep {Cards.Def(keepPick).Name.ToLowerInvariant()} · exit" : "exit", NewRunFromHere, true, 800, y);
+        RiseIn.On((RectTransform)exit.transform, t0, 1.8f);
     }
 
     /// <summary>The run over: the card picked to keep goes with the account into the next run; off to the campaign's menu.</summary>
@@ -358,131 +503,253 @@ public partial class CampaignView
 
     // ---- Loot: a sealed cache, tapped open, its rewards out one at a time ----
 
+    /// <summary>
+    /// What the last battle brought (campaign.ts renderOverlay's loot): a sealed cache floating on a white halo, FOUND or
+    /// VICTORY · TAP TO OPEN under it; tapped, it bursts open: the experience first, its bar filling, then every reward
+    /// the same size (a card's) on a living white glow, tilted like treasure spilled out, a row bowed, one at a time;
+    /// then TAKE IT.
+    /// </summary>
     void Loot()
     {
         var l = state.Loot;
-        var v = Veil(overlay);
+        var v = Veil(overlay, true);
         if (!lootOpen)
         {
-            var cache = Hud.Rect(v, "Cache");
-            Hud.At(cache, new Vector2(0.5f, 0.5f), new Vector2(0, 30), new Vector2(220, 220));
-            var halo = cache.gameObject.AddComponent<Image>();
-            halo.sprite = Hud.Soft;
-            halo.type = Image.Type.Sliced;
-            halo.color = new Color(1f, 0.85f, 0.45f, 0.7f);
-            var box = Hud.Rect(cache, "Box");
-            Hud.At(box, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(110, 110));
-            var bi = box.gameObject.AddComponent<Image>();
-            bi.sprite = Hud.Rounded;
-            bi.type = Image.Type.Sliced;
-            bi.color = new Color(0.32f, 0.3f, 0.36f);
-            Hud.Label(box, "⬢", 46, Gold, false, 400, 0);
-            cache.gameObject.AddComponent<Button>().onClick.AddListener(() =>
+            var cache = WebLook.Box(v, "Cache", 800 - 160, 500 - 178, 319, 355);
+            var halo = WebLook.Centred(cache, "Halo", 160, 160, 436, 436).gameObject.AddComponent<RawImage>();
+            halo.texture = CacheHalo();
+            halo.raycastTarget = false;
+            var art = WebLook.Box(cache, "Art", 0, 0, 319, 319).gameObject.AddComponent<RawImage>();
+            art.texture = Resources.Load<Texture2D>("Icons/loot-cache");
+            var tap = WebLook.Words(WebLook.Box(cache, "Tap", -100, 319 + 10 * Z, 519, 21), $"{(l.Found != null ? "FOUND" : l.Won ? "VICTORY" : "WHAT WAS SAVED")} · TAP TO OPEN", 0.72f * 16 * Z, 0.24f, Look.InkSoft, true, 400);
+            tap.raycastTarget = false;
+            cache.gameObject.AddComponent<Float>();
+            art.gameObject.AddComponent<Button>().onClick.AddListener(() =>
             {
                 lootOpen = true;
                 Sound.Play("cache-open");
-                int n = new[] { l.Materials, l.Xp, l.Petals }.Count(x => x > 0) + (l.Relics?.Count ?? 0) + (l.Cards?.Count ?? 0);
+                int n = new[] { l.Materials, l.Xp, l.Petals }.Count(x => x > 0) + (l.Relics?.Count ?? 0) + (l.Cards?.Count ?? 0) + (l.Parts?.Count ?? 0);
                 for (int i = 0; i < n; i++) Sound.Play($"loot-{Mathf.Min(i, 5)}", 0.5f + i * 0.35f);
                 Refresh();
             });
-            var tap = Hud.Label(v, $"{(l.Found != null ? "FOUND" : l.Won ? "VICTORY" : "WHAT WAS SAVED")} · TAP TO OPEN", 14, Look.InkSoft, true, 500, 24, TextAlignmentOptions.Center);
-            tap.margin = new Vector4(0, 280, 0, 0);
             return;
         }
-        // Every reward the same size, on a gold glow: materials, experience and petals, emblems, cards, ship parts.
+        float t0 = RevealFrom("loot open");
+        float lw = 112 * Z, lh = lw * 1.4f, gap = 34 * Z;
         var tiles = new List<System.Action<RectTransform>>();
-        if (l.Materials > 0) tiles.Add(r => Token(r, "⬢", $"+{l.Materials}", "materials"));
-        if (l.Xp > 0) tiles.Add(r => Token(r, "✦", $"+{l.Xp}", "experience"));
-        if (l.Petals > 0) tiles.Add(r => Token(r, "◆", $"+{l.Petals}", "petals"));
+        if (l.Materials > 0) tiles.Add(r => LootToken(r, "loot-materials", $"+{l.Materials}", lw));
+        if (l.Petals > 0) tiles.Add(r => LootToken(r, "loot-petal", $"+{l.Petals}", lw));
         foreach (var rel in l.Relics ?? new List<Relic>()) tiles.Add(r => Token(r, "✧", rel.Name.ToLowerInvariant(), Heroes.RelicText(rel)));
-        foreach (var id in l.Cards ?? new List<string>()) tiles.Add(r => CardPick(r, id, Vector2.zero, 150, false, null));
-        foreach (var id in l.Parts ?? new List<string>()) tiles.Add(r => Token(r, "⚙", Parts.ShipPart(id)?.Name.ToLowerInvariant() ?? id, "ship part"));
-        int count = tiles.Count;
+        foreach (var id in l.Cards ?? new List<string>()) tiles.Add(r => { LootGlow(r, lw, lh, lw * 1.2f); CardPick(r, id, Vector2.zero, lw, false, null); });
+        foreach (var id in l.Parts ?? new List<string>()) tiles.Add(r => LootPart(r, id, lw));
+        int count = tiles.Count, split = count > 3 ? (count + 1) / 2 : count;
+        int rows = count > split ? 2 : 1;
+        float xpH = l.Xp > 0 ? 33 + 4 * Z + 4 * Z : 0, itemsH = 2 * 20 * Z + rows * lh + (rows - 1) * gap, takeH = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
+        float total = xpH + itemsH + 4 * Z + 6 * Z + takeH, y = 500 - total / 2;
+        if (l.Xp > 0)
+        {
+            XpGauge(v, y, l.Xp, t0);
+            y += xpH;
+        }
+        y += 20 * Z;
+        int first = l.Xp > 0 ? 1 : 0;
         for (int i = 0; i < count; i++)
         {
-            var slot = Hud.Rect(v, "Reward");
-            Hud.At(slot, new Vector2(0.5f, 0.5f), new Vector2((i - (count - 1) / 2f) * 190, 40), new Vector2(170, 230));
-            var glow = slot.gameObject.AddComponent<Image>();
-            glow.sprite = Hud.Soft;
-            glow.type = Image.Type.Sliced;
-            glow.color = new Color(1f, 0.86f, 0.5f, 0.45f);
-            glow.raycastTarget = false;
+            int row = i < split ? 0 : 1, j = row == 0 ? i : i - split, n = row == 0 ? split : count - split;
+            float at = j - (n - 1) / 2f;
+            float cx = 800 + at * (lw + gap) + (row == 1 ? lw * 0.3f : 0);
+            float cy = y + row * (lh + gap) + lh / 2 + at * at * 7 * Z;
+            var slot = WebLook.Centred(v, "Reward", cx, cy, lw, lh);
+            slot.localRotation = Quaternion.Euler(0, 0, -((i % 2 == 1 ? 1 : -1) * (2 + i % 3)));
             tiles[i](slot);
+            RiseIn.On(slot, t0, 0.45f + (i + first) * 0.42f);
         }
-        var ok = Hud.Pill(v, "Take it", () => { lootOpen = false; Act(new CampaignAction { Type = "dismissLoot" }, "buy"); }, 17, Look.Ink, Color.white);
-        Hud.At((RectTransform)ok.transform, new Vector2(0.5f, 0), new Vector2(0, 120), new Vector2(240, 60));
+        y += itemsH - 20 * Z + 4 * Z + 6 * Z;
+        var ok = WebButton(v, "take it", () => { lootOpen = false; Act(new CampaignAction { Type = "dismissLoot" }, "buy"); }, true, 800, y);
+        WebLook.Box((RectTransform)ok.transform, 800 - (((RectTransform)ok.transform).sizeDelta.x) / 2, y, ((RectTransform)ok.transform).sizeDelta.x, takeH);
+        RiseIn.On((RectTransform)ok.transform, t0, 0.45f + (count + first) * 0.42f + 0.2f);
+    }
+
+    /// <summary>The experience a loot brought (campaign.ts xpGauge): LEVEL and the level, its bar filling in gold, +XP.</summary>
+    void XpGauge(RectTransform v, float y, int gained, float t0)
+    {
+        var meta = LoadMeta();
+        var now = Meta.LevelFor(meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)));
+        var g = WebLook.Box(v, "Experience", 0, y, 1600, 33);
+        var lv = WebLook.Words(Hud.Rect(g, "Level"), "LEVEL", 0.7f * 16 * Z, 0.12f, Look.InkSoft, true, 400, TextAlignmentOptions.Left);
+        var n = WebLook.Words(Hud.Rect(g, "N"), now.Level.ToString(), 1.15f * 16 * Z, 0.12f, Look.Ink, true, 700, TextAlignmentOptions.Left);
+        var gain = WebLook.Words(Hud.Rect(g, "Gain"), $"+{gained} XP", 0.8f * 16 * Z, 0.12f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
+        float lw = lv.GetPreferredValues(lv.text).x, nw = n.GetPreferredValues(n.text).x, gw = gain.GetPreferredValues(gain.text).x, bar = 260 * Z, gap = 12 * Z;
+        float w = lw + 4 * Z + nw + gap + bar + gap + gw, x = 800 - w / 2;
+        WebLook.Box(lv.rectTransform, x, 0, lw + 4, 33);
+        WebLook.Box(n.rectTransform, x + lw + 4 * Z, 0, nw + 4, 33);
+        var track = WebLook.Rounded(g, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.22f), 5 * Z);
+        WebLook.Box(track.rectTransform, x + lw + 4 * Z + nw + gap, (33 - 10 * Z) / 2, bar, 10 * Z);
+        float into = Mathf.Clamp01((float)now.Into / Mathf.Max(1, (float)now.Need));
+        if (into > 0)
+        {
+            var fill = WebLook.Rounded(track.transform, "Fill", Color.white, 5 * Z);
+            WebLook.Box(fill.rectTransform, 0, 0, bar * into, 10 * Z);
+            WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f6dc94"), true);
+        }
+        WebLook.Box(gain.rectTransform, x + w - gw, 0, gw + 4, 33);
+        RiseIn.On(g, t0, 0.45f);
+    }
+
+    /// <summary>Materials or petals: their token on its glow and rays (baked from the page), the number under it.</summary>
+    static void LootToken(RectTransform r, string icon, string big, float lw)
+    {
+        // (Its token 0.58 of the tile across, 6 above its number, the two in the tile's middle.)
+        float token = lw * 0.58f, numH = 0.95f * 16 * Z * 1.25f, top = (lw * 1.4f - token - 6 * Z - numH) / 2;
+        var art = WebLook.Centred(r, "Token", lw / 2, top + token / 2, token * 2.3f, token * 2.3f).gameObject.AddComponent<RawImage>();
+        art.texture = Resources.Load<Texture2D>("Icons/" + icon);
+        art.raycastTarget = false;
+        WebLook.Words(WebLook.Box(r, "Count", 0, top + token + 6 * Z, lw, numH), big, 0.95f * 16 * Z, 0.08f, Look.Ink, true, 700);
+    }
+
+    /// <summary>The living white glow behind a reward (its ::before and rays), centred on it at a size.</summary>
+    static void LootGlow(RectTransform r, float w, float h, float size)
+    {
+        var glow = WebLook.Centred(r, "Glow", w / 2, h / 2, size * 2.3f, size * 2.3f).gameObject.AddComponent<RawImage>();
+        glow.texture = Resources.Load<Texture2D>("Icons/loot-glow");
+        glow.raycastTarget = false;
+    }
+
+    /// <summary>A ship part found: its turning 3D view on the glow, its name under it.</summary>
+    static void LootPart(RectTransform r, string id, float lw)
+    {
+        var p = Parts.ShipPart(id);
+        float s = 128 * Z;
+        var glow = WebLook.Centred(r, "Glow", lw / 2, s / 2, s * 2.3f, s * 2.3f).gameObject.AddComponent<RawImage>();
+        glow.texture = Resources.Load<Texture2D>("Icons/loot-glow");
+        glow.raycastTarget = false;
+        var art = WebLook.Centred(r, "Part", lw / 2, s / 2, s * 0.7f, s * 0.7f).gameObject.AddComponent<RawImage>();
+        art.texture = p != null ? Resources.Load<Texture2D>($"Icons/part-{p.Kind}-{p.Rarity}") : null;
+        art.raycastTarget = false;
+        WebLook.Words(WebLook.Box(r, "Name", -lw * 0.25f, s + 6 * Z, lw * 1.5f, 33), p?.Name.ToLowerInvariant() ?? id, 1 * 16 * Z, 0, Look.Ink, false, 600);
+    }
+
+    static Texture2D cacheHalo;
+
+    /// <summary>The cache's halo: white at its heart, a pale blue at half way, gone at its edge.</summary>
+    static Texture2D CacheHalo()
+    {
+        if (cacheHalo != null) return cacheHalo;
+        const int S = 128;
+        cacheHalo = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                float d = new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f).magnitude / (S / 2f);
+                Color c = d < 0.5f ? Color.Lerp(Color.white, new Color(232 / 255f, 240 / 255f, 252 / 255f, 0.7f), d / 0.5f) : Color.Lerp(new Color(232 / 255f, 240 / 255f, 252 / 255f, 0.7f), new Color(214 / 255f, 226 / 255f, 246 / 255f, 0), Mathf.Clamp01((d - 0.5f) / 0.5f));
+                cacheHalo.SetPixel(x, y, c);
+            }
+        cacheHalo.Apply();
+        return cacheHalo;
+    }
+
+    /// <summary>The sealed cache floating (styles.css loot-float: up and down over 3.2s).</summary>
+    public class Float : MonoBehaviour
+    {
+        Vector2 rest;
+        bool set;
+
+        void Update()
+        {
+            var r = (RectTransform)transform;
+            if (!set) { rest = r.anchoredPosition; set = true; }
+            r.anchoredPosition = rest + new Vector2(0, 6 * Mathf.Sin(Time.time / 3.2f * Mathf.PI * 2));
+        }
     }
 
     static void Token(RectTransform r, string mark, string big, string small)
     {
         var m = Hud.Label(r, mark, 54, Gold, false, 400, 0, TextAlignmentOptions.Top);
         m.margin = new Vector4(0, 30, 0, 0);
-        var b = Hud.Label(r, big.ToUpperInvariant(), 17, Look.Ink, true, 600, 10, TextAlignmentOptions.Top);
+        var b = Hud.Label(r, big.ToUpperInvariant(), 0.62f * 16 * Z, Look.Ink, true, 700, 12, TextAlignmentOptions.Top);
         b.textWrappingMode = TextWrappingModes.Normal;
         b.margin = new Vector4(8, 116, 8, 0);
-        var s = Hud.Label(r, small, 12, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
+        var s = Hud.Label(r, small, 0.72f * 16 * Z, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
         s.textWrappingMode = TextWrappingModes.Normal;
         s.margin = new Vector4(10, 150, 10, 0);
     }
 
     // ---- Choices ----
 
+    /// <summary>A new card to choose (renderOverlay's card reward): the cards in a row, skip or confirm under them.</summary>
     void CardReward(CardReward reward)
     {
         if (cardPick != null && !reward.Options.Contains(cardPick)) cardPick = null;
         Modal($"★ {reward.Source.ToLowerInvariant()} · choose a new card", body =>
         {
             int n = reward.Options.Count;
+            float cw = 155, gap = 10 * Z, bw = body.sizeDelta.x, rw = n * cw + (n - 1) * gap;
             for (int i = 0; i < n; i++)
             {
                 var id = reward.Options[i];
-                CardPick(body, id, new Vector2((i - (n - 1) / 2f) * 200, 30), 180, cardPick == id, () => { Sound.Play("hover"); cardPick = cardPick == id ? null : id; Refresh(); });
+                CardPick(body, id, new Vector2((bw - rw) / 2 + i * (cw + gap) + cw / 2 - bw / 2, 0), cw, cardPick == id, () => { Sound.Play("hover"); cardPick = cardPick == id ? null : id; Refresh(); }, new Vector2(0.5f, 1));
             }
-            var skip = Hud.Pill(body, "Skip", () => { cardPick = null; Act(new CampaignAction { Type = "chooseCard", DefId = null }); }, 16);
-            Hud.At((RectTransform)skip.transform, new Vector2(0.5f, 0), new Vector2(-110, 0), new Vector2(190, 54));
+            float y = cw * 1.4f + 10 * Z;
             var pick = cardPick;
-            var ok = Hud.Pill(body, "Confirm", () => { cardPick = null; Act(new CampaignAction { Type = "chooseCard", DefId = pick }, "buy"); }, 16, Look.Ink, Color.white);
-            ok.interactable = pick != null;
-            Hud.At((RectTransform)ok.transform, new Vector2(0.5f, 0), new Vector2(110, 0), new Vector2(190, 54));
-        }, 900, 470);
+            var skip = WebButton(body, "skip", () => { cardPick = null; Act(new CampaignAction { Type = "chooseCard", DefId = null }); }, false, 0, y);
+            var ok = WebButton(body, "confirm", () => { cardPick = null; Act(new CampaignAction { Type = "chooseCard", DefId = pick }, "buy"); }, true, 0, y, pick != null);
+            float sw = ((RectTransform)skip.transform).sizeDelta.x, ow = ((RectTransform)ok.transform).sizeDelta.x, all = sw + 8 * Z + ow;
+            WebLook.Box((RectTransform)skip.transform, bw / 2 - all / 2, y, sw, ((RectTransform)skip.transform).sizeDelta.y);
+            WebLook.Box((RectTransform)ok.transform, bw / 2 - all / 2 + sw + 8 * Z, y, ow, ((RectTransform)ok.transform).sizeDelta.y);
+            return y + ((RectTransform)ok.transform).sizeDelta.y;
+        });
     }
 
+    /// <summary>A Dark Prophet's offer: his face, three of your cards as his mark would make them, each named; turn away.</summary>
     void Prophet()
     {
         Modal("the dark prophet", body =>
         {
+            float bw = body.sizeDelta.x, y = 2 * Z;
+            var art = EngineData.Art("dark_prophet");
+            if (art != null)
+            {
+                var face = Face(body, "dark_prophet", bw / 2, y + 56 * Z, 112 * Z, WebLook.Hex("#1a1f2a"), (3 * Z, Color.white), (5 * Z, WebLook.Hex("#6b4fc8")));
+                face.SetAsFirstSibling();
+                y += 112 * Z + 8 * Z;
+            }
             var offers = state.Prophet.Offers;
+            float cw = 155, gap = 10 * Z, rw = offers.Count * cw + (offers.Count - 1) * gap;
             for (int i = 0; i < offers.Count; i++)
             {
                 int index = i;
                 var o = offers[i];
-                CardPick(body, Builds.MarkedId(o.Mark, o.Card), new Vector2((i - (offers.Count - 1) / 2f) * 200, 40), 170, false, () => Act(new CampaignAction { Type = "prophetPick", Index = index }, "upgrade"));
-                var mark = Hud.Label(body, Builds.D.NyxMarks.TryGetValue(o.Mark, out var m) ? m.Name.ToLowerInvariant() : o.Mark, 13, Look.InkSoft, false, 500, 0, TextAlignmentOptions.Bottom);
-                mark.rectTransform.anchorMin = mark.rectTransform.anchorMax = new Vector2(0.5f, 0);
-                mark.rectTransform.sizeDelta = new Vector2(180, 24);
-                mark.rectTransform.anchoredPosition = new Vector2((i - (offers.Count - 1) / 2f) * 200, 76);
+                float x = (bw - rw) / 2 + i * (cw + gap);
+                CardPick(body, Builds.MarkedId(o.Mark, o.Card), new Vector2(x + cw / 2 - bw / 2, -y), cw, false, () => Act(new CampaignAction { Type = "prophetPick", Index = index }, "upgrade"), new Vector2(0.5f, 1));
+                var mark = WebLook.Words(WebLook.Box(body, "Mark", x - 20, y + cw * 1.4f + 6 * Z, cw + 40, 18), (Builds.D.NyxMarks.TryGetValue(o.Mark, out var m) ? m.Name : o.Mark).ToUpperInvariant(), 0.6f * 16 * Z, 0.14f, WebLook.Hex("#6b4fc8"), true, 500);
+                mark.raycastTarget = false;
             }
-            var away = Hud.Pill(body, "Turn away", () => Act(new CampaignAction { Type = "prophetPick", Index = null }, "hover"), 16);
-            Hud.At((RectTransform)away.transform, new Vector2(0.5f, 0), Vector2.zero, new Vector2(200, 52));
-        }, 820, 480);
+            y += cw * 1.4f + 6 * Z + 18 + 10 * Z;
+            var away = WebButton(body, "turn away", () => Act(new CampaignAction { Type = "prophetPick", Index = null }, "hover"), false, bw / 2, y);
+            return y + ((RectTransform)away.transform).sizeDelta.y;
+        });
     }
 
+    /// <summary>Aster's gift: one of the Seren's three emblems, each its mark, its name and what it does.</summary>
     void Emblems()
     {
         Modal("aster’s gift · choose an emblem", body =>
         {
             var list = state.EmblemChoice;
+            float tw = 150 * Z * 0.8f, gap = 18 * Z, bw = body.sizeDelta.x, rw = list.Count * tw + (list.Count - 1) * gap;
             for (int i = 0; i < list.Count; i++)
             {
                 int index = i;
                 var rel = list[i];
-                var r = Hud.Glass(body, rel.Name, Color.white);
-                var rr = (RectTransform)r.transform;
-                Hud.At(rr, new Vector2(0.5f, 0.5f), new Vector2((i - (list.Count - 1) / 2f) * 230, 0), new Vector2(210, 220));
-                Token(rr, "✧", rel.Name.ToLowerInvariant(), Heroes.RelicText(rel));
+                var r = WebLook.Box(body, rel.Name, (bw - rw) / 2 + i * (tw + gap), 8 * Z, tw, 240);
+                var hit = r.gameObject.AddComponent<Image>();
+                hit.color = new Color(1, 1, 1, 0);
+                LootGlow(r, tw, 120, tw * 0.62f);
+                Token(r, "✧", rel.Name.ToLowerInvariant(), Heroes.RelicText(rel));
                 r.gameObject.AddComponent<Button>().onClick.AddListener(() => Act(new CampaignAction { Type = "chooseEmblem", Index = index }, "upgrade"));
             }
-        }, 800, 380);
+            return 8 * Z + 240 + 4 * Z;
+        });
     }
 
     // ---- Scenes: a companion joining, an encounter, a power struggle, a rival beaten, a dream ----
@@ -701,34 +968,45 @@ public partial class CampaignView
     void Ask(string title, string words, (string label, System.Action act) yes)
     {
         CloseSheet();
-        Hud.Sheet(sheetRoot, title, new[] { new Hud.Row(yes.label, () => { CloseSheet(); yes.act(); }, null, true), new Hud.Row("stay", CloseSheet) }, CloseSheet);
+        // (renderOverlay's rift sheet: the narrow modal, the choice it is for and its words under it, then stay.)
+        Modal(title, body => SetList(body, 0, new SetRow(yes.label, () => { CloseSheet(); yes.act(); }, words, true), new SetRow("stay", CloseSheet)), 560 * Z, sheetRoot);
     }
 
+    /// <summary>
+    /// The settings (renderOverlay's settings sheet): the modal, its rows as the settings' (sound, music, the AI's
+    /// speed, each its value in a pill; the log; the main menu), and a note that the run is kept.
+    /// </summary>
     void Settings()
     {
         CloseSheet();
-        Hud.Sheet(sheetRoot, "settings", new[]
+        Modal("settings", body =>
         {
-            new Hud.Row("sound", () => { Sound.Muted = !Sound.Muted; Settings(); }, Sound.Muted ? "off" : "on"),
-            new Hud.Row("music", Sound.Muted ? (System.Action)null : () => { Sound.MusicOn = !Sound.MusicOn; Settings(); }, Sound.MusicOn && !Sound.Muted ? "on" : "off"),
-            new Hud.Row("ai speed", () => { BattleView.NextSpeed(); Settings(); }, BattleView.Speed),
-            new Hud.Row("campaign log", Log),
-            new Hud.Row("leave · the run is kept", () => App.Instance.Menu("hub")),
-        }, CloseSheet);
+            float h = SetList(body, 0,
+                new SetRow("sound", () => { Sound.Muted = !Sound.Muted; Settings(); }, value: Sound.Muted ? "off" : "on"),
+                new SetRow("music", Sound.Muted ? (System.Action)null : () => { Sound.MusicOn = !Sound.MusicOn; Settings(); }, value: Sound.MusicOn && !Sound.Muted ? "on" : "off"),
+                new SetRow("ai speed", () => { BattleView.NextSpeed(); Settings(); }, value: BattleView.Speed),
+                new SetRow("campaign log", Log),
+                new SetRow("main menu", () => App.Instance.Menu("hub")));
+            var note = WebLook.Words(WebLook.Box(body, "Note", 0, h + 12 * Z, body.sizeDelta.x, 0.7f * 16 * Z * 1.4f), "Your run is saved; continue it from the main menu.", 0.7f * 16 * Z, 0, Look.InkFaint, false, 400);
+            note.raycastTarget = false;
+            return h + 12 * Z + 0.7f * 16 * Z * 1.4f;
+        }, 620 * Z, sheetRoot, CloseSheet);
     }
 
+    /// <summary>The campaign's log (renderOverlay's log sheet): what has happened, a line each, the latest last.</summary>
     void Log()
     {
         CloseSheet();
-        var lines = state.Log.Skip(Mathf.Max(0, state.Log.Count - 18)).Select(l => l.Text);
+        var lines = state.Log.Skip(Mathf.Max(0, state.Log.Count - 24)).Select(l => l.Text);
         Modal("campaign log", body =>
         {
-            var t = Hud.Label(body, string.Join("\n", lines), 14, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
+            var t = WebLook.Words(body, string.Join("\n", lines), 0.8f * 16 * Z, 0, Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
             t.textWrappingMode = TextWrappingModes.Normal;
-            t.margin = new Vector4(10, 0, 10, 60);
-            var close = Hud.Pill(body, "Close", CloseSheet, 16);
-            Hud.At((RectTransform)close.transform, new Vector2(0.5f, 0), Vector2.zero, new Vector2(170, 50));
-        }, 760, 640, sheetRoot);
+            float h = Mathf.Min(620, t.GetPreferredValues(t.text, body.sizeDelta.x, 0).y);
+            WebLook.Box(t.rectTransform, 0, 0, body.sizeDelta.x, h);
+            t.overflowMode = TextOverflowModes.Truncate;
+            return h;
+        }, 620 * Z, sheetRoot, CloseSheet);
     }
 
     float toastUntil;
