@@ -130,8 +130,11 @@ public class StellariView : MonoBehaviour
     /// <summary>The arrows, at the foot: the branch's name between them, in its colour.</summary>
     void Spin()
     {
+        // (As wide as the longest branch's name, whichever is shown: the arrows never move.)
         var nav = Hud.Rect(root, "Spin");
-        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(360, 44));
+        var name = Hud.Label(nav, Shown.title.ToUpperInvariant(), 12, Color.Lerp(Hex(Shown.colour), Look.Ink, 0.3f), true, 500, 24);
+        float widest = L.branches.Max(b => name.GetPreferredValues(b.title.ToUpperInvariant()).x);
+        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(widest + 2 * (44 + 14), 44));
         for (int d = -1; d <= 1; d += 2)
         {
             int step = d;
@@ -143,7 +146,6 @@ public class StellariView : MonoBehaviour
             b.gameObject.AddComponent<Button>().onClick.AddListener(() => Turn(step));
             Hud.Label(b, d < 0 ? "‹" : "›", 26, Look.InkSoft, false, 400, 0).raycastTarget = false;
         }
-        var name = Hud.Label(nav, Shown.title.ToUpperInvariant(), 12, Color.Lerp(Hex(Shown.colour), Look.Ink, 0.3f), true, 500, 24);
         name.raycastTarget = false;
     }
 

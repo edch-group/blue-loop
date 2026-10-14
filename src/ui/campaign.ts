@@ -666,8 +666,8 @@ export class CampaignView {
     tree.querySelectorAll<HTMLElement>('[data-g]').forEach((el) => el.classList.toggle('up-off', el.dataset.g !== br.g));
     const nav = tree.querySelector('.up-spin') as HTMLElement | null;
     nav?.style.setProperty('--bc', br.colour);
-    const title = nav?.querySelector('span');
-    if (title) title.textContent = br.title;
+    // (Every branch's name stacked in one place, the longest setting the width: only the shown one seen.)
+    nav?.querySelectorAll<HTMLElement>('span > i').forEach((el) => el.classList.toggle('up-spin-off', el.dataset.t !== br.g));
   }
 
   /** The skill under the pointer (its tip shown). */
@@ -2592,7 +2592,7 @@ export class CampaignView {
             mobile
               ? `<nav class="up-spin" style="--bc:${shown.colour}">
                   <button data-act="cmp-up-turn" data-arg="-1" aria-label="Previous branch">‹</button>
-                  <span>${esc(shown.title)}</span>
+                  <span>${branches.map((b) => `<i data-t="${b.g}" ${b === shown ? '' : 'class="up-spin-off"'}>${esc(b.title)}</i>`).join('')}</span>
                   <button data-act="cmp-up-turn" data-arg="1" aria-label="Next branch">›</button>
                 </nav>`
               : ''

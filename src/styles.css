@@ -6794,7 +6794,10 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .up-mobile .up-node.locked b { color: #b9bdc8; }
 .up-mobile .up-node.locked b small { color: #c8ccd6; }
 .up-spin { position: absolute; left: 50%; bottom: max(10px, var(--sa-b, 0px)); transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 14px; }
-.up-spin span { min-width: 9.5em; text-align: center; font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.24em; text-transform: uppercase; color: color-mix(in srgb, var(--bc) 70%, var(--ink)); }
+/* (Every branch's name in the one cell, so the widest sets the width and the arrows never move: the others hidden.) */
+.up-spin span { display: grid; text-align: center; font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.24em; text-transform: uppercase; color: color-mix(in srgb, var(--bc) 70%, var(--ink)); }
+.up-spin span > i { grid-area: 1 / 1; font-style: normal; white-space: nowrap; }
+.up-spin span > i.up-spin-off { visibility: hidden; }
 .up-spin button {
   width: 40px; height: 40px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: var(--cur-pointer);
   font-size: 1.4rem; line-height: 1; color: var(--ink-soft); background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.1), 0 4px 12px rgba(40, 46, 70, 0.1);
