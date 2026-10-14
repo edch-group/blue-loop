@@ -432,7 +432,8 @@ export class Base3d {
     if (z === 'captain' || (z && z !== 'hangar' && z !== 'research')) return { target: sub3(this.spot(z), [0, -0.1, 0]), yaw: 1.0, pitch: 0.04, dist: 2.3 / narrow, off: -0.29 };
     // (The ship from above [direction: a birdseye view of the actual ship, where parts are attached to it directly]:
     // its nose to the right, a little from astern and to port, on the left of the screen beside the hangar's page.)
-    if (z === 'hangar') return { target: apply(scale(Base3d.SHIP_SCALE), B(20, 12, 5)), yaw: 0, pitch: 1.25, dist: 11.5 / narrow, off: -0.15 * narrow };
+    // (Close: the ship most of the screen [direction: zoom in a lot more on the ship], left of the page.)
+    if (z === 'hangar') return { target: apply(scale(Base3d.SHIP_SCALE), B(20, 12, 5)), yaw: 0, pitch: 1.25, dist: 9.2 / narrow, off: -0.15 * narrow };
     // (Enlightenment is the Stellari, out on the land: the camera turns from the ship, which slides away to the left.)
     if (z === 'research') return { target: [7, 1.4, -2], yaw: -0.52, pitch: 0.1, dist: 6, off: 0 };
     // (A story scene: drawn back to take in the ship and whoever is alongside, both in the upper part of the screen,

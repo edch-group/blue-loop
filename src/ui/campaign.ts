@@ -3000,7 +3000,7 @@ export class CampaignView {
       // flight goes on it draws nearer, the ship flying toward it.)
       const stellari: [number, number] = [6.2, -1.2];
       const LOOP = 150;
-      let toward = 0, lastT = 0;
+      let toward = 0, aboard = 0, lastT = 0;
       // (Over the land west of where the first galaxy's route begins, the land breaking away behind well short of it:
       // the first map lies on this same land, and opens whole [direction: the first map always uses the start menu's
       // terrain].)
@@ -3082,13 +3082,18 @@ export class CampaignView {
           lastT = time;
           toward += ((this.shopOpen ? 1 : 0) - toward) * (1 - Math.exp(-dt * 2.4));
           const e = toward * toward * (3 - 2 * toward);
-          const from = { x: f.x, y: PLANE_Y, z: 0.15, yaw: -0.85, pitch: 0.2, dist: 3.4 };
+          // The ship tab open [direction: the camera moves, not the ship; the land stayed put, so the ship seemed to
+          // barrel roll]: the land's camera swings up over the ship as the ship's own does (base3d's hangar framing:
+          // round by as much, and down nearly as steeply), at the ship's pace.
+          aboard += ((this.hangarOpen ? 1 : 0) - aboard) * (1 - Math.exp(-dt * 2.6));
+          const h = aboard * aboard * (3 - 2 * aboard);
+          const from = { x: f.x, y: PLANE_Y, z: 0.15, yaw: -0.85 + 0.52 * h, pitch: 0.2 + 1.05 * h, dist: 3.4 - 0.6 * h };
           const to = { x: stellari[0], y: PLANE_Y + 0.42, z: stellari[1], yaw: -0.85, pitch: 0.08, dist: 1.5 };
           last = {
             x: from.x + (to.x - from.x) * e,
             y: from.y + (to.y - from.y) * e,
             z: from.z + (to.z - from.z) * e,
-            yaw: from.yaw,
+            yaw: from.yaw + (to.yaw - from.yaw) * e,
             pitch: from.pitch + (to.pitch - from.pitch) * e,
             dist: from.dist + (to.dist - from.dist) * e,
           };
