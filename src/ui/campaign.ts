@@ -134,7 +134,6 @@ import {
   openSections,
   sectionOpen,
   companionDef,
-  companionCards,
   companionLevel,
   companionsFound,
   companionPoints,
@@ -156,6 +155,12 @@ import {
   CAPTAIN,
   isCharacter,
   type Station,
+  ACTIVE_CREW,
+  activeCrew,
+  setCrewAboard,
+  crewInDeck,
+  companionCardId,
+  companionFromAscent,
 } from '../engine';
 import { account, markDirty } from './account';
 import { profile } from './profile';
@@ -267,6 +272,10 @@ const MENU_EMBLEM: Record<'captain' | 'ship' | 'stellari' | CompanionId, string>
   engineer: emblem('<path d="M12 2.2 19 5v5.4c0 4.4-2.9 7.9-7 9.4-4.1-1.5-7-5-7-9.4V5Z" opacity=".55"/><path d="M8.2 7.6a3 3 0 0 1 3.9 3.6l4.6 4.6-1.4 1.4-4.6-4.6a3 3 0 0 1-3.6-3.9l1.9 1.9 1.3-.2.2-1.3Z"/><path d="M15.8 7.6a3 3 0 0 0-3.9 3.6l-4.6 4.6 1.4 1.4 4.6-4.6a3 3 0 0 0 3.6-3.9l-1.9 1.9-1.3-.2-.2-1.3Z"/>'),
   // Vey'Sharr: a shard split from its crown, a core of light between.
   defector: emblem('<path d="M12 1.6 14.6 7 12 10.4 9.4 7Z"/><path d="M7.6 6.4 9.8 11 7 13.6 4.2 9.4Z"/><path d="M16.4 6.4 19.8 9.4 17 13.6 14.2 11Z"/><circle cx="12" cy="13.4" r="2.2"/><path d="M12 16.6 14.4 19.4 12 22.6 9.6 19.4Z"/>'),
+  // Nyss: a crescent moon round a dagger.
+  shade: emblem('<path fill-rule="evenodd" d="M12 2.2a9.8 9.8 0 1 0 6.9 16.8 8 8 0 1 1 0-13.6A9.8 9.8 0 0 0 12 2.2Z"/><path d="M14.4 5.6l1 1-5.6 9.2-1.4.4.4-1.4Z"/>'),
+  // Ilyra: a ringed star.
+  seer: emblem('<path d="M12 4.2l1.6 4.6 4.6 1.6-4.6 1.6L12 16.6l-1.6-4.6L5.8 10.4l4.6-1.6Z"/><path fill-rule="evenodd" d="M12 6.8c5.3 0 9.6 1.6 9.6 3.6s-4.3 3.6-9.6 3.6-9.6-1.6-9.6-3.6 4.3-3.6 9.6-3.6Zm0 1.4c-4.4 0-8 1-8 2.2s3.6 2.2 8 2.2 8-1 8-2.2-3.6-2.2-8-2.2Z" opacity=".55"/><circle cx="12" cy="20.2" r="1.3"/>'),
   // A captain's rank: two chevrons under a star.
   captain: emblem('<path d="M12 2.4l1.1 2.3 2.5.3-1.8 1.7.5 2.5L12 8l-2.3 1.2.5-2.5-1.8-1.7 2.5-.3Z"/><path d="M4.8 14.2 12 9.6l7.2 4.6v2.6L12 12.2l-7.2 4.6Z"/><path d="M4.8 19 12 14.4l7.2 4.6v2.6L12 17l-7.2 4.6Z"/>'),
   // The ship from above, nose up: its hull, its swept fins, its engines.
@@ -1522,6 +1531,16 @@ export class CampaignView {
         else if (arg === 'pay' || (arg === 'buy' && kind === 'merchant')) sound.buy();
         break;
       }
+      case 'cmp-crew-aboard': {
+        const id = arg as CompanionId;
+        const meta = loadMeta();
+        saveMeta(setCrewAboard(meta, id, !activeCrew(meta).includes(id)));
+        sound.hover();
+        break;
+      }
+      case 'cmp-swap':
+        if (this.apply({ type: 'crewSwap', out: (arg || null) as CompanionId | null })) sound.hover();
+        break;
       case 'cmp-joined':
         if (this.apply({ type: 'joinedSeen' })) sound.hover();
         break;
@@ -2158,10 +2177,17 @@ export class CampaignView {
     const known: KnownLook[] = [{ arg: '', title: first.name.toLowerCase(), what: first.text, colour: '#4fae9b', on: true, sub: 'known' }];
     const sheet = this.tierSheet(COMPANION_TREES[id], a, left, d.titles.map((x) => (x.split(', ')[1] ?? x).toLowerCase()), describe, known, 'cmp-comp-pick', new Set(this.compPlaced));
     const lv = companionLevel(c.xp);
-    const card = companionCards(meta)[companionsFound(meta).indexOf(id)] ?? d.card;
+    // [direction: only 3 active companions at a time; any unlocked one can be swapped in at the start of a new run]:
+    // aboard for the next run, or ashore.
+    const crew = activeCrew(meta), aboard = crew.includes(id), full = !aboard && crew.length >= ACTIVE_CREW;
+    const aboardToggle = companionsFound(meta).length > ACTIVE_CREW || !aboard
+      ? `<button class="up-plan-undo crew-aboard ${aboard ? 'on' : ''}" data-act="cmp-crew-aboard" data-arg="${id}" ${full ? `disabled title="${ACTIVE_CREW} already aboard: send one ashore first"` : ''}>${aboard ? 'aboard' : full ? `ashore · ${ACTIVE_CREW} aboard` : 'ashore · send aboard'}</button>`
+      : '';
+    const card = companionCardId(id, companionFromAscent(id, a));
     return {
       tools: `${this.compPlaced.length ? '<button class="up-plan-undo" data-act="cmp-comp-undo">undo</button><button class="up-plan-undo" data-act="cmp-comp-clear">clear</button>' : ''}
-            <button class="up-plan-undo hp-card-peek" data-act="inspect" data-card="${esc(card)}">card</button>`,
+            <button class="up-plan-undo hp-card-peek" data-act="inspect" data-card="${esc(card)}">card</button>
+            ${aboardToggle}`,
       title: esc((d.titles[a.gates] ?? d.name).toLowerCase()),
       xp: `${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${lv.level} · ${lv.into}/${lv.need}</small>`,
       note: esc(d.learnsText.toLowerCase()),
@@ -2257,7 +2283,7 @@ export class CampaignView {
     const b = captainBuild(general);
     const level = b ? b.attack + b.stability + b.cheaper + Math.max(0, b.abilities.length - 1) + (b.lead ? 2 : 0) : 0;
     // (Its companions aboard, as on the menu's ship.)
-    return { parts: fitted, rarity, level, crew: companionsFound(loadMeta()) };
+    return { parts: fitted, rarity, level, crew: this.state ? crewInDeck(this.state) : activeCrew(loadMeta()) };
   }
 
   /**
@@ -3093,7 +3119,7 @@ export class CampaignView {
     }
     if (!this.base) return;
     this.base.setShip(this.metaShipSpec(meta));
-    this.base.setCrew(companionsFound(meta));
+    this.base.setCrew(activeCrew(meta));
     // (A section's page open: its camera, the ship flying on behind the page.)
     const crewOn = this.heroOpen ? this.compOpen ?? 'captain' : null;
     this.base.focus(crewOn ?? (this.hangarOpen ? 'hangar' : this.shopOpen ? 'research' : null));
@@ -3879,6 +3905,11 @@ export class CampaignView {
     const joined = s.joined?.[0];
     if (joined && !s.battle && !s.cardRewards.length) {
       const c = companionDef(joined.id);
+      // (Three aboard already: one stands down for this run, or the new one waits ashore for another.)
+      if (joined.swap) {
+        const out = crewInDeck(s).map((id) => `<button class="btn" data-act="cmp-swap" data-arg="${id}">${esc(companionDef(id).name.split(' ')[0].toLowerCase())} stands down</button>`).join('');
+        return this.scene({ kicker: 'joins the crew', title: c.name, visitor: null, speaker: '', lines: [{ who: joined.id, text: joined.line }], body: `<p class="enc-note">only ${ACTIVE_CREW} fly at once · who stays ashore this run?</p>`, actions: `${out}<button class="btn" data-act="cmp-swap" data-arg="">${esc(c.name.split(' ')[0].toLowerCase())} waits ashore</button>` });
+      }
       return this.scene({ kicker: 'joins the crew', title: c.name, visitor: null, speaker: '', lines: [{ who: joined.id, text: joined.line }], body: `<p class="enc-note">${esc(c.title.toLowerCase())} · in your deck now</p>`, actions: `<button class="btn-primary" data-act="cmp-joined">welcome aboard</button>` });
     }
     // A story encounter: whoever came alongside, and the Captain's choice (once a fight is over, how it ended).

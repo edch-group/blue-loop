@@ -75,6 +75,18 @@ export const COMPANION_TREES: Record<CompanionId, AscentNode[]> = {
     atk(3, 2), stab(3, 2), n('shatter', 3, 'shatterstorm', { trait: 'shatter' }), n('refract', 3, 'refraction', { trait: 'refract' }), cheaper(3),
     atk(4, 2), n('executioner', 4, 'executioner', { trait: 'executioner' }), n('crystal', 4, 'crystal aegis', { trait: 'crystal' }), n('nova', 4, 'shard nova', { trait: 'nova' }), cheaper(4),
   ],
+  shade: [
+    atk(1, 1), stab(1, 1), n('knife', 1, 'night knife', { trait: 'knife' }), n('shroud', 1, 'shroud', { trait: 'shroud' }), n('eclipse', 1, 'eclipse', { trait: 'eclipse' }),
+    atk(2, 1), stab(2, 1), n('nightfall', 2, 'nightfall', { trait: 'nightfall' }), n('fang', 2, 'fang', { trait: 'fang' }), n('reaper', 2, 'reaper', { trait: 'reaper' }),
+    atk(3, 2), stab(3, 2), n('umbra', 3, 'umbra', { trait: 'umbra' }), n('deep', 3, 'deep shroud', { trait: 'deep' }), cheaper(3),
+    atk(4, 2), n('void', 4, 'void tide', { trait: 'void' }), n('storm', 4, 'shadowstorm', { trait: 'storm' }), n('midnight', 4, 'midnight', { trait: 'midnight' }), cheaper(4),
+  ],
+  seer: [
+    stab(1, 1), n('calm', 1, 'stillness', { trait: 'calm' }), n('turn', 1, 'turning', { trait: 'turn' }), n('ward', 1, 'starward', { trait: 'ward' }),
+    stab(2, 1), n('read', 2, 'reading', { trait: 'read' }), n('hush', 2, 'hush', { trait: 'hush' }), n('weave', 2, 'fate weave', { trait: 'weave' }),
+    stab(3, 2), n('veil', 3, 'star veil', { trait: 'veil' }), n('tide', 3, 'time tide', { trait: 'tide' }), cheaper(3),
+    stab(4, 2), n('prophecy', 4, 'prophecy', { trait: 'prophecy' }), n('stop', 4, 'stopped hour', { trait: 'stop' }), n('stars', 4, 'voice of stars', { trait: 'stars' }), cheaper(4),
+  ],
 };
 
 /** The names a character takes at each tier (the first its own). */

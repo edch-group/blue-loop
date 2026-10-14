@@ -329,11 +329,46 @@ function defectorModel(): Float32Array {
   return new Float32Array(m.out);
 }
 
+/**
+ * A standing figure, plainly built [direction: placeholders for the Lost Races' companions for now]: legs, a cloaked
+ * body, arms at its sides, a head (a hood over it, or a glow above it), in its colours; its feet at (20, 12, 0).
+ */
+function figure(o: { body: RGB; cloak: RGB; skin: RGB; trim: RGB; hood?: boolean; halo?: RGB }): Float32Array {
+  const m = new Mesh();
+  for (const sd of [-1, 1]) lim(m, [[20 + sd * 1.4, 12, 1.2], [20 + sd * 1.4, 12.3, 8], [20 + sd * 1.3, 12, 14]], 1.2, 1.4, o.body, SOFT);
+  m.rbox(20, 12, 18.4, 3.2, 2.1, 4.8, o.body, SOFT, 2.4, 2.6);
+  m.rbox(20, 12, 13.6, 3.3, 2.2, 0.6, o.trim, METAL, 2.6, 6);
+  // A cloak from the shoulders to the ankles behind.
+  m.rbox(20, 13.6, 12.2, 3.6, 0.6, 10.6, o.cloak, SOFT, 2, 3);
+  for (const sd of [-1, 1]) {
+    m.ball(20 + sd * 3.3, 12, 22.2, 1.4, o.cloak, SOFT, 14, 9);
+    lim(m, [[20 + sd * 3.4, 12, 22], [20 + sd * 3.9, 11.6, 17.4], [20 + sd * 3.8, 11.2, 13.2]], 0.95, 0.8, o.body, SOFT);
+  }
+  m.cyl([20, 12, 23], [20, 12, 24.4], 0.9, 0.85, o.skin, SOFT, 12);
+  m.ball(20, 12, 26.6, 2.3, o.skin, SOFT, 18, 12);
+  if (o.hood) m.ball(20, 12.6, 27.2, 2.75, o.cloak, SOFT, 18, 12);
+  m.ball(19.1, 10.1, 26.8, 0.38, o.trim, GLOW, 8, 6);
+  m.ball(20.9, 10.1, 26.8, 0.38, o.trim, GLOW, 8, 6);
+  if (o.halo) m.ring(20, 12, 30.4, 2.4, 0.3, 0, o.halo, GLOW);
+  return new Float32Array(m.out);
+}
+
 /** A companion's figure, built once. */
 const BUILT = new Map<CompanionId, Float32Array>();
 export function companionModel(id: CompanionId): Float32Array {
   let b = BUILT.get(id);
-  if (!b) BUILT.set(id, (b = id === 'lancer' ? lancerModel() : id === 'engineer' ? engineerModel() : defectorModel()));
+  if (!b)
+    BUILT.set(
+      id,
+      (b =
+        id === 'lancer' ? lancerModel()
+        : id === 'engineer' ? engineerModel()
+        : id === 'defector' ? defectorModel()
+        // Nyss: a hooded Nyxari exile in black and violet, her eyes lit.
+        : id === 'shade' ? figure({ body: [0.12, 0.1, 0.16], cloak: [0.2, 0.12, 0.3], skin: [0.42, 0.4, 0.5], trim: [0.7, 0.45, 1], hood: true })
+        // Ilyra: a Seren star-reader in pale blue robes, a ring of starlight over her head.
+        : figure({ body: [0.72, 0.78, 0.9], cloak: [0.36, 0.46, 0.72], skin: [0.8, 0.82, 0.92], trim: [0.75, 0.88, 1], halo: [0.85, 0.92, 1] })),
+    );
   return b;
 }
 
@@ -350,4 +385,6 @@ export const COMPANION_PLACES: Record<CompanionId, CompanionPlace> = {
   lancer: { on: 'rail', x: 25.2, y: 0, z: 0, anchor: [20, 12, 19.2], turn: -0.4, size: 0.8 },
   engineer: { on: 'dish', x: 8.7, y: 13, z: 0, anchor: [20, 13, 0], turn: -1.25, size: 0.66 },
   defector: { on: 'air', x: 5, y: 19, z: -0.6, anchor: [20, 12, 24], turn: Math.PI / 2 - 0.25, size: 1 },
+  shade: { on: 'dish', x: 14, y: 9.5, z: 0, anchor: [20, 12, 0], turn: -0.6, size: 0.66 },
+  seer: { on: 'dish', x: 17.5, y: 14.5, z: 0, anchor: [20, 12, 0], turn: -0.2, size: 0.66 },
 };

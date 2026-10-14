@@ -17,13 +17,16 @@ import { ascentGifts, COMPANION_TREES, GATE, TIERS, type Ascent } from './ascent
  * (`companion_lancer@attack.stability.cheaper.trait+trait`), so a saved battle reads the very card that fought.
  */
 
-export type CompanionId = 'lancer' | 'engineer' | 'defector';
-export const COMPANION_IDS: CompanionId[] = ['lancer', 'engineer', 'defector'];
+export type CompanionId = 'lancer' | 'engineer' | 'defector' | 'shade' | 'seer';
+export const COMPANION_IDS: CompanionId[] = ['lancer', 'engineer', 'defector', 'shade', 'seer'];
+/** The companions who fly with the Captain on a run, at most [direction: only 3 active companions at a time]. */
+export const ACTIVE_CREW = 3;
 
 /** What a companion learns from: damage it deals (to suns and cards), support (shields, cooling, mending), cards it burns away. */
-export type ActKind = 'damage' | 'support' | 'kills';
+/** (`sun`: heat landed on the rival's sun; `dawns`: dawns seen in play.) */
+export type ActKind = 'damage' | 'support' | 'kills' | 'sun' | 'dawns';
 export type Acts = Record<ActKind, number>;
-export const noActs = (): Acts => ({ damage: 0, support: 0, kills: 0 });
+export const noActs = (): Acts => ({ damage: 0, support: 0, kills: 0, sun: 0, dawns: 0 });
 
 /** Something a companion can learn: its words on the card and what they do. */
 export interface CompanionTrait {
@@ -151,6 +154,66 @@ export const COMPANIONS: CompanionDef[] = [
     unlockText: 'Spare two beaten heroes in Power Struggles.',
     flavour: 'It tore out the shard that bound it to its Hierarch, and came looking for the human who spares.',
   },
+  // The Lost Races' companions [direction: one for each lost race, found only at special events in rifts]: the
+  // Nyxari's in the Dark Galaxy, the Seren's in Time Dense Space.
+  {
+    id: 'shade',
+    card: 'companion_shade',
+    name: 'Nyss',
+    title: 'Nyxari Exile',
+    kind: 'attack',
+    race: 4,
+    base: { cost: 2, health: 2, attack: 2 },
+    titles: ['Nyss', 'Nyss, Duskblade', 'Nyss, Voidwalker', 'Nyss, Night Eternal'],
+    start: 'ambush',
+    traits: [
+      t('ambush', 'Ambush', 0, '{darkspeed}.', { darkspeed: true }),
+      t('knife', 'Night Knife', 0, '{heat:2}, {pierce}.', { onPlay: [{ type: 'heat', amount: 2, to: 'target', pierce: true }] }),
+      t('shroud', 'Shroud', 0, '{sturdy:2}.', { defence: 2 }),
+      t('eclipse', 'Eclipse', 0, '{dawn}: {shield:1}.', { onTurn: [{ type: 'shield', amount: 1 }] }),
+      t('nightfall', 'Nightfall', 0, '{dawn}: {heat:1}, {pierce}.', { onTurn: [{ type: 'heat', amount: 1, to: 'target', pierce: true }] }),
+      t('fang', 'Fang', 0, '{sting:2}.', { passive: [{ type: 'retaliate', amount: 2 }] }),
+      t('reaper', 'Reaper', 0, '2 heat to the rival card with the most attack.', { onPlay: [{ type: 'strikeBest', amount: 2 }] }),
+      t('umbra', 'Umbra', 0, '{heat:4}, {pierce}.', { onPlay: [{ type: 'heat', amount: 4, to: 'target', pierce: true }] }),
+      t('deep', 'Deep Shroud', 0, '{sturdy:4}.', { defence: 4 }),
+      t('void', 'Void Tide', 0, '{dawn}: {heat:2}, {pierce}.', { onTurn: [{ type: 'heat', amount: 2, to: 'target', pierce: true }] }),
+      t('storm', 'Shadowstorm', 0, '2 heat to each rival card.', { onPlay: [{ type: 'strikeAll', amount: 2 }] }),
+      t('midnight', 'Midnight', 0, '{dawn}: 2 heat to the rival card with the most attack.', { onTurn: [{ type: 'strikeBest', amount: 2 }] }),
+    ],
+    learns: { sun: 1 },
+    learnsText: "Learns from the heat she lands on the rival's sun.",
+    unlockText: 'Find her in the Dark Galaxy.',
+    flavour: 'Cast out for refusing to feed the dark. It hunts her still.',
+  },
+  {
+    id: 'seer',
+    card: 'companion_seer',
+    name: 'Ilyra',
+    title: 'Seren Star-Reader',
+    kind: 'defence',
+    race: 6,
+    base: { cost: 2, health: 4, attack: 0 },
+    titles: ['Ilyra', 'Ilyra, Starwise', 'Ilyra, Fate-Weaver', 'Ilyra, Voice of Stars'],
+    start: 'chart',
+    traits: [
+      t('chart', 'Star Chart', 0, '{draw:1}.', { onPlay: [{ type: 'draw', amount: 1 }] }),
+      t('calm', 'Stillness', 0, '{cool:2}.', { onPlay: [{ type: 'cool', amount: 2 }] }),
+      t('turn', 'Turning', 0, 'Your orbit +1.', { onPlay: [{ type: 'orbit', amount: 1, who: 'self' }] }),
+      t('ward', 'Starward', 0, '{dawn}: {shield:1}.', { onTurn: [{ type: 'shield', amount: 1 }] }),
+      t('read', 'Reading', 0, '{dawn}: {draw:1}.', { onTurn: [{ type: 'draw', amount: 1 }] }),
+      t('hush', 'Hush', 0, '{dawn}: {cool:1}.', { onTurn: [{ type: 'cool', amount: 1 }] }),
+      t('weave', 'Fate Weave', 0, '{draw:2}.', { onPlay: [{ type: 'draw', amount: 2 }] }),
+      t('veil', 'Star Veil', 0, '{dawn}: {shield:2}.', { onTurn: [{ type: 'shield', amount: 2 }] }),
+      t('tide', 'Time Tide', 0, '{dawn}: {cool:2}.', { onTurn: [{ type: 'cool', amount: 2 }] }),
+      t('prophecy', 'Prophecy', 0, '{dawn}: {draw:2}.', { onTurn: [{ type: 'draw', amount: 2 }] }),
+      t('stop', 'Stopped Hour', 0, '{cool:5}.', { onPlay: [{ type: 'cool', amount: 5 }] }),
+      t('stars', 'Voice of Stars', 0, '{energy:2}.', { onPlay: [{ type: 'plays', amount: 2 }] }),
+    ],
+    learns: { dawns: 3 },
+    learnsText: 'Learns from every dawn she sees in play.',
+    unlockText: 'Find her in Time Dense Space.',
+    flavour: 'She read the end in the stars, and stepped out of time to wait for someone to change it.',
+  },
 ];
 
 export const companionDef = (id: CompanionId): CompanionDef => COMPANIONS.find((c) => c.id === id)!;
@@ -253,7 +316,7 @@ export function companionCard(defId: string): CardDef | undefined {
 /** The experience a companion takes from a battle's acts. */
 export const xpFromActs = (id: CompanionId, a: Acts): number => {
   const w = companionDef(id).learns;
-  return Math.floor((w.damage ?? 0) * a.damage + (w.support ?? 0) * a.support + (w.kills ?? 0) * a.kills);
+  return Math.floor((w.damage ?? 0) * a.damage + (w.support ?? 0) * a.support + (w.kills ?? 0) * a.kills + (w.sun ?? 0) * (a.sun ?? 0) + (w.dawns ?? 0) * (a.dawns ?? 0));
 };
 
 /** The experience to rise from a level to the next. */

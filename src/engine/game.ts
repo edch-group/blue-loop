@@ -1224,6 +1224,8 @@ function applyHeat(state: GameState, target: PlayerState, amount: number, source
   if (enemy) {
     source.turn.heatDealt += amount;
     credit(state, source, cardUid, 'damage', amount);
+    // (Heat that got through to the sun itself: what Nyss learns from.)
+    credit(state, source, cardUid, 'sun', applied);
     charge(state, source, 'heat', amount);
     charge(state, target, 'absorbed', blocked);
     charge(state, target, 'sunHit', applied);
@@ -2033,6 +2035,8 @@ function startTurn(state: GameState) {
   }
   // Cards back from the wreckage to the reserves, before the day's draw.
   salvageWreck(state, p);
+  // (A dawn seen in play: what Ilyra learns from.)
+  for (const c of p.tableau) credit(state, p, c.uid, 'dawns', 1);
   const abundance = currentPlanet(p, state) === 'abundant' ? BALANCE.abundantDraw + (p.modifiers?.abundantDraw ?? 0) : 0;
   // Draw (your opening hand covers your first day).
   if (p.turnsTaken > 1) drawCards(state, p, BALANCE.drawPerTurn + (p.modifiers?.extraDraw ?? 0) + abundance);

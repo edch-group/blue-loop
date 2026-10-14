@@ -13,13 +13,14 @@
  */
 import type { CompanionId } from './companions';
 
-export type EncounterKind = 'merchant' | 'pirates' | 'hunters';
+/** (`exile` and `stillness`: the Lost Races' companions, found only in their rifts.) */
+export type EncounterKind = 'merchant' | 'pirates' | 'hunters' | 'exile' | 'stillness';
 
 /** What came of an encounter, once chosen (its closing lines follow from it). */
-export type EncounterOutcome = 'good' | 'bad' | 'declined' | 'paid' | 'won' | 'lost' | 'fled';
+export type EncounterOutcome = 'good' | 'bad' | 'declined' | 'paid' | 'won' | 'lost' | 'fled' | 'joined';
 
 /** Who comes alongside, for the scene to show: a ship (of a race, or the merchant's or pirates' own), or a light. */
-export type VisitorLook = { ship: 'merchant' | 'pirate' | 'hunter' };
+export type VisitorLook = { ship: 'merchant' | 'pirate' | 'hunter' | 'nyxari' | 'seren' };
 
 /** Who speaks a line: the visitor, the Captain, or one of the crew. */
 export type EncounterSpeaker = 'visitor' | 'captain' | CompanionId;
@@ -39,6 +40,7 @@ export const ENCOUNTERS_PER_GALAXY = 2;
 export function encounterPrice(kind: EncounterKind, universe: number, stage = 0): number {
   if (kind === 'merchant') return 6 + 2 * universe;
   if (kind === 'pirates') return 12 + 4 * universe;
+  if (kind === 'exile' || kind === 'stillness') return 0;
   return 10 + 4 * universe + 4 * stage;
 }
 
@@ -53,10 +55,12 @@ export const HUNTERS = [
 export function visitorName(kind: EncounterKind, stage = 0): string {
   if (kind === 'merchant') return 'A Travelling Merchant';
   if (kind === 'pirates') return 'Void Pirates';
+  if (kind === 'exile') return 'A Nyxari Exile';
+  if (kind === 'stillness') return 'A Stopped Hour';
   return HUNTERS[Math.min(stage, HUNTERS.length - 1)].name;
 }
 
-export const visitorLook = (kind: EncounterKind): VisitorLook => ({ ship: kind === 'merchant' ? 'merchant' : kind === 'pirates' ? 'pirate' : 'hunter' });
+export const visitorLook = (kind: EncounterKind): VisitorLook => ({ ship: kind === 'merchant' ? 'merchant' : kind === 'pirates' ? 'pirate' : kind === 'exile' ? 'nyxari' : kind === 'stillness' ? 'seren' : 'hunter' });
 
 /** What is said as the visitor comes alongside (`crew`: who is aboard to speak). */
 export function openingLines(kind: EncounterKind, price: number, stage: number, crew: CompanionId[]): EncounterLine[] {
@@ -65,6 +69,17 @@ export function openingLines(kind: EncounterKind, price: number, stage: number, 
     return [
       { who: 'visitor', text: `Captain! A moment of your time. I have here a device from beyond the Heart. What does it do? Ah. That is the thrill of it. ${price} materials, and it is yours.` },
       mara ? { who: 'engineer', text: "It's humming, Captain. Things that hum like that either save your ship or take a hole out of it." } : { who: 'captain', text: 'It is humming. Things that hum like that rarely stay quiet.' },
+    ];
+  if (kind === 'exile')
+    return [
+      { who: 'visitor', text: 'Human ship! Open your hold to me. They are a jump behind, and they do not take prisoners. Not of their own.' },
+      { who: 'captain', text: 'Who is "they"?' },
+      { who: 'visitor', text: 'My kin. I would not feed the dark what it asked for, so now it asks for me. Stand with me, and I am yours.' },
+    ];
+  if (kind === 'stillness')
+    return [
+      { who: 'visitor', text: 'You can see me. Then the reading was true: a human, a battered ship, the hour that will not move.' },
+      { who: 'visitor', text: 'I stepped out of time to wait for you, Captain. Every chart I read ends the same. Take me aboard, and let us change one.' },
     ];
   if (kind === 'pirates')
     return [
@@ -94,6 +109,8 @@ export function openingLines(kind: EncounterKind, price: number, stage: number, 
 export function encounterChoices(kind: EncounterKind, price: number, stage: number): { id: string; label: string }[] {
   if (kind === 'merchant') return [{ id: 'buy', label: `buy it · ${price}` }, { id: 'leave', label: 'no thanks' }];
   if (kind === 'pirates') return [{ id: 'fight', label: 'fight' }, { id: 'pay', label: `pay · ${price}` }];
+  if (kind === 'exile') return [{ id: 'fight', label: 'stand with her' }, { id: 'leave', label: 'leave her to them' }];
+  if (kind === 'stillness') return [{ id: 'free', label: 'take her aboard' }, { id: 'leave', label: 'leave her waiting' }];
   return stage >= HUNTER_STAGES - 1 ? [{ id: 'fight', label: 'stand with Kaelen' }] : [{ id: 'fight', label: 'stand with Kaelen' }, { id: 'pay', label: `pay the bounty · ${price}` }];
 }
 
@@ -104,6 +121,15 @@ export function closingLines(kind: EncounterKind, outcome: EncounterOutcome, sta
     if (outcome === 'good') return [{ who: 'visitor', text: 'A fine choice. A fine, fine choice.' }, mara ? { who: 'engineer', text: "Captain... it works. It actually works. I'm fitting it now." } : { who: 'captain', text: 'It works. It actually works.' }];
     if (outcome === 'bad') return [{ who: 'visitor', text: 'No refunds!' }, mara ? { who: 'engineer', text: "It blew, Captain! A slot's wrecked. I can't fix it out here; I need a space station." } : { who: 'captain', text: 'It blew. A slot is wrecked until a space station can mend it.' }];
     return [{ who: 'visitor', text: 'Your loss, Captain. Your loss.' }];
+  }
+  if (kind === 'exile') {
+    if (outcome === 'won') return [{ who: 'visitor', text: 'They are gone. For now. I am Nyss, Captain, and my blade is yours.' }];
+    if (outcome === 'lost') return [{ who: 'visitor', text: 'They have me... go, Captain. Go!' }];
+    return [{ who: 'visitor', text: 'Then fly fast, human. They will not stop at me.' }];
+  }
+  if (kind === 'stillness') {
+    if (outcome === 'joined') return [{ who: 'visitor', text: 'The hour moves again. I am Ilyra. Let us read a different ending.' }];
+    return [{ who: 'visitor', text: 'Then I will wait. Time is the one thing I have.' }];
   }
   if (kind === 'pirates') {
     if (outcome === 'paid') return [{ who: 'visitor', text: 'Pleasure doing business.' }];

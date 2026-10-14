@@ -15,7 +15,7 @@
 import { GENERALS } from './story';
 import { partSlots, shipFit, shipPart, type PartSlot, type ShipFit } from './parts';
 import { CAPTAIN_START_SINGULARITY } from './singularities';
-import { COMPANION_IDS, companionCardId, companionFromAscent, companionLevel, type CompanionId } from './companions';
+import { ACTIVE_CREW, COMPANION_IDS, companionCardId, companionFromAscent, companionLevel, type CompanionId } from './companions';
 import { CAPTAIN_START_ABILITY, captainId } from './captain';
 import { ascend, ascentGifts, ascentProblem, ascentSpent, CAPTAIN_TREE, COMPANION_TREES, plainAscent, type Ascent } from './ascent';
 import type { BattleModifiers } from './types';
@@ -117,6 +117,8 @@ export interface MetaState {
   hunters?: number;
   /** A card kept from a lost run, to start the next one (once: it is used up as that run begins). */
   kept?: string;
+  /** The companions chosen to fly on the next run (at most ACTIVE_CREW; unset: the first found). */
+  crew?: CompanionId[];
 }
 
 /** A companion as kept: their experience (from what they did in battle) and their ascent (ascent.ts). */
@@ -129,8 +131,25 @@ const companionAscent = (c: Partial<CompanionMeta>): Ascent => (Array.isArray(c.
 /** The companions found so far, in order. */
 export const companionsFound = (meta: MetaState): CompanionId[] => COMPANION_IDS.filter((id) => meta.companions?.[id]);
 
-/** A found companion's card for the next run (its id carries the build). */
-export const companionCards = (meta: MetaState): string[] => companionsFound(meta).map((id) => companionCardId(id, companionFromAscent(id, companionAscent(meta.companions![id]!))));
+/**
+ * The companions who fly with the Captain on the next run [direction: only 3 active companions at a time; the player
+ * chooses which, and can swap any unlocked one in at the start of a new run]: those chosen (meta.crew), or, with
+ * none chosen, the first found.
+ */
+export const activeCrew = (meta: MetaState): CompanionId[] => {
+  const found = companionsFound(meta);
+  return (meta.crew ? meta.crew.filter((id) => found.includes(id)) : found).slice(0, ACTIVE_CREW);
+};
+
+/** A companion sent aboard for the next run, or ashore (none sent aboard past ACTIVE_CREW). */
+export function setCrewAboard(meta: MetaState, id: CompanionId, aboard: boolean): MetaState {
+  const now = activeCrew(meta).filter((x) => x !== id);
+  if (aboard && now.length >= ACTIVE_CREW) return meta;
+  return { ...meta, crew: aboard ? [...now, id] : now };
+}
+
+/** A found companion's card for the next run (its id carries the build): the active crew's. */
+export const companionCards = (meta: MetaState): string[] => activeCrew(meta).map((id) => companionCardId(id, companionFromAscent(id, companionAscent(meta.companions![id]!))));
 
 /** Skill points a companion has spent (an upgrade or a gate, one each). */
 export const companionSpent = (meta: MetaState, id: CompanionId): number => (meta.companions?.[id] ? ascentSpent(COMPANION_TREES[id], companionAscent(meta.companions[id]!)) : 0);
@@ -162,7 +181,13 @@ export function bankCompanions(meta: MetaState, freed: CompanionId[], xp: Partia
   if (hunters > 0) meta = { ...meta, hunters: (meta.hunters ?? 0) + hunters };
   if (!freed.length && !spared && !Object.values(xp).some((n) => (n ?? 0) > 0)) return meta;
   const companions = { ...(meta.companions ?? {}) };
-  for (const id of freed) companions[id] ??= { ...plainAscent(), xp: 0 };
+  // (One who joins takes a place aboard for the next run too, while there is one free.)
+  let crew = meta.crew;
+  for (const id of freed) {
+    if (!companions[id] && crew && crew.length < ACTIVE_CREW) crew = [...crew, id];
+    companions[id] ??= { ...plainAscent(), xp: 0 };
+  }
+  if (crew !== meta.crew) meta = { ...meta, crew };
   for (const id of COMPANION_IDS) if (companions[id] && (xp[id] ?? 0) > 0) companions[id] = { ...companions[id]!, xp: companions[id]!.xp + xp[id]! };
   return { ...meta, companions, spared: (meta.spared ?? 0) + spared };
 }

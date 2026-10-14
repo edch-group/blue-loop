@@ -29,7 +29,7 @@ import { HEROES, heroBonus, makeRelic, relicBonus, RACE_SLOTS, itemValue, type H
 import { EXPERIMENTS, RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject, supersededResearch, type ResearchState } from './research';
 import { moduleValue, type ShipModule } from './modules';
 import { isCaptain } from './captain';
-import { COMPANION_IDS, companionDef, DEFECTOR_SPARED, ENGINEER_PARTS, xpFromActs, type CompanionId } from './companions';
+import { ACTIVE_CREW, COMPANION_IDS, companionDef, companionOf, DEFECTOR_SPARED, ENGINEER_PARTS, xpFromActs, type CompanionId } from './companions';
 import { newCurio, newPart, partRarity, partSlots, shipFit, shipPart, type PartSlot } from './parts';
 import { CURIO_GOOD, ENCOUNTERS_PER_GALAXY, encounterChoices, encounterPrice, HUNTER_STAGES, visitorName, type EncounterKind, type EncounterOutcome } from './encounters';
 import { RIFT_JUMPS, RIFT_KINDS, RIFTS, markedId, marksFor, NYX_MARKS, type NyxMark, type RiftKind } from './rifts';
@@ -730,7 +730,7 @@ export interface CampaignState {
    */
   encounter?: { nodeId: string; kind: EncounterKind; price: number; stage: number; outcome?: EncounterOutcome; part?: string; slot?: number };
   /** Companions who have just joined, each waiting for their scene (who, and what they say). */
-  joined?: { id: CompanionId; line: string }[];
+  joined?: { id: CompanionId; line: string; swap?: boolean }[];
   /** A tableau slot of the flagship's wrecked (a merchant's device that blew): closed in every battle until a space station mends it. */
   wreckedSlot?: number;
   /** Stages of Kaelen's hunters beaten this run, and how many of them are already kept on the account. */
@@ -858,6 +858,8 @@ export type CampaignAction =
   | { type: 'encounter'; choice: string }
   /** A companion's joining scene seen. */
   | { type: 'joinedSeen' }
+  /** A companion joined with a full crew: who stands down for this run (null: the new one waits ashore). */
+  | { type: 'crewSwap'; out: CompanionId | null }
   | { type: 'struggleChoice'; recruit: boolean }
   | { type: 'swapPart'; nodeId: string; slot: PartSlot; partId: string | null }
   /** Drift into the Dream of the Lost waiting (its puzzle begins). */
@@ -1826,12 +1828,42 @@ function joinCompanion(s: CampaignState, id: CompanionId, line: string) {
   const c = companionDef(id);
   (s.freed ??= []).push(id);
   const army = flagship(s, f.id);
-  if (army) army.deck.push(c.card);
-  else f.reserve.push(c.card);
+  // (Three aboard already [direction: only 3 active companions at a time]: who stays is the Captain's to choose, in
+  // the joining scene; until then the new one waits.)
+  const full = crewInDeck(s).length >= ACTIVE_CREW;
+  if (!full) {
+    if (army) army.deck.push(c.card);
+    else f.reserve.push(c.card);
+  }
   clog(s, `${c.name}, ${c.title.toLowerCase()}, joins the Captain's ship.`, army?.nodeId, f.id);
   // (Their own scene, waiting until nothing else is on screen [direction: the mechanic was aboard with no idea how
   // she got there]: a story line was lost behind the station's screen.)
-  (s.joined ??= []).push({ id, line });
+  (s.joined ??= []).push({ id, line, ...(full ? { swap: true } : {}) });
+}
+
+/** The companions whose cards are in the flagship's deck (and reserve): those flying with the Captain this run. */
+export function crewInDeck(s: CampaignState): CompanionId[] {
+  const f = campaignPlayer(s);
+  const cards = [...(flagship(s, f.id)?.deck ?? []), ...f.reserve];
+  return COMPANION_IDS.filter((id) => cards.some((c) => companionOf(c) === id));
+}
+
+/** A companion joined with three aboard: one of the three stands down for this run (`out`), or (null) the new one waits ashore. */
+function crewSwap(s: CampaignState, out: CompanionId | null) {
+  const j = s.joined?.[0];
+  if (!j?.swap) throw new GameError('No one is waiting to come aboard.');
+  const f = campaignPlayer(s);
+  const army = flagship(s, f.id);
+  if (out) {
+    if (!crewInDeck(s).includes(out)) throw new GameError('They are not aboard.');
+    const pile = army?.deck ?? f.reserve;
+    const i = pile.findIndex((c) => companionOf(c) === out);
+    if (i >= 0) pile.splice(i, 1);
+    pile.push(companionDef(j.id).card);
+    clog(s, `${companionDef(out).name} stands down; ${companionDef(j.id).name} takes their place.`, army?.nodeId, f.id);
+  } else clog(s, `${companionDef(j.id).name} waits ashore for another run.`, army?.nodeId, f.id);
+  s.joined = s.joined!.slice(1);
+  if (!s.joined.length) s.joined = undefined;
 }
 
 /** The engineer: found at a space station once the ship has its parts fitted. */
@@ -2127,6 +2159,11 @@ function buildRift(s: CampaignState, kind: RiftKind) {
   const mid = shuffleInPlace(s, s.nodes.filter((n) => open(n) && (n.col ?? 0) >= 1 && (n.col ?? 0) <= RIFT_JUMPS - 2));
   if (mid[0]) mid[0].station = { kind: 'armory', cards: armoryStock(s, mid[0]) };
   if (mid[1]) mid[1].station = { kind: 'research', options: pickResearch(s, new Set(me.research?.done ?? [])) };
+  // The Lost Race's companion, waiting in their galaxy until found [direction: companions for the lost races, only
+  // acquired from special events in rifts]: Nyss hunted in the Dark Galaxy, Ilyra in a stopped hour in Time Dense Space.
+  const lost: CompanionId = kind === 'dark' ? 'shade' : 'seer';
+  const host = mid.find((n) => n !== mid[0] && n !== mid[1]);
+  if (me.human && host && !hasCompanion(s, lost)) host.encounter = kind === 'dark' ? 'exile' : 'stillness';
   spinGalaxy(s);
   clog(s, `${me.name} comes through the rift into ${RIFTS[kind].name}. ${RIFTS[kind].text}`);
 }
@@ -2371,6 +2408,12 @@ function chooseEncounter(s: CampaignState, choice: string) {
     return;
   }
   if (choice === 'fight') return startEncounterFight(s);
+  // (Ilyra, out of her stopped hour: aboard at a word.)
+  if (choice === 'free') {
+    e.outcome = 'joined';
+    joinCompanion(s, 'seer', 'The hour moves again. I am Ilyra, and I have read this ending too many times. Let us write another.');
+    return;
+  }
   if (choice === 'leave') {
     e.outcome = 'declined';
     return;
@@ -2409,6 +2452,7 @@ function startEncounterFight(s: CampaignState) {
   const foe: PlayerSetup = {
     name: visitorName(e.kind, e.stage),
     isAI: true,
+    // (Nyss's pursuers: her kin, the rift's own race at its strongest.)
     deck: stationDeck(s, at, e.kind === 'hunters' ? 0 : undefined),
     rooms: stationRooms(at),
     modifiers: sunBase(at),
@@ -2439,6 +2483,11 @@ function resolveEncounterFight(s: CampaignState, game: GameState) {
     else f.materials = Math.max(0, f.materials - price);
     if (won) s.loot = lootSince(s, before, true);
     clog(s, won ? `${f.name} beats the pirates and takes their hold: ${price} materials.` : `The pirates take ${f.name}'s materials.`, b.nodeId, f.id);
+    return;
+  }
+  if (kind === 'exile') {
+    if (won) joinCompanion(s, 'shade', 'They are gone. For now. I am Nyss, Captain, and my blade is yours.');
+    clog(s, won ? 'The Nyxari hunters are driven off.' : 'The Nyxari take their exile back into the dark.', b.nodeId, f.id);
     return;
   }
   if (!won) {
@@ -3903,7 +3952,7 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
   if (s.battle && action.type !== 'finishBattle') throw new GameError('Finish the battle first.');
   if (s.phase === 'ai' && action.type !== 'finishBattle' && action.type !== 'chooseCard' && action.type !== 'aiStep') throw new GameError('Wait for the other factions to finish their turns.');
   if (s.conquest && action.type !== 'conquer') throw new GameError('Decide the fate of the conquered system first.');
-  if (s.encounter && !s.battle && !['encounter', 'joinedSeen', 'chooseCard', 'dismissLoot', 'finishBattle', 'aiStep', 'petalsBanked'].includes(action.type)) throw new GameError('Someone is alongside: answer them first.');
+  if (s.encounter && !s.battle && !['encounter', 'joinedSeen', 'crewSwap', 'chooseCard', 'dismissLoot', 'finishBattle', 'aiStep', 'petalsBanked'].includes(action.type)) throw new GameError('Someone is alongside: answer them first.');
   if (s.cardRewards.length && !['chooseCard', 'finishBattle', 'conquer', 'aiStep', 'dismissLoot'].includes(action.type)) throw new GameError('Choose your card first');
 
   switch (action.type) {
@@ -4026,7 +4075,11 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
     case 'encounter':
       chooseEncounter(s, action.choice);
       break;
+    case 'crewSwap':
+      crewSwap(s, action.out);
+      break;
     case 'joinedSeen':
+      if (s.joined?.[0]?.swap) throw new GameError('Choose who flies first.');
       s.joined = s.joined?.slice(1);
       if (!s.joined?.length) s.joined = undefined;
       break;

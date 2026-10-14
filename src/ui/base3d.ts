@@ -23,13 +23,15 @@ import { uiZoom } from './viewport';
 
 export type BaseZone = 'hangar' | 'captain' | 'research' | CompanionId;
 /** Who comes alongside in a story scene: the merchant's ship, pirates', Aureline hunters', or a research station's lab. */
-export type Visitor = 'merchant' | 'pirate' | 'hunter' | 'lab';
+export type Visitor = 'merchant' | 'pirate' | 'hunter' | 'lab' | 'nyxari' | 'seren';
 /** Each visitor's model (a race's ship, the derelict, the lab's test tube), its colour, and how big it is drawn. */
 const VISITORS: Record<Visitor, { mesh: () => Float32Array; colour: RGB; size: number; upright?: boolean }> = {
   merchant: { mesh: () => shipModel3d(2).mesh, colour: [0.32, 0.72, 0.68], size: 3.2 },
   pirate: { mesh: () => shipModel3d(-1).mesh, colour: [0.72, 0.26, 0.2], size: 3.4 },
   hunter: { mesh: () => shipModel3d(0).mesh, colour: [0.95, 0.76, 0.34], size: 3.1 },
   lab: { mesh: () => propModel3d('lab'), colour: [0.4, 0.62, 1], size: 2.2, upright: true },
+  nyxari: { mesh: () => shipModel3d(4).mesh, colour: [0.55, 0.3, 0.85], size: 3 },
+  seren: { mesh: () => shipModel3d(6).mesh, colour: [0.6, 0.78, 1], size: 3 },
 };
 export const BASE_ZONES: BaseZone[] = ['hangar', 'captain', 'research'];
 
@@ -337,11 +339,12 @@ export class Base3d {
   static readonly SHIP_SCALE = 4.2;
   private spot(zone: BaseZone): V3 {
     if (zone === 'captain') return apply(this.capM, B(20, 12, 30));
-    if (zone === 'lancer' || zone === 'engineer' || zone === 'defector') {
-      const c = this.crew.find((x) => x.id === zone);
-      return c ? apply(c.m, B(20, 12, zone === 'engineer' ? 20 : 28)) : apply(this.capM, B(20, 12, 30));
-    }
     if (zone === 'research') return apply(this.shipM, B(5.5, 12, 12));
+    if (zone !== 'hangar') {
+      // (One of the crew: their chest, on the figure as it stands, crouches or flies; ashore, the Captain's place.)
+      const c = this.crew.find((x) => x.id === zone);
+      return c ? apply(c.m, B(20, 12, zone === 'engineer' ? 20 : zone === 'shade' || zone === 'seer' ? 22 : 28)) : apply(this.capM, B(20, 12, 30));
+    }
     return apply(this.shipM, B(17, 12, 5));
   }
   private reach(zone: BaseZone) {
