@@ -19,7 +19,7 @@ jobs:
       - name: Card data up to date
         run: npm run export-engine && git diff --exit-code unity/Assets/Resources/Engine
       - name: Record battles, built cards, growth and world
-        run: GAMES=80 npm run record-battles && npm run record-builds && npm run record-growth && npm run record-world
+        run: GAMES=80 npm run record-battles && npm run record-builds && npm run record-growth && npm run record-world && RUNS=36 npm run record-runs
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'

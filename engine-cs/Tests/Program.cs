@@ -47,6 +47,7 @@ void Check(string name, bool ok, string detail = "")
         Check($"growth ({total} cases)", bad == 0, $"{bad} differ");
     }
     World.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(Repo.Root, "unity/Assets/Resources/Engine/world.json")));
+    Campaign.Load(System.IO.File.ReadAllText(System.IO.Path.Combine(Repo.Root, "unity/Assets/Resources/Engine/campaign.json")));
 }
 
 // Built cards: fused, marked, the Captain's builds and the crew's, each as the TypeScript engine builds it.
@@ -152,6 +153,40 @@ void Check(string name, bool ok, string detail = "")
 
 // The world around the battles: story, races, rifts, modes, encounters, research, ship parts, lessons and puzzles.
 WorldChecks.Run(Check);
+
+// Campaign runs: each built from its setup, then every action replayed, the state after each the same as the
+// TypeScript engine's (npx vite-node scripts/record-runs.ts).
+{
+    var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/runs.json");
+    if (!System.IO.File.Exists(path)) Console.WriteLine("skip campaign runs (no engine-cs/traces/runs.json: npm run record-runs)");
+    else
+    {
+        var runs = Newtonsoft.Json.Linq.JArray.Parse(System.IO.File.ReadAllText(path));
+        var ser = Newtonsoft.Json.JsonSerializer.Create(Json.Settings);
+        for (int r = 0; r < runs.Count; r++)
+        {
+            var run = runs[r];
+            string diff = null;
+            int at = -1;
+            try
+            {
+                // (A run that jumped ahead starts from its recorded state; the rest are built from their setup.)
+                var s = run["jump"] != null ? run["start"].ToObject<CampaignState>(ser) : Campaign.Create(run["setup"].ToObject<CampaignSetup>(ser));
+                diff = JsonDiff.First(run["start"], Newtonsoft.Json.Linq.JToken.Parse(Json.Write(s)));
+                var steps = (Newtonsoft.Json.Linq.JArray)run["steps"];
+                for (int i = 0; diff == null && i < steps.Count; i++)
+                {
+                    at = i;
+                    s = Campaign.Apply(s, Campaign.ActionFrom((Newtonsoft.Json.Linq.JObject)steps[i]["action"]));
+                    diff = JsonDiff.First(steps[i]["state"], Newtonsoft.Json.Linq.JToken.Parse(Json.Write(s)));
+                }
+            }
+            catch (Exception e) { diff = e.GetType().Name + ": " + e.Message + "\n" + e.StackTrace?.Split('\n').FirstOrDefault(); }
+            var what = at < 0 ? "start" : $"step {at} ({run["steps"][at]["action"]["type"]})";
+            Check($"campaign run {r} ({run["steps"].Count()} steps)", diff == null, diff == null ? "" : $"{what}: {diff}");
+        }
+    }
+}
 
 Console.WriteLine(failed == 0 ? "All passed." : $"{failed} failed.");
 return failed == 0 ? 0 : 1;

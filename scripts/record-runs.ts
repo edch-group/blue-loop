@@ -11,7 +11,9 @@ import {
   applyCampaignAction,
   armiesOf,
   armyMoves,
+  buildUniverse,
   buyProblem,
+  encounterProblem,
   createCampaign,
   nodeById,
   researchProblem,
@@ -27,7 +29,7 @@ import { emptyMeta, runBonuses } from '../src/engine/meta';
 import { nextRandom } from '../src/engine/rng';
 
 const runs = Number(process.env.RUNS ?? 6);
-const maxSteps = Number(process.env.STEPS ?? 150);
+const maxSteps = Number(process.env.STEPS ?? 400);
 
 /** Play a battle out with the AI on both sides (how the bot fights). */
 function fight(s: CampaignState) {
@@ -48,34 +50,43 @@ function choose(s: CampaignState, rand: () => number): CampaignAction {
   if (s.cardRewards.length) return { type: 'chooseCard', defId: rand() < 0.2 ? null : pick(s.cardRewards[0].options) };
   if (s.conquest) return { type: 'conquer', choice: pick(['settle', 'settle', 'absorb', 'supernova'] as const) };
   if (s.beaten) return { type: 'struggleChoice', recruit: rand() < 0.5 };
-  if (s.encounter) {
-    if (s.encounter.outcome) return { type: 'encounter', choice: 'done' };
-    return { type: 'encounter', choice: pick(encounterChoices(s.encounter.kind, s.encounter.price, s.encounter.stage)).id };
-  }
   if (s.battle) {
-    if (rand() < 0.25) return { type: 'finishBattle', game: s.battle.game, auto: true };
+    if (rand() < 0.1) return { type: 'finishBattle', game: s.battle.game, auto: true };
+    // (Mostly handed back as the player's win, as the campaign tests do, so runs go deep: rifts, Overlords, later galaxies.)
     const game = fight(s);
+    if (rand() < 0.95 && game.winnerId !== game.players[0].id) game.winnerId = game.players[0].id;
     const salvage = salvageOptions(s, game);
     return { type: 'finishBattle', game, salvage: salvage.length && rand() < 0.7 ? pick(salvage) : null };
+  }
+  if (s.encounter) {
+    if (s.encounter.outcome) return { type: 'encounter', choice: 'done' };
+    return { type: 'encounter', choice: pick(encounterChoices(s.encounter.kind, s.encounter.price, s.encounter.stage).filter((c) => !encounterProblem(s, c.id))).id };
   }
   if (s.struggle) return { type: 'struggle' };
   if (s.dream) return { type: 'dream' };
   if (s.phase === 'ai') return { type: 'aiStep' };
-  // The player's turn: fly, shop, research, or end it.
+  // The player's turn: shop or research now and then, otherwise fly on (mostly forward, as a player must to outrun
+  // the collapse), ending the turn once there's nowhere to go.
   const f = s.factions.find((x) => x.id === s.playerId)!;
   const army = armiesOf(s, s.playerId)[0];
-  const options: CampaignAction[] = [{ type: 'endTurn', stepwise: rand() < 0.3 }];
-  if (army) {
-    const node = nodeById(s, army.nodeId);
-    for (const m of armyMoves(s, army)) options.push({ type: 'move', armyId: army.id, toId: m.toId }, { type: 'move', armyId: army.id, toId: m.toId });
-    const st = node.station;
-    if (st?.kind === 'armory') for (let i = 0; i < st.cards.length; i++) if (!buyProblem(s, f, node, i)) options.push({ type: 'buyCard', nodeId: node.id, index: i });
-    if (st?.kind === 'research') for (const p of st.options) if (!researchProblem(s, f, node, p)) options.push({ type: 'research', nodeId: node.id, projectId: p });
-  }
-  return pick(options);
+  if (!army) return { type: 'endTurn' };
+  const node = nodeById(s, army.nodeId);
+  const st = node.station;
+  const extras: CampaignAction[] = [];
+  if (st?.kind === 'armory') for (let i = 0; i < st.cards.length; i++) if (!buyProblem(s, f, node, i)) extras.push({ type: 'buyCard', nodeId: node.id, index: i });
+  if (st?.kind === 'research') for (const p of st.options) if (!researchProblem(s, f, node, p)) extras.push({ type: 'research', nodeId: node.id, projectId: p });
+  if (extras.length && rand() < 0.6) return pick(extras);
+  const moves = armyMoves(s, army);
+  if (!moves.length || rand() < 0.08) return { type: 'endTurn', stepwise: rand() < 0.3 };
+  // (A secret found: tried, mostly.)
+  const secret = moves.filter((m) => nodeById(s, m.toId).challenge);
+  if (secret.length && rand() < 0.7) return { type: 'move', armyId: army.id, toId: pick(secret).toId };
+  const col = (id: string) => nodeById(s, id).col ?? 0;
+  const ahead = moves.filter((m) => col(m.toId) > (node.col ?? 0));
+  return { type: 'move', armyId: army.id, toId: pick(ahead.length && rand() < 0.85 ? ahead : moves).toId };
 }
 
-const out: { setup: CampaignSetup; start: CampaignState; steps: { action: CampaignAction; state: CampaignState }[] }[] = [];
+const out: { setup: CampaignSetup; start: CampaignState; steps: { action: CampaignAction; state: CampaignState }[]; jump?: number }[] = [];
 let total = 0;
 for (let i = 0; i < runs; i++) {
   const meta = emptyMeta();
@@ -83,6 +94,25 @@ for (let i = 0; i < runs; i++) {
   const rng = { rngState: setup.seed * 3 + 1 };
   const rand = () => nextRandom(rng);
   let s = createCampaign(setup);
+  // (Half the runs start further in, where secrets, rifts and the rest turn up: replayed from this start, not built.)
+  const jump = i % 2 === 0 && i > 0 ? 2 + (i % 4) : 0;
+  if (jump) {
+    s = structuredClone(s);
+    while (s.story.queue.length) s.story.queue.shift();
+    s.cardRewards = [];
+    buildUniverse(s, jump);
+  }
+  // (Some runs find a secret beside where they start, so each kind is played: both rifts, the mine, the Frost Line, a
+  // Lost Lord.)
+  const plant = [null, 'rift:dark', 'rift:time', 'mine', 'frost', 'lord'][i % 6];
+  if (plant) {
+    if (!jump) s = structuredClone(s);
+    const home = s.nodes.find((n) => n.home === s.playerId)!;
+    const [kind, rift] = plant.split(':') as ['rift' | 'mine' | 'frost' | 'lord', 'dark' | 'time' | undefined];
+    const id = `n${s.nodes.length}`;
+    s.nodes.push({ id, name: 'Planted', x: home.x, y: home.y - 200, planets: [], owner: null, links: [home.id], fortification: 0, damage: 0, garrison: [], hazard: [], yield: { materials: 0 }, tier: home.tier, col: home.col, lane: home.lane, challenge: { kind, hidden: false, from: home.id, ...(kind === 'lord' ? { lord: 'lord_orrim' } : {}), ...(rift ? { rift } : {}) } });
+    home.links.push(id);
+  }
   const start = structuredClone(s);
   const steps: { action: CampaignAction; state: CampaignState }[] = [];
   for (let n = 0; n < maxSteps && !s.winner; n++) {
@@ -95,7 +125,7 @@ for (let i = 0; i < runs; i++) {
     }
     steps.push({ action: structuredClone(action), state: structuredClone(s) });
   }
-  out.push({ setup, start, steps });
+  out.push({ setup, start, steps, ...(jump || plant ? { jump: jump || 1 } : {}) });
   total += JSON.stringify(steps).length;
   console.log(`run ${i}: ${setup.captain ? 'captain' : `race ${setup.race}`}, ${steps.length} steps, turn ${s.turn}, universe ${s.universe}, winner ${s.winner}`);
 }

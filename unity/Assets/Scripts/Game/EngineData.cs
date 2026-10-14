@@ -14,6 +14,7 @@ public static class EngineData
         Heroes.Load(Text("heroes"));
         Ascent.Load(Text("ascent"));
         World.Load(Text("world"));
+        Campaign.Load(Text("campaign"));
         loaded = true;
     }
 
