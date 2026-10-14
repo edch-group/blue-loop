@@ -121,7 +121,7 @@ import {
   CAPTAIN_TREE,
   CAPTAIN_TITLES,
   COMPANION_TREES,
-  GATE,
+  GATE as GATE_GIFT,
   TIERS,
   TIER_PICKS,
   tierPicks,
@@ -2236,43 +2236,90 @@ export class CampaignView {
    * the character stands in. A tap: `act` with a node's id, 'gate', or a known thing's argument.
    */
   private tierSheet(tree: AscentNode[], a: Ascent, left: number, names: string[], describe: (x: AscentNode, owned: boolean) => NodeLook, known: KnownLook[], act: string, placed: Set<string>): string {
+    // [direction: the skill tree more like circuitry, matching the theme of the cards; no boxes]: a sheet 1000 wide, a
+    // spine trace up its middle from the character's emblem, each upgrade a solder pad off it (its name and what it
+    // does beside it), joined by a trace bent at right angles with a via at each bend; each Astral Gate a chip on the
+    // spine between two tiers. Learnt traces and pads lit, the spine lit as far as the character has climbed.
     const roman = ['I', 'II', 'III', 'IV'];
-    const node = (x: AscentNode) => {
-      const owned = a.nodes.includes(x.id);
-      const look = describe(x, owned);
-      const why = owned ? null : ascentProblem(tree, a, x.id, left);
-      const plan = owned && placed.has(x.id);
-      const sub = owned ? look.owned || 'learnt' : why ? why.replace(/\.$/, '').toLowerCase() : '1 point';
-      return `<button class="asc-node ${owned ? 'owned' : ''} ${plan ? 'planned' : ''} ${!owned && !why ? 'afford' : ''} ${!owned && why ? 'locked' : ''} ${look.on ? 'on' : ''}" style="--bc:${look.colour}" data-act="${act}" data-arg="${esc(x.id)}" aria-label="${esc(look.title)}">
-        <i class="asc-mote" aria-hidden="true"></i><b>${esc(look.title)}</b>${look.what ? `<span class="hp-what">${cardTextHtml(look.what, undefined, true)}</span>` : ''}<small>${esc(sub)}</small>
-      </button>`;
+    const COLS = [40, 275, 545, 780], SPINE = 512, ROW = 96, HEAD = 46, GATE = 110, ROOT = 110, TOP = 30;
+    type Pad = { x: number; y: number; lit: boolean; colour: string; html: string };
+    const pads: Pad[] = [];
+    const traces: string[] = [];
+    const litTraces: string[] = [];
+    const extra: string[] = [];
+    const rows = (n: number) => Math.max(1, Math.ceil(n / COLS.length));
+    const tiers = Array.from({ length: TIERS }, (_, i) => tree.filter((x) => x.tier === i + 1));
+    const H = TOP + ROOT + rows(known.length) * ROW + tiers.reduce((h, list) => h + HEAD + rows(list.length) * ROW, 0) + (TIERS - 1) * GATE + 30;
+    let y = H - ROOT;
+    // The emblem's socket at the foot, the spine leaving it.
+    const rootY = y + 50;
+    const place = (items: { colour: string; lit: boolean; html: (x: number, y: number) => string }[]) => {
+      const n = rows(items.length);
+      items.forEach((it, k) => {
+        const r = Math.floor(k / COLS.length), c = k % COLS.length;
+        const py = y - ROW * (n - r) + 28;
+        const px = COLS[c];
+        // The trace: down beneath the label, then along to the spine (a via at the bend and where it joins).
+        const by = py + 52;
+        (it.lit ? litTraces : traces).push(`<path class="${it.lit ? 'lit' : ''}" style="--bc:${it.colour}" d="M${px} ${py} V${by} H${SPINE}"/><circle class="via ${it.lit ? 'lit' : ''}" style="--bc:${it.colour}" cx="${px}" cy="${by}" r="3.4"/><circle class="via ${it.lit ? 'lit' : ''}" style="--bc:${it.colour}" cx="${SPINE}" cy="${by}" r="3.4"/>`);
+        pads.push({ x: px, y: py, lit: it.lit, colour: it.colour, html: it.html(px, py) });
+      });
+      y -= n * ROW;
     };
-    const bands: string[] = [];
-    for (let tier = TIERS; tier >= 1; tier--) {
+    const label = (title: string, what: string, sub: string) => `<span class="cx-label"><b>${esc(title)}</b>${what ? `<span class="hp-what">${cardTextHtml(what, undefined, true)}</span>` : ''}<small>${esc(sub)}</small></span>`;
+    const spineTo: { y: number; lit: boolean }[] = [];
+    // What the character knew from the start.
+    place(known.map((k) => ({ colour: k.colour, lit: true, html: (x, py) => `<button class="cx-pad owned ${k.on ? 'on' : ''}" style="left:${x / 10}%;top:${py}px;--bc:${k.colour}" ${k.arg ? `data-act="${act}" data-arg="${esc(k.arg)}"` : ''}><i class="cx-solder" aria-hidden="true"></i>${label(k.title, k.what, k.sub)}</button>` })));
+    spineTo.push({ y, lit: true });
+    for (let tier = 1; tier <= TIERS; tier++) {
       const reached = tier <= a.gates + 1;
-      const picks = tierPicks(tree, a, tier);
-      const state = tier === a.gates + 1 ? 'asc-current' : reached ? 'asc-passed' : 'asc-ahead';
-      bands.push(`<section class="asc-tier ${state}">
-        <header><b>${roman[tier - 1]} · ${esc(names[tier - 1] ?? '')}</b><small>${picks}/${TIER_PICKS}</small></header>
-        <div class="asc-nodes">${tree.filter((x) => x.tier === tier).map(node).join('')}</div>
-      </section>`);
-      if (tier > 1) {
-        // The gate below this tier: passed, open (the tier under it full), or shut.
-        const passed = a.gates >= tier - 1;
-        const why = passed ? null : a.gates === tier - 2 ? ascentProblem(tree, a, 'gate', left) : 'Reach the tier below first.';
-        const plan = passed && a.gates === tier - 1 && placed.has('gate');
-        bands.push(`<button class="asc-gate ${passed ? 'passed' : why ? 'shut' : 'open'} ${plan ? 'planned' : ''}" data-act="${passed ? '' : act}" data-arg="gate" ${passed || why ? 'aria-disabled="true"' : ''}>
-          <span class="asc-gate-arch" aria-hidden="true"></span><b>astral gate</b>
-          <small>${passed ? 'passed' : `+${GATE.attack} attack · +${GATE.stability * 2} stability · costs ${GATE.cost} more${why ? ` · ${esc(why.replace(/\.$/, '').toLowerCase())}` : ' · 1 point'}`}</small>
+      // The tier's name and picks, across the spine at its foot.
+      extra.push(`<span class="cx-tier ${tier === a.gates + 1 ? 'asc-current' : reached ? '' : 'cx-ahead'}" style="top:${y - 30}px"><b>${roman[tier - 1]} · ${esc(names[tier - 1] ?? '')}</b><small>${tierPicks(tree, a, tier)}/${TIER_PICKS}</small></span>`);
+      y -= HEAD;
+      place(
+        tiers[tier - 1].map((x) => {
+          const owned = a.nodes.includes(x.id);
+          const look = describe(x, owned);
+          const why = owned ? null : ascentProblem(tree, a, x.id, left);
+          const plan = owned && placed.has(x.id);
+          const sub = owned ? look.owned || 'learnt' : why ? why.replace(/\.$/, '').toLowerCase() : '1 point';
+          return {
+            colour: look.colour,
+            lit: owned,
+            html: (px, py) => `<button class="cx-pad ${owned ? 'owned' : ''} ${plan ? 'planned' : ''} ${!owned && !why ? 'afford' : ''} ${!owned && why ? 'locked' : ''} ${look.on ? 'on' : ''} ${reached ? '' : 'cx-ahead'}" style="left:${px / 10}%;top:${py}px;--bc:${look.colour}" data-act="${act}" data-arg="${esc(x.id)}" aria-label="${esc(look.title)}"><i class="cx-solder" aria-hidden="true"></i>${label(look.title, look.what, sub)}</button>`,
+          };
+        }),
+      );
+      spineTo.push({ y, lit: reached });
+      if (tier < TIERS) {
+        // The Astral Gate: a chip on the spine, pins either side; passed, it glows gold.
+        const passed = a.gates >= tier;
+        const why = passed ? null : a.gates === tier - 1 ? ascentProblem(tree, a, 'gate', left) : 'Reach the tier below first.';
+        const plan = passed && a.gates === tier && placed.has('gate');
+        const gy = y - GATE / 2;
+        extra.push(`<button class="cx-gate ${passed ? 'passed' : why ? 'shut' : 'open'} ${plan ? 'planned' : ''}" style="top:${gy}px" ${passed || why ? 'aria-disabled="true"' : `data-act="${act}" data-arg="gate"`}>
+          <span class="cx-chip" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="cx-label"><b>astral gate</b><small>${passed ? 'passed' : `+${GATE_GIFT.attack} attack · +${GATE_GIFT.stability * 2} stability · costs ${GATE_GIFT.cost} more · ${why ? esc(why.replace(/\.$/, '').toLowerCase()) : '1 point'}`}</small></span>
         </button>`);
+        y -= GATE;
+        spineTo.push({ y, lit: passed });
       }
     }
-    const knownRow = known.length
-      ? `<section class="asc-known"><header><b>known</b></header><div class="asc-nodes">${known
-          .map((k) => `<button class="asc-node owned ${k.on ? 'on' : ''}" style="--bc:${k.colour}" ${k.arg ? `data-act="${act}" data-arg="${esc(k.arg)}"` : ''}><i class="asc-mote" aria-hidden="true"></i><b>${esc(k.title)}</b><span class="hp-what">${cardTextHtml(k.what, undefined, true)}</span><small>${esc(k.sub)}</small></button>`)
-          .join('')}</div></section>`
-      : '';
-    return `<div class="hp-scroll asc">${bands.join('')}${knownRow}</div>`;
+    // The spine: from the emblem up, lit as far as the character has climbed.
+    let from = rootY - 30;
+    for (const seg of spineTo) {
+      traces.unshift(`<path class="spine ${seg.lit ? 'lit' : ''}" d="M${SPINE} ${from} V${seg.y}"/>`);
+      from = seg.y;
+    }
+    traces.push(`<path class="spine" d="M${SPINE} ${from} V${TOP}"/>`);
+    return `<div class="hp-scroll cx">
+      <div class="cx-sheet" style="height:${H}px">
+        <svg class="cx-lines" viewBox="0 0 1000 ${H}" preserveAspectRatio="none" aria-hidden="true">${traces.join('')}${litTraces.join('')}</svg>
+        <span class="cx-root" style="top:${rootY}px" aria-hidden="true"><i></i></span>
+        ${extra.join('')}
+        ${pads.map((p) => p.html).join('')}
+      </div>
+    </div>`;
   }
 
   /** The Captain's ship as the map draws it: the parts fitted for this run (and their rarities), and the Captain's level. */

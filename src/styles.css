@@ -7585,44 +7585,62 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .card.card-full .card-glyph .art-frame { display: block; height: 100%; overflow: hidden; -webkit-clip-path: inset(0 round calc(var(--cw) * 0.08)); clip-path: inset(0 round calc(var(--cw) * 0.08)); }
 .card.card-full.card-costed .card-glyph .cost-dots { top: calc(var(--cw) * 0.07); left: calc(var(--cw) * 0.065); }
 
-/* ---------- Tier trees [direction: upgrades grouped into tiers, an Astral Gate between each; scrolling up to the higher
-   tiers]: the known at the foot, each tier above the last, its upgrades in a row, its picks counted ---------- */
-.hp-scroll.asc { display: flex; flex-direction: column; gap: 6px; padding: 12px 10px 20px; }
-.asc-tier, .asc-known { display: grid; gap: 8px; padding: 10px 12px 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.55); box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.08); transition: opacity 0.3s; }
-.asc-tier > header, .asc-known > header { display: flex; justify-content: space-between; align-items: baseline; }
-.asc-tier > header b, .asc-known > header b { font-family: var(--display); font-weight: 400; font-size: 0.66rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink); }
-.asc-tier > header small { font-size: 0.7rem; color: var(--ink-soft); }
-.asc-tier.asc-current { box-shadow: 0 0 0 1.5px rgba(111, 143, 216, 0.6), 0 8px 24px rgba(80, 100, 160, 0.12); background: rgba(255, 255, 255, 0.8); }
-.asc-tier.asc-ahead { opacity: 0.5; }
-.asc-known { background: transparent; box-shadow: none; }
-.asc-nodes { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.asc-node { position: relative; display: grid; align-content: start; gap: 2px; padding: 8px 10px 8px 26px; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px rgba(58, 66, 86, 0.1); text-align: left; cursor: var(--cur-pointer); transition: transform 0.15s, box-shadow 0.15s; }
-.asc-node b { font-family: var(--display); font-weight: 400; font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); }
-.asc-node .hp-what { font-size: 0.68rem; line-height: 1.3; color: var(--ink-soft); }
-.asc-node .hp-what .kw-ico { width: 11px; height: 11px; }
-.asc-node small { font-size: 0.6rem; letter-spacing: 0.06em; color: var(--ink-soft); }
-.asc-mote { position: absolute; left: 10px; top: 11px; width: 9px; height: 9px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px var(--bc); }
-.asc-node.owned .asc-mote { background: var(--bc); box-shadow: 0 0 0 1.5px var(--bc), 0 0 8px var(--bc); }
-.asc-node.owned { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bc) 55%, transparent); }
-.asc-node.on { box-shadow: 0 0 0 2px var(--bc), 0 0 12px color-mix(in srgb, var(--bc) 40%, transparent); }
-.asc-node.planned .asc-mote { animation: asc-plan 1.2s ease-in-out infinite; }
-.asc-node.locked { opacity: 0.55; cursor: default; }
-.asc-node.afford small { color: #3a7a55; }
-@media (hover: hover) { .asc-node.afford:hover, .asc-node.owned:hover { transform: translateY(-1px); } }
-@keyframes asc-plan { 50% { box-shadow: 0 0 0 1.5px var(--bc), 0 0 14px var(--bc); } }
-/* The Astral Gate between two tiers: an arch of light, open once the tier below is full. */
-.asc-gate { display: grid; justify-items: center; gap: 1px; margin: 2px auto; padding: 6px 18px 8px; border: 0; border-radius: 999px; background: transparent; cursor: default; text-align: center; }
-.asc-gate b { font-family: var(--display); font-weight: 400; font-size: 0.62rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-soft); }
-.asc-gate small { font-size: 0.64rem; color: var(--ink-soft); }
-.asc-gate-arch { width: 34px; height: 20px; border: 2px solid #b9c3dc; border-bottom: 0; border-radius: 18px 18px 0 0; }
-.asc-gate.open { cursor: var(--cur-pointer); background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1.5px rgba(111, 143, 216, 0.7), 0 0 18px rgba(111, 143, 216, 0.35); }
-.asc-gate.open b { color: #3d5aa8; }
-.asc-gate.open .asc-gate-arch { border-color: #6f8fd8; box-shadow: 0 -4px 14px rgba(111, 143, 216, 0.6); animation: asc-gate 2.2s ease-in-out infinite; }
-.asc-gate.passed .asc-gate-arch { border-color: #e2c26a; box-shadow: 0 -3px 10px rgba(226, 194, 106, 0.6); }
-.asc-gate.passed b { color: #9a7a2a; }
-.asc-gate.shut { opacity: 0.5; }
-@keyframes asc-gate { 50% { box-shadow: 0 -6px 20px rgba(111, 143, 216, 0.9); } }
-@media (prefers-reduced-motion: reduce) { .asc-gate.open .asc-gate-arch, .asc-node.planned .asc-mote { animation: none; } }
+/* ---------- Tier trees as circuitry [direction: the skill tree more like circuitry, matching the theme of the cards; no
+   boxes]: a board with the cards' faint traces, a spine trace up from the emblem, each upgrade a solder pad on a bent
+   trace with its label beside it, each Astral Gate a chip on the spine ---------- */
+.hp-scroll.cx { padding: 0 10px; }
+.cx-sheet { position: relative; width: min(1000px, 100%); margin: 0 auto; container-type: inline-size; }
+.cx-sheet::before { content: ''; position: absolute; inset: 0; background: var(--circuit-dwarf); background-size: 340px auto; opacity: 0.35; pointer-events: none; -webkit-mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
+.cx-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.cx-lines path { fill: none; stroke: rgba(120, 132, 160, 0.38); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.cx-lines path.spine { stroke-width: 3.5; stroke: rgba(120, 132, 160, 0.3); }
+.cx-lines path.lit { stroke: var(--bc, #6f8fd8); filter: drop-shadow(0 0 3px var(--bc, #6f8fd8)); }
+.cx-lines path.spine.lit { stroke: #d8b65a; filter: drop-shadow(0 0 4px rgba(226, 194, 106, 0.8)); }
+.cx-lines circle.via { fill: #f4f6fa; stroke: rgba(120, 132, 160, 0.5); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.cx-lines circle.via.lit { fill: var(--bc); stroke: var(--bc); }
+/* The pad: a solder ring (the trace leaves it downward), its label to the right. */
+.cx-pad { position: absolute; z-index: 1; display: flex; align-items: flex-start; gap: 10px; width: 21%; margin: -9px 0 0 -9px; padding: 0; border: 0; background: none; text-align: left; cursor: var(--cur-pointer); }
+.cx-solder { flex: none; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #f4f6fa 0 3px, transparent 3.5px), #c4ccdb; box-shadow: 0 0 0 1.5px rgba(120, 132, 160, 0.6); transition: box-shadow 0.2s, background 0.2s; }
+.cx-pad.afford .cx-solder { background: radial-gradient(circle, #fff 0 3px, transparent 3.5px), color-mix(in srgb, var(--bc) 45%, #fff); box-shadow: 0 0 0 1.5px var(--bc); }
+.cx-pad.owned .cx-solder { background: radial-gradient(circle, #fff 0 2.5px, transparent 3px), var(--bc); box-shadow: 0 0 0 1.5px var(--bc), 0 0 10px var(--bc); }
+.cx-pad.on .cx-solder { box-shadow: 0 0 0 2.5px #fff, 0 0 0 4px var(--bc), 0 0 14px var(--bc); }
+.cx-pad.planned .cx-solder { animation: cx-plan 1.2s ease-in-out infinite; }
+.cx-pad.locked, .cx-pad.cx-ahead { cursor: default; }
+.cx-pad.locked .cx-label, .cx-pad.cx-ahead { opacity: 0.5; }
+.cx-label { display: grid; gap: 1px; min-width: 0; padding-top: 1px; }
+.cx-label b { font-family: var(--display); font-weight: 400; font-size: 0.64rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink); }
+.cx-label .hp-what { font-size: 0.68rem; line-height: 1.3; color: var(--ink-soft); }
+.cx-label .hp-what .kw-ico { width: 11px; height: 11px; }
+.cx-label small { font-size: 0.6rem; letter-spacing: 0.06em; color: var(--ink-soft); }
+.cx-pad.afford small { color: #3a7a55; }
+@media (hover: hover) { .cx-pad.afford:hover .cx-solder, .cx-pad.owned:hover .cx-solder { transform: scale(1.12); } }
+@keyframes cx-plan { 50% { box-shadow: 0 0 0 1.5px var(--bc), 0 0 18px var(--bc); } }
+/* A tier's name: silkscreen lettering across the spine. */
+.cx-tier { position: absolute; left: 50%; z-index: 1; display: flex; gap: 10px; align-items: baseline; padding: 2px 10px; transform: translateX(-50%); background: var(--bg, #eef1f6); border-radius: 4px; white-space: nowrap; }
+.cx-tier b { font-family: var(--display); font-weight: 400; font-size: 0.62rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-soft); }
+.cx-tier small { font-size: 0.64rem; color: var(--ink-soft); }
+.cx-tier.asc-current b { color: var(--ink); }
+.cx-tier.cx-ahead { opacity: 0.5; }
+/* The Astral Gate: a chip on the spine, legs either side; its label to the right. */
+.cx-gate { position: absolute; left: 50%; z-index: 1; display: flex; align-items: center; gap: 14px; margin: 0; padding: 0; border: 0; background: none; transform: translate(-22px, -50%); text-align: left; cursor: default; }
+.cx-chip { position: relative; flex: none; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; width: 44px; height: 30px; border-radius: 4px; background: linear-gradient(180deg, #4a5268, #353b4c); box-shadow: 0 0 0 1px #2a2f3d, 0 2px 6px rgba(30, 36, 52, 0.3); }
+.cx-chip::after { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; border-radius: 50%; transform: translate(-50%, -50%); background: #7d869e; }
+.cx-chip i { position: absolute; width: 4px; height: 6px; background: #a9b2c6; border-radius: 1px; }
+.cx-chip i:nth-child(1) { left: 7px; top: -6px; } .cx-chip i:nth-child(2) { left: 20px; top: -6px; } .cx-chip i:nth-child(3) { left: 33px; top: -6px; }
+.cx-chip i:nth-child(4) { left: 7px; bottom: -6px; } .cx-chip i:nth-child(5) { left: 20px; bottom: -6px; } .cx-chip i:nth-child(6) { left: 33px; bottom: -6px; }
+.cx-gate .cx-label { max-width: 300px; }
+.cx-gate.open { cursor: var(--cur-pointer); }
+.cx-gate.open .cx-chip::after { background: #8fb0ff; box-shadow: 0 0 10px #6f8fd8; animation: cx-gate 2.2s ease-in-out infinite; }
+.cx-gate.open .cx-chip i { background: #8fb0ff; }
+.cx-gate.open b { color: #3d5aa8; }
+.cx-gate.passed .cx-chip::after { background: #f4dc8a; box-shadow: 0 0 10px #e2c26a; }
+.cx-gate.passed .cx-chip i { background: #e2c26a; }
+.cx-gate.passed b { color: #9a7a2a; }
+.cx-gate.shut .cx-label { opacity: 0.5; }
+@keyframes cx-gate { 50% { box-shadow: 0 0 18px #6f8fd8, 0 0 4px #fff; } }
+/* The emblem's socket, where the spine begins. */
+.cx-root { position: absolute; left: 50%; width: 40px; height: 40px; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, #f4dc8a 0 8px, #d8b65a 9px 11px, transparent 12px), #353b4c; box-shadow: 0 0 0 2px #d8b65a, 0 0 18px rgba(226, 194, 106, 0.6); }
+@media (prefers-reduced-motion: reduce) { .cx-gate.open .cx-chip::after, .cx-pad.planned .cx-solder { animation: none; } }
 /* A character past an Astral Gate [direction: visual treatment only]: their card's rim glows, brighter a gate. */
 .card.card-ascended-1 { box-shadow: 0 0 0 1.5px #c9b36a, 0 0 10px rgba(226, 194, 106, 0.45); }
 .card.card-ascended-2 { box-shadow: 0 0 0 2px #e2c26a, 0 0 16px rgba(226, 194, 106, 0.6); }
