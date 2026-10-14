@@ -1,0 +1,27 @@
+# The C# engine (unity/Assets/Scripts/Engine) checked against the TypeScript one: games recorded from the TS engine,
+# replayed in C#, every state after every move the same.
+name: C# engine
+
+on:
+  push:
+    paths: ['src/engine/**', 'unity/Assets/Scripts/Engine/**', 'unity/Assets/Resources/Engine/**', 'engine-cs/**', 'scripts/record-battles.ts', 'scripts/export-engine.ts', '.github/workflows/engine-cs.yml']
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Card data up to date
+        run: npm run export-engine && git diff --exit-code unity/Assets/Resources/Engine
+      - name: Record battles
+        run: GAMES=80 npm run record-battles
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Replay in C#
+        run: dotnet run --project engine-cs/Tests

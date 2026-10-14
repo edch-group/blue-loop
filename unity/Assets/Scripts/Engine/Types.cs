@@ -10,7 +10,8 @@ namespace BlueLoop.Engine
     {
         public string Of;
         public string Kind;
-        public int? Per;
+        /// <summary>A divisor (a relic's Starfall counts each rested card twice: 0.5).</summary>
+        public double? Per;
         public int? Race;
         public string Sub;
         public string Planet;
