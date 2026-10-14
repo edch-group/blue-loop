@@ -356,6 +356,95 @@ public class BuilderView : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// A seat's deck as a small deck box (app.ts deckBoxMini, quickplay's and online's): `bw` across (the web's 133.4),
+    /// its button's top-left at (x, y); the front 0.72 as wide as tall, its lid and right side `bw` × 0.08 deep, the
+    /// cover (68% across) in its middle with a ring of its colour; picked (`on`), lifted 7.25 in a soft slate halo with
+    /// a tick on its front, else faded to 72%; its name beneath (12.1, spaced 0.1em). `act` null: not a button.
+    /// </summary>
+    public static RectTransform DeckBoxMini(RectTransform parent, float x, float y, Decks.Saved d, bool on, System.Action act, float bw = 133.4f, bool big = false)
+    {
+        float bh = bw / 0.72f, depth = bw * 0.08f, lift = on ? 7.25f : 0;
+        var cell = Hud.Rect(parent, d.Name);
+        Hud.Place(cell, x, y, bw, bh + 8.7f + 15);
+        var dc = DeckColour(d.Cards);
+        var box = Hud.Rect(cell, "Box");
+        Hud.Place(box, 0, -lift, bw, bh);
+        if (!on && !big) box.gameObject.AddComponent<CanvasGroup>().alpha = 0.72f;
+        // Its lid and right side (slanted faces behind the front: the lid sheared right, the side up), then the front.
+        Face(box, "Lid", new[] { new Vector2(0, bh), new Vector2(bw, bh), new Vector2(bw + depth, bh + depth), new Vector2(depth, bh + depth) },
+            Mix(dc, 0.14f, Hex("#7a8498")), Mix(dc, 0.14f, Hex("#9aa3b5")));
+        var side = Face(box, "Side", new[] { new Vector2(bw, 0), new Vector2(bw + depth, depth), new Vector2(bw + depth, bh + depth), new Vector2(bw, bh) }, Color.white, Color.white);
+        side.Colours[0] = side.Colours[3] = Mix(dc, 0.12f, Hex("#434b5b"));
+        side.Colours[1] = side.Colours[2] = Mix(dc, 0.08f, Hex("#343a47"));
+        // (The front's slate, lit from its top left and darker at its foot: the web's 160° gradient, its highlight
+        // and its inset shade, at its four corners.)
+        Color c1 = Mix(dc, 0.24f, Hex("#6b7588")), c2 = Mix(dc, 0.14f, Hex("#4b5466"));
+        var front = Face(box, "Front", new[] { Vector2.zero, new Vector2(bw, 0), new Vector2(bw, bh), new Vector2(0, bh) }, Color.white, Color.white);
+        front.Colours[3] = Color.Lerp(c1, Color.white, 0.12f);
+        front.Colours[2] = Color.Lerp(Color.Lerp(c1, c2, 0.3f), Color.white, 0.06f);
+        front.Colours[0] = Color.Lerp(c2, Hex("#141822"), 0.12f);
+        front.Colours[1] = Color.Lerp(c2, Hex("#141822"), 0.14f);
+        var drop = new Hud.Drop(Hud.Rgba(40, 44, 60, 0.25f), 20.3f, 34.8f);
+        // (Picked: the halo round it too.)
+        if (on) Hud.Shadow(front, 4, drop, new Hud.Drop(Hud.Rgba(93, 106, 140, 0.28f), 0, 7.25f, 1.4f));
+        else Hud.Shadow(front, 4, drop);
+        Outline(front.transform, Mix(dc, 0.25f, Hex("#7a8498")), 1);
+        if (act != null)
+        {
+            front.raycastTarget = true;
+            front.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); act(); });
+        }
+        // A band of its colour just under the lid, and a thin printed frame 6% inside the edge.
+        var band = Hud.Rect(front.transform, "Band");
+        Hud.Place(band, 0, bh * 0.022f, bw, bh * 0.01f);
+        band.gameObject.AddComponent<Image>().color = Mix(dc, 0.75f, Color.white);
+        var frame = Hud.Rect(front.transform, "Frame");
+        Hud.Fill(frame);
+        frame.offsetMin = new Vector2(bw * 0.06f, bh * 0.06f);
+        frame.offsetMax = -frame.offsetMin;
+        Outline(frame, new Color(1, 1, 1, 0.16f), 1);
+        // The cover: white under it, a ring of its colour, a shadow.
+        // (A big box, as the deck lists show it, has its cover higher, its name and races under it on the front.)
+        float cs = bw * (big ? 0.72f : 0.68f);
+        var cover = Hud.Rect(front.transform, "Cover");
+        Hud.At(cover, new Vector2(0.5f, 1), new Vector2(0, -(big ? 0.424f : 0.5f) * bh), new Vector2(cs, cs));
+        cover.pivot = new Vector2(0.5f, 0.5f);
+        var ci = cover.gameObject.AddComponent<Image>();
+        ci.sprite = Hud.Circle;
+        ci.color = Color.white;
+        ci.raycastTarget = false;
+        Hud.Shadow(ci, cs / 2, new Hud.Drop(Mix(dc, 0.6f, Color.white), 0, 0, 2.2f), new Hud.Drop(Hud.Rgba(20, 24, 34, 0.4f), 4.3f, 11.6f));
+        var hero = d.Cover ?? CoverCard(d.Cards);
+        int? race = Campaign.MainRace(d.Cards);
+        if (hero != null) Portrait(cover, hero, cs);
+        else
+        {
+            var em = Hud.Rect(cover, "Emblem");
+            Hud.At(em, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(cs * 0.7f, cs * 0.7f));
+            var ei = em.gameObject.AddComponent<RawImage>();
+            ei.texture = Resources.Load<Texture2D>(race == null ? "Icons/collection-small" : $"Icons/faction-f{race.Value + 1}");
+            ei.raycastTarget = false;
+        }
+        if (on)
+        {
+            // (The tick: the app's ticked box, larger: 17% of the box across, 6% down and 7% in from its right.)
+            float t = Mathf.Max(21.75f, bw * 0.17f);
+            var tick = Hud.Box(front.transform, "Tick", Hex("#5d6a8c"), t * 0.28f);
+            Hud.Place((RectTransform)tick.transform, bw * 0.93f - t, bh * 0.06f, t, t);
+            Hud.Shadow(tick, t * 0.28f, new Hud.Drop(new Color(1, 1, 1, 0.7f), 0, 0, 1.4f));
+            Hud.Label(tick.transform, "✓", t * 0.72f, Color.white, false, 600, 0);
+        }
+        if (big)
+        {
+            var nm = Hud.Text(front.transform, d.Name.ToUpperInvariant(), bw * 0.08f, bh * 0.83f - 11, bw * 0.84f, 22, 16.7f, Color.white, true, 500, 14);
+            nm.textWrappingMode = TextWrappingModes.Normal;
+            Hud.Text(front.transform, RacesLabel(d.Cards).ToUpperInvariant(), bw * 0.05f, bh * 0.9f - 8, bw * 0.9f, 16, 13.5f, new Color(1, 1, 1, 0.85f), false, 500, 20);
+        }
+        else Hud.Text(cell, d.Name.ToUpperInvariant(), -10, bh + 8.7f, bw + 20, 15, 12.1f, on ? Look.Ink : Look.InkFaint, true, 400, 10);
+        return cell;
+    }
+
     /// <summary>A deck's cover: its most expensive Command card (by energy, then rarity, then name), if it has one (cover.ts).</summary>
     static string CoverCard(List<string> cards) => cards.Distinct().Select(Cards.Def).Where(c => c.Kind == "command")
         .OrderByDescending(c => Game.CardCost(c.Id)).ThenByDescending(c => Progression.CraftCost(c.Id)).ThenBy(c => c.Name, System.StringComparer.InvariantCultureIgnoreCase)
