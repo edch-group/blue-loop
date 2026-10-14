@@ -4,7 +4,7 @@ name: C# engine
 
 on:
   push:
-    paths: ['src/engine/**', 'unity/Assets/Scripts/Engine/**', 'unity/Assets/Resources/Engine/**', 'engine-cs/**', 'scripts/record-battles.ts', 'scripts/record-builds.ts', 'scripts/record-growth.ts', 'scripts/record-meta.ts', 'scripts/record-world.ts', 'scripts/record-runs.ts', 'scripts/export-engine.ts', '.github/workflows/engine-cs.yml']
+    paths: ['src/engine/**', 'unity/Assets/Scripts/Engine/**', 'unity/Assets/Resources/Engine/**', 'engine-cs/**', 'scripts/record-battles.ts', 'scripts/record-builds.ts', 'scripts/record-growth.ts', 'scripts/record-meta.ts', 'scripts/record-world.ts', 'scripts/record-runs.ts', 'scripts/record-models.ts', 'unity/Assets/Scripts/Models/**', 'src/ui/ship3d.ts', 'src/ui/captain-ship.ts', 'src/ui/captain-model.ts', 'src/ui/companion-models.ts', 'src/ui/nebula-geometry.ts', 'scripts/export-engine.ts', '.github/workflows/engine-cs.yml']
 
 jobs:
   parity:
@@ -19,7 +19,7 @@ jobs:
       - name: Card data up to date
         run: npm run export-engine && git diff --exit-code unity/Assets/Resources/Engine
       - name: Record battles, built cards, growth, world and meta
-        run: GAMES=80 npm run record-battles && npm run record-builds && npm run record-growth && npm run record-world && npm run record-meta && RUNS=36 npm run record-runs
+        run: GAMES=80 npm run record-battles && npm run record-builds && npm run record-growth && npm run record-world && npm run record-meta && RUNS=36 npm run record-runs && npm run record-models
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
