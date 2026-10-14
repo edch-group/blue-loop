@@ -3186,7 +3186,7 @@ button.cmp-turn { display: flex; align-items: baseline; gap: 6px; padding: 5px 1
 .tpile-hand b { margin-left: auto; color: var(--ink); font-weight: 700; font-size: 1.25em; letter-spacing: 0; }
 .tpile-empty { border-radius: calc(var(--tcw) * 0.07); border: 1px dashed rgba(140, 150, 175, 0.4); background: rgba(250, 251, 253, 0.6); }
 .tpile > b { position: relative; font-size: max(11px, calc(var(--pw) * 0.28)); font-weight: 700; }
-.tpile > small { position: relative; font-size: max(6px, calc(var(--pw) * 0.085)); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); }
+.tpile > small { position: relative; max-width: 92%; overflow: hidden; font-size: max(5px, calc(var(--pw) * 0.068)); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
 /* The discard pile lies face up: its top card, small, with the count on a badge. */
 .tpile-face { position: absolute; inset: 0; }
 .tpile .tpile-face > .card { --cw: var(--pw); position: absolute; inset: 0; width: auto !important; height: auto !important; min-width: 0; padding: 0 7% 6%; pointer-events: none; box-shadow: 0 4px 12px rgba(80, 84, 100, 0.18), 0 0 0 1.5px #fff; }
