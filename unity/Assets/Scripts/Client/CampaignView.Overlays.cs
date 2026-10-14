@@ -17,64 +17,103 @@ public partial class CampaignView
 
     void Top()
     {
+        const float Z = WebLook.Zoom;
         foreach (Transform c in top) Mats.Kill(c.gameObject);
         var me = Campaign.Player(state);
         var meta = LoadMeta();
-        var level = Meta.LevelFor(meta.Xp);
-        // You: your portrait, COMMANDER and your level, and how far into it.
-        var chip = Hud.Glass(top, "You", Color.white);
-        Hud.At((RectTransform)chip.transform, new Vector2(0, 1), new Vector2(18, -10), new Vector2(312, 62));
-        Portrait(chip.transform, me.Hero ?? Campaign.Flagship(state, state.PlayerId)?.General, new Vector2(6, 0), 50);
-        var who = Hud.Label(chip.transform, $"COMMANDER  <color=#{ColorUtility.ToHtmlStringRGB(Gold)}><size=85%>LEVEL {level.Level}</size></color>", 15, Look.Ink, true, 500, 14, TextAlignmentOptions.TopLeft);
-        who.margin = new Vector4(66, 12, 0, 0);
-        var bar = Hud.Rect(chip.transform, "Bar");
-        Hud.At(bar, new Vector2(0, 0), new Vector2(66, 14), new Vector2(222, 4));
-        var bi = bar.gameObject.AddComponent<Image>();
-        bi.sprite = Hud.Rounded;
-        bi.type = Image.Type.Sliced;
-        bi.color = new Color(0.88f, 0.89f, 0.92f);
-        var fill = Hud.Rect(bar, "Fill");
-        fill.anchorMin = Vector2.zero;
-        fill.anchorMax = new Vector2(Mathf.Clamp01((float)(level.Into / Mathf.Max(1, (float)level.Need))), 1);
-        fill.offsetMin = fill.offsetMax = Vector2.zero;
-        var fi = fill.gameObject.AddComponent<Image>();
-        fi.sprite = Hud.Rounded;
-        fi.type = Image.Type.Sliced;
-        fi.color = Gold;
+        // (The commander's experience in all: what is banked, and what this run has earned and not yet banked.)
+        var level = Meta.LevelFor(meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)));
+        // You (campaign.ts renderProfile, .cmp-profile): a white pill, your face ringed in white and gold, your name and
+        // level, and under them how far into it you are.
+        var chip = WebLook.Rounded(top, "You", Look.GlassStrong, 32);
+        chip.raycastTarget = true;
+        WebLook.Box(chip.rectTransform, 17, 9, 314, 64);
+        WebLook.Shadow(chip, 8 * Z, 30 * Z, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.13f), 32);
+        Face(chip.transform, me.Hero ?? Campaign.Flagship(state, state.PlayerId)?.General, 7 + 26, 6 + 26, 52, new Color32(0x1a, 0x1c, 0x2a, 255), (2 * Z, Color.white), (3 * Z, new Color(201 / 255f, 162 / 255f, 78 / 255f, 0.7f)));
+        string name = string.IsNullOrEmpty(Profile.Me.Name) ? "commander" : Profile.Me.Name.ToLowerInvariant();
+        var who = WebLook.Words(WebLook.Box(chip.transform, "Name", 71, 17, 120 * Z, 19), name.ToUpperInvariant(), 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
+        who.overflowMode = TextOverflowModes.Ellipsis;
+        float nameW = Mathf.Min(120 * Z, who.GetPreferredValues(who.text).x);
+        WebLook.Words(WebLook.Box(chip.transform, "Level", 71 + nameW + 8 * Z, 19, 80, 16), $"LEVEL {level.Level}", 0.56f * 16 * Z, 0.14f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
+        var bar = WebLook.Rounded(chip.transform, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.25f), 2 * Z);
+        WebLook.Box(bar.rectTransform, 71, 40, 222, 6);
+        float into = Mathf.Clamp01((float)level.Into / Mathf.Max(1, (float)level.Need));
+        if (into > 0)
+        {
+            var fill = WebLook.Rounded(bar.transform, "Fill", Color.white, 2 * Z);
+            WebLook.Box(fill.rectTransform, 0, 0, 222 * into, 6);
+            WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f1d48a"), true);
+        }
         // The story's word, under you.
         var scene = OverlayUp() ? null : state.Story.Queue.FirstOrDefault();
         if (scene != null && Shown(scene).Count > 0) Story(scene);
-        // Your purse: your sun's heat (it starts the next battle as the last left it), materials, petals.
+        // Your purse (.cmp-purse), centred: your sun's heat (it starts the next battle as the last left it), materials,
+        // petals; each its token and its count.
         var f = Campaign.Flagship(state, state.PlayerId);
         int heat = f?.Damage ?? 0;
         var purse = Hud.Rect(top, "Purse");
-        Hud.At(purse, new Vector2(0.5f, 1), new Vector2(0, -22), new Vector2(300, 40));
-        Purse(purse, 0, "☀", heat > 0 ? new Color(0.9f, 0.45f, 0.2f) : heat < 0 ? new Color(0.35f, 0.6f, 0.9f) : new Color(0.85f, 0.62f, 0.25f), heat.ToString());
-        Purse(purse, 1, "⬢", new Color(0.62f, 0.45f, 0.2f), me.Materials.ToString());
-        Purse(purse, 2, "◆", new Color(0.55f, 0.65f, 0.9f), state.Petals.ToString());
-        // Settings.
-        var gear = Hud.Glass(top, "Settings", Color.white);
-        Hud.At((RectTransform)gear.transform, new Vector2(1, 1), new Vector2(-18, -10), new Vector2(63, 63));
+        Hud.Fill(purse);
+        var items = new (string icon, float size, string n)[]
+        {
+            ($"sun-{(heat > 0 ? "hot" : heat < 0 ? "cold" : "warm")}", 27, heat.ToString()),
+            ("materials", 27, me.Materials.ToString()),
+            ("petal", 24, state.Petals.ToString()),
+        };
+        var counts = new TextMeshProUGUI[items.Length];
+        float total = 0;
+        for (int i = 0; i < items.Length; i++)
+        {
+            // (Orbitron at 600 is drawn at 700 on the web: the nearest heavier weight it has.)
+            counts[i] = WebLook.Words(Hud.Rect(purse, "Count"), items[i].n, 0.78f * 16 * Z, 0, Look.Ink, true, 700, TextAlignmentOptions.Left);
+            total += items[i].size + 4 * Z + counts[i].GetPreferredValues(items[i].n).x + (i > 0 ? 18 * Z : 0);
+        }
+        float x = 800 - total / 2;
+        for (int i = 0; i < items.Length; i++)
+        {
+            var (icon, size, n) = items[i];
+            var mark = WebLook.Centred(purse, icon, x + size / 2, 40.5f, size, size).gameObject.AddComponent<RawImage>();
+            mark.texture = Resources.Load<Texture2D>($"Icons/purse-{icon}");
+            mark.raycastTarget = false;
+            x += size + 4 * Z;
+            float w = counts[i].GetPreferredValues(n).x;
+            WebLook.Box((RectTransform)counts[i].transform, x, 30, w + 4, 22);
+            x += w + 18 * Z;
+        }
+        // Settings (.icon-btn): a white disc, its gear.
+        var gear = WebLook.Rounded(top, "Settings", Look.GlassStrong, 999);
+        gear.raycastTarget = true;
+        WebLook.Box(gear.rectTransform, 1519, 9, 64, 64);
+        WebLook.Shadow(gear, 2 * Z, 10 * Z, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.12f), 32);
         gear.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); Settings(); });
-        var ic = Hud.Rect(gear.transform, "Icon");
-        Hud.Fill(ic);
-        var raw = ic.gameObject.AddComponent<RawImage>();
+        var raw = WebLook.Centred(gear.transform, "Icon", 32, 32, 50, 50).gameObject.AddComponent<RawImage>();
         raw.texture = Resources.Load<Texture2D>("Icons/hud-settings");
         raw.raycastTarget = false;
     }
 
-    static void Purse(RectTransform purse, int i, string mark, Color c, string n)
+    /// <summary>
+    /// A face in a circle (.cmp-portrait): a card's art on its dark disc, centred at a point of its parent (from its
+    /// top left), ringed by box-shadow rings (each its outer reach and colour, innermost first).
+    /// </summary>
+    static RectTransform Face(Transform parent, string defId, float x, float y, float size, Color back, params (float reach, Color colour)[] rings)
     {
-        var r = Hud.Rect(purse, "Token");
-        Hud.At(r, new Vector2(0, 0.5f), new Vector2(i * 100, 0), new Vector2(96, 40));
-        var dot = Hud.Rect(r, "Mark");
-        Hud.At(dot, new Vector2(0, 0.5f), Vector2.zero, new Vector2(28, 28));
-        var di = dot.gameObject.AddComponent<Image>();
-        di.sprite = Hud.Circle;
-        di.color = new Color(0.12f, 0.13f, 0.2f);
-        Hud.Label(dot, mark, 15, c, false, 600, 0);
-        var t = Hud.Label(r, n, 18, Look.Ink, true, 500, 4, TextAlignmentOptions.Left);
-        t.margin = new Vector4(36, 0, 0, 0);
+        var face = WebLook.Centred(parent, "Face", x, y, size, size);
+        for (int i = rings.Length - 1; i >= 0; i--)
+        {
+            var ring = WebLook.Rounded(face, "Ring", rings[i].colour, 999);
+            Hud.Fill(ring.rectTransform);
+            ring.rectTransform.offsetMin = -Vector2.one * rings[i].reach;
+            ring.rectTransform.offsetMax = Vector2.one * rings[i].reach;
+        }
+        var disc = WebLook.Rounded(face, "Disc", back, 999);
+        Hud.Fill(disc.rectTransform);
+        disc.gameObject.AddComponent<Mask>().showMaskGraphic = true;
+        var pic = Hud.Rect(disc.transform, "Picture");
+        Hud.Fill(pic);
+        var raw = pic.gameObject.AddComponent<RawImage>();
+        raw.texture = defId != null ? EngineData.Art(defId) : null;
+        raw.enabled = raw.texture != null;
+        raw.raycastTarget = false;
+        return face;
     }
 
     /// <summary>A card's portrait in a circle (a hero, a speaker).</summary>
@@ -98,39 +137,47 @@ public partial class CampaignView
         raw.raycastTarget = false;
     }
 
-    /// <summary>A scene's word, a line at a time: who says it (their portrait and name), what they say, and on.</summary>
+    /// <summary>
+    /// A scene's word (campaign.ts renderStory, .cmp-guide), under you: one line, never a conversation (its first); the
+    /// speaker's portrait ringed in their colour, their name small over their words; × puts it away. Guidance, not a
+    /// gate: the game goes on round it.
+    /// </summary>
     void Story(StoryScene scene)
     {
-        var lines = Shown(scene);
-        storyLine = Mathf.Clamp(storyLine, 0, lines.Count - 1);
-        var line = lines[storyLine];
-        var bubble = Hud.Glass(top, "Story", Color.white);
-        var br = (RectTransform)bubble.transform;
-        var t = Hud.Label(br, line.Text, 16, Look.Ink, false, 400, 0, TextAlignmentOptions.TopLeft);
-        t.textWrappingMode = TextWrappingModes.Normal;
-        t.margin = new Vector4(82, 32, 66, 14);
-        var size = t.GetPreferredValues(line.Text, 476 - 148, 0);
-        Hud.At(br, new Vector2(0, 1), new Vector2(18, -86), new Vector2(476, Mathf.Max(100, size.y + 50)));
-        Portrait(br, line.Speaker?.Card, new Vector2(16, 0), 54);
-        string who = line.Speaker?.Card != null && CardData.TryGet(line.Speaker.Card, out var sd) ? sd.Name : line.Speaker?.Kind ?? "";
-        var k = Hud.Label(br, who.ToUpperInvariant(), 11, Look.InkFaint, true, 500, 22, TextAlignmentOptions.TopLeft);
-        k.margin = new Vector4(82, 14, 0, 0);
-        var next = Hud.Rect(br, "Next");
-        Hud.At(next, new Vector2(1, 0.5f), new Vector2(-14, 0), new Vector2(40, 40));
-        var ni = next.gameObject.AddComponent<Image>();
-        ni.sprite = Hud.Circle;
-        ni.color = new Color(0.94f, 0.94f, 0.96f);
-        Hud.Label(next, storyLine < lines.Count - 1 ? "›" : "×", 20, Look.InkSoft, false, 400, 0);
+        const float Z = WebLook.Zoom;
+        var line = Shown(scene)[0];
+        var sp = line.Speaker;
+        var faction = state.Factions.FirstOrDefault(x => x.Id == sp?.Faction);
+        string who = sp?.Card != null && CardData.TryGet(sp.Card, out var sd) ? sd.Name : sp?.Kind ?? "";
+        var ring = faction != null ? ColourOf(faction.Id) : Hex(NeutralHex);
+        var bubble = WebLook.Rounded(top, "Story", new Color(1, 1, 1, 0.92f), 18 * Z);
+        bubble.raycastTarget = true;
+        // (Padded 10 and 12; the face 34 across, 12 to the words; the button 30 across, 12 before it.)
+        float textW = 479 - 2 * 12 * Z - 34 * Z - 30 * Z - 2 * 12 * Z;
+        var words = WebLook.Words(Hud.Rect(bubble.transform, "Words"), line.Text, 0.8f * 16 * Z, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
+        words.textWrappingMode = TextWrappingModes.Normal;
+        float textH = words.GetPreferredValues(line.Text, textW, 0).y;
+        float bodyH = 16 + 2 * Z + textH;
+        float h = Mathf.Max(34 * Z, bodyH) + 2 * 10 * Z;
+        WebLook.Box(bubble.rectTransform, 17, 87, 479, h);
+        WebLook.Shadow(bubble, 8 * Z, 24 * Z, new Color(40 / 255f, 46 / 255f, 70 / 255f, 0.12f), 18 * Z);
+        Face(bubble.transform, sp?.Card, 12 * Z + 17 * Z, h / 2, 34 * Z, WebLook.Hex("#1a1f2a"), (2 * Z, ring));
+        float left = 12 * Z + 34 * Z + 12 * Z, top0 = (h - bodyH) / 2;
+        WebLook.Words(WebLook.Box(bubble.transform, "Who", left, top0, textW, 16), who.ToUpperInvariant(), 0.54f * 16 * Z, 0.14f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
+        WebLook.Box(words.rectTransform, left, top0 + 16 + 2 * Z, textW, textH + 4);
+        var next = WebLook.Rounded(bubble.transform, "Next", WebLook.Hex("#f3f2f8"), 999);
+        next.raycastTarget = true;
+        var nr = next.rectTransform;
+        nr.anchorMin = nr.anchorMax = nr.pivot = new Vector2(1, 0.5f);
+        nr.anchoredPosition = new Vector2(-12 * Z, 0);
+        nr.sizeDelta = new Vector2(30 * Z, 30 * Z);
+        WebLook.Words(nr, "×", 1.05f * 16 * Z, 0, Look.Ink, false, 400);
         next.gameObject.AddComponent<Button>().onClick.AddListener(() =>
         {
             Sound.Play("hover");
-            if (storyLine < lines.Count - 1) storyLine++;
-            else
-            {
-                storyLine = 0;
-                state = Campaign.Apply(state, new CampaignAction { Type = "readStory" });
-                Save(state);
-            }
+            storyLine = 0;
+            state = Campaign.Apply(state, new CampaignAction { Type = "readStory" });
+            Save(state);
             Refresh();
         });
     }
@@ -687,18 +734,128 @@ public partial class CampaignView
     float toastUntil;
     TextMeshProUGUI toastText;
 
+    /// <summary>
+    /// Why something can't be done (styles.css .toast): a slip of frosted glass at the top of the screen, sized to its
+    /// words (at most 440 across), the reason in plain soft ink.
+    /// </summary>
     void Toast(string text)
     {
+        const float Z = WebLook.Zoom;
         if (toastText == null)
         {
-            var t = Hud.Glass(hud.transform, "Toast", Look.GlassStrong, false);
-            Hud.At((RectTransform)t.transform, new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(760, 60));
-            toastText = Hud.Label(t.transform, "", 17, Look.Ink, false, 500, 0);
+            var t = WebLook.Rounded(hud.transform, "Toast", new Color(1, 1, 1, 0.86f), 12 * Z);
+            WebLook.Shadow(t, 8 * Z, 22 * Z, new Color(40 / 255f, 46 / 255f, 70 / 255f, 0.12f), 12 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.08f));
+            toastText = WebLook.Words(t.transform, "", 0.74f * 16 * Z, 0, Look.InkSoft, false, 400);
+            toastText.textWrappingMode = TextWrappingModes.Normal;
+            toastText.margin = new Vector4(16 * Z, 7 * Z, 16 * Z, 7 * Z);
         }
         toastText.text = text;
-        toastText.transform.parent.gameObject.SetActive(true);
+        var box = (RectTransform)toastText.transform.parent;
+        float w = Mathf.Min(440 * Z, toastText.GetPreferredValues(text).x + 32 * Z + 2);
+        float h = toastText.GetPreferredValues(text, w - 32 * Z, 0).y + 14 * Z;
+        box.anchorMin = box.anchorMax = box.pivot = new Vector2(0.5f, 1);
+        box.anchoredPosition = new Vector2(0, -14 * Z);
+        box.sizeDelta = new Vector2(w, h);
+        box.SetAsLastSibling();
+        box.gameObject.SetActive(true);
         toastUntil = Time.time + 3.5f;
         Invoke(nameof(HideToast), 3.6f);
+    }
+
+    /// <summary>
+    /// A banner over the map (app.ts showBanner, styles.css .turn-banner): its words large and widely spaced in the middle
+    /// of the screen on a soft white glow, closing in as they come, a fine line growing under them and a word beneath;
+    /// two seconds, and gone.
+    /// </summary>
+    void Banner(string text, string sub)
+    {
+        const float Z = WebLook.Zoom;
+        var v = Hud.Rect(hud.transform, "Banner");
+        Hud.Fill(v);
+        var group = v.gameObject.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = false;
+        group.alpha = 0;
+        var glow = WebLook.Centred(v, "Glow", 800, 500, 1600, 260 * Z).gameObject.AddComponent<RawImage>();
+        glow.texture = BannerGlow();
+        glow.raycastTarget = false;
+        var line = WebLook.Centred(v, "Line", 800, 500 + 2.4f * 16 * Z, 420 * Z, 1.5f).gameObject.AddComponent<RawImage>();
+        line.texture = BannerLine();
+        line.raycastTarget = false;
+        bool longer = text.Length > 12;
+        float size = (longer ? 2.6f : 3.4f) * 16 * Z;
+        var words = WebLook.Words(WebLook.Centred(v, "Words", 800, 500 - 6, 1600, size * 1.4f), text.ToUpperInvariant(), size, longer ? 0.34f : 0.5f, WebLook.Hex("#5b5f67"), true, 400);
+        var under = WebLook.Words(WebLook.Centred(v, "Sub", 800, 500 + size * 0.7f + 6 * Z, 1600, 24), sub.ToUpperInvariant(), 0.6f * 16 * Z, 0.4f, Look.InkSoft, true, 500);
+        v.gameObject.AddComponent<BannerLife>().Set(group, words, under, line.rectTransform, longer ? 0.34f : 0.5f);
+        Sound.Play("turn");
+    }
+
+    static Texture2D bannerGlow, bannerLine;
+
+    /// <summary>The banner's glow: an ellipse of near-white, solid to 45% of the way out, gone by 75%.</summary>
+    static Texture2D BannerGlow()
+    {
+        if (bannerGlow != null) return bannerGlow;
+        bannerGlow = new Texture2D(128, 64, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int y = 0; y < 64; y++)
+            for (int x = 0; x < 128; x++)
+            {
+                // (radial-gradient(ellipse 72% 60%): its radii 72% of the half width and 60% of the half height.)
+                float dx = (x + 0.5f - 64) / 64 / 0.72f, dy = (y + 0.5f - 32) / 32 / 0.6f, d = Mathf.Sqrt(dx * dx + dy * dy);
+                float a = d < 0.45f ? Mathf.Lerp(0.99f, 0.92f, d / 0.45f) : d < 0.75f ? Mathf.Lerp(0.92f, 0, (d - 0.45f) / 0.3f) : 0;
+                bannerGlow.SetPixel(x, y, new Color(250 / 255f, 250 / 255f, 248 / 255f, a));
+            }
+        bannerGlow.Apply();
+        return bannerGlow;
+    }
+
+    /// <summary>The line under the banner's words: grey in the middle, fading out to each end.</summary>
+    static Texture2D BannerLine()
+    {
+        if (bannerLine != null) return bannerLine;
+        bannerLine = new Texture2D(64, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        var grey = WebLook.Hex("#9ea1a8");
+        for (int x = 0; x < 64; x++) bannerLine.SetPixel(x, 0, new Color(grey.r, grey.g, grey.b, 1 - Mathf.Abs(x + 0.5f - 32) / 32));
+        bannerLine.Apply();
+        return bannerLine;
+    }
+
+    /// <summary>
+    /// A banner's two seconds (styles.css bannerLife, bannerText, bannerLine): in over the first 12%, held to 75%, out
+    /// by the end; its words closing from 0.9em apart; the line growing out from the middle; then gone.
+    /// </summary>
+    public class BannerLife : MonoBehaviour
+    {
+        CanvasGroup group;
+        TMP_Text words, sub;
+        RectTransform line;
+        float spacing, t0;
+
+        public void Set(CanvasGroup g, TMP_Text w, TMP_Text s, RectTransform l, float em)
+        {
+            group = g;
+            words = w;
+            sub = s;
+            line = l;
+            spacing = em;
+            t0 = Time.time;
+            Update();
+        }
+
+        void Update()
+        {
+            float t = Time.time - t0, k = t / 2;
+            if (k >= 1) { Mats.Kill(gameObject); return; }
+            group.alpha = k < 0.12f ? k / 0.12f : k < 0.75f ? 1 : 1 - (k - 0.75f) / 0.25f;
+            // (cubic-bezier(.2, .8, .2, 1): quick in, settling.)
+            float e = 1 - Mathf.Pow(1 - k, 3);
+            words.characterSpacing = Mathf.Lerp(0.9f, spacing, e) * 100;
+            words.alpha = Mathf.Clamp01(k / 0.3f);
+            float ks = Mathf.Clamp01((t - 0.1f) / 2);
+            sub.characterSpacing = Mathf.Lerp(0.9f, 0.4f, 1 - Mathf.Pow(1 - ks, 3)) * 100;
+            sub.alpha = Mathf.Clamp01(ks / 0.3f);
+            float kl = Mathf.Clamp01((t - 0.2f) / 1.6f);
+            line.localScale = new Vector3(1 - Mathf.Pow(1 - kl, 2), 1, 1);
+        }
     }
 
     void HideToast()

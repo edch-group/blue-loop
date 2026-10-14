@@ -112,18 +112,21 @@ public static class WebLook
         return b;
     }
 
-    /// <summary>A linear gradient down a rounded box (its top colour to its bottom), laid in it, held to its shape.</summary>
-    public static RawImage Fade(Image box, Color top, Color bottom)
+    /// <summary>
+    /// A linear gradient down a rounded box (its top colour to its bottom; or, across, its left to its right), laid in
+    /// it, held to its shape.
+    /// </summary>
+    public static RawImage Fade(Image box, Color from, Color to, bool across = false)
     {
         box.gameObject.AddComponent<Mask>().showMaskGraphic = true;
         var r = Hud.Rect(box.transform, "Gradient");
         Hud.Fill(r);
         var img = r.gameObject.AddComponent<RawImage>();
-        // (Its two pixels' middles at the box's top and foot: a straight blend between them.)
-        img.uvRect = new Rect(0, 0.25f, 1, 0.5f);
+        // (Its two pixels' middles at the box's two ends: a straight blend between them.)
+        img.uvRect = across ? new Rect(0.25f, 0, 0.5f, 1) : new Rect(0, 0.25f, 1, 0.5f);
         img.color = Color.white;
         img.raycastTarget = false;
-        r.gameObject.AddComponent<FadeColours>().Set(img, top, bottom);
+        r.gameObject.AddComponent<FadeColours>().Set(img, from, to, across);
         return img;
     }
 
@@ -132,10 +135,11 @@ public static class WebLook
     {
         Texture2D tex;
 
-        public void Set(RawImage img, Color top, Color bottom)
+        public void Set(RawImage img, Color from, Color to, bool across)
         {
-            tex = new Texture2D(1, 2, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-            tex.SetPixels(new[] { bottom, top });
+            tex = new Texture2D(across ? 2 : 1, across ? 1 : 2, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            // (Textures run up from their foot: down the box, its foot pixel first.)
+            tex.SetPixels(across ? new[] { from, to } : new[] { to, from });
             tex.Apply();
             img.texture = tex;
         }
@@ -213,6 +217,11 @@ public class WebShadow : MonoBehaviour
             ring.color = RingColour;
         }
         bool on = r.gameObject.activeInHierarchy && enabled;
+        // (Faded with its box when its box fades as a group.)
+        var group = GetComponent<CanvasGroup>();
+        float fade = group != null ? group.alpha : 1;
+        if (shadow != null) shadow.color = new Color(Colour.r, Colour.g, Colour.b, Colour.a * 0.8f * fade);
+        if (ring != null) ring.color = new Color(RingColour.r, RingColour.g, RingColour.b, RingColour.a * fade);
         foreach (var img in new[] { shadow, ring })
         {
             if (img == null) continue;

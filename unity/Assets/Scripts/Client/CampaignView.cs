@@ -658,7 +658,7 @@ public partial class CampaignView : MonoBehaviour
             var f = Campaign.Flagship(state, state.PlayerId);
             if (f != null) focus = focusGoal = Home(f.NodeId);
             distanceGoal = RestDist;
-            Toast($"Galaxy {state.Universe}: through the wormhole.");
+            Banner($"galaxy {state.Universe}", "through the wormhole");
         }
         if (action.Type != "endTurn" && action.Type != "aiStep" && MoveSpent()) Invoke(nameof(PassTime), 0.42f);
         return true;

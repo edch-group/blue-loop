@@ -143,7 +143,7 @@ public partial class CampaignView
         cine = "done";
         cineDone = Clock;
         Refresh();
-        Toast("galaxy 1 · reach the wormhole");
+        Banner("galaxy 1", "reach the wormhole");
     }
 
     // ---- The panels through the opening shot ----
@@ -164,8 +164,9 @@ public partial class CampaignView
 
     void HudFade(float now)
     {
-        if (cine != "done" || top == null) return;
-        float a = Mathf.Clamp01((now - cineDone) / 1f);
+        if (top == null || Cining) return;
+        // (Settled whole once the fade is over, however few frames it was drawn in.)
+        float a = cine == "done" ? Mathf.Clamp01((now - cineDone) / 1f) : 1;
         foreach (Transform c in top)
         {
             var g = c.GetComponent<CanvasGroup>();
