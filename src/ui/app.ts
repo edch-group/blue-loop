@@ -330,6 +330,9 @@ const PULSE_STEP = 720;
 /** Cards in hand: a small fan of three cards. */
 /** The gap between cards dealt into the opening hand (and between faded cards leaving the table). */
 const DEAL_STEP_MS = 110;
+/** A chilled card's mark [direction: a frost symbol, a snowflake, in the middle of chilled cards]: six arms, each branched. */
+const CHILL_MARK = `<span class="chill-mark" aria-hidden="true"><svg viewBox="-12 -12 24 24">${[0, 60, 120, 180, 240, 300].map((a) => `<g transform="rotate(${a})"><path d="M0 0V-10.5M0 -6.5l-2.6 -2.4M0 -6.5l2.6 -2.4M0 -3.2l-1.7 -1.5M0 -3.2l1.7 -1.5"/></g>`).join('')}</svg></span>`;
+
 /** A faded card's way out: the deal's flight (520ms), played backwards into the discard pile. */
 const FADE_OUT = { duration: 520, easing: 'cubic-bezier(.8,.2,.8,.2)', endOpacity: 0 };
 /** How long the pointer rests on a keyword before it explains itself. */
@@ -6308,7 +6311,7 @@ export class App {
     return `
       <button class="card kind-${def.kind}${race}${guard}${full} rarity-${def.rarity ?? 'dwarf'} ${opts.tableau ? 'card-table' : ''} ${opts.landscape ? 'card-landscape' : ''} ${state}${opts.targeted && !state.includes('card-choosable') ? ' card-targeted' : ''}${opts.tableau && c.frozen ? ' card-frozen' : ''}${opts.tableau && c.chill ? ' card-chilled' : ''}${opts.tableau && heroAblaze(c) ? ' card-ablaze' : ''}" ${opts.static ? '' : `data-uid="${c.uid}"`} data-card="${def.id}" ${c.growth ? `data-growth="${c.growth}"` : ''} ${extra} ${attrs} style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
-        ${growth}${resonance}${fusedTags}${stats}${actionTag}${opts.hand && me && hasPower(me, 'freeCards') && cardCost(c.defId) > 0 ? `<b class="card-discount" title="Costs 0 now (Zero-Point Core)">−${cardCost(c.defId)}</b>` : opts.hand && c.discount ? `<b class="card-discount" title="Costs ${handCost(c)} now (a Bargain)">−${c.discount}</b>` : ''}${opts.tableau && c.shields ? `<b class="card-shields" title="Shields: they take heat before its defence does, and fade at its owner's dawn">${symbolIcon('shield')}<span>${c.shields}</span></b>` : ''}
+        ${growth}${resonance}${fusedTags}${stats}${actionTag}${opts.tableau && c.chill ? CHILL_MARK : ''}${opts.hand && me && hasPower(me, 'freeCards') && cardCost(c.defId) > 0 ? `<b class="card-discount" title="Costs 0 now (Zero-Point Core)">−${cardCost(c.defId)}</b>` : opts.hand && c.discount ? `<b class="card-discount" title="Costs ${handCost(c)} now (a Bargain)">−${c.discount}</b>` : ''}${opts.tableau && c.shields ? `<b class="card-shields" title="Shields: they take heat before its defence does, and fade at its owner's dawn">${symbolIcon('shield')}<span>${c.shields}</span></b>` : ''}
         <div class="card-name">${esc(def.name.toLowerCase())}</div>
         <div class="card-text">${cardBodyHtml(this.shownDef(def, c), opts.option ?? c.choice, this.liveNumbers(c, opts))}${fusedText}</div>
         <div class="card-kind">${typeLine(def)}</div>
