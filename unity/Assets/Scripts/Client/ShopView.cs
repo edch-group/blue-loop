@@ -163,7 +163,7 @@ public class ShopView : MonoBehaviour, MenuView.IRedraw
         float doneH = 14 + 24;
         var f = menu.Setup(root, "shop", () => { opened = null; Draw(); }, false, doneH);
         float footY = f.FootTop + (f.FootH - f.FootPad) / 2;
-        K.Words(root, $"{PackName(openedKind)} booster", f.Left, footY - 7.5f, 300, 15, 12.8f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
+        K.Words(root, $"{PackName(openedKind)} booster", f.Left, footY - 8, 300, 16, 12.8f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
         float dw = Mathf.Max(160, K.BtnW("done", K.Kind.Primary, 10.56f, 0.24f, 24));
         K.Btn(root, "done", () => { opened = null; Draw(); }, f.Right - dw, footY - doneH / 2, K.Kind.Primary, dw, doneH, 10.56f, 0.24f);
 
