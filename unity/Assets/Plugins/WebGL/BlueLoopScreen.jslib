@@ -3,7 +3,7 @@
 mergeInto(LibraryManager.library, {
   // Screen pixels to a CSS pixel, as the page gives the game (index.html: the device's ratio, at most 2).
   BlueLoopPixelRatio: function () {
-    return Math.min(window.devicePixelRatio || 1, 2);
+    return window.devicePixelRatio || 1;
   },
 
   BlueLoopSafeInsets: function () {

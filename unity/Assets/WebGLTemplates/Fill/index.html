@@ -53,7 +53,7 @@
       productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
       productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
       matchWebGLToCanvasSize: true,
-      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      devicePixelRatio: window.devicePixelRatio || 1,
     }, (p) => { bar.style.width = `${Math.round(p * 100)}%`; })
       .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; })
       .catch((e) => { document.getElementById('loading').textContent = String(e); });

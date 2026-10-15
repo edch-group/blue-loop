@@ -86,7 +86,8 @@ public static class Pictures
     {
         Index();
         if (!list.TryGetValue(path, out var found) || !list.TryGetValue(alphaPath, out var shape)) return Fetch(path);
-        var t = new Texture2D(found.w, found.h, TextureFormat.RGBA32, true) { filterMode = FilterMode.Trilinear };
+        // (Leaning to its sharper sizes: a card's words stay crisp drawn small, as the web's are.)
+        var t = new Texture2D(found.w, found.h, TextureFormat.RGBA32, true) { filterMode = FilterMode.Trilinear, mipMapBias = -0.5f };
         t.SetPixels32(new Color32[found.w * found.h]);
         t.Apply(true);
         byte[] colour = null, alpha = null;
