@@ -143,12 +143,19 @@ public partial class BattleView
                     d.Beam = Beam.Make(beamLayer, Beam.Kind.Attack, 0.22f);
                     aimingUid = d.Uid;
                     Sound.Play("hover");
-                    Board.Sync(state, this);
+                    Board.Redress(state, this);
                 }
                 else
                 {
                     var view = Board.View(d.Uid);
-                    var ghost = Hud.Rect(hud.transform, "Drag ghost");
+                    // (In a layer of its own canvas, with its shadows: moved every frame, it would otherwise have the
+                    // whole HUD batched again each frame.)
+                    var layer = Hud.Rect(hud.transform, "Drag layer");
+                    Hud.Fill(layer);
+                    var own = layer.gameObject.AddComponent<Canvas>();
+                    own.overrideSorting = true;
+                    own.sortingOrder = 500;
+                    var ghost = Hud.Rect(layer, "Drag ghost");
                     ghost.anchorMin = ghost.anchorMax = new Vector2(0, 1);
                     ghost.pivot = new Vector2(0.5f, 0.5f);
                     ghost.sizeDelta = d.Size;
@@ -161,7 +168,7 @@ public partial class BattleView
                     var r = CardRect(d.Uid);
                     if (r != null && r.Value.width > 0) d.Offset *= d.Size.x / r.Value.width;
                     view?.Ghosted(true);
-                    Board.Sync(state, this);
+                    Board.Redress(state, this);
                     Sound.Play("hand-lift");
                 }
             }
@@ -208,7 +215,7 @@ public partial class BattleView
         if (over != aimOver)
         {
             aimOver = over;
-            Board.Sync(state, this);
+            Board.Redress(state, this);
         }
     }
 
@@ -253,7 +260,7 @@ public partial class BattleView
         dropSlot = slot;
         dropSun = sun;
         Board.MarkDrop(slot != int.MinValue ? slot : (int?)null);
-        Board.Sync(state, this);
+        Board.Redress(state, this);
     }
 
     /// <summary>The press let go.</summary>
@@ -267,7 +274,7 @@ public partial class BattleView
         {
             var drop = DropAt(Input.mousePosition);
             var page = Page(Input.mousePosition);
-            if (d.Ghost != null) Destroy(d.Ghost.gameObject);
+            if (d.Ghost != null) Destroy(d.Ghost.transform.parent.gameObject);
             if (d.Beam != null) Destroy(d.Beam.gameObject);
             Board.View(d.Uid)?.Ghosted(false);
             aimingUid = null;
@@ -322,7 +329,7 @@ public partial class BattleView
     {
         if (drag != null)
         {
-            if (drag.Ghost != null) Destroy(drag.Ghost.gameObject);
+            if (drag.Ghost != null) Destroy(drag.Ghost.transform.parent.gameObject);
             if (drag.Beam != null) Destroy(drag.Beam.gameObject);
             Board.View(drag.Uid)?.Ghosted(false);
         }
