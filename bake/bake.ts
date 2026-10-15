@@ -57,6 +57,11 @@ Object.assign(window, { piece });
 
 /** A menu icon on its own, as the hub draws it (`small`: as the header links do), or the title block. */
 function icon(name: string, size: number, small = false): void {
+  if (name === 'title-sun') {
+    // (The sun alone, with room all round for its glow.)
+    stage.innerHTML = `<main class="menu menu-title" style="display:block;min-height:0;background:none"><div class="title-block" id="piece" style="padding:240px"><div class="title-sun"></div></div></main>`;
+    return;
+  }
   if (name === 'title') {
     stage.innerHTML = `<main class="menu menu-title" style="display:block;min-height:0;background:none"><div class="title-block" id="piece" style="padding:240px 80px 40px">${'<div class="title-sun"></div><h1 class="title">blue loop</h1>'}</div></main>`;
     return;

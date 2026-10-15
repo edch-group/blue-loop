@@ -44,6 +44,7 @@ public class MenuView : MonoBehaviour
     }
 
     /// <summary>The campaign's own pages, still laid out at the 1600 × 1000 reference and fitted whole (Frame).</summary>
+    /// <summary>The campaign's own pages: each lays itself out again as the screen changes (its RefLayer).</summary>
     static bool Legacy(string name) => name == "campaign" || name == "stellari" || name == "captain" || name == "hangar";
 
     /// <summary>The page's own light: white at the top, settling to paper and a soft grey at the foot.</summary>
@@ -168,8 +169,6 @@ public class MenuView : MonoBehaviour
         current = name;
         laidSize = Css.Size;
         laidInsets = Css.SafeInsets;
-        // (The campaign's own pages: still at the 1600 × 1000 reference, drawn whole inside the safe area.)
-        if (Legacy(name)) Frame.Make(page, false);
         // (The campaign's page over its own scene: the land, the ship on it.)
         bool campaign = name == "campaign" || name == "captain" || name == "hangar";
         backdrop.SetActive(!campaign);

@@ -196,61 +196,15 @@ public static class MenuKit
         return content;
     }
 
-    /// <summary>
-    /// The pearl sun of the title (styles.css .title-sun): a disc lit from its upper left (#fff to #d9dee4) in a soft
-    /// white halo (0 0 70px 26px white, 0 0 120px 40px pale grey-blue), drawn once into a texture of its own. Its disc is
-    /// the middle third of the texture: placed at three times the sun's width.
-    /// </summary>
-    public static Texture2D Sun => sun ??= MakeSun();
-    static Texture2D sun;
-
-    static Texture2D MakeSun()
-    {
-        const int n = 384;
-        var t = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-        float r = n / 6f, c = n / 2f;
-        Color a0 = Color.white, a1 = Hud.Rgba(251, 252, 253), a2 = Hud.Rgba(228, 232, 237), a3 = Hud.Rgba(217, 222, 228);
-        // (The halo, in the sun's widths: white strong to 26/96 past its edge, then fading over 70; a grey-blue beyond.)
-        float px = 96f / (2 * r);
-        for (int y = 0; y < n; y++)
-            for (int x = 0; x < n; x++)
-            {
-                float dx = x + 0.5f - c, dy = y + 0.5f - c, d = Mathf.Sqrt(dx * dx + dy * dy);
-                Color col;
-                if (d <= r + 0.5f)
-                {
-                    // (Its light's middle at 40% across and 36% down: radial-gradient(circle at 40% 36%).)
-                    float lx = x + 0.5f - (c - r + 0.8f * r), ly = (n - y - 0.5f) - (c - r + 0.72f * r);
-                    float k = Mathf.Sqrt(lx * lx + ly * ly) / (r * 1.62f);
-                    col = k < 0.4f ? Color.Lerp(a0, a1, k / 0.4f) : k < 0.8f ? Color.Lerp(a1, a2, (k - 0.4f) / 0.4f) : Color.Lerp(a2, a3, Mathf.Clamp01((k - 0.8f) / 0.2f));
-                    col.a = Mathf.Clamp01(r + 0.5f - d);
-                    if (col.a < 1)
-                    {
-                        float g = Glow((d - r) * px);
-                        col = Color.Lerp(new Color(1, 1, 1, g), new Color(col.r, col.g, col.b, 1), col.a);
-                    }
-                }
-                else
-                {
-                    float g = Glow((d - r) * px);
-                    col = new Color(Mathf.Lerp(0.86f, 1, g), Mathf.Lerp(0.89f, 1, g), Mathf.Lerp(0.92f, 1, g), Mathf.Max(g * 0.95f, Halo((d - r) * px)));
-                }
-                t.SetPixel(x, y, col);
-            }
-        t.Apply();
-        return t;
-    }
-
-    static float Glow(float out_) => Mathf.Clamp01(1 - Mathf.Max(0, out_ - 26) / 50f) * 0.95f * Mathf.Clamp01(1 - out_ / 110f);
-    static float Halo(float out_) => 0.5f * Mathf.Clamp01(1 - Mathf.Max(0, out_ - 40) / 90f) * Mathf.Clamp01(1 - out_ / 160f);
-
     /// <summary>The sun at (x, y), `size` across (its halo spilling round it, never taking taps).</summary>
     public static RawImage SunAt(Transform parent, float x, float y, float size)
     {
+        // (The web's own sun, baked with its glow (Icons/title-sun: 1200 square, the disc 260 across at its middle).)
+        float s = size * 1200 / 260f;
         var r = Hud.Rect(parent, "Sun");
-        Hud.Place(r, x - size, y - size, size * 3, size * 3);
+        Hud.Place(r, x + size / 2 - s / 2, y + size / 2 - s / 2, s, s);
         var img = r.gameObject.AddComponent<RawImage>();
-        img.texture = Sun;
+        img.texture = Resources.Load<Texture2D>("Icons/title-sun");
         img.raycastTarget = false;
         return img;
     }
