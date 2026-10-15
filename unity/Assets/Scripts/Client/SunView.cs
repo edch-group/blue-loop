@@ -23,6 +23,8 @@ public class SunView : MonoBehaviour
     static readonly Color[] PlanetColours = { new Color(0.42f, 0.43f, 0.47f), new Color(0.27f, 0.62f, 0.5f), new Color(0.78f, 0.47f, 0.24f) };
 
     bool mine;
+    /// <summary>Whether it is the viewer's own sun.</summary>
+    public bool Mine => mine;
 
     public static SunView Make(Transform parent, Vector3 at, string playerId, bool mine = true)
     {
@@ -41,7 +43,7 @@ public class SunView : MonoBehaviour
         var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         sphere.name = "Star";
         sphere.transform.SetParent(transform, false);
-        sphere.transform.localScale = Vector3.one * Size;
+        sphere.transform.localScale = Vector3.one * 1.1f;
         star = sphere.GetComponent<Renderer>();
         star.sharedMaterial = Mats.Make("Sun");
         star.sharedMaterial.SetFloat("_Seed", PlayerId.GetHashCode() % 100);
@@ -49,25 +51,22 @@ public class SunView : MonoBehaviour
         gameObject.AddComponent<SunTag>().PlayerId = PlayerId;
 
         // Its corona, a soft glow on the table under it.
-        var glow = Mats.Flat("Corona", transform, Mats.Make("Soft", new Color(1f, 0.6f, 0.25f, 0.3f)), 2.2f, 2.2f, Floor);
+        var glow = Mats.Flat("Corona", transform, Mats.Make("Soft", new Color(1f, 0.6f, 0.25f, 0.3f)), 2.2f, 2.2f, -0.53f);
         glow.sharedMaterial.SetFloat("_Aspect", 1);
         glow.sharedMaterial.SetFloat("_Size", 0.12f);
         glow.sharedMaterial.SetFloat("_Radius", 0.12f);
         glow.sharedMaterial.SetFloat("_Soft", 0.12f);
         glow.sharedMaterial.renderQueue = 2960;
 
-        // Its rings (art.ts ringTracks, on a gauge 1.667 wide): the heat meter, a white track and the heat so far over
-        // it in the sun's own colour; outside it the shields', faint, and blue as far as its shields go.
-        track = Arc("Track", 0.667f, 0.037f, new Color(1, 1, 1, 0.75f));
-        meter = Arc("Meter", 0.667f, 0.037f, new Color(0.9f, 0.42f, 0.18f, 1));
-        shieldTrack = Arc("Shield track", 0.783f, 0.053f, new Color(150 / 255f, 164 / 255f, 190 / 255f, 0.22f));
-        shieldArc = Arc("Shield meter", 0.783f, 0.053f, new Color(109 / 255f, 140 / 255f, 194 / 255f, 1));
+        // The heat meter: a faint full ring, and the heat so far over it.
+        track = Arc("Track", 0.72f, 0.025f, new Color(0.62f, 0.64f, 0.7f, 0.45f));
+        meter = Arc("Meter", 0.72f, 0.05f, new Color(0.9f, 0.42f, 0.18f, 0.95f));
 
         // The planets' orbit, and the planets on it.
         orbit = new GameObject("Orbit").transform;
         orbit.SetParent(transform, false);
-        orbit.localPosition = new Vector3(0, Floor, 0);
-        var ring = Mats.Flat("Ring", orbit, Mats.Make("Soft", new Color(150 / 255f, 160 / 255f, 185 / 255f, 0.5f)), 2.17f, 2.17f);
+        orbit.localPosition = new Vector3(0, -0.53f, 0);
+        var ring = Mats.Flat("Ring", orbit, Mats.Make("Soft", new Color(0.55f, 0.58f, 0.66f, 0.5f)), 2.19f, 2.19f);
         ring.sharedMaterial.SetFloat("_Aspect", 1);
         ring.sharedMaterial.SetFloat("_Size", 0.43f);
         ring.sharedMaterial.SetFloat("_Radius", 0.43f);
@@ -88,86 +87,40 @@ public class SunView : MonoBehaviour
             planets.Add(p.transform);
         }
 
-        // Its figures, standing up over the sun to face the viewer (styles.css .vit-heat: 29 px, its most 13 px, in
-        // dark umber haloed white; white haloed blue when cold).
-        heat = Text("Heat", Board.Px(29), 700, 0);
-        most = Text("Most", Board.Px(13.05f), 700, 6);
-        // Under it, toward the table's middle (styles.css .vit-under): the planet it faces, in a white pill 58 × 23 px
-        // with a soft edge, and its shields beside, a hexagon 44 px across, faint at none.
-        float z = (mine ? Board.MyRowZ + 1.65f : Board.RowZ - 1.383f) - transform.localPosition.z;
-        float tx = -5.303f - transform.localPosition.x, sx = -4.674f - transform.localPosition.x, y = Floor;
-        pillY = y;
-        pillZ = z;
-        // (The pill and the hexagon a row, centred under the sun as the web's flex row: the pill as wide as its word.)
-        pillMid = (tx - 0.3335f + sx + 0.3125f) / 2;
-        planet = Mats.FlatText("Planet", transform, "", Board.Px(10.88f), Look.InkSoft, true, 700, 12);
-        planet.transform.localPosition = new Vector3(tx, y + 0.001f, z);
-        float hex = 0.5f * 1.25f;
-        shield = Board.Picture("Shields", transform, Resources.Load<Texture2D>("Icons/bt-hex"), Color.white, hex, hex, 3020, y);
-        shield.transform.localPosition = new Vector3(sx, y + 0.001f, z);
-        shieldBg = Board.Shape("Shields number", transform, Color.white, 0.16f, 0.15f, 0.04f, 3021, y, 0.012f, 0.03f);
-        shieldBg.transform.localPosition = new Vector3(sx, y + 0.0015f, z);
-        shieldN = Mats.FlatText("Shields count", transform, "0", Board.Px(12.18f), new Color(179 / 255f, 188 / 255f, 203 / 255f), true, 700, 0);
-        shieldN.transform.localPosition = new Vector3(sx, y + 0.002f, z);
-        SizePill("DEAD");
+        // Its figures, standing up over the sun to face the viewer.
+        heat = Text("Heat", 5f, Color.white, 700);
+        most = Text("Most", 2.3f, new Color(1, 1, 1, 0.92f), 500);
+        // Under it, toward the table's middle: the planet it faces, in a pill, and its shields beside.
+        float z = mine ? 1.51f : -1.52f;
+        var tag = Mats.Flat("Planet pill", transform, Mats.Make("Soft", Color.white), 0.7f, 0.28f, -0.53f);
+        tag.sharedMaterial.SetFloat("_Aspect", 0.28f / 0.7f);
+        tag.sharedMaterial.SetFloat("_Size", 0.48f);
+        tag.sharedMaterial.SetFloat("_Radius", 0.13f);
+        tag.sharedMaterial.SetFloat("_Soft", 0.01f);
+        tag.sharedMaterial.renderQueue = 3000;
+        tag.transform.localPosition = new Vector3(-0.26f, -0.53f, z);
+        var edge = Mats.Flat("Planet pill edge", transform, Mats.Make("Soft", new Color(0.7f, 0.72f, 0.78f, 0.7f)), 0.7f, 0.28f, -0.53f);
+        edge.sharedMaterial.SetFloat("_Aspect", 0.28f / 0.7f);
+        edge.sharedMaterial.SetFloat("_Size", 0.48f);
+        edge.sharedMaterial.SetFloat("_Radius", 0.13f);
+        edge.sharedMaterial.SetFloat("_Soft", 0.004f);
+        edge.sharedMaterial.SetFloat("_Ring", 1);
+        edge.sharedMaterial.renderQueue = 3001;
+        edge.transform.localPosition = new Vector3(-0.26f, -0.529f, z);
+        planet = Mats.FlatText("Planet", transform, "", 1.5f, Look.InkSoft, true, 500, 14);
+        planet.transform.localPosition = new Vector3(-0.26f, -0.52f, z);
+        shield = Mats.Flat("Shields", transform, Mats.Make("Card"), 0.42f, 0.47f, -0.52f);
+        shield.sharedMaterial.SetFloat("_Radius", 0);
+        shield.sharedMaterial.SetFloat("_Aspect", 0.47f / 0.42f);
+        shield.sharedMaterial.renderQueue = 3020;
+        shield.transform.localPosition = new Vector3(0.37f, -0.52f, z);
     }
 
-    float pillY, pillZ, pillMid;
-    string pillWord;
-    MeshRenderer pillShadow, pillTag, pillEdge;
-
-    /// <summary>
-    /// The planet's pill made to fit its word (styles.css .vit-planet-tag: its height, padded each side by a third of it
-    /// and its 2 px edge), the shields' hexagon 4 px after it, the two centred together under the sun.
-    /// </summary>
-    void SizePill(string word)
+    TextMeshPro Text(string name, float size, Color c, int weight)
     {
-        if (word == pillWord) return;
-        pillWord = word;
-        if (pillShadow != null) Mats.Kill(pillShadow.gameObject);
-        if (pillTag != null) Mats.Kill(pillTag.gameObject);
-        if (pillEdge != null) Mats.Kill(pillEdge.gameObject);
-        const float h = 0.267f, hexW = 0.625f, gap = -0.017f;
-        float w = Mathf.Max(h, planet.GetPreferredValues(word).x + 2 * (h * 0.3125f + 0.02f));
-        float left = pillMid - (w + gap + hexW) / 2, tx = left + w / 2, sx = left + w + gap + hexW / 2, y = pillY, z = pillZ;
-        pillShadow = Board.Shape("Planet pill shadow", transform, new Color(60 / 255f, 80 / 255f, 120 / 255f, 0.18f), w, h, h / 2, 2998, y, Board.Px(4) / 10, Board.Px(8) / 10);
-        pillShadow.transform.localPosition = new Vector3(tx, y, z - Board.Px(2) / 10);
-        pillTag = Board.Shape("Planet pill", transform, Color.white, w, h, h / 2, 3000, y);
-        pillTag.transform.localPosition = new Vector3(tx, y, z);
-        pillEdge = Board.Shape("Planet pill edge", transform, new Color(150 / 255f, 164 / 255f, 190 / 255f, 0.5f), w - 0.016f, h - 0.016f, h / 2, 3001, y, 0.007f, 0.01f, true);
-        pillEdge.transform.localPosition = new Vector3(tx, y + 0.0005f, z);
-        planet.transform.localPosition = new Vector3(tx, y + 0.001f, z);
-        shield.transform.localPosition = new Vector3(sx, y + 0.001f, z);
-        shieldBg.transform.localPosition = new Vector3(sx, y + 0.0015f, z);
-        shieldN.transform.localPosition = new Vector3(sx, y + 0.002f, z);
-    }
-
-    MeshRenderer shieldBg;
-    MeshFilter shieldTrack, shieldArc;
-
-    /// <summary>The sun's size, and how far below it the table lies (it rises out of the table as a dome, as the web's).</summary>
-    const float Size = 0.92f;
-    static float Floor => 0.02f - Board.MySun.y;
-
-    /// <summary>A CSS hsl() colour (hue in degrees, saturation and lightness in per cent).</summary>
-    static Color Hsl(float h, float s, float l)
-    {
-        s /= 100;
-        l /= 100;
-        float a = s * Mathf.Min(l, 1 - l);
-        float F(int n)
-        {
-            float k = (n + h / 30) % 12;
-            return l - a * Mathf.Max(-1, Mathf.Min(k - 3, Mathf.Min(9 - k, 1)));
-        }
-        return new Color(F(0), F(8), F(4));
-    }
-
-    TextMeshPro Text(string name, float size, int weight, float spacing)
-    {
-        var t = Mats.FlatText(name, transform, "", size, new Color(59 / 255f, 26 / 255f, 8 / 255f), true, weight, spacing);
-        t.outlineWidth = 0.22f;
-        t.outlineColor = new Color32(255, 250, 235, 235);
+        var t = Mats.FlatText(name, transform, "", size, c, true, weight, 0);
+        t.outlineWidth = 0.18f;
+        t.outlineColor = new Color32(120, 40, 10, 140);
         return t;
     }
 
@@ -175,7 +128,7 @@ public class SunView : MonoBehaviour
     {
         var go = new GameObject(name);
         go.transform.SetParent(transform, false);
-        go.transform.localPosition = new Vector3(0, Floor, 0);
+        go.transform.localPosition = new Vector3(0, -0.53f, 0);
         var f = go.AddComponent<MeshFilter>();
         var r = go.AddComponent<MeshRenderer>();
         r.sharedMaterial = Mats.Make("Soft", c);
@@ -214,6 +167,44 @@ public class SunView : MonoBehaviour
         return m;
     }
 
+    MeshRenderer pillTag, pillEdge;
+    float pillZ;
+    float? under;
+
+    /// <summary>How far the planet's pill lies from the sun's middle toward the table's (in the sun's own units).</summary>
+    public void Under(float z)
+    {
+        under = mine ? z : -z;
+        if (pillTag != null) FitPill();
+    }
+
+    /// <summary>
+    /// The planet's pill as wide as its word (ABUNDANT ran out over the shields), the shields' badge just after it,
+    /// the two centred together under the sun.
+    /// </summary>
+    void FitPill()
+    {
+        if (pillTag == null)
+        {
+            pillTag = transform.Find("Planet pill").GetComponent<MeshRenderer>();
+            pillEdge = transform.Find("Planet pill edge").GetComponent<MeshRenderer>();
+            pillZ = planet.transform.localPosition.z;
+        }
+        if (under != null) pillZ = under.Value;
+        const float h = 0.28f, gap = 0.07f, badge = 0.42f;
+        float w = Mathf.Max(0.7f, planet.GetPreferredValues(planet.text).x + 0.22f);
+        float left = -(w + gap + badge) / 2, x = left + w / 2;
+        foreach (var r in new[] { pillTag, pillEdge })
+        {
+            r.transform.localScale = new Vector3(w, h, 1);
+            r.sharedMaterial.SetFloat("_Aspect", h / w);
+            r.sharedMaterial.SetFloat("_Radius", 0.13f * 0.7f / w);
+            r.transform.localPosition = new Vector3(x, r.transform.localPosition.y, pillZ);
+        }
+        planet.transform.localPosition = new Vector3(x, planet.transform.localPosition.y, pillZ);
+        shield.transform.localPosition = new Vector3(left + w + gap + badge / 2, shield.transform.localPosition.y, pillZ);
+    }
+
     public void Show(GameState s, PlayerState p)
     {
         int max = Game.SupernovaThreshold(p);
@@ -223,59 +214,32 @@ public class SunView : MonoBehaviour
         most.text = $"/{max}";
         var ad = track.GetComponent<ArcData>();
         track.mesh = ArcMesh(ad.Radius, ad.Width, 0.999f);
-        // (art.ts vitals: the meter's colour runs pale gold to amber to deep red toward supernova; icy blue when cold.)
-        float t = Mathf.Clamp01(p.Heat / (float)max), chill = p.Heat < 0 ? Mathf.Min(1, p.Heat / (float)Balance.MinHeat) : 0;
-        var rim = chill > 0 ? Hsl(205, Mathf.Lerp(40, 70, chill), Mathf.Lerp(80, 62, chill)) : Hsl(Mathf.Lerp(46, 4, t), Mathf.Lerp(90, 88, t), Mathf.Lerp(60, 42, t));
         var md = meter.GetComponent<ArcData>();
-        float fill = chill > 0 ? chill : t;
-        meter.gameObject.SetActive(fill > 0);
-        meter.mesh = ArcMesh(md.Radius, md.Width, Mathf.Max(0.01f, fill));
-        meter.GetComponent<MeshRenderer>().sharedMaterial.color = rim;
-        var sd = shieldTrack.GetComponent<ArcData>();
-        shieldTrack.mesh = ArcMesh(sd.Radius, sd.Width, 0.999f);
-        shieldArc.gameObject.SetActive(p.Shields > 0);
-        shieldArc.mesh = ArcMesh(sd.Radius, sd.Width, Mathf.Max(0.01f, Mathf.Min(1, p.Shields / (float)Balance.MaxKeptShields)));
+        meter.mesh = ArcMesh(md.Radius, md.Width, Mathf.Max(0.01f, Mathf.Clamp01(p.Heat / (float)max)));
+        meter.GetComponent<MeshRenderer>().sharedMaterial.color = p.Heat < 0 ? new Color(0.3f, 0.55f, 0.9f, 0.95f) : new Color(0.9f, 0.42f, 0.18f, 0.95f);
         var now = Game.CurrentPlanet(p, s);
         planet.text = now.ToUpperInvariant();
-        SizePill(planet.text);
+        FitPill();
         int at = System.Array.IndexOf(PlanetNames, now);
         // (The planet it faces turns to the front.)
         orbitGoal = at < 0 ? orbitGoal : -90 - at * 120;
         for (int i = 0; i < planets.Count; i++) planets[i].localScale = Vector3.one * (i == at ? 0.27f : 0.21f);
-        // (Shields up: the hexagon in shield blue, solid; none: pale grey, faint.)
-        bool up = p.Shields > 0;
-        float o = up ? 1 : 0.35f;
-        shield.sharedMaterial.mainTexture = Resources.Load<Texture2D>(up ? "Icons/bt-hex-up" : "Icons/bt-hex");
-        shield.sharedMaterial.color = new Color(1, 1, 1, o);
-        shieldBg.sharedMaterial.color = up ? new Color(224 / 255f, 234 / 255f, 246 / 255f, o) : new Color(1, 1, 1, o);
-        shieldN.text = p.Shields.ToString();
-        shieldN.color = up ? new Color(61 / 255f, 127 / 255f, 196 / 255f, o) : new Color(179 / 255f, 188 / 255f, 203 / 255f, o);
-        // (Its heat in umber haloed white; below zero, white haloed deep blue.)
-        bool cold = p.Heat < 0;
-        heat.color = most.color = cold ? Color.white : new Color(59 / 255f, 26 / 255f, 8 / 255f);
-        most.alpha = 0.8f;
-        heat.outlineColor = most.outlineColor = cold ? new Color32(10, 28, 72, 235) : new Color32(255, 250, 235, 235);
+        shield.gameObject.SetActive(p.Shields > 0);
+        if (p.Shields > 0) shield.sharedMaterial.mainTexture = Faces.Badge("def", p.Shields);
         _ = share;
     }
 
     /// <summary>Its figures turned to the viewer, over the sun's face.</summary>
     public void Face(Camera cam)
     {
-        // (As the web's: over the sun's place on the table, its heat 0.32 card widths tall a little above the
-        // middle, its most under it, both drawn nearer the eye along the line of sight, so they stand in front of the
-        // sun yet look where the web's are.)
-        var eye = cam.transform.position;
-        var f = cam.transform.forward;
-        var u = cam.transform.up;
-        var at = transform.position - transform.up * transform.localPosition.y;
-        const float k = 0.75f;
-        var near = eye + (at - eye) * k;
+        // (In the sun's own units: it is drawn at the web's size for the screen.)
+        var c = transform.position;
+        float k = transform.lossyScale.x;
+        var f = cam.transform.forward * k;
+        var u = cam.transform.up * k;
         heat.transform.rotation = most.transform.rotation = cam.transform.rotation;
-        heat.transform.position = near + u * 0.107f * k;
-        most.transform.position = near - u * 0.124f * k;
-        heat.fontSize = 3.16f * k;
-        most.fontSize = 1.45f * k;
-        _ = f;
+        heat.transform.position = c - f * 0.62f + u * 0.08f;
+        most.transform.position = c - f * 0.62f - u * 0.26f;
     }
 
     float pulseAge = -1, pulseDelay;
@@ -296,8 +260,8 @@ public class SunView : MonoBehaviour
             pulseAge += Time.deltaTime;
             float t = Mathf.Clamp01((pulseAge - pulseDelay) / 0.5f);
             float bump = t > 0 ? Mathf.Sin(Mathf.PI * t) * (1 - t * 0.3f) : 0;
-            star.transform.localScale = Vector3.one * Size * (1 + (pulseHot ? 0.16f : -0.08f) * bump);
-            if (pulseAge - pulseDelay > 0.5f) { pulseAge = -1; star.transform.localScale = Vector3.one * Size; }
+            star.transform.localScale = Vector3.one * 1.1f * (1 + (pulseHot ? 0.16f : -0.08f) * bump);
+            if (pulseAge - pulseDelay > 0.5f) { pulseAge = -1; star.transform.localScale = Vector3.one * 1.1f; }
         }
         orbitTurn = Mathf.LerpAngle(orbitTurn, orbitGoal, 1 - Mathf.Exp(-Time.deltaTime * 4));
         orbit.localRotation = Quaternion.Euler(0, orbitTurn, 0);

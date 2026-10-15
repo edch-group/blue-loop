@@ -74,7 +74,7 @@ public partial class BattleView
         if (!online || hud == null) return;
         if (onlineLayer == null)
         {
-            onlineLayer = Hud.Rect(hud.transform, "Online");
+            onlineLayer = Hud.Rect(Layer, "Online");
             Hud.Fill(onlineLayer);
         }
         foreach (Transform c in onlineLayer) Mats.Kill(c.gameObject);
@@ -160,7 +160,7 @@ public partial class BattleView
     /// <summary>Quitting an online game loses it: concede and leave, or keep playing.</summary>
     void OnlineQuit()
     {
-        sheet = Hud.Sheet(hud.transform, "quit game", new[]
+        sheet = Hud.Sheet(Layer, "quit game", new[]
         {
             new Hud.Row("concede and leave", () => { CloseSheet(); Online.ConcedeAndLeave(you); }, null, true),
             new Hud.Row("keep playing", CloseSheet),
