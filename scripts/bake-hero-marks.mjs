@@ -25,6 +25,21 @@ for (const [kind, atk] of [...kinds.map((k) => [k, false]), ['guns', true]]) {
   const el = await page.$('#stage > div');
   writeFileSync(`${dir}/${atk ? 'attack' : kind}.png`, await el.screenshot({ type: 'png', omitBackground: true }));
 }
-console.log(`${kinds.length + 1} marks`);
+// A Hero's boons beside it (heroRail, .boon-mark), the same symbols, to Icons/boon/.
+mkdirSync('unity/Assets/Resources/Icons/boon', { recursive: true });
+for (const kind of kinds) {
+  await page.evaluate((k) => window.boonMark(k), kind);
+  const el = await page.$('#stage > div');
+  writeFileSync(`unity/Assets/Resources/Icons/boon/${kind}.png`, await el.screenshot({ type: 'png', omitBackground: true }));
+}
+// What a relic's power does over its badge (relicActionMark, .relic-action) to Icons/relic-action/: none for a power
+// with no plain mark.
+mkdirSync('unity/Assets/Resources/Icons/relic-action', { recursive: true });
+for (const kind of kinds.filter((k) => k !== 'star')) {
+  await page.evaluate((k) => window.relicAction(k), kind);
+  const el = await page.$('#stage > div.cmp-relic');
+  writeFileSync(`unity/Assets/Resources/Icons/relic-action/${kind}.png`, await el.screenshot({ type: 'png', omitBackground: true }));
+}
+console.log(`${kinds.length + 1} marks, ${kinds.length} boons, ${kinds.length - 1} relic actions`);
 await browser.close();
 await server.close();

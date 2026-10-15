@@ -58,24 +58,24 @@ public partial class BattleView
     /// Your Hero, tapped on your day (app.ts renderHeroPanel, .stage.stage-hero): in the stage's place, its card, and to
     /// its left (12 px off) its picks, each a pill: its singularity first (charged, a blazing dark pill to unleash it;
     /// charging, how far it has to go), its abilities (a mark with what it does and how much, its name, its energy and
-    /// other costs, what it does or why not today), and its attack. A tap anywhere else puts them away.
+    /// other costs, what it does or why not today), and its attack. A tap anywhere else puts them away, and goes on to do
+    /// what it does there (EmblemsTick); a tap on the Hero again only puts them away (app.ts 'hero-panel' toggles).
     /// </summary>
     void ShowHero()
     {
         foreach (Transform c in heroPanel) Mats.Kill(c.gameObject);
         var hero = Game.CommandCard(Me);
         if (hero == null || !MyDay) return;
+        // (This very press put them away: the Hero tapped again.)
+        if (heroShutPress == press) return;
+        relicPanel = null;
+        emblemsKey = null;
+        Sound.Play("hover");
         if (heroPanel.parent != hud.transform) heroPanel.SetParent(hud.transform, false);
         heroPanel.SetAsLastSibling();
         heroPanel.gameObject.SetActive(true);
         Hud.Fill(heroPanel);
         heroPanel.localScale = Vector3.one;
-        var away = heroPanel.gameObject.GetComponent<Image>() ?? heroPanel.gameObject.AddComponent<Image>();
-        away.color = new Color(1, 1, 1, 0.001f);
-        var ab = heroPanel.gameObject.GetComponent<Button>() ?? heroPanel.gameObject.AddComponent<Button>();
-        ab.transition = Selectable.Transition.None;
-        ab.onClick.RemoveAllListeners();
-        ab.onClick.AddListener(() => { heroPanel.gameObject.SetActive(false); stageKey = null; Refresh(); });
 
         var picks = new List<Pick>();
         var k = Singularities.Of(hero.DefId);
@@ -151,9 +151,10 @@ public partial class BattleView
             else WebLook.Shadow(pill, 6, 16, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.18f), ph / 2, 1.5f, p.Attack ? new Color(214 / 255f, 96 / 255f, 70 / 255f, 0.6f) : new Color(212 / 255f, 165 / 255f, 42 / 255f, 0.6f));
             var group = pill.gameObject.AddComponent<CanvasGroup>();
             group.alpha = p.Off ? 0.6f : 1;
+            // (Every pill is the picks' own: a tap on one not usable today does not put them away.)
+            pill.raycastTarget = true;
             if (!p.Off)
             {
-                pill.raycastTarget = true;
                 var b = pill.gameObject.AddComponent<Button>();
                 var cb = b.colors;
                 cb.highlightedColor = dark ? new Color(1.1f, 1.1f, 1.2f) : new Color(1f, 0.965f, 0.886f);

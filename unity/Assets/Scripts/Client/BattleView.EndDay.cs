@@ -79,7 +79,7 @@ public partial class BattleView
     bool CanAutoEnd() =>
         state != null && state.WinnerId == null && MyDay && !online && Dawn == null && pending == null && attacker == null
         && stage == null && sheet == null && landing == null && drag == null && attackDrag == null && discarding == null
-        && (heroPanel == null || !heroPanel.gameObject.activeSelf) && !inspector.gameObject.activeSelf
+        && (heroPanel == null || !heroPanel.gameObject.activeSelf) && relicPanel == null && !inspector.gameObject.activeSelf
         && Time.time >= dayFrom && Time.time >= bannerFree && hud.transform.Find("Banner") == null && LeftUndone().Count == 0;
 
     /// <summary>Each frame: Enter, and the day ending by itself once settled for a moment.</summary>

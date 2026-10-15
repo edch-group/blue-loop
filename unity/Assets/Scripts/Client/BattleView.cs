@@ -1199,6 +1199,7 @@ public partial class BattleView : MonoBehaviour
         DrawStage();
         PaceShown();
         SyncBossAim();
+        Emblems();
     }
 
     void Reaction()
