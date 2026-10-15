@@ -273,6 +273,51 @@ public class CampaignBackdrop : MonoBehaviour
     /// rest on it (base3d.ts shipScreen: never as it sways, nor as the camera moves to a section), as fractions of the
     /// screen from its top left; null if behind the camera.
     /// </summary>
+    Matrix4x4 capNow = Matrix4x4.identity;
+
+    /// <summary>Where a section is on the ship (base3d.ts spot): the Captain's chest, one of the crew's, the research bay, the hull.</summary>
+    Vector3 Spot(string zone)
+    {
+        if (zone == "captain") return capNow.MultiplyPoint(B(20, 12, 30));
+        if (zone == "research") return shipNow.MultiplyPoint(B(5.5, 12, 12));
+        if (zone != "hangar") return crewM.TryGetValue(zone, out var m) ? m.MultiplyPoint(B(20, 12, zone == "engineer" ? 20 : zone == "shade" || zone == "seer" ? 22 : 28)) : capNow.MultiplyPoint(B(20, 12, 30));
+        return shipNow.MultiplyPoint(B(17, 12, 5));
+    }
+
+    /// <summary>
+    /// The section under a point of the screen (base3d.ts zoneAt; pixels, from its bottom left), if any: within its reach
+    /// round its spot as the ship's camera sees it (the hull's a wide, flat ellipse), the smallest winning.
+    /// </summary>
+    public string ZoneAt(Vector2 p)
+    {
+        if (ship == null || shipCam == null || !shipModel.gameObject.activeInHierarchy) return null;
+        string best = null;
+        float bestK = 1;
+        var zones = new List<string> { "captain" };
+        zones.AddRange(crew.Select(c => c.id));
+        zones.Add("research");
+        zones.Add("hangar");
+        foreach (var z in zones)
+        {
+            float reach = z == "research" ? 0.38f : z == "hangar" ? 1.9f : 0.32f;
+            var spot = Spot(z);
+            var c = shipCam.WorldToScreenPoint(ship.TransformPoint(spot));
+            var e = shipCam.WorldToScreenPoint(ship.TransformPoint(spot - new Vector3(0, reach, 0)));
+            if (c.z <= 0 || e.z <= 0) continue;
+            float r = Mathf.Abs(e.y - c.y);
+            if (r < 1e-3f) continue;
+            float k = Vector2.Distance(p, c) / r;
+            float flat = z == "hangar" ? Mathf.Sqrt(Mathf.Pow((p.x - c.x) / (r * 2.6f), 2) + Mathf.Pow((p.y - c.y) / (r * 0.75f), 2)) : k;
+            if (flat < bestK)
+            {
+                bestK = flat;
+                best = z;
+                if (z != "hangar") break;
+            }
+        }
+        return best;
+    }
+
     public Vector2? ShipViewport(float x, float y, float z)
     {
         float aspect = Mathf.Max(0.3f, ui != null ? ui.aspect : 1.6f), half = Mathf.Tan(16 * Mathf.Deg2Rad);
@@ -476,6 +521,7 @@ public class CampaignBackdrop : MonoBehaviour
         var foot = B(20, 12, 0);
         // (Four fifths the size his old figure stood.)
         var capM = shipM * T(at) * RY(1.3f) * S(0.8f * 0.7f / SS) * T(new Vector3(-foot.x, 0, -foot.z));
+        capNow = capM;
         Place(captain, capM);
         if (captain.gameObject.activeSelf) Stand(t);
         // The companions, each in their place: on the near rail, over the sensor dish, or flying alongside.

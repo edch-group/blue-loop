@@ -1029,6 +1029,12 @@ public partial class CampaignView
         tr.T = go.transform;
         tr.M = go.GetComponent<MeshRenderer>().sharedMaterial;
         tr.M.SetFloat("_Flip", -1);
+        // (An army's hull can be tapped (campaign.ts .cmp-ship-hull, cmp-army): its box round it; a rival come alongside is no army.)
+        if (!tr.Id.StartsWith("rival:"))
+        {
+            go.AddComponent<BoxCollider>();
+            go.AddComponent<ShipTag>().Id = tr.Id;
+        }
         tr.Engines = model.Engines.Select(e => new Vector3((float)e.X, (float)e.Y, (float)e.Z)).ToList();
         tr.Smoke = (model.Smoke ?? new List<BlueLoop.Models.V3>()).Select(e => new Vector3((float)e.X, (float)e.Y, (float)e.Z)).ToList();
         var suns = model.Suns ?? new List<BlueLoop.Models.CarriedSun>();
@@ -1315,6 +1321,7 @@ public partial class CampaignView
         AnimateUnder(time);
         AnimateStellari(time);
         AnimateShips(time);
+        AnimateOrbits(time);
         PlaceDarkness();
     }
 }
