@@ -222,6 +222,14 @@ public static class Account
 
     static UnityEngine.Coroutine timer;
     static bool pushing, again;
+
+    // Changes waiting go before the game is left (account.ts: on pagehide, and the page hidden), as far as it allows:
+    // sent at once rather than after the push's delay.
+    static Account()
+    {
+        PageLife.Watch();
+        PageLife.Leaving += () => Flush(() => { });
+    }
     /// <summary>Told when another device's newer progress has replaced this one's.</summary>
     public static event System.Action Replaced;
 
@@ -345,6 +353,45 @@ public static class Account
             if (updated < a.Updated || !saved) Schedule(0);
             done?.Invoke(false);
         });
+    }
+
+    // ---- Anonymous game summaries ----
+
+    const string ShareStatsKey = "blue-loop:share-stats";
+
+    /// <summary>Whether anonymous game summaries are sent (on unless switched off in the settings).</summary>
+    public static bool SharingStats => Store.Get(ShareStatsKey) != "0";
+
+    /// <summary>
+    /// A finished game's anonymous summary (BattleView.Stats: the decks, the result, the cards played; nothing about the
+    /// players), sent for balancing unless switched off (account.ts sendGameStats). The game's moves go gzipped, as
+    /// base64 (a few kilobytes), for training the AI. Never in the way: a failure is just dropped.
+    /// </summary>
+    public static void SendGameStats(JObject stats)
+    {
+        if (!SharingStats || !SignedIn || !Net.Available) return;
+        var o = (JObject)stats.DeepClone();
+        var trace = o["trace"];
+        o.Remove("trace");
+        if (trace != null)
+        {
+            try { o["trace64"] = Gzip64(trace.ToString(Newtonsoft.Json.Formatting.None)); }
+            catch { /* (Not compressed: sent without it.) */ }
+        }
+        // (The game's version: the web's is its package's and its build day, __GAME_VERSION__; the build script sets this the same.)
+        Net.Api("stats", "POST", new JObject { ["stats"] = o, ["version"] = UnityEngine.Application.version }, _ => { });
+    }
+
+    /// <summary>Text, gzipped, as base64.</summary>
+    static string Gzip64(string text)
+    {
+        using var mem = new System.IO.MemoryStream();
+        using (var gz = new System.IO.Compression.GZipStream(mem, System.IO.Compression.CompressionMode.Compress))
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+            gz.Write(bytes, 0, bytes.Length);
+        }
+        return System.Convert.ToBase64String(mem.ToArray());
     }
 
     /// <summary>What a reward came to, for under a game's result (app.ts rewardLine).</summary>

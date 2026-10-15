@@ -51,8 +51,6 @@ public static class Online
     public static string WaitFor;
     /// <summary>What the game just over earned you, for under its result.</summary>
     public static string ResultExtra = "";
-    /// <summary>The card the rival played last (null: set face down), for you to read.</summary>
-    public static string LastPlayed;
     /// <summary>The deck you play online (by name; unset: the first on offer).</summary>
     public static string DeckName;
     /// <summary>Something changed: the page or the battle showing it redraws.</summary>
@@ -172,7 +170,15 @@ public static class Online
         Lobby = null;
         ResultExtra = "";
         Client = new Room(room, JoinInfo());
+        // (The page's address becomes the room's link, so a reload comes straight back into it: app.ts goOnline.)
+        PageLife.ReplaceUrl(InviteLink(room));
         Change();
+    }
+
+    /// <summary>Your name changed: in a room's lobby, the room hears of it (app.ts: the seat's name, once typed).</summary>
+    public static void NameChanged()
+    {
+        if (Client != null && battle == null) Client.Setup(JoinInfo());
     }
 
     public static void Leave()
@@ -187,7 +193,19 @@ public static class Online
         RivalOnline = true;
         WaitFor = null;
         battle = null;
+        // (Out of the room: its link off the page's address.)
+        StripInvite();
         Change();
+    }
+
+    /// <summary>app.ts leaveOnline: the page's address back to the game's own, the room's link taken off it.</summary>
+    static void StripInvite()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        var url = UnityEngine.Application.absoluteURL ?? "";
+        int q = url.IndexOf('?');
+        if (q >= 0 && url.IndexOf("room=", q) >= 0) PageLife.ReplaceUrl(url.Substring(0, q));
+#endif
     }
 
     public static void Ready()
@@ -264,7 +282,6 @@ public static class Online
                 var state = Json.Read<GameState>(msg["state"].ToString());
                 var last = msg["last"] != null && msg["last"].Type != JTokenType.Null ? Json.Read<LastMove>(msg["last"].ToString()) : null;
                 WaitFor = (string)msg["waitFor"];
-                if (last?.Action?.Type == "playCard") LastPlayed = last.FaceDown == true ? null : last.Played;
                 Ranked = (bool?)msg["ranked"] ?? false;
                 var you = (string)msg["you"];
                 // A new game (or this device's first sight of one): to the board.
@@ -413,8 +430,9 @@ public static class Online
     // ---- The ranked ladder ----
 
     /// <summary>
-    /// Queue for a ranked match (online.ts LadderClient): a WebSocket to /ladder; once a rival within a tier of you is
-    /// found, both go to a room made for you. Ranked play keeps your rank on your account: sign in first.
+    /// Queue for a ranked match (online.ts LadderClient): a WebSocket to /ladder, queued in the mode played (app.ts
+    /// playMode, as quickplay's); once a rival within a tier of you is found, both go to a room made for you. Ranked play
+    /// keeps your rank on your account: sign in first.
     /// </summary>
     public static void FindRanked(System.Action signIn)
     {
@@ -442,7 +460,7 @@ public static class Online
         public Ladder(System.Action signIn)
         {
             ws = new NetSocket(Net.Socket("/ladder"));
-            ws.Opened = () => ws.Send(new JObject { ["t"] = "queue", ["id"] = Profile.Me.Id, ["name"] = (string)JoinInfo()["name"], ["mode"] = Modes.ModeOf(Deck()) }.ToString(Newtonsoft.Json.Formatting.None));
+            ws.Opened = () => ws.Send(new JObject { ["t"] = "queue", ["id"] = Profile.Me.Id, ["name"] = (string)JoinInfo()["name"], ["mode"] = MenuView.PlayMode }.ToString(Newtonsoft.Json.Formatting.None));
             ws.Received = raw =>
             {
                 JObject msg;

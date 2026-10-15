@@ -79,6 +79,7 @@ public partial class BattleView : MonoBehaviour
         // (As the web's quickplay: you under your profile's name, the AI under a bot's name picked at random.)
         string myName = string.IsNullOrEmpty(Profile.Me?.Name) ? "Commander" : Profile.Me.Name;
         string botName = BotNames[(seed * 13 + 5) % BotNames.Length];
+        statsRec = null;
         state = Game.Create(new GameSetup
         {
             Seed = seed,
@@ -108,7 +109,7 @@ public partial class BattleView : MonoBehaviour
     {
         campaignOf = from;
         Load(game);
-        Sound.Scene(game.Players.Any(p => p.Boss != null) ? "boss" : "battle");
+        Sound.Scene(game.Players.Any(p => p.Boss != null) ? "boss" : "battle", Reversed);
         // Kaelen's crystal: he begs to be freed, and the Captain answers.
         if (game.Challenge?.Kind == "crystal" && game.TurnNumber <= 1 && Application.isPlaying)
         {
@@ -120,17 +121,22 @@ public partial class BattleView : MonoBehaviour
         }
     }
 
+    /// <summary>A battle of Time Dense Space's: its score runs backwards, as the map's does (app.ts render).</summary>
+    bool Reversed => campaignOf != null && campaignOf.TimeRift;
+
     void BackToCampaign() => App.Instance.EndCampaignBattle(this, state, campaignOf);
 
     /// <summary>Show a battle as it stands (a state set up elsewhere: a lesson, a puzzle, a picture).</summary>
     public void Load(GameState s)
     {
+        // (The last game's summary is no part of this one: BeginStats takes up this one's.)
+        statsRec = null;
         state = s;
         Board.Viewer = you;
         Clear();
         Refresh();
         // (A match against an Overlord, or a challenge with one, gets the boss track.)
-        Sound.Scene(s.Players.Any(p => p.Boss != null) ? "boss" : "battle");
+        Sound.Scene(s.Players.Any(p => p.Boss != null) ? "boss" : "battle", Reversed);
         scoreLeft = false;
         // (The opening hand: shuffled, then dealt in from the deck: app.ts begin, dealOpening.)
         Board.DealOpening(state);
@@ -144,7 +150,7 @@ public partial class BattleView : MonoBehaviour
 
     void Update()
     {
-        if (!scoreLeft && state?.WinnerId != null && Application.isPlaying) { scoreLeft = true; Sound.Scene("voyage"); }
+        if (!scoreLeft && state?.WinnerId != null && Application.isPlaying) { scoreLeft = true; Sound.Scene("voyage", Reversed); }
         if (FitScreen() && state != null) Refresh();
         ExtrasTick();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
@@ -371,7 +377,7 @@ public partial class BattleView : MonoBehaviour
         // (A battle of the run's: retreat, which loses it.)
         if (campaignOf != null)
         {
-            sheet = Hud.Sheet(Layer, "quit game", new[] { new Hud.Row("retreat", () => { CloseSheet(); state = Game.Apply(state, new EngineAction { Type = "concede", PlayerId = you }); BackToCampaign(); }, null, true), new Hud.Row("keep playing", CloseSheet) }, CloseSheet);
+            sheet = Hud.Sheet(Layer, "quit game", new[] { new Hud.Row("retreat", () => { CloseSheet(); var retreat = new EngineAction { Type = "concede", PlayerId = you }; var was = state; state = Game.Apply(state, retreat); NoteMove(was, retreat); KeepStats(); BackToCampaign(); }, null, true), new Hud.Row("keep playing", CloseSheet) }, CloseSheet);
             return;
         }
         // (A lesson or a challenge is quick to begin again: only leave.)
@@ -1155,6 +1161,7 @@ public partial class BattleView : MonoBehaviour
         if (state == null) return;
         FitScreen();
         Persist();
+        KeepStats();
         Board.Sync(state, this);
         Usable(endDay, MyDay);
         endDay.gameObject.SetActive(!Autoplay);
