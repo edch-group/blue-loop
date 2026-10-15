@@ -61,9 +61,13 @@ public class StellariView : MonoBehaviour
             return new Vector4(Mathf.Max((Css.MaxHeight(560) ? 8 : 14) * Z, sa.x), Mathf.Max(18 * Z, sa.y), Mathf.Max(10 * Z, sa.z), Mathf.Max(18 * Z, sa.w));
         }
     }
-    /// <summary>The title's size (clamp(1.6rem, 5.4vh, 2.6rem)), and the header's height (the title, 6 (on a short screen 2), the petals).</summary>
+    /// <summary>
+    /// The title's size (clamp(1.6rem, 5.4vh, 2.6rem)), and the header's height: the title's line box (1.25 its size),
+    /// 6 (on a short screen 2), the petals' row (the count's line box, 1.15rem at 1.25).
+    /// </summary>
     float TitleSize => Css.Clamp(1.6f * 16 * Z, 5.4f * layer.H / 100, 2.6f * 16 * Z);
-    float HeadH => TitleSize * 1.17f + (Css.MaxHeight(560) ? 2 : 6) * Z + 1.15f * 16 * Z * 1.15f;
+    float HeadH => TitleSize * 1.25f + (Css.MaxHeight(560) ? 2 : 6) * Z + RowH;
+    const float RowH = 1.15f * 16 * Z * 1.25f;
     float SkyW => Mathf.Min(1100 * Z, layer.W - Pad.y - Pad.w);
     float SkyH => Mathf.Max(100, layer.H - Pad.x - HeadH - Pad.z);
 
@@ -165,8 +169,8 @@ public class StellariView : MonoBehaviour
         var name = WebLook.Words(nav, Shown.title.ToUpperInvariant(), 0.62f * 16 * Z, 0.24f, Color.Lerp(Hex(Shown.colour), Look.Ink, 0.3f));
         name.margin = new Vector4(0, 0, 0.24f * 0.62f * 16 * Z, 0);
         float widest = L.branches.Max(b => name.GetPreferredValues(b.title.ToUpperInvariant()).x);
-        // (max(10, the safe area) up from the foot.)
-        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, Mathf.Max(10 * Z, layer.Insets.z)), new Vector2(widest + 2 * (40 + 14) * Z, 40 * Z));
+        // (max(10, the safe area) up from the sky's foot, itself the page's foot padding up.)
+        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, Pad.z + Mathf.Max(10 * Z, layer.Insets.z)), new Vector2(widest + 2 * (40 + 14) * Z, 40 * Z));
         for (int d = -1; d <= 1; d += 2)
         {
             int step = d;
@@ -218,18 +222,20 @@ public class StellariView : MonoBehaviour
         if (Meta.TreePetalsSpent(meta) > 0) Small(resetArmed ? "confirm reset" : "reset", Reset, resetArmed ? Look.Ink : Look.InkSoft, true);
         // (.up-title-big: SKILLS at clamp(1.6rem, 5.4vh, 2.6rem) across 0.5em, its petals 6 under it (on a short screen
         // 2): the petal, how many, PETALS small.)
-        float ts = TitleSize, W = layer.W, py = pad.x + ts * 1.17f + (Css.MaxHeight(560) ? 2 : 6) * Z;
+        float ts = TitleSize, W = layer.W, py = pad.x + ts * 1.25f + (Css.MaxHeight(560) ? 2 : 6) * Z;
         var title = WebLook.Words(WebLook.Box(root, "Title", 0, pad.x - ts * 0.05f, W, ts * 1.26f), "SKILLS", ts, 0.5f, Look.Ink, true, 400);
         // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
         var count = WebLook.Words(Hud.Fill(Hud.Rect(root, "Petals")), meta.Petals.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
         var unit = WebLook.Words(Hud.Fill(Hud.Rect(root, "Unit")), "PETALS", 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
         float cw = count.GetPreferredValues(count.text).x, uw = unit.GetPreferredValues(unit.text).x;
         float rowW = 28 + 6 * Z + cw + 10 * Z + uw, x0 = W / 2 - rowW / 2;
-        var pi = WebLook.Centred(root, "Petal", x0 + 14, py + 15, 28, 28).gameObject.AddComponent<RawImage>();
+        var pi = WebLook.Centred(root, "Petal", x0 + 14, py + RowH / 2, 28, 28).gameObject.AddComponent<RawImage>();
         pi.texture = Resources.Load<Texture2D>("Icons/purse-petal");
         pi.raycastTarget = false;
-        WebLook.Box((RectTransform)count.transform, x0 + 28 + 6 * Z, py - 2, cw + 4, 33);
-        WebLook.Box((RectTransform)unit.transform, x0 + 28 + 6 * Z + cw + 10 * Z, py + 6, uw + 8, 16);
+        // (The count and PETALS centred on the row, each in its own line box.)
+        float unitH = 0.56f * 16 * Z * 1.25f;
+        WebLook.Box((RectTransform)count.transform, x0 + 28 + 6 * Z, py, cw + 4, RowH);
+        WebLook.Box((RectTransform)unit.transform, x0 + 28 + 6 * Z + cw + 10 * Z, py + (RowH - unitH) / 2, uw + 8, unitH);
     }
 
     // ---- The search: skills whose name or words match lit, the rest dimmed ----
@@ -414,7 +420,9 @@ public class StellariView : MonoBehaviour
         // wider the more is learnt; a fine ring of its levels round it; one to take now, a dashed ring turning slowly
         // round it; a capstone larger, a faint ring inside it. Not yet open: grey and faded.)
         var bc = Hex(L.branches.FirstOrDefault(b => b.g == u.Group)?.colour ?? "#8d93a8");
-        var mc = open ? bc : Rgb(0xaab0bf);
+        // (A skill with no points in it yet (none learnt, none placed) is not lit: a grey glimmer, its colour coming with
+        // its first point.)
+        var mc = level > 0 ? bc : Rgb(0xaab0bf);
         float lv = (float)level / Mathf.Max(1, u.Max);
         // (On a short screen a size down: 24, a capstone 32.)
         float size = (tier == 3 ? 40 : 30) * Z * (Css.MaxHeight(560) ? 0.8f : 1);
@@ -432,7 +440,7 @@ public class StellariView : MonoBehaviour
         {
             // (1 wide, 14% in: its box drawn so the ring's circle falls there.)
             float d = size * 0.72f;
-            Picture(n, "Inner", ThinRing(Z * 44 / d), d * 48 / 44, new Color(mc.r, mc.g, mc.b, 0.22f));
+            Picture(n, "Inner", ThinRing(Z * 44 / d), d * 48 / 44, new Color(bc.r, bc.g, bc.b, 0.22f));
         }
         // The mote: its halo spilling out, its light, breathing.
         var mote = Hud.Rect(n, "Mote");
@@ -445,22 +453,23 @@ public class StellariView : MonoBehaviour
         breathe.Phase = nodeLooks.Count % 3 == 0 ? 1.4f : nodeLooks.Count % 3 == 1 ? 2.8f : 0;
         breathe.Faded = open ? 1 : 0.45f;
         breathe.Still = !open;
-        // Its ring: a segment a level (learnt in its colour, placed this visit paler, still to learn faint).
-        float ringD = size * 40 / 44f;
+        // Its ring: a segment a level, out near the disc's edge (92% of it), 3.4 wide (of 48): learnt in its colour (90%
+        // to white), placed this visit paler (55%), still to learn a grey track; not yet open, fainter still.
+        float ringD = size * 0.92f;
         float C = 2 * Mathf.PI * 22, g = u.Max > 1 ? 7 : 0;
         for (int i = 0; i < u.Max; i++)
         {
             var seg = Hud.Rect(n, "Level " + i);
             Hud.At(seg, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(ringD, ringD));
             var img = seg.gameObject.AddComponent<Image>();
-            img.sprite = ThinRing(1.8f);
+            img.sprite = ThinRing(3.4f);
             img.type = Image.Type.Filled;
             img.fillMethod = Image.FillMethod.Radial360;
             img.fillOrigin = (int)Image.Origin360.Top;
             img.fillClockwise = true;
             img.fillAmount = (C / u.Max - g) / C;
             img.rectTransform.localRotation = Quaternion.Euler(0, 0, -(i * 360f / u.Max + g / C * 180));
-            img.color = !open ? new Color(170 / 255f, 176 / 255f, 191 / 255f, 0.25f) : i < had ? Color.Lerp(Color.white, bc, 0.85f) : i < level ? Color.Lerp(Color.white, bc, 0.5f) : new Color(bc.r, bc.g, bc.b, 0.18f);
+            img.color = !open ? new Color(170 / 255f, 176 / 255f, 191 / 255f, 0.2f) : i < had ? Color.Lerp(Color.white, bc, 0.9f) : i < level ? Color.Lerp(Color.white, bc, 0.55f) : new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.32f);
             img.raycastTarget = false;
         }
         // (One to take now: the dashed ring, 8 out (12 round a capstone), turning once in 28 seconds.)
