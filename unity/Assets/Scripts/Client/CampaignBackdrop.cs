@@ -24,6 +24,10 @@ public class CampaignBackdrop : MonoBehaviour
     Transform land, ship;
     Material ground, abyss;
     Transform shipModel, captain;
+    // The engines' flames (a fiery orange glow, a hot core in it) and, while the ship is worn, its smoke: soft discs facing
+    // the camera, as the map's (CampaignView.Objects), on the ship's own camera.
+    readonly List<(Transform t, Material m)> flames = new List<(Transform, Material)>(), cores = new List<(Transform, Material)>(), puffs = new List<(Transform, Material)>();
+    static UMesh quad;
     // The Captain as Meshy made and rigged him (CaptainFigure): stood afresh each frame as he breathes and looks about.
     CaptainFigure figure;
     UMesh figureMesh;
@@ -215,6 +219,42 @@ public class CampaignBackdrop : MonoBehaviour
         var mf = shipModel.GetComponent<MeshFilter>();
         if (mf.sharedMesh != null && mf.sharedMesh.name == "") Mats.Kill(mf.sharedMesh);
         mf.sharedMesh = ModelMesh.From(build.Mesh);
+        // (Its engines and smoke as fitted and worn now.)
+        foreach (var g in flames.Concat(cores).Concat(puffs)) { Mats.Kill(g.m); Mats.Kill(g.t.gameObject); }
+        flames.Clear();
+        cores.Clear();
+        puffs.Clear();
+        foreach (var _ in build.Engines)
+        {
+            flames.Add(Glow("Flame", new Color(1f, 0.5f, 0.15f)));
+            cores.Add(Glow("Flame core", new Color(1f, 0.85f, 0.55f)));
+        }
+        foreach (var _ in build.Smoke)
+            for (int i = 0; i < 6; i++) puffs.Add(Glow("Smoke", new Color(0.42f, 0.43f, 0.47f)));
+    }
+
+    /// <summary>A soft disc facing the camera (MapSprite's glow), on the ship's layer.</summary>
+    (Transform, Material) Glow(string name, Color c)
+    {
+        if (quad == null)
+        {
+            quad = new UMesh { name = "glow" };
+            quad.vertices = new[] { new Vector3(-1, -1, 0), new Vector3(1, -1, 0), new Vector3(1, 1, 0), new Vector3(-1, 1, 0) };
+            quad.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+            quad.bounds = new Bounds(Vector3.zero, Vector3.one * 2);
+        }
+        var m = Mats.Make("MapSprite", c);
+        m.SetFloat("_Kind", 0);
+        m.SetFloat("_Alpha", 0);
+        m.renderQueue = 3001;
+        var go = new GameObject(name) { layer = ShipLayer };
+        go.transform.SetParent(ship, false);
+        go.AddComponent<MeshFilter>().sharedMesh = quad;
+        var r = go.AddComponent<MeshRenderer>();
+        r.sharedMaterial = m;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        r.receiveShadows = false;
+        return (go.transform, m);
     }
 
     /// <summary>Where a part's slot is on the screen now (pixels), as the ship moves.</summary>
@@ -401,6 +441,36 @@ public class CampaignBackdrop : MonoBehaviour
         var shipM = T(new Vector3(0, 0.05f * Mathf.Sin(t * 0.7f) * sway, 0)) * RX(0.035f * Mathf.Sin(t * 0.5f) * sway) * RZ(0.025f * Mathf.Sin(t * 0.6f + 1) * sway) * S(SS);
         shipNow = shipM;
         Place(shipModel, shipM);
+        // The engines burning at their bells' mouths, flickering; the worn ship's smoke rising from its wounds, drifting aft.
+        bool shown = shipModel.gameObject.activeSelf;
+        for (int i = 0; i < flames.Count && i < build.Engines.Count; i++)
+        {
+            var e = build.Engines[i];
+            var mouth = shipModel.TransformPoint(new Vector3((float)e.X, (float)e.Y, (float)e.Z));
+            float flick = 0.9f + 0.1f * Mathf.Sin(t * 23 + i * 1.7f) * Mathf.Sin(t * 13 + i);
+            foreach (var (g, size, a) in new[] { (flames[i], 0.55f, 0.95f), (cores[i], 0.26f, 1f) })
+            {
+                if (g.t.gameObject.activeSelf != shown) g.t.gameObject.SetActive(shown);
+                g.t.position = mouth;
+                g.t.localScale = Vector3.one * size * flick;
+                g.m.SetFloat("_Alpha", a);
+            }
+        }
+        var aft = shipModel.TransformDirection(Vector3.left).normalized;
+        int pi = 0;
+        foreach (var v in build.Smoke)
+        {
+            var wp = shipModel.TransformPoint(new Vector3((float)v.X, (float)v.Y, (float)v.Z));
+            for (int i = 0; i < 6 && pi < puffs.Count; i++, pi++)
+            {
+                var (g, m) = puffs[pi];
+                if (g.gameObject.activeSelf != shown) g.gameObject.SetActive(shown);
+                float age = (t * 0.45f + i / 6f) % 1;
+                g.position = wp + aft * age * 0.5f + Vector3.up * age * 0.7f;
+                g.localScale = Vector3.one * (0.1f + age * 0.3f);
+                m.SetFloat("_Alpha", 0.5f * (1 - age) * Mathf.Min(1, age * 6));
+            }
+        }
         // The Captain on the foredeck, facing ahead and a little toward us; the tails and scarf streaming.
         var at = B(build.Captain.X, build.Captain.Y, build.Captain.Z);
         var foot = B(20, 12, 0);

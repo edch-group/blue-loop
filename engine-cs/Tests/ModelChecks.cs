@@ -176,7 +176,7 @@ public static class ModelChecks
             {
                 f.Pose(0);
                 var o = new System.Text.StringBuilder();
-                for (int i = 0; i < f.Count; i++) o.Append($"v {f.Pos[i * 3]} {f.Pos[i * 3 + 1]} {f.Pos[i * 3 + 2]}\nvt {f.Uv[i * 2]} {1 - f.Uv[i * 2 + 1]}\nvn {f.Nor[i * 3]} {f.Nor[i * 3 + 1]} {f.Nor[i * 3 + 2]}\n");
+                for (int i = 0; i < f.Count; i++) o.Append($"v {f.Pos[i * 3]} {f.Pos[i * 3 + 1]} {f.Pos[i * 3 + 2]}\nvt {f.Uv[i * 2]} {f.Uv[i * 2 + 1]}\nvn {f.Nor[i * 3]} {f.Nor[i * 3 + 1]} {f.Nor[i * 3 + 2]}\n");
                 for (int i = 0; i < f.Tris.Length; i += 3) o.Append($"f {f.Tris[i] + 1}/{f.Tris[i] + 1}/{f.Tris[i] + 1} {f.Tris[i + 1] + 1}/{f.Tris[i + 1] + 1}/{f.Tris[i + 1] + 1} {f.Tris[i + 2] + 1}/{f.Tris[i + 2] + 1}/{f.Tris[i + 2] + 1}\n");
                 System.IO.File.WriteAllText(System.IO.Path.Combine(dir, pose + ".obj"), o.ToString());
             }

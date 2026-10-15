@@ -186,7 +186,8 @@ def write(path, pos, nor, uv, tris, hang, bones, parents, rest, poses):
         for i in range(len(pos)):
             f.write(struct.pack('<3h', *np.clip(np.round(pos[i] * Q), -32767, 32767).astype(int)))
             f.write(struct.pack('<3b', *np.clip(np.round(nor[i] * 127), -127, 127).astype(int)))
-            f.write(struct.pack('<2H', *np.clip(np.round(np.array([uv[i][0], 1 - uv[i][1]]) * 65535), 0, 65535).astype(int)))
+            # (As Blender has it, from the texture's foot: Unity's textures are read so too, as the ship's are.)
+            f.write(struct.pack('<2H', *np.clip(np.round(np.array(uv[i]) * 65535), 0, 65535).astype(int)))
             gs = hang[i] + [(0.0, None)] * (4 - len(hang[i]))
             total = sum(w for w, _ in gs) or 1
             ws = [int(round(255 * w / total)) for w, _ in gs]

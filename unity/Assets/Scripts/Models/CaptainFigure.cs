@@ -87,7 +87,7 @@ namespace BlueLoop.Models
         /// <summary>His poses, by name (poses.json).</summary>
         public static IEnumerable<string> Poses => Load().Poses.Keys;
 
-        /// <summary>The place in his texture of each corner (u, v: v from the top), and his triangles; these never change.</summary>
+        /// <summary>The place in his texture of each corner (u, v: v from its foot), and his triangles; these never change.</summary>
         public float[] Uv => g.Uv;
         public int[] Tris => g.Tris;
         /// <summary>Each corner's place and normal as he stands now (Pose), in the models' axes.</summary>
