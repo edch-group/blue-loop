@@ -66,8 +66,13 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: unity/Library
-          key: unity-library-webgl-${{ hashFiles('unity/Packages/**', 'unity/ProjectSettings/**') }}
-          restore-keys: unity-library-webgl-
+          # (Saved after every build, the last one restored: only what changed since is imported and compiled again.
+          # Keyed on the packages and settings alone, the cache was never saved again once made, and each build
+          # imported and compiled everything since then afresh.)
+          key: unity-library-webgl-${{ hashFiles('unity/Packages/**', 'unity/ProjectSettings/**') }}-${{ github.run_id }}
+          restore-keys: |
+            unity-library-webgl-${{ hashFiles('unity/Packages/**', 'unity/ProjectSettings/**') }}-
+            unity-library-webgl-
       - name: Move the pictures out of the game's data
         run: |
           pip install --quiet pillow
