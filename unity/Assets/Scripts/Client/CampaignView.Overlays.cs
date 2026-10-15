@@ -510,8 +510,8 @@ public partial class CampaignView
         var face = Hud.Rect(r, "Face");
         Hud.Fill(face);
         var raw = face.gameObject.AddComponent<RawImage>();
-        raw.texture = Faces.Of(id, false);
-        StationKit.Printed(face, id, w);
+        raw.texture = Faces.Of(id, Faces.Look.Card, w / Z);
+        StationKit.Printed(face, id, w, true);
         var b = r.gameObject.AddComponent<Button>();
         b.targetGraphic = raw;
         if (act != null) b.onClick.AddListener(() => act());

@@ -12,18 +12,30 @@ import '@fontsource/exo-2/latin-600.css';
 import '../src/styles.css';
 import { cardDef } from '../src/engine';
 import { stellariaFlower } from '../src/ui/art';
-import { cardBackFace, cardArtLite, cardBodyHtml, cardJewels, cardStock, fullArt, KIND_COLOUR, raceRow, typeLine } from '../src/ui/glyphs';
+import { cardBackFace, cardArtLite, cardBodyHtml, cardJewels, cardStock, fullArt, KIND_COLOUR, raceRow, stabilityBadge, typeLine } from '../src/ui/glyphs';
+import { fitCardText } from '../src/ui/fittext';
 import { cardCost } from '../src/engine/game';
 import { GUARD_SHIELD_SVG, GUARD_SVG, HUB_ICONS, SHIELD_SVG } from '../src/ui/app';
 import { shownKind } from '../src/engine/cards';
 import { effectMark, keywordList, raceTraitTags } from '../src/ui/glyphs';
 import { plainText } from '../src/engine/keywords';
 import { SUBRACES, raceTrait } from '../src/engine/races';
-import { baseHealth, persists } from '../src/engine/game';
+import { baseAttack, baseHealth, persists } from '../src/engine/game';
 
 const stage = document.getElementById('stage')!;
 document.body.style.background = '#ffffff';
 document.body.style.margin = '0';
+// (The places a card is shown in, for faceIn: the card keeps every rule they give it, but they draw nothing of their
+// own, lay it out at the page's top left and hide nothing of it; its badges are there, unseen.)
+document.head.insertAdjacentHTML(
+  'beforeend',
+  `<style>
+    .bake-wrap { display: block !important; position: static !important; inset: auto !important; width: max-content !important; height: auto !important; margin: 0 !important; padding: 0 !important; background: none !important; border: 0 !important; box-shadow: none !important; transform: none !important; filter: none !important; opacity: 1 !important; overflow: visible !important; animation: none !important; perspective: none !important; }
+    .bake-wrap::before, .bake-wrap::after { display: none !important; }
+    .bake-wrap .card { box-shadow: none !important; transition: none !important; animation: none !important; }
+    .bake-wrap .card-jewels, .bake-wrap .stat-def { visibility: hidden !important; }
+  </style>`,
+);
 
 /** A card's face: `table` as it stands in play (compact), `face` as in the hand or the inspector. */
 function face(id: string, variant: 'table' | 'face', width: number): void {
@@ -39,6 +51,40 @@ function face(id: string, variant: 'table' | 'face', width: number): void {
       <div class="card-kind">${typeLine(def)}</div>
     </div></div>`;
 }
+
+/**
+ * A card's face as the web draws it at one size, in the place it stands there (its floors on fonts and art make a
+ * small card no shrunken large one): `table`, in play on the board (.board-plane .tableau .card.card-table at --tcw);
+ * `hand`, in the hand (.table-view > .dock .hand > .card at --hw); `stage`, a card on its own as the stage draws it
+ * (.stage .card at --scw; the reply's cards, the shop's reveal and the deck builder's are the same card). Its markup is the board's own (app.ts renderCard), its badges there but unseen (Unity sets its own over it),
+ * its text fitted as the web fits it (fittext.ts). (The page's own size gives the phone's rules or not.)
+ */
+function faceIn(id: string, ctx: 'table' | 'hand' | 'stage', width: number): void {
+  const def = cardDef(id);
+  const race = def.race !== undefined ? ` race-${def.race}` : '';
+  const full = fullArt(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}` : '';
+  const stats =
+    ctx === 'table'
+      ? `<b class="stat-def stat-def-floor">${SHIELD_SVG}<span class="def-n">1</span></b>${cardJewels({ atk: baseAttack(def) > 0 ? baseAttack(def) : undefined, hp: baseHealth(def.id), hero: def.kind === 'command' })}`
+      : stabilityBadge(def);
+  const tag = ctx === 'stage' ? 'div' : 'button';
+  const card = `<${tag} class="card kind-${def.kind}${race}${full} rarity-${def.rarity ?? 'dwarf'} ${ctx === 'table' ? 'card-table' : ''}${ctx === 'stage' ? ' card-still' : ''}" data-card="${def.id}" style="--kc:${KIND_COLOUR[shownKind(def)]}">
+        ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
+        ${stats}
+        <div class="card-name">${def.name.toLowerCase()}</div>
+        <div class="card-text">${cardBodyHtml(def)}</div>
+        <div class="card-kind">${typeLine(def)}</div>
+      </${tag}>`;
+  const wrap = (cls: string, inner: string, style = '') => `<div class="${cls} bake-wrap"${style ? ` style="${style}"` : ''}>${inner}</div>`;
+  stage.innerHTML =
+    ctx === 'table'
+      ? wrap('table-view', wrap('game', wrap('display board', wrap('board3d', wrap('board-plane', wrap('tableau tableau-mine', wrap('tableau-row-wrap', wrap('tableau-row', card)))))), `--tcw:${width}px`))
+      : ctx === 'hand'
+        ? wrap('table-view', wrap('dock dock-raised', wrap('hand-zone', wrap('hand', card)), `--hw:${width}px`))
+        : wrap('table-view', wrap('stage', card, `--scw:${width}px`));
+  fitCardText(stage);
+}
+Object.assign(window, { faceIn });
 
 /**
  * A card in play's badges for one value: its attack and stability jewels and its defence shield (a Guard's too), on a

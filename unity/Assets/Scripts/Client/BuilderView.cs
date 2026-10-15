@@ -1327,7 +1327,8 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         var face = Hud.Rect(cell, "Face");
         Hud.Fill(face);
         var img = face.gameObject.AddComponent<RawImage>();
-        img.texture = Faces.Of(id, false);
+        // (.db-card > .card: a card on its own, as wide as its tile.)
+        img.texture = Faces.Of(id, Faces.Look.Card, w);
         img.color = have > 0 ? Color.white : new Color(0.88f, 0.88f, 0.89f);
         if (focus == id || n > 0)
             Hud.Shadow(img, w * 0.06f, new Hud.Drop(focus == id ? Hex("#9fb4ff") : Mix(kc, 0.75f, Color.white), 0, 0, 2), new Hud.Drop(Hud.Rgba(90, 90, 110, 0.15f), 5, 16));
@@ -1336,7 +1337,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         colours.highlightedColor = new Color(0.97f, 0.97f, 1f);
         b.colors = colours;
         b.onClick.AddListener(() => Add(id));
-        Printed(cell, id, w);
+        Printed(cell, id, w, true);
         if (have <= 0)
         {
             // (.db-card-locked: the card greyed and a veil of rgba(248, 248, 250, 0.55) over it.)
@@ -1385,7 +1386,8 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     }
 
     /// <summary>A card not in play's attack and stability jewels as printed (glyphs.ts stabilityBadge), on its face `w` wide.</summary>
-    static void Printed(RectTransform face, string defId, float w)
+    /// <remarks>`sized`: on a face baked for its width, the stones where the web sets them on a card that wide (Faces.At).</remarks>
+    static void Printed(RectTransform face, string defId, float w, bool sized = false)
     {
         var def = Cards.Def(defId);
         if (!Game.Persists(defId) || Cards.IsBurst(def)) return;
@@ -1398,8 +1400,8 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
             img.raycastTarget = false;
         }
         int atk = Game.BaseAttack(def);
-        if (atk > 0) Badge(Faces.Where.atk, "atk", atk);
-        Badge(Faces.Where.stab, "stab", Game.BaseHealth(defId));
+        if (atk > 0) Badge(sized ? Faces.At("atk", w, false) : Faces.Where.atk, "atk", atk);
+        Badge(sized ? Faces.At("stab", w, false) : Faces.Where.stab, "stab", Game.BaseHealth(defId));
     }
 
     /// <summary>
