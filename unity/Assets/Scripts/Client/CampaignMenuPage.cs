@@ -116,9 +116,13 @@ public static class CampaignMenuPage
         }
 
         // Begin the run (.setup-foot .btn-primary: at least 160 across, padded 11 24, on a short screen 7 20; clamp(4,
-        // 2vh, 16) above the page's foot padding, on a short screen none): or carry on the one under way.
-        var saved = CampaignView.Saved();
-        var begin = WebLook.Button(page, saved != null ? "continue run" : "begin run", () => App.Instance.Run(saved ?? CampaignView.NewRun()), true, 0.66f * 16 * Z, 0.24f);
+        // 2vh, 16) above the page's foot padding, on a short screen none): always a new one, in place of any under way
+        // (campaign.ts cmp-start: the hub's continue carries one on).
+        var begin = WebLook.Button(page, "begin run", () =>
+        {
+            Store.Remove(CampaignView.Key);
+            App.Instance.Run(CampaignView.NewRun());
+        }, true, 0.66f * 16 * Z, 0.24f);
         var bt = begin.GetComponentInChildren<TextMeshProUGUI>();
         float bw = Mathf.Max(160 * Z, bt.GetPreferredValues(bt.text).x + 2 * (phone ? 20 : 24) * Z), bh = 0.66f * 16 * Z * 1.25f + 2 * (phone ? 7 : 11) * Z;
         float foot = phone ? 0 : Css.Clamp(4 * Z, 2 * H / 100, 16 * Z);

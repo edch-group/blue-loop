@@ -13,7 +13,7 @@ using UnityEngine.UI;
 /// </summary>
 public partial class CampaignView : MonoBehaviour
 {
-    const string Key = "blue-loop:campaign:v6", MetaKey = "blue-loop:runs:v1";
+    public const string Key = "blue-loop:campaign:v6", MetaKey = "blue-loop:runs:v1";
     // (Map units to the scene's: the strip is a few thousand units long, laid out at 300 to one.)
     const float Scale = 1 / 300f;
 
