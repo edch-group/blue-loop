@@ -5,6 +5,7 @@ Shader "BlueLoop/SunFlat"
 {
     Properties
     {
+        _Nova ("Brightness (a supernova's flare)", Float) = 1
         // (vs, span, pad, s: the gauge's size, the canvas's span and pad (gauge px), its pixels per gauge px)
         _Geo ("Geometry", Vector) = (100,220,60,1)
         // (dim, has orbit, heat arc, shield arc (0: none))
@@ -40,9 +41,13 @@ Shader "BlueLoop/SunFlat"
             struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
             v2f vert (appdata_base v) { v2f o; o.pos = UnityObjectToClipPos(v.vertex); o.uv = v.texcoord.xy; return o; }
 
+            float _Nova;
+
             float4 frag (v2f i) : SV_Target
             {
                 float4 d = SunFlatPixel(i.uv, _Geo, _Rings, _Rim, _Planets, _Base0, _Base1, _Base2, _Trail0, _Trail1, _Trail2, _Facing, _Lattice);
+                // (CSS filter: brightness(), on the colours as drawn, clipped.)
+                d.rgb = min(1, d.rgb * _Nova);
                 #ifndef UNITY_COLORSPACE_GAMMA
                 d.rgb = GammaToLinearSpace(d.rgb);
                 #endif

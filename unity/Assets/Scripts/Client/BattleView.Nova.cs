@@ -27,7 +27,7 @@ public partial class BattleView
         StartCoroutine(After(after, () =>
         {
             Sound.Play("supernova");
-            Board?.SunOf(pid)?.Pulse(true);
+            Board?.SunOf(pid)?.Nova();
             var r = SunRect(pid);
             if (r != null) NovaBurst(r.Value);
             StartCoroutine(Flash(0.12f));

@@ -314,6 +314,12 @@ public class SunView : MonoBehaviour
     bool pulseHot;
 
     /// <summary>A hit landing: the sun swells and flares (hot), or shrinks a little and pales (cooled), and settles.</summary>
+    float novaAge = -1;
+    static readonly int NovaId = Shader.PropertyToID("_Nova");
+
+    /// <summary>The sun going supernova (.fx-nova): it flares, twice as bright, then three times, then back, over 1.3 s.</summary>
+    public void Nova() => novaAge = 0;
+
     public void Pulse(bool hot, float after = 0)
     {
         pulseAge = 0;
@@ -343,6 +349,17 @@ public class SunView : MonoBehaviour
         {
             domeBeat = tenth;
             DrawDome(ms, shown, cam);
+        }
+        if (novaAge >= 0)
+        {
+            // (@keyframes nova, 1.3 s, each step eased out: brightness 2, then 3 by 40%, then back to none.)
+            novaAge += Time.deltaTime;
+            float k = novaAge / 1.3f, b;
+            float Out(float x) => BattleView.CubicBezier(0, 0, 0.58f, 1, Mathf.Clamp01(x));
+            if (k >= 1) { b = 1; novaAge = -1; }
+            else b = k < 0.4f ? Mathf.Lerp(2, 3, Out(k / 0.4f)) : Mathf.Lerp(3, 1, Out((k - 0.4f) / 0.6f));
+            foreach (var r in new[] { corona, dome, balls, latBack, latFront })
+                if (r != null) r.sharedMaterial.SetFloat(NovaId, b);
         }
         if (pulseAge >= 0)
         {

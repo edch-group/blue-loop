@@ -5,6 +5,7 @@ Shader "BlueLoop/SunCorona"
 {
     Properties
     {
+        _Nova ("Brightness (a supernova's flare)", Float) = 1
         _Surface ("Surface (16-bit brightness)", 2D) = "black" {}
         _Deep ("Deep (0-255)", Vector) = (170,58,8,0)
         _Mid ("Mid (0-255)", Vector) = (246,140,34,0)
@@ -32,11 +33,14 @@ Shader "BlueLoop/SunCorona"
             float4 _Deep, _Mid, _Bright, _Flame, _Wisp;
             struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
             v2f vert (appdata_base v) { v2f o; o.pos = UnityObjectToClipPos(v.vertex); o.uv = v.texcoord.xy; return o; }
+            float _Nova;
             float4 frag (v2f i) : SV_Target
             {
                 // (From the canvas's middle in the sun's base radii, y down: the base is 0.27 / 0.88 of the canvas.)
                 float2 q = float2(i.uv.x - 0.5, 0.5 - i.uv.y) / (0.27 / 0.88);
                 float4 c = SunCoronaPixel(q, _Deep.xyz, _Mid.xyz, _Bright.xyz, _Flame.x, _Flame.y, _Flame.z, _Wisp.x, _Wisp.y, _Surface);
+                // (CSS filter: brightness(), on the colours as drawn, clipped.)
+                c.rgb = min(1, c.rgb * _Nova);
                 #ifndef UNITY_COLORSPACE_GAMMA
                 c.rgb = GammaToLinearSpace(c.rgb);
                 #endif

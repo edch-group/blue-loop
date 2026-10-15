@@ -5,6 +5,7 @@ Shader "BlueLoop/SunLattice"
 {
     Properties
     {
+        _Nova ("Brightness (a supernova's flare)", Float) = 1
         // (x: strength × shimmer, y: the outline's width, z: s (the canvas's pixels per gauge px))
         _Lat ("Lattice", Vector) = (1,0.6,1,0)
     }
@@ -36,9 +37,12 @@ Shader "BlueLoop/SunLattice"
                 o.c45 = v.uv3;
                 return o;
             }
+            float _Nova;
             float4 frag (v2f i) : SV_Target
             {
                 float4 c = SunCell(i.at.xy, i.c01.xy, i.c01.zw, i.c23.xy, i.c23.zw, i.c45.xy, i.c45.zw, i.at.z * _Lat.x, _Lat.y, _Lat.z);
+                // (CSS filter: brightness(), on the colours as drawn, clipped.)
+                c.rgb = min(1, c.rgb * _Nova);
                 #ifndef UNITY_COLORSPACE_GAMMA
                 c.rgb = GammaToLinearSpace(c.rgb);
                 #endif

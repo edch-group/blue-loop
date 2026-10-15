@@ -172,7 +172,7 @@ public partial class BattleView
     }
 
     /// <summary>A CSS cubic-bezier timing function at `x`.</summary>
-    static float CubicBezier(float x1, float y1, float x2, float y2, float x)
+    internal static float CubicBezier(float x1, float y1, float x2, float y2, float x)
     {
         float t = x;
         for (int i = 0; i < 10; i++)

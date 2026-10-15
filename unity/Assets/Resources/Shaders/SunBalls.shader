@@ -6,6 +6,7 @@ Shader "BlueLoop/SunBalls"
 {
     Properties
     {
+        _Nova ("Brightness (a supernova's flare)", Float) = 1
         _Surface ("Sun surface (16-bit brightness)", 2D) = "black" {}
         _Map0 ("Planet 0 map", 2D) = "grey" {}
         _Map1 ("Planet 1 map", 2D) = "grey" {}
@@ -51,10 +52,13 @@ Shader "BlueLoop/SunBalls"
             float4 _Light0, _Half0, _Light1, _Half1, _Light2, _Half2;
             struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
             v2f vert (appdata_base v) { v2f o; o.pos = UnityObjectToClipPos(v.vertex); o.uv = v.texcoord.xy; return o; }
+            float _Nova;
             float4 frag (v2f i) : SV_Target
             {
                 float4 c = SunBallsPixel(i.uv, _Geo, _Cam, _Ball0, _Ball1, _Ball2, _Ball3, _Kinds, _SunP, _Deep, _Mid, _Bright,
                     _Light0, _Half0, _Light1, _Half1, _Light2, _Half2, _Surface, _Map0, _Map1, _Map2);
+                // (CSS filter: brightness(), on the colours as drawn, clipped.)
+                c.rgb = min(1, c.rgb * _Nova);
                 #ifndef UNITY_COLORSPACE_GAMMA
                 c.rgb = GammaToLinearSpace(c.rgb);
                 #endif
