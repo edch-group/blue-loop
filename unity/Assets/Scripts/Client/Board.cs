@@ -186,6 +186,62 @@ public class Board : MonoBehaviour
         finally { table = table0; }
         foreach (var kv in suns) PlaceSun(kv.Value, kv.Value.Mine);
         if (tagWas != null) SetTag(tagWas, subWas);
+        PageBack();
+    }
+
+    MeshRenderer page;
+    static Texture2D pageTex;
+
+    /// <summary>
+    /// The page behind the table (styles.css body): a white glow from the top's middle (ellipse 70% × 60%), a grey one
+    /// rising from below (120% × 90% at 50% 110%), over #faf9f6 to the paper at 55% down and #e0dfdb at the foot. Its
+    /// ellipses are shares of the page, so one small picture stretched over it draws it at any size.
+    /// </summary>
+    void PageBack()
+    {
+        if (pageTex == null)
+        {
+            const int n = 128;
+            pageTex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color[n * n];
+            Color top = Rgba(250, 249, 246), paper = Look.Paper, foot = Rgba(224, 223, 219), grey = Rgba(222, 220, 216);
+            for (int j = 0; j < n; j++)
+                for (int i = 0; i < n; i++)
+                {
+                    float x = (i + 0.5f) / n, y = 1 - (j + 0.5f) / n;
+                    var c = y < 0.55f ? Color.Lerp(top, paper, y / 0.55f) : Color.Lerp(paper, foot, (y - 0.55f) / 0.45f);
+                    float g = new Vector2((x - 0.5f) / 1.2f, (y - 1.1f) / 0.9f).magnitude;
+                    c = Color.Lerp(c, grey, Mathf.Clamp01(1 - g / 0.6f));
+                    float w = new Vector2((x - 0.5f) / 0.7f, y / 0.6f).magnitude;
+                    float wa = w < 0.4f ? Mathf.Lerp(1, 0.6f, w / 0.4f) : Mathf.Lerp(0.6f, 0, Mathf.Clamp01((w - 0.4f) / 0.35f));
+                    c = Color.Lerp(c, Color.white, wa);
+                    c.a = 1;
+                    px[j * n + i] = c;
+                }
+            pageTex.SetPixels(px);
+            pageTex.Apply(false);
+        }
+        if (page == null)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Mats.Kill(go.GetComponent<Collider>());
+            go.name = "Page";
+            go.transform.SetParent(Cam.transform, false);
+            page = go.GetComponent<MeshRenderer>();
+            page.sharedMaterial = Mats.Make("Card", Color.white);
+            page.sharedMaterial.mainTexture = pageTex;
+            page.sharedMaterial.SetFloat("_Radius", 0);
+            page.sharedMaterial.renderQueue = 2800;
+        }
+        // (Far behind the table, filling the page as the camera sees it.)
+        var l = L;
+        const float depth = 90;
+        var a = l.Screen(0, 0, depth);
+        var b = l.Screen(l.W, l.H, depth);
+        page.transform.localPosition = (a + b) / 2;
+        page.transform.localRotation = Quaternion.identity;
+        page.transform.localScale = new Vector3(Mathf.Abs(b.x - a.x) * 1.02f, Mathf.Abs(b.y - a.y) * 1.02f, 1);
+        page.sharedMaterial.SetFloat("_Aspect", Mathf.Abs(b.y - a.y) / Mathf.Abs(b.x - a.x));
     }
 
     /// <summary>Whether the table was last drawn for the screen as it is now.</summary>
@@ -203,9 +259,16 @@ public class Board : MonoBehaviour
         lip.transform.localPosition = new Vector3(0, -0.02f, TableZ - l.U(18));
         var plate = Mats.Flat("Plate", table, Mats.Make("Table"), TableW, TableD);
         plate.transform.localPosition = new Vector3(0, 0, TableZ);
-        plate.sharedMaterial.SetFloat("_Aspect", TableD / TableW);
-        plate.sharedMaterial.SetFloat("_Radius", r34 / TableW);
+        plate.sharedMaterial.SetVector("_Size", new Vector4(l.Gw, l.GameH, 0, 0));
+        plate.sharedMaterial.SetFloat("_Corner", 34);
         plate.sharedMaterial.renderQueue = 2910;
+        // The board's floor over it (.board-floor: the play area grown by 48% each side and 38% top and foot, an ellipse
+        // of faint rings and dots round the middle, reaching past the plate's edges).
+        float floorW = 1.96f * (l.Gw - 2 * l.Inset), floorH = 1.76f * l.PlaneH;
+        var rings = Mats.Flat("Board floor", table, Mats.Make("BoardFloor"), l.U(floorW), l.U(floorH), 0.0001f);
+        rings.transform.localPosition = l.At(l.Gw / 2, l.PlaneCy, 0.0001f);
+        rings.sharedMaterial.SetVector("_Size", new Vector4(floorW, floorH, 0, 0));
+        rings.sharedMaterial.renderQueue = 2912;
 
         // Each side's tableau framed: a pale panel round its row, reaching up round its Hero's slot (app.ts frameTableaus).
         float rowW = l.U(6 * l.Tcw + 5 * l.SlotGap), pad = l.U(l.FramePad), up = HeroOff;
