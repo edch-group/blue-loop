@@ -57,6 +57,7 @@ public partial class BattleView
             state = next;
             StarSpin.Burst();
             Hear(prev, next, a);
+            Arcs(prev, next, a, actor);
             // (Skip all lasts the rival's day: as yours begins, it is back to auto.)
             if (turnPassed && confirmMode == "skip" && Game.ActivePlayer(next).Id == you) confirmMode = "auto";
             Refresh();
