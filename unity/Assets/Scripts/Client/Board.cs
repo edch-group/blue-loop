@@ -1100,7 +1100,7 @@ public class PileStack : MonoBehaviour
         if (depth == shown) return;
         shown = depth;
         foreach (Transform c in transform)
-            if (c.name == "Edge" || c.name == "Stack shadow") Mats.Kill(c.gameObject);
+            if (c.name == "Edge" || c.name == "Stack shadow" || c.name == "Top ring") Mats.Kill(c.gameObject);
         if (float.IsNaN(faceZ)) faceZ = Face.transform.localPosition.z;
         // (A pixel in the pile's own units: it is a pile's width across.)
         float px = 1 / Board.L.Pw;
@@ -1108,9 +1108,13 @@ public class PileStack : MonoBehaviour
         Face.transform.localPosition = new Vector3(p.x, p.y, faceZ + depth * px);
         if (depth == 0) return;
         float radius = Board.L.Tcw * 0.07f * px;
+        // (The top card's 1 px white ring: 0 0 0 1px #fff.)
+        var ring = Board.Shape("Top ring", transform, Color.white, 1 + 2 * px, 1.4f + 2 * px, radius + px, 2949, 0.0195f, 0.002f, 0.004f);
+        ring.transform.localPosition = new Vector3(0, 0.0195f, faceZ + depth * px);
+        // (Its edges, a pixel apart beneath it: #f4f4f2 the first, then #d9dadf, in turn.)
         for (int i = 1; i <= depth; i++)
         {
-            var e = Board.Shape("Edge", transform, i % 2 == 1 ? Board.Rgba(0xd9, 0xda, 0xdf) : Board.Rgba(0xf4, 0xf4, 0xf2), 1, 1.4f, radius, 2949 - Mathf.Min(i, 40), 0.019f, 0.002f, 0.004f);
+            var e = Board.Shape("Edge", transform, i % 2 == 1 ? Board.Rgba(0xf4, 0xf4, 0xf2) : Board.Rgba(0xd9, 0xda, 0xdf), 1, 1.4f, radius, 2948 - Mathf.Min(i, 40), 0.019f, 0.002f, 0.004f);
             e.transform.localPosition = new Vector3(0, 0.019f, faceZ + (depth - i) * px);
         }
         // (0 depth+3px 8px rgba(80, 84, 100, 0.22), under them all.)
