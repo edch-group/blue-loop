@@ -112,6 +112,22 @@ public partial class CampaignView
             WebLook.Box((RectTransform)counts[i].transform, x, mid - fs * 0.75f, w + 4, fs * 1.5f);
             x += w + gap;
         }
+        // Your emblems (campaign.ts renderRelics, .cmp-relics): a column of badges 40 across, 10 apart, down the right of
+        // the screen 16 in from its padding (and 4 more), centred on its height; each softly shadowed, bobbing 2 up and
+        // down (cmp-token-float, 5s, every other half a beat behind). (Under the purse: it comes and goes with it.)
+        var relics = me.Relics ?? new List<Relic>();
+        float rd = 40 * Z, rgap = 10 * Z, colH = relics.Count * rd + Mathf.Max(0, relics.Count - 1) * rgap;
+        for (int i = 0; i < relics.Count; i++)
+        {
+            var badge = WebLook.Box(purse, "Relic", PW - pad.y - 16 * Z - 4 * Z - rd, PH / 2 - colH / 2 + i * (rd + rgap), rd, rd).gameObject.AddComponent<RawImage>();
+            badge.texture = RelicArt(relics[i]);
+            badge.raycastTarget = false;
+            WebLook.Shadow(badge, 3 * Z, 8 * Z, new Color(30 / 255f, 34 / 255f, 50 / 255f, 0.3f), rd / 2);
+            var bob = badge.gameObject.AddComponent<Bob>();
+            bob.Height = 2 * Z;
+            bob.Period = 5;
+            bob.Delay = i % 2 == 1 ? -2.5f : 0;
+        }
         // Settings (.icon-btn): a white disc, its gear, at the bar's right.
         var gear = WebLook.Rounded(top, "Settings", Look.GlassStrong, 999);
         gear.raycastTarget = true;
@@ -604,12 +620,14 @@ public partial class CampaignView
             return;
         }
         float t0 = RevealFrom("loot open");
+        // (Each reward a tile, and how many tiles across it is: an emblem's 1.5 (.loot-emblem), the rest 1.)
         var tiles = new List<System.Action<RectTransform, float>>();
-        if (l.Materials > 0) tiles.Add((r, w) => LootToken(r, "loot-materials", $"+{l.Materials}", w));
-        if (l.Petals > 0) tiles.Add((r, w) => LootToken(r, "loot-petal", $"+{l.Petals}", w));
-        foreach (var rel in l.Relics ?? new List<Relic>()) tiles.Add((r, w) => Token(r, "✧", rel.Name.ToLowerInvariant(), Heroes.RelicText(rel)));
-        foreach (var id in l.Cards ?? new List<string>()) tiles.Add((r, w) => { LootGlow(r, w, w * 1.4f, w * 1.2f); CardPick(r, id, Vector2.zero, w, false, null); });
-        foreach (var id in l.Parts ?? new List<string>()) tiles.Add((r, w) => LootPart(r, id, w));
+        var wide = new List<float>();
+        if (l.Materials > 0) { tiles.Add((r, w) => LootToken(r, "loot-materials", $"+{l.Materials}", w)); wide.Add(1); }
+        if (l.Petals > 0) { tiles.Add((r, w) => LootToken(r, "loot-petal", $"+{l.Petals}", w)); wide.Add(1); }
+        foreach (var rel in l.Relics ?? new List<Relic>()) { tiles.Add((r, w) => RelicTile(r, rel, w)); wide.Add(1.5f); }
+        foreach (var id in l.Cards ?? new List<string>()) { tiles.Add((r, w) => { LootGlow(r, w, w * 1.4f, w * 1.2f); CardPick(r, id, Vector2.zero, w, false, null); }); wide.Add(1); }
+        foreach (var id in l.Parts ?? new List<string>()) { tiles.Add((r, w) => LootPart(r, id, w)); wide.Add(1); }
         int count = tiles.Count, split = count > 3 ? (count + 1) / 2 : count;
         int rows = count > split ? 2 : 1, cols = split;
         // (.loot-items: --gap clamp(14, 3vw, 34); each tile min(112, what fits the columns across 92vw, what fits the rows
@@ -628,11 +646,15 @@ public partial class CampaignView
         int first = l.Xp > 0 ? 1 : 0;
         for (int i = 0; i < count; i++)
         {
-            int row = i < split ? 0 : 1, j = row == 0 ? i : i - split, n = row == 0 ? split : count - split;
+            int row = i < split ? 0 : 1, j = row == 0 ? i : i - split, n = row == 0 ? split : count - split, from = row == 0 ? 0 : split;
             float at = j - (n - 1) / 2f;
-            float cx = mid + at * (lw + gap) + (row == 1 ? lw * 0.3f : 0);
+            // (Its row's tiles side by side, gap apart, the row centred: each as wide as it is.)
+            float rowW = 0, before = 0;
+            for (int k = from; k < from + n; k++) rowW += wide[k] * lw + (k > from ? gap : 0);
+            for (int k = from; k < i; k++) before += wide[k] * lw + gap;
+            float cx = mid - rowW / 2 + before + wide[i] * lw / 2 + (row == 1 ? lw * 0.3f : 0);
             float cy = y + row * (lh + gap) + lh / 2 + at * at * 7 * Z;
-            var slot = WebLook.Centred(v, "Reward", cx, cy, lw, lh);
+            var slot = WebLook.Centred(v, "Reward", cx, cy, wide[i] * lw, lh);
             slot.localRotation = Quaternion.Euler(0, 0, -((i % 2 == 1 ? 1 : -1) * (2 + i % 3)));
             tiles[i](slot, lw);
             RiseIn.On(slot, t0, 0.45f + (i + first) * 0.42f);
@@ -720,6 +742,24 @@ public partial class CampaignView
         return cacheHalo;
     }
 
+    /// <summary>A token bobbing (styles.css cmp-token-float: up `Height` half way through each `Period`, eased, from `Delay`).</summary>
+    public class Bob : MonoBehaviour
+    {
+        public float Height, Period = 5, Delay;
+        Vector2 rest;
+        bool set;
+
+        void Update()
+        {
+            var r = (RectTransform)transform;
+            if (!set) { rest = r.anchoredPosition; set = true; }
+            float k = Mathf.Repeat((Time.time - Delay) / Period, 1);
+            // (ease-in-out to the top at half way and back.)
+            float e = k < 0.5f ? Mathf.SmoothStep(0, 1, k * 2) : Mathf.SmoothStep(1, 0, k * 2 - 1);
+            r.anchoredPosition = rest + new Vector2(0, Height * e);
+        }
+    }
+
     /// <summary>The sealed cache floating (styles.css loot-float: up and down over 3.2s).</summary>
     public class Float : MonoBehaviour
     {
@@ -734,16 +774,50 @@ public partial class CampaignView
         }
     }
 
-    static void Token(RectTransform r, string mark, string big, string small)
+    /// <summary>
+    /// An emblem as a reward (.loot-tile.loot-emblem, its tile `r` 1.5 tiles across): from its top, 4 in, its badge 0.54
+    /// of a tile across on its glow, then 6 apart its name in spaced bold capitals (0.62rem; on a phone 0.52rem) and what
+    /// it does (0.72rem soft ink; 0.6rem), both line-height 1.3 and wrapped to the tile. How tall it all is.
+    /// </summary>
+    static float RelicTile(RectTransform r, Relic rel, float lw)
     {
-        var m = Hud.Label(r, mark, 54, Gold, false, 400, 0, TextAlignmentOptions.Top);
-        m.margin = new Vector4(0, 30, 0, 0);
-        var b = Hud.Label(r, big.ToUpperInvariant(), 0.62f * 16 * Z, Look.Ink, true, 700, 12, TextAlignmentOptions.Top);
+        bool phone = Css.MaxHeight(560);
+        float w = 1.5f * lw, d = 0.54f * lw, y = 4 * Z;
+        var glow = WebLook.Centred(r, "Glow", w / 2, y + d / 2, d * 2.3f, d * 2.3f).gameObject.AddComponent<RawImage>();
+        glow.texture = Resources.Load<Texture2D>("Icons/loot-glow");
+        glow.raycastTarget = false;
+        // (.loot-emblem .cmp-relic: its painted badge 0.08 of a tile in from the disc's edge, the disc finished as a
+        // struck emblem; shadowed 0 3 8 rgba(30, 34, 50, 0.3).)
+        var badge = WebLook.Centred(r, "Badge", w / 2, y + d / 2, d, d).gameObject.AddComponent<RawImage>();
+        badge.texture = RelicArt(rel, true);
+        badge.raycastTarget = false;
+        WebLook.Shadow(badge, 3 * Z, 8 * Z, new Color(30 / 255f, 34 / 255f, 50 / 255f, 0.3f), d / 2);
+        y += d + 6 * Z;
+        float bs = (phone ? 0.52f : 0.62f) * 16 * Z, ss = (phone ? 0.6f : 0.72f) * 16 * Z;
+        var b = WebLook.Words(WebLook.Box(r, "Name", 0, y, w, 10), rel.Name.ToUpperInvariant(), bs, 0.12f, Look.Ink, true, 700, TextAlignmentOptions.Top);
         b.textWrappingMode = TextWrappingModes.Normal;
-        b.margin = new Vector4(8, 116, 8, 0);
-        var s = Hud.Label(r, small, 0.72f * 16 * Z, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
-        s.textWrappingMode = TextWrappingModes.Normal;
-        s.margin = new Vector4(10, 150, 10, 0);
+        b.lineSpacing = (1.3f - 1.26f) * 100 / 1.26f;
+        float bh = b.GetPreferredValues(b.text, w, 0).y;
+        b.rectTransform.sizeDelta = new Vector2(w, bh + 2);
+        y += bh + 6 * Z;
+        var t = WebLook.Words(WebLook.Box(r, "What", 0, y, w, 10), Heroes.RelicText(rel), ss, 0, Look.InkSoft, false, 400, TextAlignmentOptions.Top);
+        t.textWrappingMode = TextWrappingModes.Normal;
+        t.lineSpacing = (1.3f - 1.26f) * 100 / 1.26f;
+        float th = t.GetPreferredValues(t.text, w, 0).y;
+        t.rectTransform.sizeDelta = new Vector2(w, th + 2);
+        return y + th;
+    }
+
+    /// <summary>
+    /// A relic's badge (relic-art.ts relicMark, .cmp-relic, baked from the page): its painted badge by its base name (its
+    /// name without its quality word), or its kind's mark on dark enamel; in a loot's tile (`loot`), set in from its disc.
+    /// </summary>
+    public static Texture2D RelicArt(Relic rel, bool loot = false)
+    {
+        string name = rel?.Name ?? "";
+        string slug = System.Text.RegularExpressions.Regex.Replace(name.Substring(name.IndexOf(' ') + 1).ToLowerInvariant().Replace("'", ""), "[^a-z0-9]+", "_").Trim('_');
+        string pre = loot ? "loot-" : "";
+        return Resources.Load<Texture2D>($"Relics/{pre}{slug}") ?? Resources.Load<Texture2D>($"Relics/{pre}glyph-{rel?.Slot}") ?? Resources.Load<Texture2D>($"Relics/{pre}glyph-weapon");
     }
 
     // ---- Choices ----
@@ -805,26 +879,42 @@ public partial class CampaignView
         });
     }
 
-    /// <summary>Aster's gift: one of the Seren's three emblems, each its mark, its name and what it does.</summary>
+    /// <summary>
+    /// Aster's gift (renderOverlay, .cmp-emblems): one of the Seren's three emblems, each a tile as a loot's emblem is
+    /// (its tile min(150, 26vw), 1.5 of it across, at least 1.4 of it tall, 6 under its words), 18 apart and centred,
+    /// padded 8 above and 4 below; the modal as wide as they need (within its 620 to 900, 94vw).
+    /// </summary>
     void Emblems()
     {
+        var list = state.EmblemChoice;
+        float lw = Mathf.Min(150 * Z, 26 * RawVw), tw = 1.5f * lw, gap = 18 * Z, rw = list.Count * tw + (list.Count - 1) * gap;
+        float padX = Css.Clamp(14 * Z, 3 * Vw, 28 * Z);
         Modal("aster’s gift · choose an emblem", body =>
         {
-            var list = state.EmblemChoice;
-            float tw = 150 * Z * 0.8f, gap = 18 * Z, bw = body.sizeDelta.x, rw = list.Count * tw + (list.Count - 1) * gap;
+            float bw = body.sizeDelta.x, h = 1.4f * lw;
+            // (Wrapping when the row is wider than the modal allows.)
+            int per = Mathf.Max(1, Mathf.Min(list.Count, Mathf.FloorToInt((bw + gap) / (tw + gap))));
+            var tiles = new List<RectTransform>();
             for (int i = 0; i < list.Count; i++)
             {
                 int index = i;
                 var rel = list[i];
-                var r = WebLook.Box(body, rel.Name, (bw - rw) / 2 + i * (tw + gap), 8 * Z, tw, 240);
+                var r = WebLook.Box(body, rel.Name, 0, 0, tw, h);
                 var hit = r.gameObject.AddComponent<Image>();
                 hit.color = new Color(1, 1, 1, 0);
-                LootGlow(r, tw, 120, tw * 0.62f);
-                Token(r, "✧", rel.Name.ToLowerInvariant(), Heroes.RelicText(rel));
+                h = Mathf.Max(h, RelicTile(r, rel, lw) + 6 * Z);
                 r.gameObject.AddComponent<Button>().onClick.AddListener(() => Act(new CampaignAction { Type = "chooseEmblem", Index = index }, "upgrade"));
+                tiles.Add(r);
             }
-            return 8 * Z + 240 + 4 * Z;
-        });
+            int rows = (list.Count + per - 1) / per;
+            for (int i = 0; i < tiles.Count; i++)
+            {
+                int row = i / per, inRow = Mathf.Min(per, list.Count - row * per), j = i % per;
+                float rowW = inRow * tw + (inRow - 1) * gap;
+                WebLook.Box(tiles[i], (bw - rowW) / 2 + j * (tw + gap), 8 * Z + row * (h + gap), tw, h);
+            }
+            return 8 * Z + rows * h + (rows - 1) * gap + 4 * Z;
+        }, Mathf.Max(620 * Z, rw + 2 * padX + 2 * Z));
     }
 
     // ---- Scenes: a companion joining, an encounter, a power struggle, a rival beaten, a dream ----
