@@ -136,25 +136,14 @@ public partial class BattleView
     }
 
     /// <summary>Under an online game's result: what it earned, then play again (the same rival) or another ranked match, or the menu.</summary>
-    void OnlineEnd(Transform card, bool conceded)
+    void OnlineEnd(string title, int tone, string why, bool conceded)
     {
-        overPanel.sizeDelta = new Vector2(600, 290);
-        if (!string.IsNullOrEmpty(Online.ResultExtra))
-        {
-            var r = Hud.Label(card, Online.ResultExtra, 16, Look.Ink, false, 500, 0, TextAlignmentOptions.Top);
-            r.margin = new Vector4(20, 132, 20, 0);
-        }
         var buttons = Online.Ranked
-            ? new (string, System.Action)[] { ("Find another match", () => { Online.Leave(); var m = App.Instance?.Menu("online"); Online.FindRanked(() => m?.Show("signin")); }), ("Return to menu", Online.ToMenu) }
+            ? new[] { new ResultAction("find another match", () => { Online.Leave(); var m = App.Instance?.Menu("online"); Online.FindRanked(() => m?.Show("signin")); }, true), new ResultAction("return to menu", Online.ToMenu, false) }
             : conceded
-                ? new (string, System.Action)[] { ("Return to menu", Online.ToMenu) }
-                : new (string, System.Action)[] { ("Play again", Online.Rematch), ("Return to menu", Online.ToMenu) };
-        for (int i = 0; i < buttons.Length; i++)
-        {
-            var (label, act) = buttons[i];
-            var b = Hud.Pill(card, label, act, 16, i == 0 ? Look.Ink : (Color?)null, i == 0 ? Color.white : (Color?)null);
-            Hud.At((RectTransform)b.transform, new Vector2(0.5f, 0), new Vector2((i - (buttons.Length - 1) / 2f) * 270, 30), new Vector2(250, 56));
-        }
+                ? new[] { new ResultAction("return to menu", Online.ToMenu, true) }
+                : new[] { new ResultAction("play again", Online.Rematch, true), new ResultAction("return to menu", Online.ToMenu, false) };
+        ResultCard(title, tone, why, Online.ResultExtra, buttons, buttons.Length > 1);
     }
 
     /// <summary>Quitting an online game loses it: concede and leave, or keep playing.</summary>

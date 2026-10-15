@@ -1245,28 +1245,25 @@ public partial class BattleView : MonoBehaviour
     void GameOver()
     {
         foreach (Transform c in overPanel) Mats.Kill(c.gameObject);
+        overPanel.gameObject.SetActive(false);
         bool over = state.WinnerId != null && !Autoplay;
-        overPanel.gameObject.SetActive(over);
-        if (!over) return;
+        // (body:has(.game-result) .dock: the hand put away while the result shows.)
+        Board.ShowHand(!over);
+        if (!over) { ClearResult(); return; }
+        if (resultCard != null) return;
         if (puzzleKind != null) { PuzzleResult(); return; }
-        // (As the web's: a white card a little above the middle, the result, why, and the way out.)
-        Hud.At(overPanel, new Vector2(0.5f, 0.55f), Vector2.zero, new Vector2(560, 230));
-        var card = Hud.Glass(overPanel, "Result", Color.white);
-        Hud.Fill((RectTransform)card.transform);
         bool draw = Game.IsDraw(state);
         bool won = state.WinnerId == you;
         var quitter = state.ConcededBy != null ? Player(state.ConcededBy) : null;
-        var t = Hud.Label(card.transform, draw ? "DRAW" : won ? "VICTORY" : "DEFEAT", 48.7f, draw ? Look.Ink : won ? new Color(0.76f, 0.48f, 0.12f) : new Color(0.42f, 0.46f, 0.56f), true, 500, 32, TextAlignmentOptions.Top);
-        t.margin = new Vector4(0, 34, 0, 0);
-        string why = draw ? $"Every sun went supernova together in round {state.Round}."
+        string title = draw ? "draw" : won ? "victory" : "defeat";
+        string why = draw ? $"Every sun went supernova together in round {state.Round}.{(campaignOf != null ? " Your flagship pulls back, unbroken." : "")}"
             : quitter != null ? $"{(quitter.Id == you ? "You" : "Your rival")} conceded in round {state.Round}."
             : $"The last sun standing after {state.Round} round{(state.Round == 1 ? "" : "s")}.";
-        var w = Hud.Label(card.transform, why, 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
-        w.margin = new Vector4(20, 96, 20, 0);
-        if (online) { OnlineEnd(card.transform, quitter != null); return; }
+        int tone = draw ? 0 : won ? 1 : -1;
+        if (online) { OnlineEnd(title, tone, why, quitter != null); return; }
         // (A battle of the run's goes back to the map, what it won waiting there.)
-        var menu = campaignOf != null ? WhiteButton(card.transform, "Continue", BackToCampaign, 15) : WhiteButton(card.transform, "Return to menu", () => App.Instance?.Menu("hub"), 15);
-        Hud.At((RectTransform)menu.transform, new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(250, 56));
+        var act = campaignOf != null ? new ResultAction("continue", BackToCampaign, true) : new ResultAction("return to menu", () => App.Instance?.Menu("hub"), true);
+        ResultCard(title, tone, why, null, new[] { act }, false);
     }
 
     /// <summary>Everything settled where it is going (for a still picture).</summary>

@@ -113,6 +113,12 @@ public class Board : MonoBehaviour
         return r;
     }
 
+    /// <summary>The hand shown, or put away (the result showing).</summary>
+    public void ShowHand(bool on)
+    {
+        if (handRoot != null && handRoot.gameObject.activeSelf != on) handRoot.gameObject.SetActive(on);
+    }
+
     MeshRenderer dropMark;
 
     /// <summary>
