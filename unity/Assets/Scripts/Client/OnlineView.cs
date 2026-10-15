@@ -3,14 +3,15 @@ using BlueLoop.Engine;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using K = MenuKit;
 
 /// <summary>
 /// Play online (app.ts renderOnline): the game mode in its pane, you and your deck, and three ways in: host a game (a
 /// room code and link to send a friend), ranked (the ladder finds a rival near your rank), or join a game by its code.
 /// In a room: its code and the invite, you against your rival (or waiting for them), and ready; the game starts when
-/// you are both ready. Laid out to the web's measures on its 1600 x 1000 page.
+/// you are both ready. Laid out as the web lays it out, in its CSS pixels.
 /// </summary>
-public class OnlineView : MonoBehaviour
+public class OnlineView : MonoBehaviour, MenuView.IRedraw
 {
     MenuView menu;
     RectTransform page, body;
@@ -40,88 +41,89 @@ public class OnlineView : MonoBehaviour
         if (body != null) Mats.Kill(body.gameObject);
         body = Hud.Rect(page, "Online");
         Hud.Fill(body);
-        if (Online.Client == null)
-        {
-            menu.ModePane("online", body);
-            menu.SetupTop(body, "play online", () => { Online.Leave(); menu.Show("hub"); }, MenuView.PaneW);
-            Ways();
-        }
-        else
-        {
-            menu.SetupTop(body, "play online", () => { Online.Leave(); menu.Show("hub"); });
-            InRoom();
-        }
+        if (Online.Client == null) Ways();
+        else InRoom();
     }
 
-    /// <summary>Quiet words (the web's .muted: Exo 2 18.6, ink-faint), centred on `mid`, `y` down.</summary>
-    TextMeshProUGUI Muted(string text, float mid, float y, TextAlignmentOptions align = TextAlignmentOptions.Center)
-    {
-        float w = Hud.Wide(text, 18.6f, 400, 0, 2, false);
-        return Hud.Text(body, text, align == TextAlignmentOptions.Right ? mid - w : mid - w / 2, y, w, 23, 18.6f, Look.InkFaint, false, 400, 0, align);
-    }
+    public void Redraw() => Draw();
 
-    /// <summary>The web's .btn-primary as the ways in have it (13, padded 20.3 a side, 41.2 tall), its right edge at `right`.</summary>
-    static Button Act(RectTransform r, string text, float right, float y, System.Action act, bool primary = true)
+    /// <summary>Quiet words (the web's .muted: Exo 2 12.8, ink-faint), centred on `mid` (or ending at it), `y` down; returns their width.</summary>
+    float Muted(string text, float mid, float y, TextAlignmentOptions align = TextAlignmentOptions.Center)
     {
-        float w = Hud.Wide(text.ToUpperInvariant(), 13, primary ? 700 : 500, 14, 21.7f);
-        var b = primary ? Hud.Primary(r, text, act, 13) : Hud.Btn(r, text, act, 13);
-        Hud.Place((RectTransform)b.transform, right - w, y, w, 41.2f);
-        return b;
+        float w = K.TextW(text, 12.8f, 400, 0, false) + 2;
+        K.Words(body, text, align == TextAlignmentOptions.Right ? mid - w : mid - w / 2, y, w, 15, 12.8f, Look.InkFaint, false, 400, 0, align);
+        return w;
     }
 
     // ---- Not in a room: you, and the ways in ----
 
     void Ways()
     {
-        // You, as in quickplay (the web's .online-me: 435 by 435).
-        var you = menu.SeatPanel(body, 481, 288.3f, string.IsNullOrEmpty(Profile.Me.Name) ? "Commander" : Profile.Me.Name, null, null, w: 435);
-        menu.SeatDecks(you, 0);
+        menu.ModePane("online", body);
+        // (On a short screen the foot's words go, and the foot with them.)
+        var f = menu.Setup(body, "play online", () => { Online.Leave(); menu.Show("hub"); }, true, K.Short ? MenuView.Footless : 15);
+        // (.online-page: you (at most 300 across) and the ways in (at most 380), clamp(12px, 2.4vw, 24px) apart, centred;
+        // at most 300 tall, centred in the body.)
+        float gap = K.Clamp(12, 2.4f * K.Vw, 24), avail = f.Right - f.Left - gap;
+        float c1 = Mathf.Min(300, avail / 2), c2 = Mathf.Min(380, avail - c1);
+        float h = Mathf.Min(300, f.BodyH), x = (f.Left + f.Right - (c1 + gap + c2)) / 2, y = f.BodyTop + (f.BodyH - h) / 2;
+        // You, as in quickplay.
+        menu.Seat(body, x, y, c1, h, string.IsNullOrEmpty(Profile.Me.Name) ? "Commander" : Profile.Me.Name, null, null, null, false, 0);
         var rank = Profile.Me.RankPoints;
-        Mode(0, "host a game", "a room code and link to send a friend", r => Act(r, "create room", 532.6f, 46.1f, () => Online.Go()));
-        Mode(1, "ranked", rank == null ? "climb from olivine i against rivals near your rank" : $"{Progression.RankName(rank.Value).ToLowerInvariant()} · rivals within one rank", r =>
+        float mx = x + c1 + gap, mgap = K.Clamp(6, 1.8f * K.Vh, 12), mh = (h - 2 * mgap) / 3;
+        Mode(mx, y, c2, mh, "host a game", "a room code and link to send a friend", (r, right, my) => Act(r, "create room", right, my, () => Online.Go()));
+        Mode(mx, y + mh + mgap, c2, mh, "ranked", rank == null ? "climb from olivine i against rivals near your rank" : $"{Progression.RankName(rank.Value).ToLowerInvariant()} · rivals within one rank", (r, right, my) =>
         {
             if (Online.Searching)
             {
-                var cancel = Act(r, "cancel", 532.6f, 46.1f, Online.CancelRanked, false);
-                float cx = ((RectTransform)cancel.transform).anchoredPosition.x - 8.7f;
-                float sw = Hud.Wide("searching…", 18.6f, 400, 0, 2, false);
-                Hud.Text(r, "searching…", cx - sw, 55.2f, sw, 23, 18.6f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Right);
+                float cw = Act(r, "cancel", right, my, Online.CancelRanked, false);
+                float sw = K.TextW("searching…", 12.8f, 400, 0, false) + 2;
+                K.Words(r, "searching…", right - cw - 6 - sw, my - 7.5f, sw, 15, 12.8f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Right);
+                return cw + 6 + sw;
             }
-            else Act(r, "find a match", 532.6f, 46.1f, () => Online.FindRanked(() => { AccountView.Begin(); menu.Show("signin"); }));
+            return Act(r, "find a match", right, my, () => Online.FindRanked(() => { AccountView.Begin(); menu.Show("signin"); }));
         });
-        Mode(2, "join a game", "the code your friend sent you", r =>
+        Mode(mx, y + 2 * (mh + mgap), c2, mh, "join a game", "the code your friend sent you", (r, right, my) =>
         {
-            var join = Act(r, "join", 532.6f, 46.1f, () =>
+            float jw = Act(r, "join", right, my, () =>
             {
                 var c = Online.CleanCode(Online.JoinCode);
                 if (c.Length < 4) { menu.Toast("Enter a room code"); return; }
                 Online.Go(c);
             });
-            // (The web's .online-code: 118.9 by 42.3, round, a hairline of #eceae6, its letters spaced 0.24em.)
-            float jx = ((RectTransform)join.transform).anchoredPosition.x;
-            var code = AccountView.Field(r, Online.JoinCode, jx - 8.7f - 118.9f, 45.6f, 118.9f, 42.3f, "CODE", false, 8, 16.2f);
+            // (The web's .online-code: 82 by 29, round, a hairline of #eceae6, Orbitron 11.2 spaced 0.24em.)
+            var code = AccountView.Field(r, Online.JoinCode, right - jw - 6 - 82, my - 14.5f, 82, 29, "CODE", false, 8, 11.2f, 0.24f, 8);
             ((Image)code.targetGraphic).color = new Color(1, 1, 1, 0.85f);
-            code.textComponent.characterSpacing = 24;
-            ((TextMeshProUGUI)code.placeholder).characterSpacing = 24;
             ((TextMeshProUGUI)code.placeholder).color = Look.InkFaint;
-            code.textViewport.offsetMin = new Vector2(8, 2);
-            code.textViewport.offsetMax = new Vector2(-8, -2);
             code.onValueChanged.AddListener(v => Online.JoinCode = v);
+            return jw + 6 + 82;
         });
-        Muted("1v1 · each player on their own device", 991.4f, 929.2f);
+        if (!K.Short) Muted("1v1 · each player on their own device", (f.Left + f.Right) / 2, f.FootTop + (f.FootH - f.FootPad - 15) / 2);
+    }
+
+    /// <summary>The web's .btn-primary as the ways in have it (8.96, padded 8 by 14, 28 tall), its right edge at `right`, centred on `mid`; returns its width.</summary>
+    static float Act(RectTransform r, string text, float right, float mid, System.Action act, bool primary = true)
+    {
+        float w = K.BtnW(text, primary ? K.Kind.Primary : K.Kind.Btn, 8.96f, 0.14f, 14);
+        K.Btn(r, text, act, right - w, mid - 14, primary ? K.Kind.Primary : K.Kind.Btn, w, 28, 8.96f);
+        return w;
     }
 
     /// <summary>
-    /// One way in (the web's .online-mode): a panel 551 by 133.4 like a seat; what it is (18.1, spaced 0.18em) over a
-    /// word on it (Exo 2 16.2, ink-soft) on the left, its button(s) on the right.
+    /// One way in (the web's .online-mode): a panel like a seat (padded 10 12 10 18); what it is (clamp(9.6px, 2.4vh,
+    /// 12.48px), spaced 0.18em) over a word on it (Exo 2 clamp(8.96px, 2vh, 11.2px), ink-soft, cut short if long) on
+    /// the left, its button(s) on the right, 12 apart.
     /// </summary>
-    void Mode(int i, string title, string sub, System.Action<RectTransform> act)
+    void Mode(float x, float y, float w, float h, string title, string sub, System.Func<RectTransform, float, float, float> act)
     {
-        var r = menu.SeatPanel(body, 950.8f, 288.3f + i * 150.8f, null, null, null, w: 551, h: 133.4f);
-        Hud.Text(r, title.ToUpperInvariant(), 27.1f, 44.7f, 330, 22, 18.1f, Look.Ink, true, 500, 18, TextAlignmentOptions.Left);
-        var s = Hud.Text(r, sub, 27.1f, 69.6f, 316.6f, 19, 16.2f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
+        var r = MenuView.SeatBox(body, x, y, w, h).rectTransform;
+        float right = w - 13, mid = h / 2;
+        float actW = act(r, right, mid);
+        float tf = K.Clamp(9.6f, 2.4f * K.Vh, 12.48f), sf = K.Clamp(8.96f, 2 * K.Vh, 11.2f), tw = right - actW - 12 - 19;
+        float th = K.LineH(tf) + 2 + sf * 1.17f;
+        K.Words(r, title.ToUpperInvariant(), 19, mid - th / 2, tw, K.LineH(tf), tf, Look.Ink, true, 500, 0.18f, TextAlignmentOptions.Left).overflowMode = TextOverflowModes.Ellipsis;
+        var s = K.Words(r, sub, 19, mid - th / 2 + K.LineH(tf) + 2, tw, sf * 1.17f, sf, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
         s.overflowMode = TextOverflowModes.Ellipsis;
-        act(r);
     }
 
     // ---- In a room ----
@@ -131,69 +133,85 @@ public class OnlineView : MonoBehaviour
         var seats = Online.Lobby ?? new System.Collections.Generic.List<Online.LobbySeat>();
         var rival = seats.Where((_, i) => i != Online.You).FirstOrDefault();
         bool ready = Online.You < seats.Count && seats[Online.You].Ready;
-        // The room: its code and the invite, on a line centred 266 down (a ranked match: who against, and what for).
+        // The foot (.setup-foot): leave on the left, where things stand and ready on the right.
+        var f = menu.Setup(body, "play online", () => { Online.Leave(); menu.Show("hub"); }, false, 32);
+        float footY = f.FootTop + (f.FootH - f.FootPad - 32) / 2;
+        K.Btn(body, "leave room", Online.Leave, f.Left, footY);
+        string goWord = ready ? "not ready" : "ready";
+        float gw = ready ? K.BtnW(goWord, K.Kind.Btn) : Mathf.Max(160, K.BtnW(goWord, K.Kind.Primary, 10.56f, 0.24f, 24));
+        float gh = ready ? 32 : K.LineH(10.56f) + 24;
+        K.Btn(body, goWord, Online.Ready, f.Right - gw, f.FootTop + (f.FootH - f.FootPad - gh) / 2, ready ? K.Kind.Btn : K.Kind.Primary, gw, gh, 10.56f, ready ? 0.14f : 0.24f);
+        Muted(rival == null ? "get ready while you wait" : ready && rival.Ready ? "starting…" : ready ? $"waiting for {rival.Name} to confirm" : "the game starts when you are both ready", f.Right - gw - 10, footY + 8.5f, TextAlignmentOptions.Right);
+
+        // The body (.online-wrap, centred, clamp(12px, 3vh, 24px) between its parts): the room (its code and the
+        // invite; a ranked match: who against, and what for), you against your rival (or waiting for them), and the
+        // connection if it isn't up.
+        float gap = K.Clamp(12, 3 * K.Vh, 24), cx = (f.Left + f.Right) / 2;
+        float codeF = K.Clamp(1.1f * K.Rem, 6 * K.Vh, 2 * K.Rem), titleF = K.Clamp(1.4f * K.Rem, 6 * K.Vh, 2.6f * K.Rem);
+        float roomH = Online.Ranked ? 11 + 6 + titleF * 1.16f + 6 + 15 : Mathf.Max(codeF * 1.16f, 22);
+        float bw = K.Clamp(38, 14 * K.Vh, 72), pv = K.Clamp(10, 3 * K.Vh, 18) + 1, sg = K.Clamp(6, 2 * K.Vh, 14);
+        float seatH = 2 * pv + Mathf.Max(K.LineH(K.Clamp(10.56f, 2.8f * K.Vh, 14.4f)), K.LineH(8.96f) + 6) + 2 * sg + bw * 0.12f + BuilderView.MiniH(bw) + 19;
+        bool status = Online.Status != "open";
+        float statusH = Online.Status == "lost" ? 32 : 15;
+        float total = roomH + gap + seatH + (status ? gap + statusH : 0);
+        float y = f.BodyTop + Mathf.Max(0, (f.BodyH - total) / 2);
         if (Online.Ranked)
         {
             var rank = Profile.Me.RankPoints;
-            Hud.Text(body, "RANKED MATCH", 0, 236, 1600, 17, 13.9f, Look.InkFaint, true, 400, 20);
-            Hud.Text(body, rival != null ? $"VS {rival.Name.ToUpperInvariant()}" : "MATCHED", 0, 259.4f, 1600, 37, 30.2f, Look.Ink, true, 700, 30);
-            Muted($"a win climbs the ladder · {(rank != null ? Progression.RankName(rank.Value).ToLowerInvariant() : "olivine i")}", 800, 305);
+            K.Words(body, "RANKED MATCH", f.Left, y, f.Right - f.Left, 11, 9.6f, Look.InkFaint, true, 400, 0.2f);
+            K.Words(body, rival != null ? $"VS {rival.Name.ToUpperInvariant()}" : "MATCHED", f.Left, y + 17, f.Right - f.Left, titleF * 1.16f, titleF, Look.Ink, true, 400, 0.2f);
+            Muted($"a win climbs the ladder · {(rank != null ? Progression.RankName(rank.Value).ToLowerInvariant() : "olivine i")}", cx, y + 17 + titleF * 1.16f + 6);
         }
         else
         {
+            // (A row: its label (9.6 spaced 0.2em, faint), the code (clamp(17.6px, 6vh, 32px), spaced 0.3em), and share, 12 apart.)
             string code = Online.Client.Code;
-            float sw = Hud.Wide("ROOM CODE", 13.9f, 400, 20, 0), cw = Hud.Wide(code, 46.4f, 700, 30, 0), pw = Hud.Wide("SHARE INVITE LINK", 13, 500, 14, 16.6f);
-            float x = 800 - (sw + 17.4f + cw + 17.4f + pw) / 2;
-            Hud.Text(body, "ROOM CODE", x, 286.3f, sw + 2, 17, 13.9f, Look.InkFaint, true, 400, 20, TextAlignmentOptions.Left);
-            Hud.Text(body, code, x + sw + 17.4f, 265.8f, cw + 2, 58, 46.4f, Look.Ink, true, 700, 30, TextAlignmentOptions.Left);
-            var share = Hud.Btn(body, "Share invite link", () =>
+            float sw = K.TextW("ROOM CODE", 9.6f, 400, 0.2f) + 2, cw = K.TextW(code, codeF, 500, 0.3f) + 2, pw = K.BtnW("share invite link", K.Kind.Pill);
+            float x = cx - (sw + 12 + cw + 12 + pw) / 2, mid = y + roomH / 2;
+            K.Words(body, "ROOM CODE", x, mid - 5.5f, sw, 11, 9.6f, Look.InkFaint, true, 400, 0.2f, TextAlignmentOptions.Left);
+            K.Words(body, code, x + sw + 12, mid - codeF * 0.58f, cw, codeF * 1.16f, codeF, Look.Ink, true, 500, 0.3f, TextAlignmentOptions.Left);
+            K.Btn(body, "share invite link", () =>
             {
                 Net.Share(Online.InviteLink(Online.Client.Code));
                 menu.Toast("Invite link copied");
-            }, 13, 16.25f);
-            Hud.Place((RectTransform)share.transform, x + sw + 17.4f + cw + 17.4f, 278.5f, pw, 32.5f);
+            }, x + sw + 12 + cw + 12, mid - 11, K.Kind.Pill);
         }
-        // You against your rival (theirs to choose, so not buttons), or waiting for them: seats 451.2 by 330.
-        var you = menu.SeatPanel(body, 307, 353.8f, string.IsNullOrEmpty(Profile.Me.Name) ? "Commander" : Profile.Me.Name, null, null, ready ? "ready" : "not ready", ready, 451.2f, 330);
-        menu.SeatDecks(you, 0, 85.6f, 104.4f, 274.2f);
-        Hud.Text(body, "vs", 758.2f, 504.3f, 83.6f, 29, 23.2f, Look.InkFaint, true, 400, 20);
+        y += roomH + gap;
+        // You against your rival (theirs to choose, so not buttons), or waiting for them (.online-seats: min(680px, the
+        // body) across, the two seats either side of "vs", 14 apart).
+        float rowW = Mathf.Min(680, f.Right - f.Left), vsW = K.TextW("VS", 12.8f, 400, 0.2f) + 2, seatW = (rowW - vsW - 28) / 2, rx = cx - rowW / 2;
+        menu.Seat(body, rx, y, seatW, seatH, string.IsNullOrEmpty(Profile.Me.Name) ? "Commander" : Profile.Me.Name, null, null, ready ? "ready" : "not ready", ready, 0, bw);
+        K.Words(body, "VS", rx + seatW + 14, y + seatH / 2 - 8, vsW, 16, 12.8f, Look.InkFaint, true, 400, 0.2f);
+        float tx = rx + seatW + 14 + vsW + 14;
         if (rival != null)
         {
-            var theirs = menu.SeatPanel(body, 841.8f, 353.8f, rival.Name, null, null, rival.Ready ? "ready" : "choosing", rival.Ready, 451.2f, 330);
             var deck = new Decks.Saved { Id = "rival", Name = rival.DeckName ?? "", Cards = rival.Cover != null ? new System.Collections.Generic.List<string> { rival.Cover } : new System.Collections.Generic.List<string>(), Cover = rival.Cover };
-            BuilderView.DeckBoxMini(theirs, (451.2f - 104.4f) / 2, 85.6f, deck, true, null, 104.4f);
-            Hud.Text(theirs, "their deck", 0, 274.2f + 2.8f, 451.2f, 23, 18.6f, Look.InkFaint, false, 400, 0);
+            menu.Seat(body, tx, y, seatW, seatH, rival.Name, null, null, rival.Ready ? "ready" : "choosing", rival.Ready, -1, bw, deck, "their deck");
         }
         else
         {
-            var waiting = menu.SeatPanel(body, 841.8f, 353.8f, null, null, null, w: 451.2f, h: 330);
-            // (A green light, humming, over the words.)
+            var waiting = MenuView.SeatBox(body, tx, y, seatW, seatH).rectTransform;
+            // (A green light, humming, over the words, 8 apart: .online-waiting.)
+            float wh = 14 + 8 + 13 + 8 + 13, wy = (seatH - wh) / 2;
             var pulse = Hud.Rect(waiting, "Pulse");
-            Hud.Place(pulse, 215.4f, 124.7f, 20.3f, 20.3f);
+            Hud.Place(pulse, (seatW - 14) / 2, wy, 14, 14);
             var pi = pulse.gameObject.AddComponent<Image>();
             pi.sprite = Hud.Circle;
             pi.color = Hud.Rgba(124, 199, 154);
             pi.raycastTarget = false;
-            Hud.Shadow(pi, 10.15f, new Hud.Drop(Hud.Rgba(124, 199, 154, 0.75f), 0, 17.4f));
+            Hud.Shadow(pi, 7, new Hud.Drop(Hud.Rgba(124, 199, 154, 0.75f), 0, 12));
             pulse.gameObject.AddComponent<Hum>();
-            Hud.Text(waiting, "WAITING FOR YOUR OPPONENT", 0, 156.6f, 451.2f, 19, 15.3f, Look.InkSoft, true, 500, 16);
-            Hud.Text(waiting, "send them the code or the link", 0, 187.2f, 451.2f, 18, 15.3f, Look.InkFaint, false, 400, 0);
+            K.Words(waiting, "WAITING FOR YOUR OPPONENT", 0, wy + 22, seatW, 13, 10.56f, Look.InkSoft, true, 500, 0.16f).overflowMode = TextOverflowModes.Ellipsis;
+            K.Words(waiting, "send them the code or the link", 0, wy + 43, seatW, 13, 10.56f, Look.InkFaint, false, 400);
         }
+        y += seatH + gap;
         // The connection, if it isn't up.
         if (Online.Status == "lost")
         {
-            float lw = Hud.Wide("CONNECTION LOST · RETRY", 15.3f, 500, 14, 24.2f);
-            var retry = Hud.Btn(body, "Connection lost · retry", Online.Retry, 15.3f);
-            Hud.Place((RectTransform)retry.transform, 800 - lw / 2, 703.6f, lw, 47.1f);
+            float lw = K.BtnW("connection lost · retry", K.Kind.Btn);
+            K.Btn(body, "connection lost · retry", Online.Retry, cx - lw / 2, y);
         }
-        else if (Online.Status != "open") Muted("connecting…", 800, 713.7f);
-        // The foot: leave, where things stand, ready.
-        float leaveW = Hud.Wide("LEAVE ROOM", 15.3f, 500, 14, 24.2f);
-        var leave = Hud.Btn(body, "Leave room", Online.Leave, 15.3f);
-        Hud.Place((RectTransform)leave.transform, 26.1f, 912.6f, leaveW, 47.1f);
-        Muted(rival == null ? "get ready while you wait" : ready && rival.Ready ? "starting…" : ready ? $"waiting for {rival.Name} to confirm" : "the game starts when you are both ready", 1327.4f, 924.7f, TextAlignmentOptions.Right);
-        var go = ready ? Hud.Btn(body, "Not ready", Online.Ready, 15.3f) : Hud.Primary(body, "Ready", Online.Ready, 15.3f, 24);
-        Hud.Place((RectTransform)go.transform, 1341.9f, ready ? 912.6f : 909.7f, 232, ready ? 47.1f : 52.9f);
+        else if (status) Muted("connecting…", cx, y);
     }
 }
 

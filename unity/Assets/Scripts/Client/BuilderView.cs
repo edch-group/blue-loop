@@ -5,6 +5,7 @@ using BlueLoop.Engine;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using K = MenuKit;
 
 /// <summary>
 /// The deck builder and collection (builder.ts): first the decks, the game mode as a switch under the title, then your
@@ -14,7 +15,7 @@ using UnityEngine.UI;
 /// a card's count to craft another copy with flux or break a spare one down. A deck saves once it is legal; a starter
 /// changed saves as a copy of its own.
 /// </summary>
-public class BuilderView : MonoBehaviour
+public class BuilderView : MonoBehaviour, MenuView.IRedraw
 {
     public static readonly string[] Kinds = { "unit", "surge", "relic", "global", "command", "trap" };
     public static readonly Dictionary<string, string> KindName = new Dictionary<string, string>
@@ -111,6 +112,11 @@ public class BuilderView : MonoBehaviour
         pageAt = 0;
     }
 
+    public void Redraw() => Draw();
+
+    /// <summary>The layer the small panels are drawn on, in the old reference units (MenuKit.RefLayer).</summary>
+    RectTransform layer;
+
     void Draw()
     {
         var old = new List<GameObject>();
@@ -120,140 +126,162 @@ public class BuilderView : MonoBehaviour
         Modes.SetRulesMode(editing != null ? Modes.ModeOf(editing) : "lost");
         if (editing != null) Editor();
         else List();
+        layer = K.RefLayer(root);
+        if (editing != null) Dialogs();
         if (panel != null) Panel();
         if (zoomed != null) Zoom();
     }
 
     // ---- The decks ----
 
+    /// <summary>The deck lists' boxes across (.db-boxes --bw: clamp(88px, 30vh, 150px); on a short screen clamp(62px, 22vh, 92px)).</summary>
+    public static float ListBw => K.Short ? K.Clamp(62, 22 * K.Vh, 92) : K.Clamp(88, 30 * K.Vh, 150);
+
     void List()
     {
-        // The header (builder.ts's setup-top): back, DECKS, and import on the right where the chip would be.
-        MenuView.BackButton(root, () => menu.Show("hub"), 26.1f, 35.9f);
-        Hud.Text(root, "DECKS", 26.1f, 36.6f, 1547.8f, 37, 30.2f, Hud.Rgba(85, 90, 99), true, 500, 30);
-        var imp = Hud.Btn(root, "Import", () => { panel = "import"; codeText = ""; Draw(); });
-        Hud.Place((RectTransform)imp.transform, 1446.6f, 33.7f, 127.3f, 42.7f);
-        imp.GetComponentInChildren<TextMeshProUGUI>().margin = new Vector4(31.9f, 0, 0, 0);
-        Icon(imp.transform, "db-upload", new Vector2(0, 0.5f), new Vector2(25.65f, 0), 20.3f, Look.Ink);
+        // The header (builder.ts's setup-top): back, DECKS, and import on the right where the chip would be (.btn-small
+        // with its mark, 30 tall). (Its gap to the list, clamp(6px, 2vh, 14px), and no foot: the list runs to the
+        // screen's foot and scrolls.)
+        float left = K.PadL, right = K.W - K.PadR, top = K.PadT;
+        MenuView.BackButton(root, () => menu.Show("hub"), left, top + 13);
+        float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = hf * 1.16f;
+        K.Words(root, "DECKS", left, top + (52 - hh) / 2, right - left, hh, hf, Hud.Rgba(85, 90, 99), true, 500, 0.3f);
+        float iw = K.BtnW("import", K.Kind.Small) + 23;
+        var imp = K.Btn(root, "import", () => { panel = "import"; codeText = ""; Draw(); }, right - iw, top + 11, K.Kind.Small, iw, 30);
+        imp.GetComponentInChildren<TextMeshProUGUI>().margin = new Vector4(23, 0, 0, 0);
+        Icon(imp.transform, "db-upload", new Vector2(0, 0.5f), new Vector2(17, 0), 15, Look.Ink);
 
-        // One column, top to bottom, scrolling under the header (from 112.8 down): the mode, your decks (a new one
+        // One column, top to bottom (.db-list: at most 980 across, its parts 8 apart): the mode, your decks (a new one
         // first), the starters.
-        var view = Hud.Rect(root, "List");
-        Hud.Place(view, 0, 112.8f, 1600, 887.2f);
-        view.gameObject.AddComponent<RectMask2D>();
-        var content = Hud.Rect(view, "Content");
-        content.anchorMin = new Vector2(0, 1);
-        content.anchorMax = new Vector2(1, 1);
-        content.pivot = new Vector2(0.5f, 1);
-        content.anchoredPosition = Vector2.zero;
-
-        // (The web's .db-modes: 754 by 200.5, 70% white, corners 23.2; each mode 368.3 by 188.9, the picked one white
-        // and lifted; its picture 327.7 by 104.4, its name 18.1 spaced 0.24em, its line in Exo 2.)
-        var modes = Hud.Box(content, "Modes", new Color(1, 1, 1, 0.7f), 23.2f);
-        Hud.Place((RectTransform)modes.transform, 423, 0, 754, 200.5f);
-        Hud.Shadow(modes, 23.2f, new Hud.Drop(Hud.Rgba(58, 66, 86, 0.08f), 0, 0, 1.4f), new Hud.Drop(Hud.Rgba(40, 46, 70, 0.06f), 8.7f, 26.1f));
-        for (int i = 0; i < 2; i++)
-        {
-            string m = i == 0 ? "core" : "lost";
-            bool on = gm == m;
-            var bg = Hud.Box(modes.transform, m, on ? Color.white : new Color(1, 1, 1, 0), 17.4f);
-            var mb = (RectTransform)bg.transform;
-            Hud.Place(mb, 5.8f + i * 374.1f, 5.8f, 368.3f, 188.9f);
-            if (on) Hud.Shadow(bg, 17.4f, new Hud.Drop(Hud.Rgba(40, 46, 70, 0.12f), 2.9f, 14.5f));
-            bg.raycastTarget = true;
-            mb.gameObject.AddComponent<Button>().onClick.AddListener(() =>
-            {
-                Sound.Play("click");
-                gm = m;
-                Store.Set(ModeKey, m);
-                Draw();
-            });
-            var art = Hud.Rect(mb, "Art");
-            Hud.Place(art, 20.3f, 14.5f, 327.7f, 104.4f);
-            var mask = art.gameObject.AddComponent<Image>();
-            Hud.Corner(mask, 13);
-            art.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-            var pic = Hud.Rect(art, "Picture");
-            Hud.Fill(pic);
-            var ai = pic.gameObject.AddComponent<RawImage>();
-            ai.texture = Resources.Load<Texture2D>($"Icons/mode-{m}{(on ? "" : "-off")}");
-            ai.raycastTarget = false;
-            Hud.Text(mb, Modes.GameModes[m].Name.ToUpperInvariant(), 20.3f, 130.4f, 327.7f, 22, 18.1f, on ? Look.Ink : Look.InkSoft, true, 400, 24);
-            Hud.Text(mb, Modes.GameModes[m].Blurb, 20.3f, 155.3f, 327.7f, 19, 15.8f, Look.InkFaint, false, 400, 0);
-        }
-        float y = 272;
+        float bodyTop = top + 52 + K.Clamp(6, 2 * K.Vh, 14), listW = Mathf.Min(980, right - left), lx = (left + right - listW) / 2;
         var mine = Decks.Custom().Where(d => Modes.ModeOf(d) == gm).ToList();
         var presets = Decks.Presets.Where(d => Modes.ModeOf(d) == gm).ToList();
-        y = Group(content, y, "YOUR DECKS", "");
-        y = Boxes(content, y, mine, true);
-        y = Group(content, y + 71.6f, "STARTERS", "copy one to make it your own");
-        y = Boxes(content, y, presets.Where(d => d.Mixed != true).Concat(presets.Where(d => d.Mixed == true)).ToList(), false);
-
-        content.sizeDelta = new Vector2(0, y + 24);
-        var hit = content.gameObject.AddComponent<Image>();
-        hit.color = new Color(1, 1, 1, 0.001f);
-        var scroll = view.gameObject.AddComponent<ScrollRect>();
-        scroll.viewport = view;
-        scroll.content = content;
-        scroll.horizontal = false;
-        scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.scrollSensitivity = 40;
+        var starters = presets.Where(d => d.Mixed != true).Concat(presets.Where(d => d.Mixed == true)).ToList();
+        // (Measured first, to size the scroller: laid out a second time into it.)
+        float end = Lay(null, lx, listW, mine, starters);
+        var content = K.Scroller(root, "List", 0, bodyTop, K.W, K.H - bodyTop, end);
+        Lay(content, lx, listW, mine, starters);
     }
 
-    /// <summary>A group's label (the web's .section-label: 13, spaced 0.3em, centred), a quiet note after it; returns where its boxes begin.</summary>
-    static float Group(RectTransform content, float y, string name, string note)
+    /// <summary>The list's column laid out from its top (into `content`; null only measures it); returns its height.</summary>
+    float Lay(RectTransform content, float lx, float listW, List<Decks.Saved> mine, List<Decks.Saved> starters)
     {
-        float nw = Hud.Wide(name, 13, 400, 30, 0), tw = note.Length > 0 ? Hud.Wide(note, 16.2f, 400, 0, 0, false) : 0, gap = note.Length > 0 ? 21.8f : 0;
-        float x = 800 - (nw + gap + tw) / 2;
-        Hud.Text(content, name, x, y + 1.5f, nw + 2, 16, 13, Look.InkSoft, true, 400, 30, TextAlignmentOptions.Left);
-        if (note.Length > 0) Hud.Text(content, note, x + nw + gap, y, tw + 2, 19, 16.2f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
-        return y + (note.Length > 0 ? 19 : 16) + 11.6f;
+        // (.db-modes: min(520px, the list) across, 70% white, corners 16, padded 4, 4 between; each mode padded 10 by
+        // 14, corners 12, the picked one white and lifted: its picture 72 tall (grey, the other), its name 12.48
+        // spaced 0.24em, its line Exo 2 10.88.)
+        float mw = Mathf.Min(520, listW), mh = 4 + 10 + 72 + 6 + 15 + 2 + 13 + 10 + 4;
+        if (content != null)
+        {
+            var modes = Hud.Box(content, "Modes", new Color(1, 1, 1, 0.7f), 16);
+            Hud.Place(modes.rectTransform, lx + (listW - mw) / 2, 0, mw, mh);
+            Hud.Shadow(modes, 16, new Hud.Drop(Hud.Rgba(58, 66, 86, 0.08f), 0, 0, 1), new Hud.Drop(Hud.Rgba(40, 46, 70, 0.06f), 6, 18));
+            float each = (mw - 12) / 2;
+            for (int i = 0; i < 2; i++)
+            {
+                string m = i == 0 ? "core" : "lost";
+                bool on = gm == m;
+                var bg = Hud.Box(modes.transform, m, on ? Color.white : new Color(1, 1, 1, 0), 12);
+                Hud.Place(bg.rectTransform, 4 + i * (each + 4), 4, each, mh - 8);
+                if (on) Hud.Shadow(bg, 12, new Hud.Drop(Hud.Rgba(40, 46, 70, 0.12f), 2, 10));
+                bg.raycastTarget = true;
+                bg.gameObject.AddComponent<Button>().onClick.AddListener(() =>
+                {
+                    Sound.Play("click");
+                    gm = m;
+                    Store.Set(ModeKey, m);
+                    Draw();
+                });
+                var art = Hud.Rect(bg.transform, "Art");
+                Hud.Place(art, 14, 10, each - 28, 72);
+                var mask = art.gameObject.AddComponent<Image>();
+                Hud.Corner(mask, 9);
+                art.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+                var pic = Hud.Rect(art, "Picture");
+                Hud.Fill(pic);
+                var ai = pic.gameObject.AddComponent<RawImage>();
+                ai.texture = Resources.Load<Texture2D>($"Icons/mode-{m}{(on ? "" : "-off")}");
+                ai.raycastTarget = false;
+                // (Cover: its picture cut to the box's shape about its middle.)
+                float want = (each - 28) / 72f, have = 464f / 144f;
+                ai.uvRect = want > have ? new Rect(0, (1 - have / want) / 2, 1, have / want) : new Rect((1 - want / have) / 2, 0, want / have, 1);
+                K.Words(bg.transform, Modes.GameModes[m].Name.ToUpperInvariant(), 14, 88, each - 28, 15, 12.48f, on ? Look.Ink : Look.InkSoft, true, 400, 0.24f);
+                K.Words(bg.transform, Modes.GameModes[m].Blurb, 14, 105, each - 28, 13, 10.88f, Look.InkFaint, false, 400);
+            }
+        }
+        float y = mh + 8;
+        y = Group(content, lx, listW, y, "YOUR DECKS", "");
+        y = Boxes(content, lx, listW, y, mine, true);
+        y = Group(content, lx, listW, y, "STARTERS", "copy one to make it your own");
+        y = Boxes(content, lx, listW, y, starters, false);
+        return y - 8 + Mathf.Max(18, K.SaB);
     }
-
-    const float BoxW = 217.5f, BoxH = 302.1f, Depth = 17.4f;
 
     /// <summary>
-    /// A grid of deck boxes (the web's .db-boxes: 217.5 across, 40.6 apart, five to a row, each row centred; 20.3 of
-    /// room above them for the lids), yours led by a new one, each its buttons under it; returns where it ends.
+    /// A group's label (.section-label.db-group: 8, or 8.96 on a big screen, spaced 0.3em, centred; clamp(22px, 6vh,
+    /// 48px) above it), a quiet note after it (Exo 2 11.2, 8 on); returns where its boxes begin (8 under it).
     /// </summary>
-    float Boxes(RectTransform content, float y, List<Decks.Saved> decks, bool own)
+    static float Group(RectTransform content, float lx, float listW, float y, string name, string note)
     {
-        int n = decks.Count + (own ? 1 : 0);
-        float rowH = own && decks.Count == 0 ? Depth + BoxH : Depth + BoxH + 8.7f + 43.5f;
-        float top = y + 20.3f;
-        for (int i = 0; i < n; i++)
+        y += K.Clamp(22, 6 * K.Vh, 48);
+        float f = K.Big ? 8.96f : 8, h = note.Length > 0 ? 13 : K.LineH(f);
+        if (content != null)
         {
-            int row = i / 5, col = i % 5, inRow = Mathf.Min(5, n - row * 5);
-            float x = 800 - (inRow * BoxW + (inRow - 1) * 40.6f) / 2 + col * (BoxW + 40.6f);
-            float at = top + row * (rowH + 31.9f) + Depth;
-            if (own && i == 0) { NewTile(content, x, at); continue; }
-            var d = decks[i - (own ? 1 : 0)];
-            var buttons = new List<(string icon, string name, System.Action act, bool danger)>
-            {
-                ("db-copy", "copy", () => { Open(d, null, Clip($"{d.Name} copy", 24)); Draw(); }, false),
-            };
-            if (own)
-            {
-                buttons.Add(("db-share", "share", () => { panel = "share"; panelDeck = d.Id; Draw(); }, false));
-                buttons.Add(("db-delete", "delete", () => { Decks.Delete(d.Id); Draw(); }, true));
-            }
-            // (Open it by tapping the box: a starter to look through, your own to edit.)
-            DeckBox(content, x, at, d, () => { Open(d, own ? d.Id : null, d.Name); Draw(); }, buttons);
+            float nw = K.TextW(name, f, 400, 0.3f), tw = note.Length > 0 ? K.TextW(note, 11.2f, 400, 0, false) : 0, gap = note.Length > 0 ? 8 : 0;
+            float x = lx + (listW - (nw + gap + tw)) / 2;
+            K.Words(content, name, x, y, nw + 2, h, f, Look.InkSoft, true, 400, 0.3f, TextAlignmentOptions.Left);
+            if (note.Length > 0) K.Words(content, note, x + nw + gap, y, tw + 2, h, 11.2f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
         }
-        int rows = (n + 4) / 5;
-        return top + rows * rowH + (rows - 1) * 31.9f + 23.2f;
+        return y + h + 8;
     }
 
-    /// <summary>The new deck's tile (the web's .db-new-tile): a dashed place for a box, a slate plus and its words in it.</summary>
-    void NewTile(RectTransform parent, float x, float y)
+    /// <summary>
+    /// A grid of deck boxes (.db-boxes: --bw across, as many as fit, centred; clamp(12px, 3.5vh, 22px) by clamp(16px,
+    /// 2.6vw, 28px) apart, padded 14 16 16 10), yours led by a new one, each its buttons (30 across, 5 apart) 6 under
+    /// it; returns where it ends (8 under it).
+    /// </summary>
+    float Boxes(RectTransform content, float lx, float listW, float y, List<Decks.Saved> decks, bool own)
     {
-        var box = Hud.Box(parent, "New deck", Hud.Rgba(93, 106, 140, 0.45f), 14.5f);
-        Hud.Place((RectTransform)box.transform, x, y, BoxW, BoxH);
+        int n = decks.Count + (own ? 1 : 0);
+        float bw = ListBw, depth = bw * 0.08f, bh = bw / 0.72f, colGap = K.Clamp(16, 2.6f * K.Vw, 28), rowGap = K.Clamp(12, 3.5f * K.Vh, 22);
+        float avail = listW - 26;
+        int cols = Mathf.Max(1, Mathf.Min(n, Mathf.FloorToInt((avail + colGap) / (bw + colGap))));
+        float rowH = own && decks.Count == 0 ? depth + bh : depth + bh + 6 + 30;
+        float top = y + 14;
+        int rows = (n + cols - 1) / cols;
+        if (content != null)
+            for (int i = 0; i < n; i++)
+            {
+                int row = i / cols, col = i % cols;
+                float x = lx + 10 + (avail - (cols * bw + (cols - 1) * colGap)) / 2 + col * (bw + colGap);
+                float at = top + row * (rowH + rowGap) + depth;
+                if (own && i == 0) { NewTile(content, x, at, bw); continue; }
+                var d = decks[i - (own ? 1 : 0)];
+                var buttons = new List<(string icon, string name, System.Action act, bool danger)>
+                {
+                    ("db-copy", "copy", () => { Open(d, null, Clip($"{d.Name} copy", 24)); Draw(); }, false),
+                };
+                if (own)
+                {
+                    buttons.Add(("db-share", "share", () => { panel = "share"; panelDeck = d.Id; Draw(); }, false));
+                    buttons.Add(("db-delete", "delete", () => { Decks.Delete(d.Id); Draw(); }, true));
+                }
+                // (Open it by tapping the box: a starter to look through, your own to edit.)
+                DeckBox(content, x, at, bw, d, () => { Open(d, own ? d.Id : null, d.Name); Draw(); }, buttons);
+            }
+        return top + rows * rowH + (rows - 1) * rowGap + 16 + 8;
+    }
+
+    /// <summary>The new deck's tile (.db-new-tile): a dashed place for a box, a slate plus (40 across) and its words in it.</summary>
+    void NewTile(RectTransform parent, float x, float y, float bw)
+    {
+        float bh = bw / 0.72f;
+        var box = Hud.Box(parent, "New deck", Hud.Rgba(93, 106, 140, 0.45f), 10);
+        Hud.Place(box.rectTransform, x, y, bw, bh);
         // (Its dashed edge, drawn as a hairline of the dashes' colour round the pale inside.)
-        var inside = Hud.Box(box.transform, "Inside", Color.white, 13.1f);
-        Hud.Fill((RectTransform)inside.transform);
-        ((RectTransform)inside.transform).offsetMin = new Vector2(1.4f, 1.4f);
-        ((RectTransform)inside.transform).offsetMax = new Vector2(-1.4f, -1.4f);
+        var inside = Hud.Box(box.transform, "Inside", Color.white, 9);
+        Hud.Fill(inside.rectTransform);
+        inside.rectTransform.offsetMin = new Vector2(1, 1);
+        inside.rectTransform.offsetMax = new Vector2(-1, -1);
         inside.color = new Color(0.98f, 0.98f, 0.98f, 1);
         box.raycastTarget = true;
         box.gameObject.AddComponent<Button>().onClick.AddListener(() =>
@@ -262,63 +290,72 @@ public class BuilderView : MonoBehaviour
             Open(new Decks.Saved { Name = "New deck", Cards = new List<string>(), Mode = gm }, null, "New deck");
             Draw();
         });
+        float ps = Mathf.Min(40, bw * 0.47f);
         var plus = Hud.Rect(box.transform, "Plus");
-        Hud.Place(plus, 79.75f, 109.2f, 58, 58);
+        Hud.Place(plus, (bw - ps) / 2, bh / 2 - ps * 0.78f, ps, ps);
         var pi = plus.gameObject.AddComponent<Image>();
         pi.sprite = Hud.Circle;
         pi.color = Hex("#5d6a8c");
         pi.raycastTarget = false;
-        Hud.Label(plus, "+", 37.1f, Color.white, false, 400, 0).margin = new Vector4(0, 0, 0, 3);
-        Hud.Text(box.transform, "NEW DECK", 0, 175.9f, BoxW, 17, 13.9f, Look.InkSoft, true, 400, 16);
+        K.Fill(plus, "+", ps * 0.64f, Color.white, false, 400).margin = new Vector4(0, 0, 0, ps * 0.06f);
+        K.Words(box.transform, "NEW DECK", 0, bh / 2 + ps * 0.37f, bw, 11, 9.6f, Look.InkSoft, true, 400, 0.16f);
     }
 
     /// <summary>
     /// A deck as a deck box (builder.ts deckBox): a little 3D box in its race's colour, its cover the hero of its most
     /// expensive Command card (its race's emblem if it has none), its name and races on the front, cards still to
-    /// collect on a tag, its buttons (round, 43.5 across) beneath.
+    /// collect on a tag, its buttons (.deck-icon: round, 30 across, 5 apart) 6 beneath.
     /// </summary>
-    void DeckBox(RectTransform parent, float x, float y, Decks.Saved d, System.Action open, List<(string icon, string name, System.Action act, bool danger)> buttons)
+    void DeckBox(RectTransform parent, float x, float y, float bw, Decks.Saved d, System.Action open, List<(string icon, string name, System.Action act, bool danger)> buttons)
     {
-        var cell = DeckBoxMini(parent, x, y, d, false, open, BoxW, true);
+        var cell = DeckBoxMini(parent, x, y, d, false, open, bw, true);
+        float bh = bw / 0.72f, depth = bw * 0.08f;
         if (DeckRules.DeckProblems(d.Cards, Modes.ModeOf(d)).Count > 0) cell.gameObject.AddComponent<CanvasGroup>().alpha = 0.7f;
         // Cards still to collect, on a tag 9% down the front.
         int missing = MissingCopies(d.Cards).Sum(x2 => x2.n);
         if (missing > 0)
         {
             string text = $"{missing} TO COLLECT";
-            float tw = Hud.Wide(text, 13, 400, 12, 11.6f);
-            var tag = Hud.Box(cell, "Tag", Color.white, 10);
-            Hud.Place((RectTransform)tag.transform, (BoxW - tw) / 2, BoxH * 0.09f, tw, 20);
-            Hud.Shadow(tag, 10, new Hud.Drop(Hud.Rgba(212, 149, 42, 0.55f), 0, 0, 1.4f), new Hud.Drop(Hud.Rgba(60, 64, 80, 0.18f), 2.9f, 8.7f));
-            Hud.Label(tag.transform, text, 13, Hex("#a8641c"), true, 400, 12);
+            float fs = Mathf.Max(7, bw * 0.06f), tw = K.TextW(text, fs, 400, 0.12f) + 16;
+            var tag = Hud.Box(cell, "Tag", Color.white, 7);
+            Hud.Place(tag.rectTransform, (bw - tw) / 2, bh * 0.09f, tw, fs * 1.6f);
+            Hud.Shadow(tag, 7, new Hud.Drop(Hud.Rgba(212, 149, 42, 0.55f), 0, 0, 1), new Hud.Drop(Hud.Rgba(60, 64, 80, 0.18f), 2, 6));
+            K.Fill(tag.transform, text, fs, Hex("#a8641c"), true, 400, 0.12f);
         }
         // Its buttons, small and round, beneath (centred under the box and its side).
-        float bx = (BoxW + Depth - (buttons.Count * 43.5f + (buttons.Count - 1) * 7.25f)) / 2;
+        float bx = (bw + depth - (buttons.Count * 30 + (buttons.Count - 1) * 5)) / 2;
         for (int i = 0; i < buttons.Count; i++)
         {
             var (icon, name, act, danger) = buttons[i];
             var b = Hud.Rect(cell, name);
-            Hud.Place(b, bx + i * 50.75f, BoxH + 8.7f, 43.5f, 43.5f);
+            Hud.Place(b, bx + i * 35, bh + 6, 30, 30);
             var bi = b.gameObject.AddComponent<Image>();
             bi.sprite = Hud.Circle;
-            Hud.Shadow(bi, 21.75f, new Hud.Drop(Hud.Rgba(150, 156, 172, 0.25f), 0, 0, 1.4f), new Hud.Drop(Hud.Rgba(60, 70, 100, 0.1f), 2.9f, 8.7f));
+            Hud.Shadow(bi, 15, new Hud.Drop(Hud.Rgba(150, 156, 172, 0.25f), 0, 0, 1), new Hud.Drop(Hud.Rgba(60, 70, 100, 0.1f), 2, 6));
             var bb = b.gameObject.AddComponent<Button>();
             bb.onClick.AddListener(() => { Sound.Play("click"); act(); });
-            Icon(b, icon, new Vector2(0.5f, 0.5f), Vector2.zero, 21.75f, danger ? Hex("#c0503a") : Look.InkSoft);
+            Icon(b, icon, new Vector2(0.5f, 0.5f), Vector2.zero, 15, danger ? Hex("#c0503a") : Look.InkSoft);
         }
     }
 
+    /// <summary>A small deck box's whole height (.lobby-deck): the box, 6, and its name.</summary>
+    public static float MiniH(float bw) => bw / 0.72f + 6 + MiniLabel * 1.2f;
+    static float MiniLabel => K.Clamp(6.4f, 1.5f * K.Vh, 8.32f);
+
     /// <summary>
-    /// A seat's deck as a small deck box (app.ts deckBoxMini, quickplay's and online's): `bw` across (the web's 133.4),
-    /// its button's top-left at (x, y); the front 0.72 as wide as tall, its lid and right side `bw` × 0.08 deep, the
-    /// cover (68% across) in its middle with a ring of its colour; picked (`on`), lifted 7.25 in a soft slate halo with
-    /// a tick on its front, else faded to 72%; its name beneath (12.1, spaced 0.1em). `act` null: not a button.
+    /// A deck as a deck box (app.ts deckBoxMini, quickplay's and online's; `big`, the deck lists' deckBox): `bw` across,
+    /// its button's top-left at (x, y); the front 0.72 as wide as tall, its lid and right side `bw` × 0.08 deep. A
+    /// small box has its cover (68% across) in its middle with a ring of its colour and its name beneath it (clamp(6.4px,
+    /// 1.5vh, 8.32px), spaced 0.1em); a big one its cover (72% of the front inside its padding) higher, ringed white and
+    /// in its colour, its name (clamp(8px, 2.1vh, 11.52px), spaced 0.14em) and races (Exo 2 clamp(7.2px, 1.7vh,
+    /// 9.28px)) at the front's foot. Picked (`on`), lifted 5 in a soft slate halo with a tick on its front (17% across,
+    /// at least 15); a small one not picked faded to 72%. `act` null: not a button.
     /// </summary>
-    public static RectTransform DeckBoxMini(RectTransform parent, float x, float y, Decks.Saved d, bool on, System.Action act, float bw = 133.4f, bool big = false)
+    public static RectTransform DeckBoxMini(RectTransform parent, float x, float y, Decks.Saved d, bool on, System.Action act, float bw, bool big = false)
     {
-        float bh = bw / 0.72f, depth = bw * 0.08f, lift = on ? 7.25f : 0;
+        float bh = bw / 0.72f, depth = bw * 0.08f, lift = on ? 5 : 0;
         var cell = Hud.Rect(parent, d.Name);
-        Hud.Place(cell, x, y, bw, bh + 8.7f + 15);
+        Hud.Place(cell, x, y, bw, big ? bh : MiniH(bw));
         var dc = DeckColour(d.Cards);
         var box = Hud.Rect(cell, "Box");
         Hud.Place(box, 0, -lift, bw, bh);
@@ -337,38 +374,52 @@ public class BuilderView : MonoBehaviour
         front.Colours[2] = Color.Lerp(Color.Lerp(c1, c2, 0.3f), Color.white, 0.06f);
         front.Colours[0] = Color.Lerp(c2, Hex("#141822"), 0.12f);
         front.Colours[1] = Color.Lerp(c2, Hex("#141822"), 0.14f);
-        var drop = new Hud.Drop(Hud.Rgba(40, 44, 60, 0.25f), 20.3f, 34.8f);
+        var drop = new Hud.Drop(Hud.Rgba(40, 44, 60, 0.25f), 14, 24);
         // (Picked: the halo round it too.)
-        if (on) Hud.Shadow(front, 4, drop, new Hud.Drop(Hud.Rgba(93, 106, 140, 0.28f), 0, 7.25f, 1.4f));
-        else Hud.Shadow(front, 4, drop);
+        if (on) Hud.Shadow(front, 3, drop, new Hud.Drop(Hud.Rgba(93, 106, 140, 0.28f), 0, 5, 1));
+        else Hud.Shadow(front, 3, drop);
         Outline(front.transform, Mix(dc, 0.25f, Hex("#7a8498")), 1);
         if (act != null)
         {
             front.raycastTarget = true;
             front.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); act(); });
         }
-        // A band of its colour just under the lid, and a thin printed frame 6% inside the edge.
+        // A band of its colour just under the lid, and a thin printed frame inside the edge (6%; a big box's 4.5%).
         var band = Hud.Rect(front.transform, "Band");
         Hud.Place(band, 0, bh * 0.022f, bw, bh * 0.01f);
         band.gameObject.AddComponent<Image>().color = Mix(dc, 0.75f, Color.white);
         var frame = Hud.Rect(front.transform, "Frame");
         Hud.Fill(frame);
-        frame.offsetMin = new Vector2(bw * 0.06f, bh * 0.06f);
+        float fi = big ? 0.045f : 0.06f;
+        frame.offsetMin = new Vector2(bw * fi, bh * fi);
         frame.offsetMax = -frame.offsetMin;
         Outline(frame, new Color(1, 1, 1, 0.16f), 1);
         // The cover: white under it, a ring of its colour, a shadow.
-        // (A big box, as the deck lists show it, has its cover higher, its name and races under it on the front.)
-        float cs = bw * (big ? 0.598f : 0.669f);
+        float cs, coverMid;
+        float nameF = K.Clamp(8, 2.1f * K.Vh, 11.52f), raceF = K.Clamp(7.2f, 1.7f * K.Vh, 9.28f);
+        float contentTop = 1 + 0.14f * bw, contentBot = bh - 1 - 0.09f * bw, nameLH = nameF * 1.25f, raceLH = raceF * 1.2f;
+        if (big)
+        {
+            float inner = 0.84f * bw - 2;
+            cs = 0.72f * inner;
+            float rowsH = 0.08f * inner + nameLH + 2 + raceLH + 2;
+            coverMid = contentTop + (contentBot - contentTop - rowsH) / 2;
+        }
+        else
+        {
+            cs = bw * 0.68f;
+            coverMid = bh / 2;
+        }
         var cover = Hud.Rect(front.transform, "Cover");
-        Hud.At(cover, new Vector2(0.5f, 1), new Vector2(0, -(big ? 0.424f : 0.5f) * bh), new Vector2(cs, cs));
+        Hud.At(cover, new Vector2(0.5f, 1), new Vector2(0, -coverMid), new Vector2(cs, cs));
         cover.pivot = new Vector2(0.5f, 0.5f);
         var ci = cover.gameObject.AddComponent<Image>();
         ci.sprite = Hud.Circle;
         ci.color = Color.white;
         ci.raycastTarget = false;
         // (A big box's cover has a white ring inside its coloured one.)
-        if (big) Hud.Shadow(ci, cs / 2, new Hud.Drop(new Color(1, 1, 1, 0.9f), 0, 0, 4.3f), new Hud.Drop(Mix(dc, 0.7f, Color.white), 0, 0, 5.8f), new Hud.Drop(Hud.Rgba(30, 34, 44, 0.3f), 8.7f, 20.3f));
-        else Hud.Shadow(ci, cs / 2, new Hud.Drop(Mix(dc, 0.6f, Color.white), 0, 0, 2.2f), new Hud.Drop(Hud.Rgba(20, 24, 34, 0.4f), 4.3f, 11.6f));
+        if (big) Hud.Shadow(ci, cs / 2, new Hud.Drop(new Color(1, 1, 1, 0.9f), 0, 0, 3), new Hud.Drop(Mix(dc, 0.7f, Color.white), 0, 0, 4), new Hud.Drop(Hud.Rgba(30, 34, 44, 0.3f), 6, 14));
+        else Hud.Shadow(ci, cs / 2, new Hud.Drop(Mix(dc, 0.6f, Color.white), 0, 0, 1.5f), new Hud.Drop(Hud.Rgba(20, 24, 34, 0.4f), 3, 8));
         var hero = d.Cover ?? CoverCard(d.Cards);
         int? race = Campaign.MainRace(d.Cards);
         if (hero != null) Portrait(cover, hero, cs);
@@ -382,20 +433,24 @@ public class BuilderView : MonoBehaviour
         }
         if (on)
         {
-            // (The tick: the app's ticked box, larger: 17% of the box across, 6% down and 7% in from its right.)
-            float t = Mathf.Max(21.75f, bw * 0.17f);
+            // (The tick: the app's ticked box, larger: 17% of the box across (at least 15), 6% down and 7% in from its right.)
+            float t = Mathf.Max(15, bw * 0.17f);
             var tick = Hud.Box(front.transform, "Tick", Hex("#5d6a8c"), t * 0.28f);
-            Hud.Place((RectTransform)tick.transform, bw * 0.93f - t, bh * 0.06f, t, t);
-            Hud.Shadow(tick, t * 0.28f, new Hud.Drop(new Color(1, 1, 1, 0.7f), 0, 0, 1.4f));
-            Hud.Label(tick.transform, "✓", t * 0.72f, Color.white, false, 600, 0);
+            Hud.Place(tick.rectTransform, bw * 0.93f - t, bh * 0.06f, t, t);
+            Hud.Shadow(tick, t * 0.28f, new Hud.Drop(new Color(1, 1, 1, 0.7f), 0, 0, 1));
+            K.Fill(tick.transform, "✓", t * 0.62f, Color.white, false, 600);
         }
         if (big)
         {
-            var nm = Hud.Text(front.transform, d.Name.ToUpperInvariant(), bw * 0.08f, bh * 0.83f - 11, bw * 0.84f, 22, 16.7f, Color.white, true, 500, 14);
-            nm.textWrappingMode = TextWrappingModes.Normal;
-            Hud.Text(front.transform, RacesLabel(d.Cards).ToUpperInvariant(), bw * 0.05f, bh * 0.9f - 8, bw * 0.9f, 16, 13.5f, new Color(1, 1, 1, 0.85f), false, 500, 20);
+            var nm = K.Words(front.transform, d.Name.ToUpperInvariant(), bw * 0.08f, contentBot - raceLH - 2 - nameLH, bw * 0.84f, nameLH, nameF, Color.white, true, 500, 0.14f);
+            nm.overflowMode = TextOverflowModes.Ellipsis;
+            K.Words(front.transform, RacesLabel(d.Cards).ToUpperInvariant(), bw * 0.04f, contentBot - raceLH, bw * 0.92f, raceLH, raceF, new Color(1, 1, 1, 0.85f), false, 400, 0.2f);
         }
-        else Hud.Text(cell, d.Name.ToUpperInvariant(), -10, bh + 8.7f, bw + 20, 15, 12.1f, on ? Look.Ink : Look.InkFaint, true, 400, 10);
+        else
+        {
+            var nm = K.Words(cell, d.Name.ToUpperInvariant(), -5, bh + 6, bw + 10, MiniLabel * 1.2f, MiniLabel, on ? Look.Ink : Look.InkFaint, true, 400, 0.1f);
+            nm.overflowMode = TextOverflowModes.Ellipsis;
+        }
         return cell;
     }
 
@@ -505,7 +560,7 @@ public class BuilderView : MonoBehaviour
     /// <summary>A small modal (the web's .db-confirm) over a veil: its card, which swallows taps.</summary>
     Transform Modal(float height)
     {
-        var veil = Hud.Rect(root, "Veil");
+        var veil = Hud.Rect(layer, "Veil");
         Hud.Fill(veil);
         veil.gameObject.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.94f, 0.8f);
         var card = Hud.Glass(veil, "Card", Color.white);
@@ -597,19 +652,32 @@ public class BuilderView : MonoBehaviour
 
     // ---- A deck open: the card pool on the left, the deck on the right ----
 
-    const float SideW = 380, Margin = 24, PoolTop = 84, PoolFoot = 64;
-    float PoolW => Hud.W - Margin * 2 - SideW - 16;
-    float PoolH => Hud.H - PoolTop - PoolFoot;
+    // (.db-editor, the whole page: padded as a setup page at its top and sides, none at its foot; the pool's side and
+    // the deck's (clamp(170px, 26vw, 290px) across) clamp(8px, 1.6vw, 16px) apart. The pool's side: the toolbar (30
+    // tall), the pool, the pager (30 and its padding, 4 above and max(16px, the safe area + 10) below), 8 apart.)
+    static float SideW => K.Clamp(170, 26 * K.Vw, 290);
+    static float PoolX => K.PadL;
+    static float PoolTop => K.PadT + 30 + 8;
+    static float PoolW => K.W - K.PadL - K.PadR - SideW - K.Clamp(8, 1.6f * K.Vw, 16);
+    static float PagerH => 34 + Mathf.Max(16, K.SaB + 10);
+    static float PoolH => K.H - PoolTop - 8 - PagerH;
+    /// <summary>The search's right edge (.db-search: up to 300 across, leaving the rest of the toolbar room).</summary>
+    static float SearchR => PoolX + Mathf.Min(300, PoolW - 30 - 8 - 62 - 16);
 
     void Editor()
     {
         Toolbar();
         poolArea = Hud.Rect(root, "Pool");
-        Hud.At(poolArea, new Vector2(0, 1), new Vector2(Margin, -PoolTop), new Vector2(PoolW, PoolH));
+        Hud.Place(poolArea, PoolX, PoolTop, PoolW, PoolH);
         pagerArea = Hud.Rect(root, "Pager");
-        Hud.At(pagerArea, new Vector2(0, 0), new Vector2(Margin, 10), new Vector2(PoolW, 48));
+        Hud.Place(pagerArea, PoolX, K.H - PagerH + 4, PoolW, 30);
         Pool();
         Side();
+    }
+
+    /// <summary>What lies over the editor: the filters popover, and leaving without saving.</summary>
+    void Dialogs()
+    {
         if (filtersOpen) FiltersPop();
         if (confirmExit)
         {
@@ -622,12 +690,44 @@ public class BuilderView : MonoBehaviour
         }
     }
 
-    /// <summary>The toolbar: the search, the filters button (with how many are set), the card sizes.</summary>
+    /// <summary>
+    /// A text box of the builder's (.db-search, .db-name): white, a hairline, its words on the left (or centred), at
+    /// (x, y), w by h; corners `radius`.
+    /// </summary>
+    static TMP_InputField Box(Transform parent, string text, float x, float y, float w, float h, float radius, int limit, string placeholder, float size, bool display, float em, bool centre, Color edge)
+    {
+        var box = Hud.Box(parent, "Input", Color.white, radius);
+        Hud.Place(box.rectTransform, x, y, w, h);
+        Hud.Shadow(box, radius, new Hud.Drop(edge, 0, 0, 1));
+        box.raycastTarget = true;
+        var area = Hud.Rect(box.transform, "Text Area");
+        Hud.Fill(area);
+        area.offsetMin = new Vector2(centre ? 8 : 12, 1);
+        area.offsetMax = new Vector2(centre ? -8 : -12, -1);
+        area.gameObject.AddComponent<RectMask2D>();
+        var align = centre ? TextAlignmentOptions.Center : TextAlignmentOptions.Left;
+        var hint = placeholder.Length > 0 ? K.Fill(area, placeholder, size, Look.InkFaint, display, 400, em, align) : null;
+        var t = K.Fill(area, text, size, Look.Ink, display, 400, em, align);
+        t.richText = false;
+        var input = box.gameObject.AddComponent<TMP_InputField>();
+        input.textViewport = area;
+        input.textComponent = t;
+        if (hint != null) input.placeholder = hint;
+        input.characterLimit = limit;
+        input.richText = false;
+        input.text = text;
+        return input;
+    }
+
+    /// <summary>
+    /// The toolbar (.db-toolbar, 30 tall): the search (Exo 2 12, round), the filters button (30 across, round, with how
+    /// many are set), and at the pool's right the card sizes (.db-seg: 62 by 30; on a short pool the medium size steps
+    /// aside, the large one standing for it).
+    /// </summary>
     void Toolbar()
     {
-        var search = MakeInput(root, filters.Q, Vector2.zero, new Vector2(300, 46), 40, false, "search cards");
-        var sr = (RectTransform)search.transform;
-        Hud.At(sr, new Vector2(0, 1), new Vector2(Margin, -24), new Vector2(300, 46));
+        float top = K.PadT;
+        var search = Box(root, filters.Q, PoolX, top, SearchR - PoolX, 30, 15, 40, "search cards", 12, false, 0, false, Hex("#e6e8ee"));
         search.onValueChanged.AddListener(s =>
         {
             filters.Q = Clip(s, 40);
@@ -635,30 +735,35 @@ public class BuilderView : MonoBehaviour
             RefreshPool();
         });
         int set = filters.Ticked.Count(kv => kv.Value.Count > 0) + (filters.Sort != "cost" ? 1 : 0) + (filters.Characters ? 1 : 0) + (filters.InDeck ? 1 : 0);
-        var fb = Hud.Glass(root, "Filters", Color.white, false);
-        Hud.At((RectTransform)fb.transform, new Vector2(0, 1), new Vector2(Margin + 310, -24), new Vector2(54, 46));
-        Outline(fb.transform, filtersOpen || set > 0 ? Hex("#c9cfdd") : new Color(0.9f, 0.9f, 0.92f), 1);
+        var fb = Hud.Box(root, "Filters", Color.white, 15);
+        Hud.Place(fb.rectTransform, SearchR + 8, top, 30, 30);
+        Hud.Shadow(fb, 15, new Hud.Drop(filtersOpen || set > 0 ? Hex("#c9cfdd") : Hex("#e6e8ee"), 0, 0, 1));
+        fb.raycastTarget = true;
         fb.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); filtersOpen = !filtersOpen; dropOpen = null; Draw(); });
-        Icon(fb.transform, "db-filter", new Vector2(0.5f, 0.5f), Vector2.zero, 20, filtersOpen || set > 0 ? Look.Ink : Look.InkSoft);
+        Icon(fb.transform, "db-filter", new Vector2(0.5f, 0.5f), Vector2.zero, 15, filtersOpen || set > 0 ? Look.Ink : Look.InkSoft);
         if (set > 0)
         {
             var dot = Hud.Rect(fb.transform, "Set");
-            Hud.At(dot, new Vector2(1, 1), new Vector2(6, 6), new Vector2(20, 20));
+            Hud.At(dot, new Vector2(1, 1), new Vector2(4, 4), new Vector2(14, 14));
             var di = dot.gameObject.AddComponent<Image>();
             di.sprite = Hud.Circle;
             di.color = Hex("#5d6a8c");
-            Hud.Label(dot, set.ToString(), 11, Color.white, true, 700, 0);
+            K.Fill(dot, set.ToString(), 8, Color.white, true, 700);
         }
         // The card sizes: many small, some medium, a few large.
-        var seg = Hud.Glass(root, "Sizes", new Color(1, 1, 1, 0.7f), false);
-        Hud.At((RectTransform)seg.transform, new Vector2(0, 1), new Vector2(Margin + PoolW - 132, -26), new Vector2(132, 42));
-        var sizes = new[] { "sm", "md", "lg" };
-        for (int i = 0; i < 3; i++)
+        bool shortPool = PoolH < 300;
+        var sizes = shortPool ? new[] { "sm", "lg" } : new[] { "sm", "md", "lg" };
+        float segW = 4 + sizes.Length * 28 + (sizes.Length - 1) * 2;
+        var seg = K.Inset(root, "Sizes", new Color(1, 1, 1, 0.7f), Hud.Rgba(150, 160, 185, 0.3f), 15);
+        Hud.Place(seg.rectTransform, PoolX + PoolW - segW, top, segW, 30);
+        for (int i = 0; i < sizes.Length; i++)
         {
             string g = sizes[i];
-            bool on = grid == g;
-            var b = Hud.Glass(seg.transform, g, on ? Color.white : new Color(1, 1, 1, 0.001f), false);
-            Hud.At((RectTransform)b.transform, new Vector2(0, 0.5f), new Vector2(3 + i * 42, 0), new Vector2(42, 36));
+            bool on = grid == g || (shortPool && g == "lg" && grid == "md");
+            var b = Hud.Box(seg.transform, g, on ? Color.white : new Color(1, 1, 1, 0.001f), 13);
+            Hud.Place(b.rectTransform, 2 + i * 30, 2, 28, 26);
+            if (on) Hud.Shadow(b, 13, new Hud.Drop(Hud.Rgba(70, 76, 100, 0.2f), 1, 4));
+            b.raycastTarget = true;
             b.gameObject.AddComponent<Button>().onClick.AddListener(() =>
             {
                 Sound.Play("click");
@@ -669,7 +774,7 @@ public class BuilderView : MonoBehaviour
                 if (first != null) pageAt = Mathf.Max(0, Pages().FindIndex(p => p.Any(c => c.Id == first.Id)));
                 Draw();
             });
-            Icon(b.transform, $"db-grid-{g}", new Vector2(0.5f, 0.5f), Vector2.zero, 16, on ? Look.Ink : Look.InkSoft);
+            Icon(b.transform, $"db-grid-{g}", new Vector2(0.5f, 0.5f), Vector2.zero, 14, on ? Look.Ink : Look.InkSoft);
         }
     }
 
@@ -747,12 +852,13 @@ public class BuilderView : MonoBehaviour
     }
 
     /// <summary>
-    /// The pool's layout (builder.ts sizePool): a set number of rows (small 3, medium 2, large 1), the cards sized to the
-    /// pool's height for them, as many columns as then fit across.
+    /// The pool's layout (builder.ts sizePool): a set number of rows (small 3, medium 2, large 1; a row fewer on a pool
+    /// under 300 tall, a phone on its side), the cards sized to the pool's height for them, as many columns as then fit
+    /// across, 10 apart.
     /// </summary>
     (int cols, int rows, float w, float h) Layout()
     {
-        int rows = grid == "sm" ? 3 : grid == "lg" ? 1 : 2;
+        int rows = Mathf.Max(1, (grid == "sm" ? 3 : grid == "lg" ? 1 : 2) - (PoolH < 300 ? 1 : 0));
         const float gap = 10;
         float w = Mathf.Floor((PoolH - (rows - 1) * gap) / rows / 1.52f * 10) / 10;
         int cols = Mathf.Max(1, Mathf.FloorToInt((PoolW + gap) / (w + gap)));
@@ -794,22 +900,23 @@ public class BuilderView : MonoBehaviour
     {
         var (cols, rows, w, h) = Layout();
         var shown = PageCards();
-        if (shown.Count == 0)
-        {
-            Hud.Label(poolArea, "No cards match these filters.", 17, Look.InkSoft, false, 400, 0);
-        }
+        if (shown.Count == 0) K.Fill(poolArea, "No cards match these filters.", 12, Look.InkSoft, false, 400);
         int used = Mathf.Max(1, (shown.Count + cols - 1) / cols);
-        float top = (PoolH - (used * h + (used - 1) * 10)) / 2;
+        // (The page's cards centred in the pool, as the web's grid stands in it.)
+        float top = (PoolH - (used * h + (used - 1) * 10)) / 2, left = (PoolW - (cols * w + (cols - 1) * 10)) / 2;
         for (int i = 0; i < shown.Count; i++)
         {
             var c = shown[i];
-            var at = new Vector2(4 + (i % cols) * (w + 10), -top - (i / cols) * (h + 10));
+            var at = new Vector2(left + (i % cols) * (w + 10), -top - (i / cols) * (h + 10));
             Tile(c, at, w, h);
         }
         Pager();
     }
 
-    /// <summary>A card of the pool: its face, its count (in the deck of owned: tap it to craft), a corner to read it large.</summary>
+    /// <summary>
+    /// A card of the pool: its face, its count (in the deck of owned, .db-have: a pill 3.5% down and 4% in, its words
+    /// max(9px, 6.5% of the card); tap it to craft), a corner to read it large (.db-zoom: 22 across, 5% in).
+    /// </summary>
     void Tile(CardDef c, Vector2 at, float w, float h)
     {
         var id = c.Id;
@@ -821,13 +928,11 @@ public class BuilderView : MonoBehaviour
         {
             var ring = Hud.Rect(cell, "Ring");
             Hud.Fill(ring);
-            float o = focus == id ? 4 : 2;
+            float o = focus == id ? 3 : 2;
             ring.offsetMin = new Vector2(-o, -o);
             ring.offsetMax = new Vector2(o, o);
             var ri = ring.gameObject.AddComponent<Image>();
-            ri.sprite = Hud.Rounded;
-            ri.type = Image.Type.Sliced;
-            ri.pixelsPerUnitMultiplier = 2.4f;
+            Hud.Corner(ri, w * 0.06f + o);
             ri.color = focus == id ? Hex("#9fb4ff") : new Color(kc.r, kc.g, kc.b, 0.75f);
             ri.raycastTarget = false;
         }
@@ -842,58 +947,64 @@ public class BuilderView : MonoBehaviour
         b.colors = colours;
         b.onClick.AddListener(() => Add(id));
         // Copies in the deck of copies owned: tap to craft or break down.
-        float fs = Mathf.Max(11, w * 0.075f);
+        float fs = Mathf.Max(9, w * 0.065f);
         var badgeText = $"{n}/{have}";
-        var badge = Hud.Glass(cell, "Have", n > 0 ? kc : new Color(1, 1, 1, 0.94f), false);
-        Hud.At((RectTransform)badge.transform, new Vector2(0, 1), new Vector2(w * 0.04f, -h * 0.035f), new Vector2(fs * (badgeText.Length * 0.85f + 1.6f), fs * 1.9f));
+        float bw = K.TextW(badgeText, fs, 400, 0.06f) + 16, bh = fs * 1.2f + 4;
+        var badge = Hud.Box(cell, "Have", n > 0 ? kc : new Color(1, 1, 1, 0.94f), bh / 2);
+        Hud.Place(badge.rectTransform, w * 0.04f, h * 0.035f, bw, bh);
+        Hud.Shadow(badge, bh / 2, n > 0 ? new Hud.Drop(Color.white, 0, 0, 2) : new Hud.Drop(Hud.Rgba(150, 160, 185, 0.35f), 0, 0, 1), new Hud.Drop(Hud.Rgba(80, 84, 100, 0.18f), 1, 4));
+        badge.raycastTarget = true;
         badge.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); focus = focus == id ? null : id; Draw(); });
-        Hud.Label(badge.transform, badgeText, fs, n > 0 ? Color.white : have > 0 ? Look.InkFaint : Hex("#6d6fd0"), true, 500, 4);
+        K.Fill(badge.transform, badgeText, fs, n > 0 ? Color.white : have > 0 ? Look.InkFaint : Hex("#6d6fd0"), true, 400, 0.06f);
         // Read it large.
-        var zoom = Hud.Glass(cell, "Zoom", new Color(1, 1, 1, 0.9f), false);
-        zoom.sprite = Hud.Circle;
-        zoom.type = Image.Type.Simple;
-        float zs = Mathf.Max(24, w * 0.14f);
-        Hud.At((RectTransform)zoom.transform, new Vector2(1, 1), new Vector2(-w * 0.04f, -h * 0.03f), new Vector2(zs, zs));
+        var zoom = Hud.Rect(cell, "Zoom");
+        Hud.Place(zoom, w * 0.95f - 22, h * 0.05f, 22, 22);
+        var zi = zoom.gameObject.AddComponent<Image>();
+        zi.sprite = Hud.Circle;
+        zi.color = new Color(1, 1, 1, 0.92f);
+        Hud.Shadow(zi, 11, new Hud.Drop(Hud.Rgba(80, 84, 100, 0.25f), 1, 4));
         zoom.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("hover"); zoomed = id; Draw(); });
-        Hud.Label(zoom.transform, "+", zs * 0.7f, Look.InkSoft, false, 500, 0).margin = new Vector4(0, 0, 0, zs * 0.08f);
+        K.Fill(zoom, "+", 15, Look.InkSoft, false, 500).margin = new Vector4(0, 0, 0, 1.5f);
     }
 
-    /// <summary>The page buttons beneath the pool (none with a single page): back, a dot for each page (or its number, with many), on.</summary>
+    /// <summary>
+    /// The page buttons beneath the pool (.db-pager; none with a single page): back and on (30 across, round, a hairline
+    /// of #e4e1dc), 10 apart, a dot for each page between them (or, with many, its number, Exo 2 13.33).
+    /// </summary>
     void Pager()
     {
         int pages = Mathf.Max(1, Pages().Count);
         if (pages <= 1) return;
         bool dots = pages < 13;
-        float mid = dots ? pages * 15 : 70;
+        float mid = dots ? pages * 12 - 4 : K.TextW($"{pageAt + 1} / {pages}", 13.33f, 400, 0, false);
+        float cx = PoolW / 2;
         for (int dir = -1; dir <= 1; dir += 2)
         {
             int step = dir;
             bool can = step < 0 ? pageAt > 0 : pageAt < pages - 1;
-            var arrow = Hud.Glass(pagerArea, step < 0 ? "Prev" : "Next", Color.white, false);
-            arrow.sprite = Hud.Circle;
-            arrow.type = Image.Type.Simple;
-            Hud.At((RectTransform)arrow.transform, new Vector2(0.5f, 0.5f), new Vector2(step * (mid / 2 + 30), 0), new Vector2(40, 40));
+            var arrow = Hud.Rect(pagerArea, step < 0 ? "Prev" : "Next");
+            Hud.Place(arrow, cx + step * (mid / 2 + 10 + 15) - 15, 0, 30, 30);
+            var ai = arrow.gameObject.AddComponent<Image>();
+            ai.sprite = Hud.Circle;
+            Hud.Shadow(ai, 15, new Hud.Drop(Hex("#e4e1dc"), 0, 0, 1));
             var ab = arrow.gameObject.AddComponent<Button>();
             ab.interactable = can;
             ab.onClick.AddListener(() => { Sound.Play("click"); pageAt = Mathf.Clamp(pageAt + step, 0, pages - 1); RefreshPool(); });
-            Hud.Label(arrow.transform, step < 0 ? "‹" : "›", 26, can ? Look.Ink : new Color(0.24f, 0.26f, 0.29f, 0.35f), false, 500, 0).margin = new Vector4(step < 0 ? 0 : 3, 0, step < 0 ? 3 : 0, 5);
+            K.Fill(arrow, step < 0 ? "‹" : "›", 18, can ? Look.Ink : new Color(0.24f, 0.26f, 0.29f, 0.35f), false, 500).margin = new Vector4(step < 0 ? 0 : 2, 0, step < 0 ? 2 : 0, 3);
         }
         if (!dots)
         {
-            Hud.Label(pagerArea, $"{pageAt + 1} / {pages}", 16, Look.InkSoft, false, 500, 0);
+            K.Words(pagerArea, $"{pageAt + 1} / {pages}", cx - mid / 2 - 4, 0, mid + 8, 30, 13.33f, Look.InkSoft, false, 400);
             return;
         }
         for (int i = 0; i < pages; i++)
         {
             int to = i;
             bool on = i == pageAt;
-            var dot = Hud.Rect(pagerArea, $"Page {i + 1}");
-            Hud.At(dot, new Vector2(0.5f, 0.5f), new Vector2((i - (pages - 1) / 2f) * 15, 0), new Vector2(14, 22));
-            var hit = dot.gameObject.AddComponent<Image>();
-            hit.color = new Color(1, 1, 1, 0.001f);
-            dot.gameObject.AddComponent<Button>().onClick.AddListener(() => { pageAt = to; RefreshPool(); });
-            var mark = Hud.Rect(dot, "Dot");
-            Hud.At(mark, new Vector2(0.5f, 0.5f), Vector2.zero, on ? new Vector2(10, 10) : new Vector2(8, 8));
+            var dot = K.Hit(pagerArea, $"Page {i + 1}", () => { pageAt = to; RefreshPool(); }, false);
+            Hud.Place((RectTransform)dot.transform, cx - mid / 2 + i * 12 - 2, 4, 12, 22);
+            var mark = Hud.Rect(dot.transform, "Dot");
+            Hud.At(mark, new Vector2(0.5f, 0.5f), Vector2.zero, on ? new Vector2(8, 8) : new Vector2(6, 6));
             var mi = mark.gameObject.AddComponent<Image>();
             mi.sprite = Hud.Circle;
             mi.color = on ? Look.Ink : Hex("#d6d3ce");
@@ -977,151 +1088,139 @@ public class BuilderView : MonoBehaviour
 
     // ---- The deck: its name, its count, the craft panel, its cards, exit and save ----
 
+    /// <summary>
+    /// The deck's side (.db-deck-side): clamp(170px, 26vw, 290px) across down the right, max(12px, the safe area) off
+    /// the foot; white at 70%, corners 14, padded 10, its parts 8 apart: its name (.db-name, 26 tall) and mode chip,
+    /// the count, the craft panel, its cards (scrolling), exit and save.
+    /// </summary>
     void Side()
     {
         var d = editing;
-        var side = Hud.Glass(root, "Deck", new Color(1, 1, 1, 0.7f));
-        var sr = (RectTransform)side.transform;
-        sr.anchorMin = new Vector2(1, 0);
-        sr.anchorMax = new Vector2(1, 1);
-        sr.pivot = new Vector2(1, 0.5f);
-        sr.offsetMin = new Vector2(-Margin - SideW, Margin);
-        sr.offsetMax = new Vector2(-Margin, -Margin);
-        float inner = SideW - 24;
-        var nameBox = MakeInput(side.transform, d.Name, Vector2.zero, new Vector2(inner - 110, 46), 24, false, "");
-        Hud.At((RectTransform)nameBox.transform, new Vector2(0, 1), new Vector2(12, -12), new Vector2(inner - 110, 46));
+        float sw = SideW, sx = K.W - K.PadR - sw, sy = K.PadT, sh = K.H - sy - Mathf.Max(12, K.SaB);
+        var side = Hud.Box(root, "Deck", new Color(1, 1, 1, 0.7f), 14);
+        Hud.Place(side.rectTransform, sx, sy, sw, sh);
+        Hud.Shadow(side, 14, new Hud.Drop(Hud.Rgba(90, 90, 110, 0.13f), 8, 30), new Hud.Drop(Hud.Rgba(90, 90, 110, 0.07f), 2, 6));
+        side.raycastTarget = true;
+        float inner = sw - 22, x = 11, y = 11;
+        string modeName = Modes.GameModes[Modes.ModeOf(d)].Name.ToLowerInvariant();
+        float chipW = K.TextW(modeName, 11, 600, 0, false) + 18;
+        var nameBox = Box(side.transform, d.Name, x, y, inner - chipW - 8, 26, 8, 24, "", 10.56f, true, 0.1f, true, Hex("#eceae6"));
         nameBox.onValueChanged.AddListener(s => editing.Name = Clip(s, 24));
-        var chip = Hud.Glass(side.transform, "Mode", Hex("#eef0f5"), false);
-        Hud.At((RectTransform)chip.transform, new Vector2(1, 1), new Vector2(-12, -21), new Vector2(98, 28));
-        Hud.Label(chip.transform, Modes.GameModes[Modes.ModeOf(d)].Name.ToLowerInvariant(), 12, Look.InkSoft, false, 600, 0);
+        var chip = Hud.Box(side.transform, "Mode", Hex("#eef0f5"), 9.5f);
+        Hud.Place(chip.rectTransform, x + inner - chipW, y + 3.5f, chipW, 19);
+        K.Fill(chip.transform, modeName, 11, Look.InkSoft, false, 600);
+        y += 26 + 8;
 
-        // The count of cards and of Heroes, against what it needs.
+        // The count of cards and of Heroes, against what it needs (.db-tally: Exo 2 10.56).
         int commands = d.Cards.Count(id => Cards.Def(id).Kind == "command"), needHeroes = DeckRules.CommandCardsFor(d.Cards.Count);
         string ok = Html(Look.Good), bad = "#c0705f";
         bool sizeOk = d.Cards.Count >= Balance.DeckSize && d.Cards.Count <= Balance.MaxDeckSize;
         var missing = MissingCopies(d.Cards);
-        int need = missing.Sum(x => x.n);
-        var collect = need > 0 ? $"<color=#a8641c>{need} to collect · ⟁{missing.Sum(x => x.n * Progression.CraftCost(x.id))}</color>   " : "";
-        var tally = Hud.Label(side.transform, $"{collect}<color={(sizeOk ? ok : bad)}>{d.Cards.Count}/{(d.Cards.Count > Balance.DeckSize ? Balance.MaxDeckSize : Balance.DeckSize)}</color> cards · <color={(commands == needHeroes ? ok : bad)}>{commands}/{needHeroes}</color> {(needHeroes == 1 ? "hero" : "heroes")}", 15, Look.InkSoft, false, 500, 0, TextAlignmentOptions.Top);
-        tally.margin = new Vector4(0, 68, 0, 0);
-        float y = -98;
-        if (focus != null) y = FocusPanel(side.transform, focus, y, inner);
+        int need = missing.Sum(m => m.n);
+        var collect = need > 0 ? $"<color=#a8641c>{need} to collect · ⟁{missing.Sum(m => m.n * Progression.CraftCost(m.id))}</color>   " : "";
+        var tally = K.Words(side.transform, $"{collect}<b><color={(sizeOk ? ok : bad)}>{d.Cards.Count}/{(d.Cards.Count > Balance.DeckSize ? Balance.MaxDeckSize : Balance.DeckSize)}</color></b> cards · <b><color={(commands == needHeroes ? ok : bad)}>{commands}/{needHeroes}</color></b> {(needHeroes == 1 ? "hero" : "heroes")}", x, y, inner, 12, 10.56f, Look.InkSoft, false, 400);
+        tally.overflowMode = TextOverflowModes.Ellipsis;
+        y += 12 + 8;
+        if (focus != null) y = FocusPanel(side.transform, focus, x, y, inner) + 8;
 
-        // The deck, card by card: a slim row in the card's own colours with its picture, by energy cost then name.
-        var view = Hud.Rect(side.transform, "Rows");
-        view.anchorMin = new Vector2(0, 0);
-        view.anchorMax = new Vector2(1, 1);
-        view.offsetMin = new Vector2(8, 70);
-        view.offsetMax = new Vector2(-8, y);
-        view.gameObject.AddComponent<RectMask2D>();
-        var content = Hud.Rect(view, "Content");
-        content.anchorMin = new Vector2(0, 1);
-        content.anchorMax = new Vector2(1, 1);
-        content.pivot = new Vector2(0.5f, 1);
-        content.anchoredPosition = Vector2.zero;
+        // The deck, card by card (.db-row: 28 tall, 2 apart, round, in the card's own colours with its picture), by
+        // energy cost then name; then exit and save (.db-actions: 25 tall, at least 72 across, 6 apart).
+        float actionsY = sh - 11 - 25;
         var rows = d.Cards.Distinct().Select(Cards.Def).OrderBy(CostOrder).ThenBy(c => c.Name, System.StringComparer.InvariantCultureIgnoreCase).ToList();
-        float ry = -4;
-        foreach (var c in rows) { Row(content, c, ry, inner - 8); ry -= 37; }
+        float listH = rows.Count == 0 ? 8 + 76.4f : rows.Count * 30;
+        var content = K.Scroller(side.transform, "Rows", x, y, inner, Mathf.Max(30, actionsY - 8 - y), listH);
+        float ry = 0;
+        foreach (var c in rows) { Row(content, c, ry, inner); ry += 30; }
         if (rows.Count == 0)
         {
-            var empty = Hud.Glass(content, "Empty", new Color(1, 1, 1, 0.001f), false);
-            Hud.At((RectTransform)empty.transform, new Vector2(0.5f, 1), new Vector2(0, -6), new Vector2(inner - 16, 90));
-            Outline(empty.transform, Hex("#d6d3ce"), 1.5f);
-            Hud.Label(empty.transform, "No cards yet.\nTap a card to add it.", 15, Hex("#8a8f99"), false, 400, 0).lineSpacing = 10;
-            ry = -100;
+            var empty = Hud.Box(content, "Empty", Hex("#d6d3ce"), 10);
+            Hud.Place(empty.rectTransform, 0, 4, inner, 76.4f);
+            var hole = Hud.Box(empty.transform, "Inside", new Color(0.985f, 0.985f, 0.98f), 9);
+            Hud.Fill(hole.rectTransform);
+            hole.rectTransform.offsetMin = new Vector2(1.5f, 1.5f);
+            hole.rectTransform.offsetMax = new Vector2(-1.5f, -1.5f);
+            var words = K.Fill(empty.transform, "No cards yet. Tap a card to add it.", 12.8f, Hex("#8a8f99"), false, 400);
+            words.textWrappingMode = TextWrappingModes.Normal;
+            words.margin = new Vector4(12, 0, 12, 0);
         }
-        content.sizeDelta = new Vector2(0, -ry + 6);
-        var hit = content.gameObject.AddComponent<Image>();
-        hit.color = new Color(1, 1, 1, 0.001f);
-        var scroll = view.gameObject.AddComponent<ScrollRect>();
-        scroll.viewport = view;
-        scroll.content = content;
-        scroll.horizontal = false;
-        scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.scrollSensitivity = 30;
-
-        var exit = Hud.Pill(side.transform, "Exit", () =>
+        System.Action exitAct = () =>
         {
             // Leave the deck: ask first if that would lose changes.
             if (Snap(editing) != openedSnap) confirmExit = true;
             else editing = starter = null;
             Draw();
-        }, 13, Color.white, Hex("#b23c24"));
-        Hud.At((RectTransform)exit.transform, new Vector2(1, 0), new Vector2(-150, 14), new Vector2(110, 44));
-        Outline(exit.transform, new Color(0.753f, 0.337f, 0.239f, 0.45f), 1);
-        var save = Hud.Pill(side.transform, "Save", Save, 13, Look.Ink, Color.white);
-        Hud.At((RectTransform)save.transform, new Vector2(1, 0), new Vector2(-14, 14), new Vector2(126, 44));
+        };
+        float bw = Mathf.Max(72, K.TextW("SAVE", 9.28f, 700, 0.18f) + 30);
+        var save = K.Btn(side.transform, "save", Save, x + inner - bw, actionsY, K.Kind.Primary, bw, 25, 9.28f, 0.18f);
+        var exit = K.Btn(side.transform, "exit", exitAct, x + inner - bw - 6 - bw, actionsY, K.Kind.Btn, bw, 25, 9.28f, 0.18f);
+        var el = exit.GetComponentInChildren<TextMeshProUGUI>();
+        el.color = Hex("#b23c24");
+        el.font = Look.Display(700);
+        Hud.Shadow(exit.targetGraphic, 10, new Hud.Drop(new Color(0.753f, 0.337f, 0.239f, 0.45f), 0, 0, 1));
     }
 
-    /// <summary>A row of the deck: its picture, its name, how many short (if any), how many, and a minus (tap: take one out).</summary>
+    /// <summary>A row of the deck: its picture (22 across), its name, how many short (if any), how many, and a minus (tap: take one out).</summary>
     void Row(RectTransform content, CardDef c, float y, float width)
     {
         int n = Count(editing.Cards, c.Id), shortBy = Mathf.Max(0, n - Profile.Owned(c.Id));
         var kc = Look.Kind.TryGetValue(ShownKind(c), out var kcol) ? kcol : Look.Ink;
         var rarity = c.Rarity ?? "dwarf";
-        var row = Hud.Rect(content, c.Id);
-        Hud.At(row, new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(width, 34));
-        var edge = row.gameObject.AddComponent<Image>();
-        edge.sprite = Hud.Rounded;
-        edge.type = Image.Type.Sliced;
-        edge.color = new Color(kc.r, kc.g, kc.b, 0.3f);
-        var bg = Hud.Rect(row, "Body");
-        Hud.Fill(bg);
-        bg.offsetMin = new Vector2(1, 1);
-        bg.offsetMax = new Vector2(-1, -1);
-        var bi = bg.gameObject.AddComponent<Image>();
-        bi.sprite = Hud.Rounded;
-        bi.type = Image.Type.Sliced;
-        bi.color = rarity == "stellar" ? Hex("#fcf5e6") : rarity == "anomaly" ? Hex("#f4eefc") : Hex("#f8f9fb");
-        bi.raycastTarget = false;
+        var row = Hud.Box(content, c.Id, rarity == "stellar" ? Hex("#fcf5e6") : rarity == "anomaly" ? Hex("#f4eefc") : Hex("#f8f9fb"), 14);
+        Hud.Place(row.rectTransform, 0, y, width, 28);
+        Hud.Shadow(row, 14, new Hud.Drop(new Color(kc.r, kc.g, kc.b, 0.22f), 0, 0, 1), new Hud.Drop(Hud.Rgba(90, 90, 110, 0.1f), 2, 6));
+        row.raycastTarget = true;
         var id = c.Id;
         row.gameObject.AddComponent<Button>().onClick.AddListener(() => Remove(id));
-        var art = Hud.Rect(row, "Art");
-        Hud.At(art, new Vector2(0, 0.5f), new Vector2(3, 0), new Vector2(28, 28));
+        var art = Hud.Rect(row.transform, "Art");
+        Hud.Place(art, 3, 3, 22, 22);
         var ring = art.gameObject.AddComponent<Image>();
         ring.sprite = Hud.Circle;
         ring.color = new Color(1, 1, 1, 0.7f);
         ring.raycastTarget = false;
-        Portrait(art, id, 26);
-        var name = Hud.Label(row, c.Name.ToLowerInvariant(), 13, Look.Ink, true, 500, 4, TextAlignmentOptions.Left);
+        Portrait(art, id, 21);
+        float fs = K.Clamp(8.96f, 2 * K.Vh, 11.2f);
+        var name = K.Fill(row.transform, c.Name.ToLowerInvariant(), fs, Look.Ink, true, 700, 0.06f, TextAlignmentOptions.Left);
         name.overflowMode = TextOverflowModes.Ellipsis;
-        name.margin = new Vector4(40, 0, shortBy > 0 ? 116 : 56, 0);
-        var count = Hud.Label(row, $"×{n}", 13, Look.Ink, true, 500, 0, TextAlignmentOptions.Right);
-        count.margin = new Vector4(0, 0, 30, 0);
-        var minus = Hud.Label(row, "−", 16, Look.InkFaint, false, 500, 0, TextAlignmentOptions.Right);
-        minus.margin = new Vector4(0, 0, 12, 0);
+        name.margin = new Vector4(32, 0, shortBy > 0 ? 82 : 40, 0);
+        var count = K.Fill(row.transform, $"×{n}", 8.96f, Look.Ink, true, 700, 0, TextAlignmentOptions.Right);
+        count.margin = new Vector4(0, 0, 22, 0);
+        var minus = K.Fill(row.transform, "−", 11, Look.InkFaint, false, 500, 0, TextAlignmentOptions.Right);
+        minus.margin = new Vector4(0, 0, 10, 0);
         if (shortBy > 0)
         {
-            var needL = Hud.Label(row, $"need {shortBy}", 12, Hex("#a8641c"), false, 500, 0, TextAlignmentOptions.Right);
-            needL.margin = new Vector4(0, 0, 62, 0);
+            var needL = K.Fill(row.transform, $"need {shortBy}", 8.5f, Hex("#a8641c"), false, 500, 0, TextAlignmentOptions.Right);
+            needL.margin = new Vector4(0, 0, 42, 0);
         }
     }
 
-    /// <summary>Crafting (builder.ts renderFocus): make another copy with flux, or break a spare one down for half its cost.</summary>
-    float FocusPanel(Transform side, string id, float y, float inner)
+    /// <summary>
+    /// Crafting (builder.ts renderFocus, .db-focus: #f6f7fb, corners 14, padded 10 by 12, 6 between): make another copy
+    /// with flux, or break a spare one down for half its cost. Returns where it ends.
+    /// </summary>
+    float FocusPanel(Transform side, string id, float x, float y, float inner)
     {
         var def = Cards.Def(id);
         var me = Profile.Me;
         int have = Profile.Owned(id), cost = Progression.CraftCost(id), spare = Progression.Breakable(me.Collection, id);
-        var panelBox = Hud.Glass(side, "Craft", Hex("#f6f7fb"), false);
-        Hud.At((RectTransform)panelBox.transform, new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(inner, 124));
-        Outline(panelBox.transform, Hex("#e6e9f2"), 1);
-        var head = Hud.Label(panelBox.transform, def.Name.ToLowerInvariant(), 14, Look.Ink, true, 500, 6, TextAlignmentOptions.TopLeft);
-        head.margin = new Vector4(14, 14, 100, 0);
+        string line = $"owned {have} · a deck may hold {Campaign.CopyLimit(id)} · you have ⟁{me.Flux} flux";
+        var probe = K.Words(side, line, x + 12, 0, inner - 24, 12, 9.92f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
+        probe.textWrappingMode = TextWrappingModes.Normal;
+        float lineH = probe.GetPreferredValues(line, inner - 24, 0).y, h = 10 + 22 + 6 + lineH + 6 + 26 + 10;
+        var panelBox = K.Inset(side, "Craft", Hex("#f6f7fb"), Hex("#e6e9f2"), 14);
+        Hud.Place(panelBox.rectTransform, x, y, inner, h);
+        var t = panelBox.transform;
+        float closeW = K.BtnW("close", K.Kind.Pill, 8.96f);
+        var head = K.Words(t, def.Name.ToLowerInvariant(), 12, 10, inner - 24 - closeW - 8, 22, 11.52f, Look.Ink, true, 500, 0.1f, TextAlignmentOptions.Left);
         head.overflowMode = TextOverflowModes.Ellipsis;
-        var close = Hud.Pill(panelBox.transform, "Close", () => { focus = null; Draw(); }, 11);
-        Hud.At((RectTransform)close.transform, new Vector2(1, 1), new Vector2(-10, -8), new Vector2(84, 32));
-        var line = Hud.Label(panelBox.transform, $"owned {have} · a deck may hold {Campaign.CopyLimit(id)} · you have ⟁{me.Flux} flux", 13, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
-        line.margin = new Vector4(14, 46, 10, 0);
-        line.textWrappingMode = TextWrappingModes.Normal;
-        float bw = (inner - 34) / 2;
-        var craft = Hud.Pill(panelBox.transform, $"Craft · ⟁{cost}", () => Craft(id), 11);
-        Hud.At((RectTransform)craft.transform, new Vector2(0, 0), new Vector2(12, 12), new Vector2(bw, 38));
+        K.Btn(t, "close", () => { focus = null; Draw(); }, inner - 12 - closeW, 10, K.Kind.Pill, closeW, 22, 8.96f);
+        probe.transform.SetParent(t, false);
+        Hud.Place(probe.rectTransform, 12, 38, inner - 24, lineH);
+        float bw = (inner - 24 - 6) / 2;
+        var craft = K.Btn(t, $"craft · ⟁{cost}", () => Craft(id), 12, 44 + lineH, K.Kind.Btn, bw, 26, 8.96f, 0.1f);
         craft.interactable = me.Flux >= cost;
-        var brk = Hud.Pill(panelBox.transform, $"Break down · +⟁{Progression.BreakdownValue(id)}", () => BreakDown(id), 11);
-        Hud.At((RectTransform)brk.transform, new Vector2(1, 0), new Vector2(-12, 12), new Vector2(bw, 38));
+        var brk = K.Btn(t, $"break down · +⟁{Progression.BreakdownValue(id)}", () => BreakDown(id), 12 + bw + 6, 44 + lineH, K.Kind.Btn, bw, 26, 8.96f, 0.1f);
         brk.interactable = spare > 0;
-        return y - 132;
+        return y + h;
     }
 
     // ---- The filters popover: dropdowns of ticks, an order, two toggles ----
@@ -1143,14 +1242,16 @@ public class BuilderView : MonoBehaviour
             ("rarity", "rarity", rarities, "every rarity"), ("own", "collection", owns, "all cards"), ("sort", "order", sorts, ""),
         };
         // (A tap off the popover shuts it.)
-        var off = Hud.Rect(root, "Off");
+        var off = Hud.Rect(layer, "Off");
         Hud.Fill(off);
         off.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0.001f);
         off.gameObject.AddComponent<Button>().onClick.AddListener(() => { filtersOpen = false; dropOpen = null; Draw(); });
         const float pw = 540, dh = 56;
         float ph = 16 + 3 * (dh + 10) + 46 + 52;
-        var pop = Hud.Glass(root, "Popover", new Color(1, 1, 1, 0.97f));
-        Hud.At((RectTransform)pop.transform, new Vector2(0, 1), new Vector2(Margin + 310, -78), new Vector2(pw, ph));
+        var pop = Hud.Glass(layer, "Popover", new Color(1, 1, 1, 0.97f));
+        // (On the reference layer: under the filters button, kept on the page.)
+        float popX = Mathf.Clamp(SearchR + 8, K.PadL, K.W - K.PadR - pw / WebLook.Zoom) * WebLook.Zoom;
+        Hud.At((RectTransform)pop.transform, new Vector2(0, 1), new Vector2(popX, -(K.PadT + 36) * WebLook.Zoom), new Vector2(pw, ph));
         pop.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
         RectTransform openHead = null;
         (string key, string label, List<(string, string)> rows, string none) openDrop = default;
@@ -1266,19 +1367,20 @@ public class BuilderView : MonoBehaviour
 
     // ---- A card read large ----
 
+    /// <summary>A card read large, over a veil (the web's .zoom-view): as tall as the page allows (at most 463), a word under it.</summary>
     void Zoom()
     {
         var veil = Hud.Rect(root, "Zoom");
         Hud.Fill(veil);
         veil.gameObject.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.94f, 0.85f);
         veil.gameObject.AddComponent<Button>().onClick.AddListener(() => { zoomed = null; Draw(); });
+        float ch = Mathf.Min(463, K.H - Mathf.Max(6, K.SaT) - Mathf.Max(6, K.SaB) - 48), cw = ch / 1.4f;
         var face = Hud.Rect(veil, "Card");
-        Hud.At(face, new Vector2(0.5f, 0.5f), new Vector2(0, 20), new Vector2(480, 672));
+        Hud.Place(face, (K.W - cw) / 2, Mathf.Max(6, K.SaT) + 12, cw, ch);
         var img = face.gameObject.AddComponent<RawImage>();
         img.texture = Faces.Of(zoomed, false);
         img.raycastTarget = false;
-        var hint = Hud.Label(veil, "tap anywhere to close", 14, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Bottom);
-        hint.margin = new Vector4(0, 0, 0, 40);
+        K.Words(veil, "tap anywhere to close", 0, Mathf.Max(6, K.SaT) + 12 + ch + 10, K.W, 16, 12.8f, Look.InkFaint, false, 400);
     }
 
     // ---- Pieces ----
