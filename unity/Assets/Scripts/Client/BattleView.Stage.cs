@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using BlueLoop.Engine;
 using TMPro;
@@ -60,13 +61,26 @@ public partial class BattleView
             if (stage != null && stage.Own) stage = null;
             state = next;
             StarSpin.Burst();
+            // A day's start replays its effects one by one (app.ts replayPulses), on the day's timeline (dayTimeline).
+            var day = turnPassed && Application.isPlaying && !Autoplay ? DayTimeline(next, actor) : ((float?)null, (float?)0f, 0f, new List<float>());
+            replaying = Application.isPlaying && !Autoplay && Replays(next, a);
             Hear(prev, next, a);
             Arcs(prev, next, a, actor);
             // (Skip all lasts the rival's day: as yours begins, it is back to auto.)
             if (turnPassed && confirmMode == "skip" && Game.ActivePlayer(next).Id == you) confirmMode = "auto";
+            float replayEnd = replaying ? ReplayPulses(prev, next, day.Item4) : 0;
+            // Cards that faded at dawn stay in their slots while the day's effects play out, then go, one at a time.
+            if (a.Type == "endTurn")
+            {
+                int faded = 0;
+                var nowIn = new HashSet<string>(next.Players.SelectMany(p => p.Tableau).Select(c => c.Uid));
+                foreach (var c in prev.Players.SelectMany(p => p.Tableau))
+                    if (!nowIn.Contains(c.Uid)) Board?.LeaveAfter(c.Uid, (replayEnd > 0 ? replayEnd : 0.2f) + faded++ * 0.11f);
+            }
             Refresh();
-            // (The next day's dawn: its banner, after the dusk's tick if the dusk did anything.)
-            if (turnPassed) DawnBanner(next, next.LastDusk != null && next.LastDusk.PlayerId == actor.Id && next.LastDusk.Acted ? 0.35f : 0);
+            replaying = false;
+            // (The next day's dawn: its banner when the timeline brings it, after the dusk's effects.)
+            if (turnPassed && day.Item2 != null) DawnBanner(next, day.Item2.Value, day.Item3);
         }
         if (stage != null && stage.Confirm)
         {

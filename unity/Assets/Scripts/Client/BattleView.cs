@@ -391,6 +391,9 @@ public partial class BattleView : MonoBehaviour
 
     // ---- What a move sounds like (app.ts: the same sounds for the same changes) ----
 
+    /// <summary>This move's dawn is being replayed effect by effect.</summary>
+    bool replaying;
+
     void Hear(GameState prev, GameState next, EngineAction a)
     {
         if (!Application.isPlaying) return;
@@ -454,7 +457,8 @@ public partial class BattleView : MonoBehaviour
             else if (gained > 0 && dHeat == 0) Sound.Play("shield", at);
         }
         int volley = 0;
-        foreach (var p in next.Players)
+        // (A day's start that replays its effects one by one shows its hits itself.)
+        foreach (var p in replaying ? new List<PlayerState>() : next.Players)
         {
             if (p.Id == source.Id) continue;
             var w = Was(p);
@@ -466,7 +470,7 @@ public partial class BattleView : MonoBehaviour
         if (volley > 0) Sound.Play("launch", delay);
         var me = next.Players.First(p => p.Id == source.Id);
         var meWas = Was(me);
-        if (me.Heat != meWas.Heat || me.Shields > meWas.Shields)
+        if (!replaying && (me.Heat != meWas.Heat || me.Shields > meWas.Shields))
         {
             Hit(me, delay, false);
             if (me.Heat < meWas.Heat) Sound.Play("thermo", delay);

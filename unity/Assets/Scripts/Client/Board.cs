@@ -559,8 +559,9 @@ public class Board : MonoBehaviour
                     if (to != null) break;
                 }
                 // (Taken by a blow still on its way: it waits in its slot for it, then dissolves there.)
+                float wait = leaveAt.TryGetValue(uid, out var la) ? Mathf.Max(0, la - Time.time) : 0;
                 if (linger.TryGetValue(uid, out var at) && at > Time.time) gone.Dissolve(at - Time.time);
-                else if (to != null && gone.Table) gone.GoTo(to.Value + Vector3.up * 0.05f, Mathf.Clamp(k, 0.15f, 1));
+                else if (to != null && gone.Table) gone.GoTo(to.Value + Vector3.up * 0.05f, Mathf.Clamp(k, 0.15f, 1), wait);
                 else gone.Die(0.25f);
             }
             cards.Remove(uid);
@@ -794,6 +795,26 @@ public class Board : MonoBehaviour
     float holdEnds;
 
     readonly Dictionary<string, float> linger = new Dictionary<string, float>();
+    readonly Dictionary<string, float> leaveAt = new Dictionary<string, float>();
+
+    /// <summary>A card leaving play waits in its slot `seconds` (until the dawn's effects are over), then goes.</summary>
+    public void LeaveAfter(string uid, float seconds) => leaveAt[uid] = Time.time + seconds;
+
+    /// <summary>Shown again as it is (a hold changed).</summary>
+    public void Resync()
+    {
+        if (synced != null && syncedBy != null) Sync(synced, syncedBy);
+    }
+
+    /// <summary>The middle of the table (the Stellari and the round's disc), in world space.</summary>
+    public Vector3 Middle => table.TransformPoint(Vector3.zero);
+
+    /// <summary>Half the round's disc, and half the Stellari's slot, across (world).</summary>
+    public float RoundHalf => L.U(L.Round) / 2 * table.lossyScale.x;
+    public float StarHalf => L.U(L.Star) / 2 * table.lossyScale.x;
+
+    /// <summary>The cards on the table.</summary>
+    public IEnumerable<string> OnTable() => cards.Where(kv => kv.Value != null && kv.Value.Table).Select(kv => kv.Key).ToList();
 
     /// <summary>A card a blow takes stays in its slot until the blow reaches it, `seconds` from now.</summary>
     public void Linger(string uid, float seconds) => linger[uid] = Time.time + seconds;
@@ -801,7 +822,7 @@ public class Board : MonoBehaviour
     /// <summary>A sun keeps showing `was` (in the state `before`) for `seconds`, until what strikes it lands.</summary>
     public void HoldSun(string playerId, GameState before, PlayerState was, float seconds)
     {
-        if (seconds < 0.15f) return;
+        if (seconds < 0.15f) { sunHold.Remove(playerId); return; }
         sunHold[playerId] = (before, was, Time.time + seconds);
         holdEnds = Mathf.Max(holdEnds, Time.time + seconds);
     }
@@ -914,6 +935,25 @@ public class StarSpin : MonoBehaviour
     {
         if (current == null || current.bursts.Count >= 3) return;
         current.bursts.Add(Time.time);
+        current.burstDeg.Add(30);
+        current.burstTime.Add(1.8f);
+    }
+
+    readonly System.Collections.Generic.List<float> burstDeg = new System.Collections.Generic.List<float>(), burstTime = new System.Collections.Generic.List<float>();
+    readonly System.Collections.Generic.List<(float start, float hold)> rages = new System.Collections.Generic.List<(float, float)>();
+    float rage;
+
+    /// <summary>
+    /// backdrop.ts heatWave: the Stellari looses a heat wave: it whirls round (120 degrees over 0.75 s) and turns red
+    /// (eased in over 0.2 s), holds red while the wave goes out (`hold`), then cools back over 0.4 s.
+    /// </summary>
+    public static void HeatWave(float hold)
+    {
+        if (current == null) return;
+        current.rages.Add((Time.time, hold));
+        current.bursts.Add(Time.time);
+        current.burstDeg.Add(120);
+        current.burstTime.Add(0.75f);
     }
 
     void Update()
@@ -922,22 +962,42 @@ public class StarSpin : MonoBehaviour
         float extra = 0;
         for (int i = bursts.Count - 1; i >= 0; i--)
         {
-            float t = (Time.time - bursts[i]) / 1.8f;
+            float deg = i < burstDeg.Count ? burstDeg[i] : 30, ms = i < burstTime.Count ? burstTime[i] : 1.8f;
+            float t = (Time.time - bursts[i]) / ms;
             if (t >= 1)
             {
-                angle = (angle + 30) % 1800;
+                angle = (angle + deg) % 1800;
                 bursts.RemoveAt(i);
+                if (i < burstDeg.Count) burstDeg.RemoveAt(i);
+                if (i < burstTime.Count) burstTime.RemoveAt(i);
                 continue;
             }
-            extra += 30 * (0.5f - Mathf.Cos(Mathf.PI * Mathf.Max(0, t)) / 2);
+            extra += deg * (0.5f - Mathf.Cos(Mathf.PI * Mathf.Max(0, t)) / 2);
         }
         float a = angle + extra;
-        // (applyTint: deep red when hot, icy blue when cold, the petals mixed a third of the way toward it.)
+        // (A heat wave's flush of red: in over 0.2 s, held, then out over 0.4 s.)
+        float ease(float x) => 0.5f - Mathf.Cos(Mathf.PI * x) / 2;
+        float r = 0;
+        for (int i = rages.Count - 1; i >= 0; i--)
+        {
+            float t = Time.time - rages[i].start, hold = rages[i].hold;
+            if (t > 0.2f + hold + 0.4f) { rages.RemoveAt(i); continue; }
+            r = Mathf.Max(r, t < 0.2f ? ease(t / 0.2f) : t < 0.2f + hold ? 1 : 1 - ease((t - 0.2f - hold) / 0.4f));
+        }
+        bool tinted = r != rage;
+        rage = r;
+        // (applyTint: deep red when hot, icy blue when cold, and red, strongly, while it looses a heat wave; the petals
+        // mixed a third of the way toward it, or most of the way in a heat wave.)
         if (Mathf.Abs(tint - tintTarget) > 0.002f)
         {
             tint += (tintTarget - tint) * Mathf.Min(1, Time.deltaTime * 1.5f);
+            tinted = true;
+        }
+        if (tinted)
+        {
             var b = tint >= 0 ? new Color(226 / 255f, 84 / 255f, 66 / 255f) : new Color(74 / 255f, 142 / 255f, 226 / 255f);
-            var c = Color.Lerp(Color.white, b, Mathf.Abs(tint) * 0.35f);
+            b = Color.Lerp(b, new Color(222 / 255f, 52 / 255f, 38 / 255f), rage);
+            var c = Color.Lerp(Color.white, b, Mathf.Max(Mathf.Abs(tint) * 0.35f, rage * 0.9f));
             foreach (var t in new[] { Outer, Inner })
                 if (t != null) t.GetComponentInChildren<MeshRenderer>().sharedMaterial.color = c;
         }

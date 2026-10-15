@@ -15,13 +15,13 @@ public partial class BattleView
     float bannerFree;
 
     /// <summary>A day begins: its dawn's banner (the viewer's own reads plainly; anyone else's carries their name).</summary>
-    void DawnBanner(GameState s, float delay)
+    void DawnBanner(GameState s, float delay, float day = 0)
     {
         if (s == null || s.WinnerId != null || Autoplay || hud == null || !Application.isPlaying) return;
         var p = Game.ActivePlayer(s);
         string text = p.Id == you ? "dawn" : $"{p.Name.ToLowerInvariant()}'s dawn";
-        // (The AI waits for the day's banner to have come and gone before it acts.)
-        if (p.IsAI) aiAfter = Mathf.Max(aiAfter, Mathf.Max(Time.time + delay, bannerFree) + BannerShown + 0.3f);
+        // (The AI waits for the day's banner to have come and gone, and the day's effects after it, before it acts.)
+        if (p.IsAI) aiAfter = Mathf.Max(aiAfter, Mathf.Max(Time.time + delay, bannerFree) + BannerShown + 0.3f, Time.time + Mathf.Max(1.2f, (day + BannerShown + 0.3f) / SpeedK));
         StartCoroutine(Banner(text, $"round {BoardArt.Roman(s.Round)}", Game.CurrentPlanet(p, s), delay));
     }
 

@@ -47,6 +47,10 @@ public partial class BattleView
                 Board.View(uid)?.Flash(true, delay + 0.56f);
                 Board.HoldCard(uid, prev, delay + 0.56f);
                 if (nowC == null) Board.Linger(uid, delay + 0.56f);
+                Sound.Play("launch", delay);
+                Sound.Play(nowC == null ? "whoosh" : "whoosh-keep", delay + 0.56f - 0.06f);
+                var blowOn = uid;
+                StartCoroutine(After(delay + 0.56f, () => CardBlow(prev, next, blowOn)));
                 if (heroMove) CardShiftNumbers(CardShift(prev, next, uid), to.Value, delay + 0.56f);
                 continue;
             }
@@ -54,6 +58,8 @@ public partial class BattleView
             // (A Hero's: what it did to the card shown as the arc reaches it.)
             float reach = delay + 0.42f + 0.52f * 0.7f;
             if (nowC == null) Board.Linger(uid, reach);
+            // (The beam whooshes onto the card, and, if it takes it, sweeps it away.)
+            Sound.Play(next.Players.Any(p => p.Tableau.Any(c => c.Uid == uid)) ? "whoosh-keep" : "whoosh", delay);
             if (heroMove && nowC != null)
             {
                 Board.View(uid)?.Flash(true, reach);

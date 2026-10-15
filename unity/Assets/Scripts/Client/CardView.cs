@@ -97,8 +97,20 @@ public class CardView : MonoBehaviour
             flash.sharedMaterial.renderQueue = 2996;
         }
         flashHit = hit;
+        flashTrigger = false;
         flashFor = seconds > 0 ? seconds : hit ? 0.6f : 1.2f;
         flashAt = Time.time + after;
+    }
+
+    Color flashColour;
+    bool flashTrigger;
+
+    /// <summary>.fx-trigger: a card firing lights up in its kind's colour (a white ring and a glow), gone over 0.7 s.</summary>
+    public void Trigger(Color kind, float after = 0)
+    {
+        Flash(false, after, 0.7f, 0);
+        flashTrigger = true;
+        flashColour = Color.Lerp(Color.white, kind, 0.7f);
     }
 
     void Flashing()
@@ -106,9 +118,9 @@ public class CardView : MonoBehaviour
         if (flashAt < 0 || flash == null || Time.time < flashAt) return;
         float t = (Time.time - flashAt) / flashFor;
         // (ease-out over the whole for a blow; for a gift, in to its peak at 30% and out after.)
-        float k = flashHit ? 1 - (1 - Mathf.Pow(1 - Mathf.Clamp01(t), 2)) : t < 0.3f ? 1 - Mathf.Pow(1 - t / 0.3f, 2) : 1 - (1 - Mathf.Pow(1 - (t - 0.3f) / 0.7f, 2));
+        float k = flashHit || flashTrigger ? 1 - (1 - Mathf.Pow(1 - Mathf.Clamp01(t), 2)) : t < 0.3f ? 1 - Mathf.Pow(1 - t / 0.3f, 2) : 1 - (1 - Mathf.Pow(1 - (t - 0.3f) / 0.7f, 2));
         if (t >= 1) { k = 0; flashAt = -1; }
-        var c = flashHit ? Hud.Rgba(255, 106, 58) : Color.white;
+        var c = flashTrigger ? flashColour : flashHit ? Hud.Rgba(255, 106, 58) : Color.white;
         c.a = Mathf.Clamp01(k);
         flash.sharedMaterial.color = c;
         if (flashHit)
