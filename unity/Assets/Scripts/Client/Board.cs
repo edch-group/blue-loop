@@ -519,6 +519,8 @@ public class Board : MonoBehaviour
         label.rectTransform.sizeDelta = new Vector2(0.92f, 0.3f);
         label.textWrappingMode = TextWrappingModes.NoWrap;
         label.overflowMode = TextOverflowModes.Truncate;
+        // (Too long for it, the box is as wide as it may be and its words run from its left, cut at its right.)
+        if (label.GetPreferredValues(label.text).x > 0.92f) label.alignment = TextAlignmentOptions.Left;
         label.gameObject.SetActive(!back);
         // (How many, small in its corner.)
         count = Mats.FlatText("Count", go.transform, "", Px(Mathf.Max(11, L.Pw * 0.28f)) / PileScale * 0.86f, Look.InkSoft, true, 700, 0, TextAlignmentOptions.Right);
@@ -1201,34 +1203,46 @@ public static class BoardArt
         return t;
     }
 
-    /// <summary>An empty slot (1 × 1.4 card widths at 160 pixels a width): pale, a white line inside a dashed edge; a trap's edge indigo.</summary>
-    public static Texture2D Slot(bool trap)
+    /// <summary>Texels a CSS pixel of the board, for the slots' and piles' outlines (their 1 px dashes kept sharp).</summary>
+    const float Texel = 2;
+
+    /// <summary>
+    /// A box `w` × `h` CSS px drawn as the web's: corners of `radius`, filled `fill`, an `insetW` px `inset` line just
+    /// inside its edge, a `edgeW` px dashed `edge` (as Chrome dashes a border: dashes and gaps 3 widths long).
+    /// </summary>
+    static Texture2D Outline(string key, float w, float h, float radius, Color fill, Color inset, float insetW, Color edge, float edgeW)
     {
-        string key = trap ? "trap" : "slot";
+        key = $"{key} {w:0.0}x{h:0.0}";
         if (made.TryGetValue(key, out var t)) return t;
-        // (A CSS pixel of the board is 1.84 of these; a pixel on screen about 1.55.)
-        t = Dashed(160, 224, 12.8f, new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.66f), new Color(1, 1, 1, 0.5f), 1.84f,
-            trap ? new Color(75 / 255f, 79 / 255f, 176 / 255f, 0.4f) : new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.35f), 1.5f, 4.6f, 3.1f);
+        const float k = Texel;
+        t = Dashed(Mathf.CeilToInt(w * k), Mathf.CeilToInt(h * k), radius * k, fill, inset, insetW * k, edge, edgeW * k, 3 * edgeW * k, 3 * edgeW * k);
         made[key] = t;
         return t;
+    }
+
+    /// <summary>
+    /// An empty slot at the board's size (styles.css .slot-empty: --tcw × 1.4, corners 8% of it, rgba(250,251,253,0.66),
+    /// a 1 px white line at 0.5 inside a 1 px dashed edge); a trap's edge indigo (.slot-ls).
+    /// </summary>
+    public static Texture2D Slot(bool trap)
+    {
+        float w = BoardLayout.Current.Tcw;
+        return Outline(trap ? "trap" : "slot", w, w * 1.4f, w * 0.08f, new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.66f), new Color(1, 1, 1, 0.5f), 1,
+            trap ? new Color(75 / 255f, 79 / 255f, 176 / 255f, 0.4f) : new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.35f), 1);
     }
 
     /// <summary>A slot open to the card picked (button.slot-choosable): white at 0.7, a 1.5 px coral dashed edge.</summary>
     public static Texture2D SlotChoose()
     {
-        if (made.TryGetValue("choose", out var t)) return t;
-        t = Dashed(160, 224, 12.8f, new Color(1, 1, 1, 0.7f), new Color(1, 1, 1, 0), 0, new Color(208 / 255f, 101 / 255f, 75 / 255f, 0.7f), 1.5f, 4.6f, 3.1f);
-        made["choose"] = t;
-        return t;
+        float w = BoardLayout.Current.Tcw;
+        return Outline("choose", w, w * 1.4f, w * 0.08f, new Color(1, 1, 1, 0.7f), new Color(1, 1, 1, 0), 0, new Color(208 / 255f, 101 / 255f, 75 / 255f, 0.7f), 1.5f);
     }
 
-    /// <summary>An open pile's empty place (a pile's 48 px wide card at 160 pixels a width): pale, a dashed edge.</summary>
+    /// <summary>An open pile's empty place (.tpile-empty: --pw × 1.4, corners 7% of --tcw, rgba(250,251,253,0.6), a 1 px dashed edge).</summary>
     public static Texture2D Pile()
     {
-        if (made.TryGetValue("pile", out var t)) return t;
-        t = Dashed(160, 224, 20.3f, new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.6f), new Color(1, 1, 1, 0), 0, new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.4f), 2.6f, 8f, 5.5f);
-        made["pile"] = t;
-        return t;
+        var l = BoardLayout.Current;
+        return Outline("pile", l.Pw, l.Pw * 1.4f, l.Tcw * 0.07f, new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.6f), new Color(1, 1, 1, 0), 0, new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.4f), 1);
     }
 
     /// <summary>
