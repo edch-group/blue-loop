@@ -15,7 +15,7 @@ public class Board : MonoBehaviour
 {
     // The table's layout, in card widths (a card is 1 × 1.4), x across and z away from the viewer, from the Stellari's
     // middle: the web board's own at this screen's size (BoardLayout, from styles.css).
-    static BoardLayout L => BoardLayout.Current;
+    public static BoardLayout L => BoardLayout.Current;
     public static float Pitch => L.U(L.Pitch);
     public static float RowZ => L.At(0, L.RivalRowCy).z;
     public static float MyRowZ => L.At(0, L.MyRowCy).z;
@@ -113,7 +113,7 @@ public class Board : MonoBehaviour
         return r;
     }
 
-    static Color Rgba(int r, int g, int b, float a = 1) => new Color(r / 255f, g / 255f, b / 255f, a);
+    public static Color Rgba(int r, int g, int b, float a = 1) => new Color(r / 255f, g / 255f, b / 255f, a);
 
     void Build()
     {
@@ -379,17 +379,10 @@ public class Board : MonoBehaviour
         go.transform.SetParent(table, false);
         go.transform.localPosition = at;
         go.transform.localScale = Vector3.one * PileScale;
-        if (back)
-        {
-            var shadow = Mats.Flat("Shadow", go.transform, Mats.Make("Soft", new Color(0.25f, 0.27f, 0.33f, 0.2f)), 1.5f, 1.9f, -0.001f);
-            shadow.sharedMaterial.SetFloat("_Aspect", 1.9f / 1.5f);
-            shadow.sharedMaterial.SetFloat("_Size", 0.36f);
-            shadow.sharedMaterial.SetFloat("_Soft", 0.09f);
-            shadow.sharedMaterial.renderQueue = 2940;
-        }
         // (An open pile's place: pale and dashed, as the slots, its name small in it: styles.css .tpile-empty.)
-        else Picture("Outline", go.transform, BoardArt.Pile(), Color.white, 1, 1.4f, 2945, 0.001f);
+        if (!back) Picture("Outline", go.transform, BoardArt.Pile(), Color.white, 1, 1.4f, 2945, 0.001f);
         var face = Mats.Flat("Top", go.transform, Mats.Make("Card"), 1, 1.4f, 0.02f);
+        go.AddComponent<PileStack>().Face = face;
         face.sharedMaterial.mainTexture = back ? Resources.Load<Texture2D>("Board/back") : null;
         face.sharedMaterial.color = back ? Color.white : new Color(1, 1, 1, 0);
         face.sharedMaterial.renderQueue = 2950;
@@ -509,14 +502,17 @@ public class Board : MonoBehaviour
         dealt = true;
 
         // Piles and counts.
+        // (Each pile as tall as the cards in it, as the web's: no count but the wreckage's.)
         myDeckN.text = "";
         rivalDeckN.text = "";
-        Top(myDiscard, myDiscardN, me.Discard);
-        Top(rivalDiscard, rivalDiscardN, rival.Discard);
-        Top(myWreck, myWreckN, me.Wreck);
-        Top(rivalWreck, rivalWreckN, rival.Wreck);
+        Top(myDiscard, myDiscardN, me.Discard, false);
+        Top(rivalDiscard, rivalDiscardN, rival.Discard, false);
+        Top(myWreck, myWreckN, me.Wreck, true);
+        Top(rivalWreck, rivalWreckN, rival.Wreck, true);
         myDeck.gameObject.SetActive(me.Deck.Count > 0);
         rivalDeck.gameObject.SetActive(rival.Deck.Count > 0);
+        myDeck.transform.parent.GetComponent<PileStack>().Set(me.Deck.Count);
+        rivalDeck.transform.parent.GetComponent<PileStack>().Set(rival.Deck.Count);
         rivalHandN.text = rival.Hand.Count.ToString();
         myHandN.text = me.Hand.Count.ToString();
         SetName(rivalLabel, rival.Name, false);
@@ -614,13 +610,18 @@ public class Board : MonoBehaviour
     }
 
     /// <summary>An open pile: its top card face up, and how many are in it (none: its empty place and name).</summary>
-    static void Top(MeshRenderer face, TextMeshPro count, List<CardInstance> pile)
+    /// <summary>
+    /// An open pile: its top card face up (the reserves' last; the wreckage's first, the next to go), stacked as tall as
+    /// the pile; the wreckage's count over it (.tpile-n).
+    /// </summary>
+    static void Top(MeshRenderer face, TextMeshPro count, List<CardInstance> pile, bool wreck)
     {
-        var top = pile?.LastOrDefault();
+        var top = wreck ? pile?.FirstOrDefault() : pile?.LastOrDefault();
         face.sharedMaterial.mainTexture = top != null ? Faces.Of(top.DefId, true) : null;
         face.sharedMaterial.color = top != null ? Color.white : new Color(1, 1, 1, 0);
-        count.text = pile != null && pile.Count > 1 ? pile.Count.ToString() : "";
+        count.text = wreck && pile != null && pile.Count > 0 ? pile.Count.ToString() : "";
         foreach (Transform c in face.transform.parent) if (c.name == "Name") c.gameObject.SetActive(top == null);
+        face.transform.parent.GetComponent<PileStack>().Set(top != null ? pile.Count : 0);
     }
 
     TextMeshPro tagName, tagSub;
@@ -774,6 +775,41 @@ public class StarSpin : MonoBehaviour
         // (Clockwise as the page sees it, from above the board.)
         if (Outer != null) Outer.localRotation = Quaternion.Euler(0, a, 0);
         if (Inner != null) Inner.localRotation = Quaternion.Euler(0, -a * 0.6f, 0);
+    }
+}
+
+/// <summary>
+/// A pile as tall as the cards in it (app.ts renderPiles, .tpile-stacked): its top card raised by its depth (0.45 px a
+/// card, at least 1), their edges stacked beneath it a pixel apart, light and grey in turn, and a soft shadow under all.
+/// </summary>
+public class PileStack : MonoBehaviour
+{
+    public MeshRenderer Face;
+    int shown = -1;
+    float faceZ = float.NaN;
+
+    public void Set(int n)
+    {
+        int depth = n > 0 ? Mathf.Max(1, Mathf.RoundToInt(n * 0.45f)) : 0;
+        if (depth == shown) return;
+        shown = depth;
+        foreach (Transform c in transform)
+            if (c.name == "Edge" || c.name == "Stack shadow") Mats.Kill(c.gameObject);
+        if (float.IsNaN(faceZ)) faceZ = Face.transform.localPosition.z;
+        // (A pixel in the pile's own units: it is a pile's width across.)
+        float px = 1 / Board.L.Pw;
+        var p = Face.transform.localPosition;
+        Face.transform.localPosition = new Vector3(p.x, p.y, faceZ + depth * px);
+        if (depth == 0) return;
+        float radius = Board.L.Tcw * 0.07f * px;
+        for (int i = 1; i <= depth; i++)
+        {
+            var e = Board.Shape("Edge", transform, i % 2 == 1 ? Board.Rgba(0xd9, 0xda, 0xdf) : Board.Rgba(0xf4, 0xf4, 0xf2), 1, 1.4f, radius, 2949 - Mathf.Min(i, 40), 0.019f, 0.002f, 0.004f);
+            e.transform.localPosition = new Vector3(0, 0.019f, faceZ + (depth - i) * px);
+        }
+        // (0 depth+3px 8px rgba(80, 84, 100, 0.22), under them all.)
+        var sh = Board.Shape("Stack shadow", transform, Board.Rgba(80, 84, 100, 0.22f), 1, 1.4f, radius, 2905, 0.0185f, 8 * px, 10 * px);
+        sh.transform.localPosition = new Vector3(0, 0.0185f, faceZ + (depth - depth - 3) * px);
     }
 }
 
