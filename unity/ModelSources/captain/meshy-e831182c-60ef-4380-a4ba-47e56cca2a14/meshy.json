@@ -1,0 +1,17 @@
+{
+  "id": "e831182c-60ef-4380-a4ba-47e56cca2a14",
+  "mode": "preview",
+  "name": "dark_veteran_rigged",
+  "seed": 0,
+  "prompt": "",
+  "texture_prompt": "",
+  "status": "SUCCEEDED",
+  "created_at": 1792075294512,
+  "progress": 100,
+  "started_at": 1792075294520,
+  "finished_at": 1792075380245,
+  "task_error": null,
+  "consumed_credits": 0,
+  "_kind": "v2/text-to-3d",
+  "_release": "model-captain-e831182c"
+}
