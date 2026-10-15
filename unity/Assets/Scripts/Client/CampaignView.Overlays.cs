@@ -127,7 +127,11 @@ public partial class CampaignView
         var line = Shown(scene)[0];
         var sp = line.Speaker;
         var faction = state.Factions.FirstOrDefault(x => x.Id == sp?.Faction);
-        string who = sp?.Card != null && CardData.TryGet(sp.Card, out var sd) ? sd.Name : sp?.Kind ?? "";
+        // (The speaker's card by name, as cardDef: a built one, the captain's, made from its id.)
+        string who = sp?.Kind == "oracle" ? BlueLoop.Engine.Story.OracleName : sp?.Kind ?? "";
+        if (sp?.Card != null)
+            try { who = Cards.Def(sp.Card).Name; }
+            catch (System.Exception) { }
         var ring = faction != null ? ColourOf(faction.Id) : Hex(NeutralHex);
         var bubble = WebLook.Rounded(top, "Story", new Color(1, 1, 1, 0.92f), 18 * Z);
         bubble.raycastTarget = true;
