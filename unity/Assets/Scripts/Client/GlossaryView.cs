@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -10,7 +11,8 @@ using K = MenuKit;
 /// </summary>
 public class GlossaryView : MonoBehaviour, MenuView.IRedraw
 {
-    [System.Serializable] class Section { public string id, name; }
+    [System.Serializable] class Variant { public string file; public float width, height; }
+    [System.Serializable] class Section { public string id, name; public float width; public Variant[] variants; }
     [System.Serializable] class Index { public Section[] items; }
 
     RectTransform root, pane;
@@ -86,9 +88,15 @@ public class GlossaryView : MonoBehaviour, MenuView.IRedraw
         var vm = viewport.gameObject.AddComponent<Image>();
         Hud.Corner(vm, 22);
         viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-        var tex = Pictures.Load("Glossary/" + tab);
-        float bakedW = 1078.4f, pad = 0;
-        float scale = Mathf.Max((pw - 2 * Mathf.Max(0, pad)) / bakedW, 0.66f), iw = bakedW * scale;
+        // (The page as the web lays it out at the width nearest this panel's: the web reflows its words and pictures to
+        // the page, so each was baked at several screens' sizes.)
+        var section = System.Array.Find(sections, x => x.id == tab);
+        var variant = section?.variants != null && section.variants.Length > 0
+            ? section.variants.OrderBy(v => Mathf.Abs(v.width - pw)).First()
+            : new Variant { file = tab, width = 1078.4f };
+        var tex = Pictures.Load("Glossary/" + variant.file);
+        float bakedW = variant.width, pad = 0;
+        float scale = (pw - 2 * Mathf.Max(0, pad)) / bakedW, iw = bakedW * scale;
         float h = tex != null ? iw * tex.height / tex.width : f.BodyH;
         var content = Hud.Rect(viewport, "Content");
         content.anchorMin = content.anchorMax = content.pivot = new Vector2(0, 1);
