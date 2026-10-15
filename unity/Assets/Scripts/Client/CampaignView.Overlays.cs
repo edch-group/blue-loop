@@ -289,8 +289,9 @@ public partial class CampaignView
         wash.offsetMin = new Vector2(-4000, -4000);
         wash.offsetMax = new Vector2(4000, 4000);
         var i = wash.gameObject.AddComponent<Image>();
-        // (No blur here: a touch more of the wash in its place.)
-        i.color = soft ? new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.62f) : new Color(240 / 255f, 240 / 255f, 238 / 255f, 0.72f);
+        // (No blur here: more of the wash in its place, as much as the web's wash and blur together leave of the map's
+        // lines (measured: about a fifth of them showing through).)
+        i.color = soft ? new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.82f) : new Color(240 / 255f, 240 / 255f, 238 / 255f, 0.85f);
         return v;
     }
 
