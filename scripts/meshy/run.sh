@@ -2,22 +2,20 @@
 # Each line of scripts/meshy/request.txt, run by .github/workflows/meshy.yml:
 #   <task id|latest|rigged> <name> [nobake] fetch a model from Meshy, keep its files as a GitHub release
 #                                         (model-<name>-<task>), and bake it (scripts/bake-<name>.py) unless "nobake"
-#   rig <task id> <name> [nobake]         rig a model made in Meshy (scripts/meshy/rig.py), then as above with the rigging
-#   rebake <name>                         bake again from the newest model kept for <name>, its files from its release
+#   rebake <name> [task]                  bake again from a model kept for <name> (the task named, or its first few
+#                                         letters; else the newest), its files from its release
+# (Nothing here asks Meshy to make anything: it only fetches what was made, so it never spends Meshy's credits.)
 # The originals never go into git (Meshy's are hundreds of MB): only what is baked from them (unity/Assets/Resources/Models)
 # and what Meshy says of each (unity/ModelSources/<name>/meshy-<task>/meshy.json).
 set -uo pipefail
 into="${RUNNER_TEMP:-/tmp}/meshy"
-while read -r first name flag more; do
-  [ "$first" = rig ] && flag="$flag $more"
+while read -r first name flag; do
   [ -z "${first:-}" ] && continue
   echo "== $first $name $flag"
-  if [ "$first" = rig ]; then
-    set -- $name $flag; first=$(python3 scripts/meshy/rig.py "$1" "$(gh release view "model-$2-${1:0:8}" --json assets -q '.assets[] | select(.name == "model.glb") | .url' 2>/dev/null)") || { echo "rigging failed"; continue; }; name=$2; flag=${3:-}
-  fi
   if [ "$first" = rebake ]; then
-    # (The newest Meshy made: a checkout's files are all as old as each other.)
-    meta=$(python3 -c "import glob,json,os,sys; print(os.path.dirname(max(glob.glob(f'unity/ModelSources/{sys.argv[1]}/meshy-*/meshy.json'), key=lambda p: json.load(open(p)).get('created_at', 0))))" "$name")
+    # (The task named; else the newest Meshy made: a checkout's files are all as old as each other.)
+    meta=$(python3 -c "import glob,json,os,sys; print(os.path.dirname(max(glob.glob(f'unity/ModelSources/{sys.argv[1]}/meshy-{sys.argv[2]}*/meshy.json'), key=lambda p: json.load(open(p)).get('created_at', 0))))" "$name" "${flag:-}") || { echo "no model $flag kept for $name"; continue; }
+    flag=
     release=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['_release'])" "$meta/meshy.json")
     folder="$into/$(basename "$meta")"
     mkdir -p "$folder"

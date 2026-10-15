@@ -210,6 +210,11 @@ def write(path, pos, nor, uv, tris, hang, bones, parents, rest, poses):
 def main():
     # (The model's folder, as scripts/meshy/run.sh downloads it.)
     folder = sys.argv[1]
+    # (His colour, the biggest picture beside the model that is not its metal, roughness or normals: found before anything
+    # is written, so a model without it bakes nothing.)
+    art = [p for p in glob.glob(os.path.join(folder, '*.png')) if not any(k in os.path.basename(p) for k in ('metal', 'rough', 'normal'))]
+    if not art: sys.exit(f'no colour texture beside the model in {folder}')
+    art = max(art, key=os.path.getsize)
     bpy, arm, body = load(folder)
     box, k = to_box(arm, body)
     rest = bones_now(arm, box)
@@ -225,7 +230,6 @@ def main():
         poses[name] = bones_now(arm, box)
     os.makedirs(OUT, exist_ok=True)
     write(os.path.join(OUT, 'Captain.bytes'), pos, nor, uv, tris, hang, bones, parents, rest, poses)
-    art = max((p for p in glob.glob(os.path.join(folder, '*.png')) if 'metal' not in p and 'rough' not in p and 'normal' not in p), key=os.path.getsize)
     Image.open(art).convert('RGB').resize((TEXTURE, TEXTURE), Image.LANCZOS).save(os.path.join(OUT, 'CaptainColour.jpg'), quality=92)
     print(f'written {os.path.relpath(OUT, ROOT)}: {len(pos)} corners, {len(tris)} triangles, {len(bones)} bones, poses {", ".join(poses)}')
 
