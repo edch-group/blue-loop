@@ -63,9 +63,11 @@ public partial class CampaignView
         WebLook.Box(chip.rectTransform, x0, y0 + (rowH - pillH) / 2, pillW, pillH);
         WebLook.Shadow(chip, 8 * Z, 30 * Z, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.13f), pillH / 2);
         // (The name over the bar, 3 between: the two in the pill's middle.)
-        float whoH = 12.4f * Z + 3 * Z + 4 * Z, whoY = (pillH - whoH) / 2;
-        WebLook.Box(who.rectTransform, whoX, whoY, 120 * Z, 12.4f * Z);
-        WebLook.Box(lv.rectTransform, whoX + nameW + 8 * Z, whoY + 1.4f * Z, 80 * Z, 10.4f * Z);
+        // (The name's line 14 high, the level's 11 on its baseline; the level at its column's end (justify-self: end), so
+        // a short name leaves it at the right of the min-width.)
+        float whoH = 14 * Z + 3 * Z + 4 * Z, whoY = (pillH - whoH) / 2, lvW = lv.GetPreferredValues(lv.text).x + 0.14f * 0.56f * 16 * Z;
+        WebLook.Box(who.rectTransform, whoX, whoY, 120 * Z, 14 * Z);
+        WebLook.Box(lv.rectTransform, whoX + whoW - lvW, whoY + 2 * Z, lvW + 4, 11 * Z);
         Face(chip.transform, me.Hero ?? Campaign.Flagship(state, state.PlayerId)?.General, 5 * Z + faceD / 2, pillH / 2, faceD, new Color32(0x1a, 0x1c, 0x2a, 255), (2 * Z, Color.white), (3 * Z, new Color(201 / 255f, 162 / 255f, 78 / 255f, 0.7f)));
         var bar = WebLook.Rounded(chip.transform, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.25f), 2 * Z);
         WebLook.Box(bar.rectTransform, whoX, whoY + whoH - 4 * Z, whoW, 4 * Z);
