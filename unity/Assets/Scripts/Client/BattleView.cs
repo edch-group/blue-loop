@@ -1225,6 +1225,7 @@ public partial class BattleView : MonoBehaviour
         GameOver();
         DrawStage();
         PaceShown();
+        SyncBossAim();
     }
 
     void Reaction()

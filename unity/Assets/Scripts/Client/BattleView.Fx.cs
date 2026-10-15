@@ -156,6 +156,76 @@ public partial class BattleView
         return 3 * v * v * t * y1 + 3 * v * t * t * y2 + t * t * t;
     }
 
+    string bossAimKey = "";
+    readonly System.Collections.Generic.List<GameObject> bossAims = new System.Collections.Generic.List<GameObject>();
+
+    /// <summary>
+    /// A Lost Overlord's next blow, shown ahead (app.ts syncBossAim): an arrow from each part acting next (its chosen
+    /// action, and every minion) to each card (or the sun) it will strike, held until what it aims at changes.
+    /// </summary>
+    void SyncBossAim()
+    {
+        if (hud == null || beamLayer == null) return;
+        var s = state;
+        var boss = s != null && s.WinnerId == null && stage == null ? s.Players.FirstOrDefault(p => p.Boss != null) : null;
+        var foe = boss != null ? s.Players.FirstOrDefault(p => p != boss && !p.Eliminated) : null;
+        var lines = new System.Collections.Generic.List<(string from, string to)>();
+        if (boss != null && foe != null)
+        {
+            var parts = new System.Collections.Generic.List<CardInstance>();
+            var intent = Game.BossIntent(boss);
+            if (intent != null) parts.Add(intent.Value.card);
+            parts.AddRange(Game.BossMinions(boss));
+            foreach (var c in parts)
+            {
+                var at = Game.PartAim(s, boss, c);
+                if (at.Sun > 0) lines.Add((c.Uid, "sun:" + foe.Id));
+                foreach (var x in at.Cards) lines.Add((c.Uid, x.uid));
+            }
+        }
+        var key = string.Join("|", lines.Select(l => $"{l.from}>{l.to}"));
+        if (key == bossAimKey) return;
+        bossAimKey = key;
+        foreach (var g in bossAims) if (g != null) Destroy(g);
+        bossAims.Clear();
+        foreach (var (from, to) in lines)
+        {
+            var b = Beam.Make(beamLayer, Beam.Kind.Attack);
+            var live = b.gameObject.AddComponent<LiveAim>();
+            var f = from;
+            var t = to;
+            live.From = () => CardRect(f);
+            live.To = () => t.StartsWith("sun:") ? SunRect(t.Substring(4)) : CardRect(t);
+            bossAims.Add(b.gameObject);
+        }
+    }
+
+    /// <summary>fx.ts aim: a held arc between two things as they stand (drawn out over 0.42 s), hidden while either is gone.</summary>
+    class LiveAim : MonoBehaviour
+    {
+        public System.Func<Rect?> From, To;
+        public float Delay;
+        float t0 = -1;
+        Beam beam;
+
+        void Start()
+        {
+            beam = GetComponent<Beam>();
+            t0 = Time.time + Delay;
+            beam.Hide();
+        }
+
+        void Update()
+        {
+            if (Time.time < t0) return;
+            var a = From();
+            var b = To();
+            if (a == null || b == null) { beam.Hide(); return; }
+            float k = Mathf.Min(1, (Time.time - t0) / 0.42f);
+            beam.Draw(a.Value, b.Value, 1 - Mathf.Pow(1 - k, 3));
+        }
+    }
+
     /// <summary>A sun's rectangle on the page (its gauge as drawn).</summary>
     Rect? SunRect(string playerId)
     {
