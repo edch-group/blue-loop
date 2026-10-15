@@ -954,7 +954,7 @@ public partial class CampaignView
         for (int i = 0; i < lines.Count; i++)
         {
             var (who, text) = lines[i];
-            if (i > 0) y += 8 * Z;
+            if (i > 0) y += who == "found" || who == "damage" ? 10 * Z : 8 * Z;
             if (who == "found" || who == "damage")
             {
                 // (What came of it, a part found or a slot wrecked: .enc-result, with the first line.)
@@ -1125,8 +1125,9 @@ public partial class CampaignView
             return;
         }
         var closing = Encounters.ClosingLines(e.Kind, e.Outcome, e.Stage, Crew()).Select(l => (l.Who, l.Text)).ToList();
-        if (e.Part != null) closing.Insert(0, ("found", ""));
-        else if (e.Outcome == "bad" && e.Slot != null) closing.Insert(0, ("damage", ""));
+        // (What came of it after what is said, before the choices, as the web puts its .enc-result.)
+        if (e.Part != null) closing.Add(("found", ""));
+        else if (e.Outcome == "bad" && e.Slot != null) closing.Add(("damage", ""));
         ShipScene(kicker, title, closing, row => Buttons(row, ("fly on", true, null, () => Act(new CampaignAction { Type = "encounter", Choice = "done" }))));
     }
 
