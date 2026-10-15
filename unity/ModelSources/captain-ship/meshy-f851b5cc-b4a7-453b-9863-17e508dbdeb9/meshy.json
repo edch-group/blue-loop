@@ -1,0 +1,22 @@
+{
+  "id": "f851b5cc-b4a7-453b-9863-17e508dbdeb9",
+  "type": "image-to-3d",
+  "name": "Iron Horizon Clean",
+  "art_style": "",
+  "object_prompt": "",
+  "style_prompt": "",
+  "negative_prompt": "",
+  "texture_prompt": "Slate-grey metallic spaceship hull plating with gold-yellow nose ring and trim stripes. Exactly four rectangular glowing observation windows cleanly aligned on both sides of the hull. Four rear booster engines as full, solid conical objects with no gaps or holes inside the cones, with bronze metallic rims.",
+  "text_style_prompt": "",
+  "status": "SUCCEEDED",
+  "created_at": 1792071309849,
+  "progress": 100,
+  "started_at": 1792071309864,
+  "finished_at": 1792071397222,
+  "expires_at": 1792330597222,
+  "task_error": null,
+  "hd_texture": true,
+  "texture_resolution": "4k",
+  "consumed_credits": 0,
+  "_kind": "v1/image-to-3d"
+}

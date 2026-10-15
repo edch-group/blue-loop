@@ -1,23 +1,37 @@
 v2/text-to-3d: 0 tasks
+v1/text-to-3d: 404
 v1/image-to-3d: 16 tasks
+v2/image-to-3d: 404
 v1/multi-image-to-3d: 4 tasks
 v1/retexture: 1 tasks
 v1/remesh: 0 tasks
 v1/text-to-texture: 404
-  b3b7d07c-b2a4-5d77-8f5d-b3e799f10024 v1/image-to-3d SUCCEEDED created 1792071400598 Iron Horizon Clean
-  f851b5cc-b4a7-453b-9863-17e508dbdeb9 v1/image-to-3d SUCCEEDED created 1792071309849 Iron Horizon Clean
-  5173abc6-06ec-5326-a610-2b17a5beedc4 v1/multi-image-to-3d SUCCEEDED created 1792070334661 Iron Horizon Multi-View
-  01a13fb5-879c-7078-bed0-c7c9cc71c4c4 v1/multi-image-to-3d SUCCEEDED created 1792070223778 Iron Horizon Multi-View
-  0cdda1ae-3dea-5687-a1d9-b13a182659e5 v1/multi-image-to-3d SUCCEEDED created 1792069748764 Iron Horizon Multi-View
-  e3223595-ee88-47d9-ab60-733d86f03570 v1/multi-image-to-3d SUCCEEDED created 1792069607955 Iron Horizon Multi-View
-  a71de10e-23be-4f22-a54c-57bd1d137d44 v1/retexture SUCCEEDED created 1792067126549 Iron Horizon Textured
-  d5e6370f-3691-5e71-9f55-c4cfb703361f v1/image-to-3d SUCCEEDED created 1792013706151 stylized_dark_veteran
-  e7f3c084-8853-4442-bb95-4c1dccf40020 v1/image-to-3d SUCCEEDED created 1792013570086 stylized_dark_veteran
-  57c4810b-7ee9-5efc-88e9-8049236ad459 v1/image-to-3d SUCCEEDED created 1791977549884 dark_warrior_character
-  93e46df3-36a5-58e5-b8e6-c61db2ed405f v1/image-to-3d SUCCEEDED created 1791977494202 dark_tattered_cape
-  5e1596c8-9b61-5268-a925-ec8a0b5f9e4a v1/image-to-3d SUCCEEDED created 1791977423209 dark_weathered_sword
-  5d3ee36b-2da2-4eab-9263-7d442fc0a331 v1/image-to-3d SUCCEEDED created 1791977357857 dark_warrior_character
-  67e0852a-16f4-40fc-840a-488217bf1257 v1/image-to-3d SUCCEEDED created 1791977357838 dark_tattered_cape
-  2fc18a67-e6e6-43d9-82b8-95e6003bef64 v1/image-to-3d SUCCEEDED created 1791977357715 dark_weathered_sword
-fetching b3b7d07c-b2a4-5d77-8f5d-b3e799f10024 (v1/image-to-3d)
-  model.glb: 16146 KB
+v1/texture: 404
+v1/texturing: 404
+v1/rigging: 0 tasks
+  b3b7d07c-b2a4-5d77-8f5d-b3e799f10024 v1/image-to-3d SUCCEEDED created 1792071400598 untextured Iron Horizon Clean [model_urls]
+  f851b5cc-b4a7-453b-9863-17e508dbdeb9 v1/image-to-3d SUCCEEDED created 1792071309849 textured Iron Horizon Clean [model_urls, texture_urls]
+  5173abc6-06ec-5326-a610-2b17a5beedc4 v1/multi-image-to-3d SUCCEEDED created 1792070334661 untextured Iron Horizon Multi-View [model_urls]
+  01a13fb5-879c-7078-bed0-c7c9cc71c4c4 v1/multi-image-to-3d SUCCEEDED created 1792070223778 textured Iron Horizon Multi-View [model_urls, texture_urls]
+  0cdda1ae-3dea-5687-a1d9-b13a182659e5 v1/multi-image-to-3d SUCCEEDED created 1792069748764 untextured Iron Horizon Multi-View [model_urls]
+  e3223595-ee88-47d9-ab60-733d86f03570 v1/multi-image-to-3d SUCCEEDED created 1792069607955 textured Iron Horizon Multi-View [model_urls, texture_urls]
+  a71de10e-23be-4f22-a54c-57bd1d137d44 v1/retexture SUCCEEDED created 1792067126549 textured Iron Horizon Textured [model_urls, texture_urls]
+  d5e6370f-3691-5e71-9f55-c4cfb703361f v1/image-to-3d SUCCEEDED created 1792013706151 untextured stylized_dark_veteran [model_urls]
+  e7f3c084-8853-4442-bb95-4c1dccf40020 v1/image-to-3d SUCCEEDED created 1792013570086 textured stylized_dark_veteran [model_urls, texture_urls]
+  57c4810b-7ee9-5efc-88e9-8049236ad459 v1/image-to-3d SUCCEEDED created 1791977549884 untextured dark_warrior_character [model_urls]
+  93e46df3-36a5-58e5-b8e6-c61db2ed405f v1/image-to-3d SUCCEEDED created 1791977494202 untextured dark_tattered_cape [model_urls]
+  5e1596c8-9b61-5268-a925-ec8a0b5f9e4a v1/image-to-3d SUCCEEDED created 1791977423209 untextured dark_weathered_sword [model_urls]
+  5d3ee36b-2da2-4eab-9263-7d442fc0a331 v1/image-to-3d SUCCEEDED created 1791977357857 textured dark_warrior_character [model_urls, texture_urls]
+  67e0852a-16f4-40fc-840a-488217bf1257 v1/image-to-3d SUCCEEDED created 1791977357838 textured dark_tattered_cape [model_urls, texture_urls]
+  2fc18a67-e6e6-43d9-82b8-95e6003bef64 v1/image-to-3d SUCCEEDED created 1791977357715 textured dark_weathered_sword [model_urls, texture_urls]
+  ae5fce22-e328-589c-a440-a1279c59fd11 v1/image-to-3d SUCCEEDED created 1791976920909 untextured anime_warrior_character [model_urls]
+  59d6b3f4-9e81-5c4c-abbe-acd8f95ed8cd v1/image-to-3d SUCCEEDED created 1791976855520 untextured anime_warrior_cape [model_urls]
+  8b80e185-dba1-5663-9189-d9a4620711d8 v1/image-to-3d SUCCEEDED created 1791976799856 untextured anime_stormblade_sword [model_urls]
+  d850505d-1902-40d2-a5e8-e7ec72367f18 v1/image-to-3d SUCCEEDED created 1791976729379 textured anime_warrior_cape [model_urls, texture_urls]
+  3d638579-6903-4748-a504-3d6393e83194 v1/image-to-3d SUCCEEDED created 1791976729359 textured anime_warrior_character [model_urls, texture_urls]
+fetching f851b5cc-b4a7-453b-9863-17e508dbdeb9 (v1/image-to-3d)
+  model.glb: 41219 KB
+  texture-base_color.png: 21376 KB
+  texture-metallic.png: 1670 KB
+  texture-roughness.png: 1552 KB
+  texture-normal.png: 16705 KB
