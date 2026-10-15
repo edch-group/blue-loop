@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -124,6 +125,17 @@ public class CardView : MonoBehaviour
     /// <summary>Shudder: a blow landing.</summary>
     public void Shake(float after = 0) => shakeAge = -after;
 
+    /// <summary>Gone to a pile (or its owner): it flies there, shrinking to `scale` and fading, then is gone.</summary>
+    public void GoTo(Vector3 worldTo, float scale, float after = 0)
+    {
+        enabled = false;
+        var g = gameObject.AddComponent<Ghosting>();
+        g.To = worldTo;
+        g.Scale = scale;
+        g.After = after;
+        foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
+    }
+
     /// <summary>Its end: it lifts, fades and shrinks away, then is gone.</summary>
     public void Die(float after = 0)
     {
@@ -180,6 +192,63 @@ public class CardView : MonoBehaviour
 }
 
 /// <summary>A card going: lifting, fading and shrinking away, then gone.</summary>
+/// <summary>
+/// fx.ts ghost: a card leaving play flies to the pile it went to (or its owner's sun), shrinking to the pile's size
+/// and fading to 0.2 (cubic-bezier(.5,0,.3,1), 0.46 s), then is gone.
+/// </summary>
+public class Ghosting : MonoBehaviour
+{
+    public Vector3 To;
+    public float Scale = 0.3f, After, Seconds = 0.46f, EndAlpha = 0.2f;
+    float age;
+    Vector3 from, scale0;
+    Renderer[] parts;
+    float[] alpha0;
+
+    void Start()
+    {
+        from = transform.position;
+        scale0 = transform.localScale;
+        parts = GetComponentsInChildren<Renderer>();
+        alpha0 = parts.Select(r => r.sharedMaterial != null && r.sharedMaterial.HasProperty("_Color") ? r.sharedMaterial.color.a : 1).ToArray();
+    }
+
+    void Update()
+    {
+        age += Time.deltaTime;
+        float t = Mathf.Clamp01((age - After) / Seconds);
+        if (t <= 0) return;
+        float e = Ease(t);
+        transform.position = Vector3.Lerp(from, To, e);
+        transform.localScale = scale0 * Mathf.Lerp(1, Scale, e);
+        for (int i = 0; i < parts.Length; i++)
+        {
+            var r = parts[i];
+            if (r.sharedMaterial == null || !r.sharedMaterial.HasProperty("_Color")) continue;
+            var c = r.sharedMaterial.color;
+            c.a = alpha0[i] * Mathf.Lerp(1, EndAlpha, e);
+            r.sharedMaterial.color = c;
+        }
+        if (t >= 1) Mats.Kill(gameObject);
+    }
+
+    // (cubic-bezier(.5,0,.3,1).)
+    static float Ease(float x)
+    {
+        float t = x;
+        for (int i = 0; i < 10; i++)
+        {
+            float u = 1 - t;
+            float bx = 3 * u * u * t * 0.5f + 3 * u * t * t * 0.3f + t * t * t - x;
+            float dx = 3 * u * u * 0.5f + 6 * u * t * (0.3f - 0.5f) + 3 * t * t * (1 - 0.3f);
+            if (Mathf.Abs(dx) < 1e-5f) break;
+            t = Mathf.Clamp01(t - bx / dx);
+        }
+        float v = 1 - t;
+        return 3 * v * t * t + t * t * t;
+    }
+}
+
 public class Dying : MonoBehaviour
 {
     public float After;

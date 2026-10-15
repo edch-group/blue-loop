@@ -123,15 +123,25 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
             var node = Hud.Rect(root, l.Id);
             Hud.At(node, new Vector2(0.5f, 0.5f), p, new Vector2(160, nodeH));
             var group = node.gameObject.AddComponent<CanvasGroup>();
-            group.alpha = open || isDone ? 1 : 0.5f;
+            bool locked = !open && !isDone;
+            group.alpha = locked ? 0.5f : 1;
             // (Picked, the dot grows by 18% in a dark ring.)
             float d = on ? d0 * 1.18f : d0;
             var dot = Hud.Rect(node, "Dot");
             Hud.At(dot, new Vector2(0.5f, 1), new Vector2(0, -d0 / 2), new Vector2(d, d));
             dot.pivot = new Vector2(0.5f, 0.5f);
             var di = dot.gameObject.AddComponent<Image>();
-            di.sprite = Hud.Circle;
-            di.color = isDone ? Hud.Rgba(231, 194, 106) : l.Track == "advanced" && !open ? Hud.Rgba(236, 238, 243) : Color.white;
+            di.sprite = isDone ? DoneDot : Hud.Circle;
+            di.color = l.Track == "advanced" && locked ? Hud.Rgba(236, 238, 243) : Color.white;
+            if (locked)
+            {
+                // (The web fades the node as one, so its ring and shadow never show through the dot: the dot drawn
+                // whole, as its white halfway over the paper, and its number at half.)
+                var whole = dot.gameObject.AddComponent<CanvasGroup>();
+                whole.ignoreParentGroups = true;
+                whole.blocksRaycasts = false;
+                di.color = Color.Lerp(di.color, Look.Paper, 0.5f);
+            }
             var ring = on ? new Hud.Drop(Hud.Rgba(58, 66, 86), 0, 0, 3)
                 : isDone ? new Hud.Drop(Hud.Rgba(150, 110, 30, 0.5f), 0, 0, 1)
                 : open ? new Hud.Drop(Hud.Rgba(95, 143, 196), 0, 0, 2)
@@ -140,8 +150,12 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
                 : isDone ? new Hud.Drop(Hud.Rgba(230, 190, 90, 0.5f), 0, 14)
                 : open ? new Hud.Drop(Hud.Rgba(95, 143, 196, 0.5f), 0, 16)
                 : new Hud.Drop(Hud.Rgba(40, 46, 70, 0.1f), 4, 12);
-            Hud.Shadow(di, d / 2, ring, glow);
-            K.Fill(dot, isDone ? "✓" : (i + 1).ToString(), 11.52f, isDone ? Hud.Rgba(106, 74, 18) : open ? Look.Ink : Look.InkSoft, true, 400);
+            var shades = Hud.Shadow(di, d / 2, ring, glow);
+            // (tutPulse: an open lesson's glow swelling and settling, 2.4 s.)
+            if (open && !isDone && !on) dot.gameObject.AddComponent<Pulse>().Shades = shades;
+            var ink = isDone ? Hud.Rgba(106, 74, 18) : open ? Look.Ink : Look.InkSoft;
+            if (locked) ink.a *= 0.5f;
+            K.Fill(dot, isDone ? "✓" : (i + 1).ToString(), 11.52f, ink, true, 400);
             K.Words(node, l.Name.ToUpperInvariant(), 0, d0 + 4, 160, K.LineH(nf), nf, Look.InkSoft, true, 400, 0.16f);
             if (open || isDone)
             {
@@ -174,5 +188,48 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
             Foot(root, lesson.Track == "core" ? "core" : "the lost races", lesson.Name, lesson.Teaches, done.Contains(lesson.Id) ? "again" : "begin", () => App.Instance.Puzzle("lesson", id), null);
         }
         else Foot(root, null, null, null, null, null, hint);
+    }
+
+    static Sprite doneDot;
+
+    /// <summary>.tut-done .tut-dot: radial-gradient(circle at 40% 35%, #fff6d8, #e7c26a 70%, #b98a2c), in a circle.</summary>
+    static Sprite DoneDot
+    {
+        get
+        {
+            if (doneDot != null) return doneDot;
+            const int n = 128;
+            var t = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[n * n];
+            Color a = Hud.Rgba(255, 246, 216), b = Hud.Rgba(231, 194, 106), c = Hud.Rgba(185, 138, 44);
+            // (A circle reaching the farthest corner from its centre.)
+            float reach = Mathf.Sqrt(0.6f * 0.6f + 0.65f * 0.65f);
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float u = (x + 0.5f) / n, v = 1 - (y + 0.5f) / n;
+                    float g = Mathf.Sqrt((u - 0.4f) * (u - 0.4f) + (v - 0.35f) * (v - 0.35f)) / reach;
+                    var col = g <= 0.7f ? Color.Lerp(a, b, g / 0.7f) : Color.Lerp(b, c, (g - 0.7f) / 0.3f);
+                    float r = Mathf.Sqrt((u - 0.5f) * (u - 0.5f) + (v - 0.5f) * (v - 0.5f)) * n;
+                    col.a = Mathf.Clamp01(n / 2f - r + 0.5f);
+                    px[y * n + x] = col;
+                }
+            t.SetPixels32(px);
+            t.Apply();
+            return doneDot = Sprite.Create(t, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f));
+        }
+    }
+
+    /// <summary>@keyframes tutPulse: the glow from 16 at half to 26 at three quarters and back, eased, every 2.4 s.</summary>
+    class Pulse : MonoBehaviour
+    {
+        public Shades Shades;
+        void Update()
+        {
+            if (Shades == null) return;
+            float x = Time.time % 2.4f / 1.2f, u = x < 1 ? x : 2 - x;
+            float k = u * u * (3 - 2 * u);
+            Shades.Set(1, new Hud.Drop(Hud.Rgba(95, 143, 196, Mathf.Lerp(0.5f, 0.75f, k)), 0, Mathf.Lerp(16, 26, k)));
+        }
     }
 }

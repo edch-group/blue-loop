@@ -115,6 +115,20 @@ public class Board : MonoBehaviour
         return r;
     }
 
+    /// <summary>
+    /// A card of your hand put where a rectangle of the page is (the stage's card), at its size, at once: the card it
+    /// becomes on the table flies from there (as the web's own card leaves the preview pane for the board).
+    /// </summary>
+    public void PutAtPage(string uid, Rect page)
+    {
+        if (!cards.TryGetValue(uid, out var v) || v.Table) return;
+        const float depth = 3.2f;
+        var l = L;
+        var at = l.Screen(page.center.x, page.center.y, depth);
+        v.gameObject.SetActive(true);
+        v.MoveTo(new Vector3(at.x, -depth + 0.06f, at.y), Quaternion.identity, page.width * l.ScreenScale(depth), true);
+    }
+
     /// <summary>The hand shown, or put away (the result showing).</summary>
     public void ShowHand(bool on)
     {
@@ -545,9 +559,25 @@ public class Board : MonoBehaviour
         Hand(me, ui, seen);
         foreach (var uid in cards.Keys.Where(k => !seen.Contains(k)).ToList())
         {
-            // (In play, a card leaving fades away where it was; it was destroyed, returned, or played out.)
-            if (Application.isPlaying) cards[uid].Die(0.25f);
-            else Mats.Kill(cards[uid].gameObject);
+            // (In play, a card leaving flies to the pile it went to, or to its owner's sun; anywhere else, it fades away
+            // where it was.)
+            var gone = cards[uid];
+            if (!Application.isPlaying) Mats.Kill(gone.gameObject);
+            else
+            {
+                Vector3? to = null;
+                float k = 0.3f;
+                foreach (var p in s.Players)
+                {
+                    bool mine = p.Id == Viewer;
+                    if (p.Discard.Any(c => c.Uid == uid)) { to = this.table.TransformPoint(PileAt(mine, 1)); k = PileScale / Mathf.Max(0.001f, gone.transform.lossyScale.x); }
+                    else if (p.Wreck != null && p.Wreck.Any(c => c.Uid == uid)) { to = this.table.TransformPoint(PileAt(mine, 2)); k = PileScale / Mathf.Max(0.001f, gone.transform.lossyScale.x); }
+                    else if (p.Deck.Any(c => c.Uid == uid) || p.Hand.Any(c => c.Uid == uid)) to = suns.TryGetValue(p.Id, out var sv) ? sv.transform.position : (Vector3?)null;
+                    if (to != null) break;
+                }
+                if (to != null && gone.Table) gone.GoTo(to.Value + Vector3.up * 0.05f, Mathf.Clamp(k, 0.15f, 1));
+                else gone.Die(0.25f);
+            }
             cards.Remove(uid);
         }
         dealt = true;
@@ -994,6 +1024,20 @@ public static class BoardArt
             }
         t.SetPixels(px);
         t.Apply(true);
+        return t;
+    }
+
+    /// <summary>
+    /// A dashed box `w` by `h` CSS px (drawn at 3 texels a pixel): corners of `radius`, filled `fill`, a `edgeW` px
+    /// dashed `edge` (as a CSS dashed border: dashes 3 widths long, as far apart).
+    /// </summary>
+    public static Texture2D DashedBox(float w, float h, float radius, Color fill, Color edge, float edgeW)
+    {
+        string key = $"dashed {w:0.0}x{h:0.0} {radius} {ColorUtility.ToHtmlStringRGBA(fill)} {ColorUtility.ToHtmlStringRGBA(edge)} {edgeW}";
+        if (made.TryGetValue(key, out var t)) return t;
+        const float k = 3;
+        t = Dashed(Mathf.CeilToInt(w * k), Mathf.CeilToInt(h * k), radius * k, fill, new Color(0, 0, 0, 0), 0, edge, edgeW * k, edgeW * 3 * k, edgeW * 3 * k);
+        made[key] = t;
         return t;
     }
 

@@ -468,12 +468,60 @@ public class MenuView : MonoBehaviour
         var d = deck ?? (seat >= 0 ? SeatDeck(seat) : null);
         if (d != null)
         {
+            // (.lobby-deck: the box, and its name 6 under it: clamp(0.4rem, 1.5vh, 0.52rem), spaced 0.1em, in ink.)
+            float nameSize = K.Clamp(6.4f, 1.5f * K.Vh, 8.32f), nameH = K.LineH(nameSize);
             float boxH = BuilderView.MiniH(bw), midTop = pv + headH + gap, midH = footY - gap - midTop;
-            float by = midTop + (midH - boxH - bw * 0.12f) / 2 + bw * 0.12f;
+            float groupH = boxH + 6 + nameH;
+            float by = midTop + (midH - groupH - bw * 0.12f) / 2 + bw * 0.12f;
             System.Action act = deck == null && seat >= 0 ? () => { pickSeat = seat; pickFrom = current; Show("pickdeck"); } : (System.Action)null;
             BuilderView.DeckBoxMini(r, (w - bw) / 2, by, d, true, act, bw);
+            var dn = K.Words(r, d.Name.ToUpperInvariant(), (w - (bw + 10)) / 2, by + boxH + 6, bw + 10, nameH, nameSize, Look.Ink, true, 400, 0.1f);
+            dn.overflowMode = TextOverflowModes.Ellipsis;
         }
         return r;
+    }
+
+    /// <summary>
+    /// A mode's picture over its card, `w` by `h` (glyphs.ts modeArt): the Core's painting covering it about its middle;
+    /// the Lost Races' painting of four panels as four tiles, two by two, 1 px apart on #0b0d16, each panel as wide as
+    /// its tile, 22% down (background-size: 400% auto; background-position-y: 22%). Not picked, it is grey and dim
+    /// (filter: grayscale(1) brightness(0.55), baked beside it).
+    /// </summary>
+    public static void ModeArt(RectTransform card, string m, bool on, float w, float h)
+    {
+        var tex = Pictures.Load($"CardArt/mode/{m}{(on ? "" : "-off")}");
+        float tw = tex != null ? tex.width : m == "core" ? 640 : 1024, th = tex != null ? tex.height : m == "core" ? 400 : 572;
+        if (m == "core")
+        {
+            var art = Hud.Rect(card, "Art");
+            Hud.Fill(art);
+            var ai = art.gameObject.AddComponent<RawImage>();
+            ai.texture = tex;
+            ai.raycastTarget = false;
+            // (object-fit: cover, about its middle.)
+            float aspect = tw / th, want = w / Mathf.Max(1, h);
+            if (want > aspect) { float k = aspect / want; ai.uvRect = new Rect(0, (1 - k) / 2, 1, k); }
+            else { float k = want / aspect; ai.uvRect = new Rect((1 - k) / 2, 0, k, 1); }
+            return;
+        }
+        var back = Hud.Box(card, "Quads", Hud.Rgba(11, 13, 22), 0);
+        Hud.Fill(back.rectTransform);
+        float qw = (w - 1) / 2, qh = (h - 1) / 2;
+        for (int i = 0; i < 4; i++)
+        {
+            var q = Hud.Rect(back.transform, $"Quad {i}");
+            Hud.Place(q, (i % 2) * (qw + 1), (i / 2) * (qh + 1), qw, qh);
+            q.gameObject.AddComponent<RectMask2D>();
+            // (Each panel a quarter of the painting, as wide as its tile; 22% of what overhangs kept above.)
+            float ph = qw * th / (tw / 4);
+            var art = Hud.Rect(q, "Panel");
+            float y = (qh - ph) * 0.22f;
+            Hud.Place(art, 0, y, qw, ph);
+            var ai = art.gameObject.AddComponent<RawImage>();
+            ai.texture = tex;
+            ai.uvRect = new Rect(i / 4f, 0, 0.25f, 1);
+            ai.raycastTarget = false;
+        }
     }
 
     /// <summary>The pane's width (.mode-cards --pw: clamp(190px, 17vw, 250px), the vw the screen's own).</summary>
@@ -504,15 +552,7 @@ public class MenuView : MonoBehaviour
             var card = Hud.Rect(pane.transform, m);
             Hud.Place(card, sa, m == "core" ? cardsTop : cardsTop + cardH + 1, pw, cardH);
             card.gameObject.AddComponent<RectMask2D>();
-            var art = Hud.Rect(card, "Art");
-            Hud.Fill(art);
-            var ai = art.gameObject.AddComponent<RawImage>();
-            var tex = Resources.Load<Texture2D>($"Icons/pane-{m}{(on ? "" : "-off")}");
-            ai.texture = tex;
-            // (Cover, from the picture above its baked words: its top 82%, cut to the card's shape about its middle.)
-            float rw = 1, rh = 0.82f, aspect = tex != null ? tex.width / (tex.height * rh) : 0.95f, want = pw / Mathf.Max(1, cardH);
-            if (want > aspect) { float k = aspect / want; ai.uvRect = new Rect(0, 1 - rh + rh * (1 - k) / 2, rw, rh * k); }
-            else { float k = want / aspect; ai.uvRect = new Rect((1 - k) / 2, 1 - rh, k, rh); }
+            ModeArt(card, m, on, pw, cardH);
             // Its words over a shade at its foot (.mode-card-text: padded 36 16 14; the name 14.4 spaced 0.16em, the
             // line Exo 2 11.2).
             var gm = Modes.GameModes[m];
@@ -538,8 +578,10 @@ public class MenuView : MonoBehaviour
                 Hud.Place(edge, 0, 0, 3, cardH);
                 edge.gameObject.AddComponent<Image>().color = Color.white;
             }
+            var hit = card.gameObject.AddComponent<Image>();
+            hit.color = new Color(1, 1, 1, 0.001f);
             var b = card.gameObject.AddComponent<Button>();
-            b.targetGraphic = ai;
+            b.targetGraphic = hit;
             b.transition = Selectable.Transition.None;
             b.onClick.AddListener(() =>
             {

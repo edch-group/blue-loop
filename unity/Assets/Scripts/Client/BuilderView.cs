@@ -275,14 +275,14 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     void NewTile(RectTransform parent, float x, float y, float bw)
     {
         float bh = bw / 0.72f;
-        var box = Hud.Box(parent, "New deck", Hud.Rgba(93, 106, 140, 0.45f), 10);
+        // (Its place: white at 0.45 inside a 1.5 px dashed edge, rgba(93, 106, 140, 0.45), corners of 10.)
+        var box = Hud.Box(parent, "New deck", new Color(1, 1, 1, 0.001f), 10);
         Hud.Place(box.rectTransform, x, y, bw, bh);
-        // (Its dashed edge, drawn as a hairline of the dashes' colour round the pale inside.)
-        var inside = Hud.Box(box.transform, "Inside", Color.white, 9);
-        Hud.Fill(inside.rectTransform);
-        inside.rectTransform.offsetMin = new Vector2(1, 1);
-        inside.rectTransform.offsetMax = new Vector2(-1, -1);
-        inside.color = new Color(0.98f, 0.98f, 0.98f, 1);
+        var edge = Hud.Rect(box.transform, "Dashed");
+        Hud.Fill(edge);
+        var ei = edge.gameObject.AddComponent<RawImage>();
+        ei.texture = BoardArt.DashedBox(bw, bh, 10, new Color(1, 1, 1, 0.45f), Hud.Rgba(93, 106, 140, 0.45f), 1.5f);
+        ei.raycastTarget = false;
         box.raycastTarget = true;
         box.gameObject.AddComponent<Button>().onClick.AddListener(() =>
         {

@@ -464,6 +464,17 @@ public class Shades : MonoBehaviour
         }
     }
 
+    /// <summary>One of the shadows changed (as a CSS animation changes it).</summary>
+    public void Set(int i, Hud.Drop d)
+    {
+        if (i >= layers.Length || layers[i] == null) return;
+        drops[i] = d;
+        var img = layers[i].GetComponent<Image>();
+        img.color = d.Color;
+        if (d.Blur > 0) img.pixelsPerUnitMultiplier = 14.4f / d.Blur;
+        Follow();
+    }
+
     void OnRectTransformDimensionsChange() => Follow();
     void LateUpdate() => Follow();
     void OnEnable() { foreach (var s in layers) if (s != null) s.gameObject.SetActive(true); Follow(); }
