@@ -545,3 +545,93 @@ function relicAction(kind: string): void {
   stage.innerHTML = `<style>.bake-ra::before { display: none !important; }</style><div class="cmp-relic bake-ra" style="width:84px;height:84px;padding:0;background:none;box-shadow:none;animation:none"><span class="relic-action">${effectMark(kind)}</span></div>`;
 }
 Object.assign(window, { boonMark, relicAction });
+
+// ---- The glossary (glossary.ts glossarySections) as data, for scripts/bake-glossary.mjs ----
+import { glossarySections } from '../src/ui/glossary';
+import GLOSSARY_FIGURES from '../src/ui/glossary-figures.json';
+
+/** A colour as the page computes it ("rgb(208, 89, 42)"), as #rrggbb. */
+const hexOf = (rgb: string) => '#' + (rgb.match(/\d+/g) ?? []).slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('');
+
+/**
+ * A run of words in the glossary as the page draws it: plain words; bold ones (`b`); a keyword (`kw`, its classes: its
+ * words as written, its colour, size, weight and letter-spacing (in ems), whether in the display face and in capitals,
+ * and its mark if it has one, `icon`); or a kind of card's dot (`dot`, its colour).
+ */
+type GlossaryRun = { text?: string; b?: boolean; kw?: string; colour?: string; size?: number; weight?: number; spacing?: number; display?: boolean; caps?: boolean; icon?: string; dot?: string };
+
+function glossaryRuns(el: Element, icons: Record<string, string>): GlossaryRun[] {
+  const runs: GlossaryRun[] = [];
+  for (const n of el.childNodes) {
+    if (n.nodeType === Node.TEXT_NODE) {
+      if (n.textContent) runs.push({ text: n.textContent });
+      continue;
+    }
+    const e = n as HTMLElement;
+    if (e.matches('b.kw')) {
+      if (e.querySelector('.gain-dots')) throw new Error('glossary: a keyword drawn as energy dots, which the Unity page does not draw');
+      const cs = getComputedStyle(e);
+      const size = parseFloat(cs.fontSize);
+      const run: GlossaryRun = {
+        text: e.textContent ?? '',
+        kw: e.className,
+        colour: hexOf(cs.color),
+        size,
+        weight: Number(cs.fontWeight),
+        spacing: Math.round(((parseFloat(cs.letterSpacing) || 0) / size) * 1000) / 1000,
+        display: cs.fontFamily.includes('Orbitron'),
+        caps: cs.textTransform === 'uppercase',
+      };
+      // (Its mark, kept by the keyword's name: drawn once, in white, for the game to tint.)
+      const svg = e.querySelector('svg');
+      if (svg) {
+        run.icon = (e.getAttribute('aria-label') ?? '').split(' ')[0].toLowerCase();
+        icons[run.icon] = svg.outerHTML;
+      }
+      runs.push(run);
+    } else if (e.tagName === 'B') runs.push({ text: e.textContent ?? '', b: true });
+    else if (e.matches('i.rule-dot')) runs.push({ dot: hexOf(getComputedStyle(e).backgroundColor) });
+    else throw new Error(`glossary: <${e.tagName.toLowerCase()} class="${e.className}"> in its words, which the Unity page does not draw`);
+  }
+  return runs;
+}
+
+/**
+ * The glossary's sections, each as the blocks its page is made of, as glossary.ts writes them (h3, lead, fig, terms,
+ * steps, kw), with its pictures' sizes and each keyword mark's SVG.
+ */
+function glossary() {
+  const icons: Record<string, string> = {};
+  const terms = (dl: Element) => [...dl.children].map((row) => ({ dt: glossaryRuns(row.querySelector('dt')!, icons), dd: glossaryRuns(row.querySelector('dd')!, icons) }));
+  const sections = Object.entries(glossarySections()).map(([id, [name, html]]) => {
+    stage.innerHTML = `<div class="gl-page">${html()}</div>`;
+    const blocks = [...stage.firstElementChild!.children].map((e) => {
+      if (e.matches('h3')) return { t: 'h3', text: e.textContent };
+      if (e.matches('p.gl-lead')) return { t: 'lead', runs: glossaryRuns(e, icons) };
+      if (e.matches('dl.gl-terms')) return { t: 'terms', rows: terms(e) };
+      if (e.matches('ol.gl-steps')) return { t: 'steps', items: [...e.children].map((li) => ({ title: li.querySelector(':scope > b')!.textContent, runs: glossaryRuns(li.querySelector(':scope > span')!, icons) })) };
+      if (e.matches('section.gl-kw')) return { t: 'kw', title: e.querySelector('h4')!.textContent, rows: terms(e.querySelector('dl.gl-terms')!) };
+      if (e.matches('figure.gl-fig')) {
+        if (e.querySelector('figcaption')) throw new Error('glossary: a figure caption, which the Unity page does not draw');
+        const labels = [...e.querySelectorAll<HTMLElement>('.gl-label')].map((l) => {
+          const pin = e.querySelector<HTMLElement>(`[data-pin="${l.dataset.mark}"]`)!;
+          return {
+            key: l.dataset.mark,
+            n: Number(l.querySelector('i')!.textContent),
+            title: l.querySelector('b')!.textContent,
+            text: l.querySelector('span')!.textContent,
+            side: l.parentElement!.classList.contains('gl-fig-l') ? 'l' : 'r',
+            x: parseFloat(pin.style.left),
+            y: parseFloat(pin.style.top),
+          };
+        });
+        return { t: 'fig', fig: [...e.classList].find((c) => c.startsWith('gl-fig-'))!.slice(7), labels };
+      }
+      throw new Error(`glossary: <${e.tagName.toLowerCase()} class="${e.className}">, which the Unity page does not draw`);
+    });
+    return { id, name, blocks };
+  });
+  const figures = Object.fromEntries(Object.entries(GLOSSARY_FIGURES as Record<string, { w: number; h: number }>).map(([k, f]) => [k, { w: f.w, h: f.h }]));
+  return { sections, figures, icons };
+}
+Object.assign(window, { glossary });

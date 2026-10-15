@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 
 /// <summary>
-/// The game's baked pictures (card faces, card art, the glossary's pages), by their path under Resources. In the
+/// The game's baked pictures (card faces, card art, badges), by their path under Resources. In the
 /// browser they are not packed into the game's data (far too big for it: a thousand card faces): the build moves them
 /// to StreamingAssets, each its own file, with a list of what there is and how big (Resources/Engine/pictures.txt);
 /// a picture asked for is handed back at once, blank at its own size, and filled in as it arrives.
