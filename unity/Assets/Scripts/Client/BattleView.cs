@@ -8,9 +8,10 @@ using UnityEngine.UI;
 using EngineAction = BlueLoop.Engine.Action;
 
 /// <summary>
-/// A battle, you against the AI, on the 3D board. Tap a card in your hand to pick it up: the slots it can go to light
-/// up (and then what it can aim at); tap one. Tap one of your cards that can attack, then a rival card or their sun.
-/// Tap your Hero for its abilities. The rival's days play out a move at a time.
+/// A battle on the 3D board: you against the AI, two of you taking turns at one screen, or the AI against itself
+/// (BattleView.Seats). Tap a card in your hand to pick it up: the slots it can go to light up (and then what it can aim
+/// at); tap one. Tap one of your cards that can attack, then a rival card or their sun. Tap your Hero for its
+/// abilities. The rival's days play out a move at a time.
 /// </summary>
 public partial class BattleView : MonoBehaviour
 {
@@ -18,7 +19,17 @@ public partial class BattleView : MonoBehaviour
     public Board Board;
     public bool Autoplay;
     GameState state;
+    /// <summary>
+    /// The viewer: whose side of the table is nearest, whose hand sits in the dock (app.ts viewer()). Offline, the
+    /// current or most recent human (viewerId), else the first human, else (the AI against itself) whoever's day it is.
+    /// </summary>
     string you = "p1";
+    /// <summary>The human the view last followed (app.ts viewerId).</summary>
+    string viewerId;
+    /// <summary>Human player whose hand was last revealed (for a hot seat's handoff: app.ts revealedFor).</summary>
+    string revealedFor;
+    /// <summary>The rival whose tableau is shown across the table (defaults to the viewer's target: app.ts viewRivalId).</summary>
+    string viewRivalId;
     bool busy;
 
     // What is being chosen: an attacker's target (a card from hand, or a Hero's ability: BattleView.Play's pending).
@@ -97,7 +108,8 @@ public partial class BattleView : MonoBehaviour
         state = Game.Create(new GameSetup { Seed = seed, Mode = mode, Players = players });
         int human = players.FindIndex(p => !p.IsAI);
         you = state.Players[Mathf.Max(0, human)].Id;
-        Board.Viewer = you;
+        ResetViewer();
+        SyncViewer();
         Clear();
         Refresh();
         Sound.Scene("battle");
@@ -139,7 +151,9 @@ public partial class BattleView : MonoBehaviour
         // (The last game's summary is no part of this one: BeginStats takes up this one's.)
         statsRec = null;
         state = s;
-        Board.Viewer = you;
+        // (Online, you are the room's player: LoadOnline.)
+        if (!online) ResetViewer();
+        SyncViewer();
         Clear();
         Refresh();
         // (A match against an Overlord, or a challenge with one, gets the boss track.)
@@ -168,7 +182,7 @@ public partial class BattleView : MonoBehaviour
         if (!Autoplay) EndDayTick();
         AiTick();
         // (Skip all: a reply waiting on you is let pass, online too, where it is yours to make: app.ts skipReply.)
-        if (!busy && confirmMode == "skip" && state.Reaction != null && state.Reaction.PlayerId == you) StartCoroutine(PassReply());
+        if (!busy && confirmMode == "skip" && state.Reaction != null && Answering(state.Reaction)) StartCoroutine(PassReply());
         if (Autoplay) return;
         HoverRustle();
         // (A touch screen has no hover: a first tap on the hand raises it, a tap away lowers it, as the web's.)
@@ -264,7 +278,7 @@ public partial class BattleView : MonoBehaviour
         return Game.ActivePlayer(state).IsAI || Autoplay;
     }
 
-    bool HumanDawnChoice() => state.Reaction == null && Game.ActivePlayer(state).Id == you && (Game.ActivePlayer(state).DawnChoices?.Count ?? 0) > 0;
+    bool HumanDawnChoice() => state.Reaction == null && Game.ActivePlayer(state).Id == you && !Game.ActivePlayer(state).IsAI && (Game.ActivePlayer(state).DawnChoices?.Count ?? 0) > 0;
 
     IEnumerator PassReply()
     {
@@ -295,8 +309,27 @@ public partial class BattleView : MonoBehaviour
 
     PlayerState Player(string id) => state.Players.First(p => p.Id == id);
     PlayerState Me => Player(you);
-    PlayerState Rival => state.Players.First(p => p.Id != you);
-    bool MyDay => state.Reaction == null && Game.ActivePlayer(state).Id == you && state.WinnerId == null && !Autoplay && !OnlineHeld;
+
+    /// <summary>The rival whose tableau is shown across the table (app.ts shownRival).</summary>
+    PlayerState Rival
+    {
+        get
+        {
+            var me = Me;
+            var chosen = state.Players.FirstOrDefault(p => p.Id == viewRivalId && p.Id != me.Id && !p.Eliminated);
+            return chosen ?? Game.TargetOf(state, me) ?? state.Players.First(p => p.Id != you);
+        }
+    }
+
+    /// <summary>True when the viewer may act right now (app.ts canAct).</summary>
+    bool MyDay => state.Reaction == null && Game.ActivePlayer(state).Id == you && !Game.ActivePlayer(state).IsAI && state.WinnerId == null && !Autoplay && !OnlineHeld && !NeedsHandoff();
+
+    /// <summary>A reply window's answer is made here: by a human, and online, only by you (app.ts renderReaction's answering).</summary>
+    bool Answering(Reaction r)
+    {
+        var who = state.Players.FirstOrDefault(p => p.Id == r.PlayerId);
+        return who != null && !who.IsAI && (!online || who.Id == you);
+    }
 
     void Do(EngineAction a)
     {
@@ -1169,6 +1202,7 @@ public partial class BattleView : MonoBehaviour
         FitScreen();
         Persist();
         KeepStats();
+        SyncViewer();
         Board.Sync(state, this);
         Usable(endDay, MyDay);
         endDay.gameObject.SetActive(!Autoplay);
@@ -1229,6 +1263,7 @@ public partial class BattleView : MonoBehaviour
         PaceShown();
         SyncBossAim();
         Emblems();
+        Handoff();
     }
 
     void Reaction()

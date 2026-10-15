@@ -18,7 +18,7 @@ public partial class BattleView
     void AnnounceTurn(float delay)
     {
         var s = state;
-        if (s == null || s.WinnerId != null || Autoplay || !Application.isPlaying) return;
+        if (s == null || s.WinnerId != null || NeedsHandoff() || Autoplay || !Application.isPlaying) return;
         var p = Game.ActivePlayer(s);
         if (p.IsAI || p.Id != you) return;
         DawnBanner(s, delay, () => SetPhase("dawn"));
@@ -31,7 +31,7 @@ public partial class BattleView
     /// </summary>
     void AnnouncePhases(GameState next, (float? dusk, float? dawn, float day, List<float> pulses) t)
     {
-        if (next.WinnerId != null) return;
+        if (next.WinnerId != null || NeedsHandoff()) return;
         // (Until the day's banner, it isn't day: no cards are played but Lightspeed ones.)
         Phase = t.dusk != null ? "dusk" : "dawn";
         Board.ShowPhase(Phase);

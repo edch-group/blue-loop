@@ -537,7 +537,14 @@ public partial class BattleView
         // (A card whose heat comes first (Void Bolt): where its heat goes, then the rival card it removes.)
         bool aimFirst = Game.HeatFirst(defId) && Game.Aimable(defId) && Game.AimChoices(s, me).Cards.Count > 0;
         if (aimFirst && p.AimUid == null) { Ask("aim"); return; }
-        if (Game.EnemyChoices(s, me, defId, p.AimUid != "sun" ? p.AimUid : null).Count > 0 && p.EnemyUid == null) { Ask("enemy"); return; }
+        if (Game.EnemyChoices(s, me, defId, p.AimUid != "sun" ? p.AimUid : null).Count > 0 && p.EnemyUid == null)
+        {
+            // (Its target's tableau brought onto the table to choose from.)
+            var target = Game.TargetOf(s, me);
+            if (target != null) viewRivalId = target.Id;
+            Ask("enemy");
+            return;
+        }
         if (Game.AllyChoices(me, defId).Count > 0 && p.AllyUid == null) { Ask("ally"); return; }
         // Shift: then the slot the card chosen moves into (in its own tableau).
         if (Game.ShiftEffect(defId) != null && (p.EnemyUid != null || p.AllyUid != null) && p.ShiftTo == null) { Ask("shift"); return; }

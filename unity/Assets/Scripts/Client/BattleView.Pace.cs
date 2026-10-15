@@ -107,7 +107,7 @@ public partial class BattleView
         var ai = Game.ActivePlayer(s);
         int n = ai.Hand.Count;
         int played = a?.Type == "playCard" ? ai.Hand.FindIndex(c => c.Uid == a.CardUid) : -1;
-        if (n == 0 || wait < 0.35f || ai.Id == you || !Application.isPlaying) return;
+        if (n == 0 || wait < 0.35f || !Application.isPlaying) return;
         int Other() => Random.Range(0, n);
         if (Random.value < 0.7f) aiHovers.Add((Time.time + wait * 0.15f, Other()));
         if (played >= 0) aiHovers.Add((Time.time + Mathf.Max(wait * 0.35f, wait - 0.65f), played));

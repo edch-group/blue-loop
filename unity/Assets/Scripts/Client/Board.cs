@@ -42,7 +42,10 @@ public partial class Board : MonoBehaviour
     public static float Px(float css) => css * 10f / L.Tcw;
 
     public Camera Cam;
+    /// <summary>Whose side is nearest (the viewer: BattleView.Seats); a new one is taken by Reseat.</summary>
     public string Viewer;
+    /// <summary>The rival shown across the table (app.ts shownRival; unset or gone: the first other player).</summary>
+    public string RivalId;
     /// <summary>Whether the hand is raised to be read whole (the pointer over it, or a first tap on it).</summary>
     public bool HandUp;
     /// <summary>The card in hand under the pointer (lifted out of the fan, straight), if any.</summary>
@@ -804,7 +807,7 @@ public partial class Board : MonoBehaviour
         dealing = 0;
         if (!Fits) Relayout();
         var me = s.Players.First(p => p.Id == Viewer);
-        var rival = s.Players.First(p => p.Id != Viewer);
+        var rival = s.Players.FirstOrDefault(p => p.Id == RivalId && p.Id != Viewer) ?? s.Players.First(p => p.Id != Viewer);
         var seen = new HashSet<string>();
         foreach (var p in new[] { me, rival })
         {
@@ -1122,6 +1125,62 @@ public partial class Board : MonoBehaviour
             Sound.Play("draw", delay);
         }
         DealtAt = Time.time + 0.35f + i * 0.11f + 0.52f;
+    }
+
+    /// <summary>
+    /// The table seen from another seat (a hot seat's day passed on, the AI against itself): as the web's board drawn
+    /// again for the new viewer, the sides swap at once. Each sun is made again on its new side, the cards in play put
+    /// straight onto their slots there, the last viewer's hand put away (the next Sync deals the new one's in).
+    /// </summary>
+    public void Reseat(string viewer)
+    {
+        if (Viewer == viewer) return;
+        Viewer = viewer;
+        if (synced == null || !synced.Players.Any(p => p.Id == viewer)) return;
+        foreach (var sun in suns.Values) if (sun != null) Mats.Kill(sun.gameObject);
+        suns.Clear();
+        foreach (var ring in sunRings.Values) if (ring?.Go != null) Mats.Kill(ring.Go);
+        sunRings.Clear();
+        foreach (var b in bossPanels.Values) if (b.go != null) Mats.Kill(b.go);
+        bossPanels.Clear();
+        HandRects.Clear();
+        foreach (var uid in cards.Keys.ToList())
+        {
+            var v = cards[uid];
+            if (v == null || !v.Table)
+            {
+                if (v != null) Mats.Kill(v.gameObject);
+                cards.Remove(uid);
+                continue;
+            }
+            foreach (var p in synced.Players)
+            {
+                bool mine = p.Id == viewer;
+                var c = p.Tableau.FirstOrDefault(x => x.Uid == uid);
+                if (c != null) { v.MoveTo(SlotAt(mine, c.Slot ?? 0) + new Vector3(0, 0.03f, 0), Quaternion.identity, 1, true); break; }
+                if (p.Lightspeed?.Uid == uid) { v.MoveTo((mine ? MyTrap : RivalTrap) + new Vector3(0, 0.03f, 0), Quaternion.identity, 1, true); break; }
+            }
+        }
+        // (The two sides the next Sync lays out: the viewer's and the shown rival's.)
+        var rival = synced.Players.FirstOrDefault(p => p.Id == RivalId && p.Id != viewer) ?? synced.Players.FirstOrDefault(p => p.Id != viewer);
+        foreach (var p in synced.Players)
+        {
+            if (p.Boss != null || (p.Id != viewer && p != rival)) continue;
+            var sun = SunFor(p, p.Id == viewer);
+            sun.Show(synced, p);
+            sun.Face(Cam);
+        }
+    }
+
+    /// <summary>
+    /// The hand laid out as it now stands without its cards arriving one by one, then dealt in from the deck as an
+    /// opening hand is (app.ts 'reveal': render, then dealOpening).
+    /// </summary>
+    public void Redeal(GameState s, BattleView ui)
+    {
+        dealt = false;
+        Sync(s, ui);
+        DealOpening(s);
     }
 
     /// <summary>How many cards have been dealt into the hand this sync (each a little after the last).</summary>
