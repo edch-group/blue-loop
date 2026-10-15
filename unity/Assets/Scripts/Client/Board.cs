@@ -626,7 +626,13 @@ public class Board : MonoBehaviour
             v.MoveTo(new Vector3(at.x, -depth + 0.001f * (lifted ? 50 : i), at.y), Quaternion.Euler(0, turn, 0), w * size * px);
             float a = turn * Mathf.Deg2Rad, bw = (w * Mathf.Abs(Mathf.Cos(a)) + h * Mathf.Abs(Mathf.Sin(a))) * size, bh = (w * Mathf.Abs(Mathf.Sin(a)) + h * Mathf.Cos(a)) * size;
             HandRects.Add(new Rect(x - bw / 2, y - bh / 2, bw, bh));
-            foreach (var b in new[] { "atk", "stab", "def" }) v.Badge(b, "atk", null);
+            // (Its attack and stability as printed, as the web's hand cards wear them: stabilityBadge.)
+            var def = Cards.Def(c.DefId);
+            bool stands = Game.Persists(c.DefId) && !Cards.IsBurst(def);
+            int atk = Game.BaseAttack(def);
+            v.Badge("atk", "atk", stands && atk > 0 ? atk : (int?)null);
+            v.Badge("stab", "stab", stands ? Game.BaseHealth(c.DefId) : (int?)null);
+            v.Badge("def", "def", null);
             v.Dimmed(false);
             ui.Dress(v, me, c, false);
         }

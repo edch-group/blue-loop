@@ -151,13 +151,7 @@ public partial class BattleView
             bool guard = Game.IsGuard(owner, card);
             Badge(guard ? Faces.Where.guard : Faces.Where.def, guard ? "guard" : "def", Game.CardDefence(owner, card));
         }
-        else if (Game.Persists(defId) && !Cards.IsBurst(def))
-        {
-            // (Not in play: its attack and stability as printed, stabilityBadge.)
-            int atk = Game.BaseAttack(def);
-            if (atk > 0) Badge(Faces.Where.atk, "atk", atk);
-            Badge(Faces.Where.stab, "stab", Game.BaseHealth(defId));
-        }
+        else Printed(face, defId, pw);
         if (panel != null) Hud.Place(panel, left + pw + 16, top + (rowH - panelH) / 2, pw, panelH);
 
         bool playable = held != null && MyDay && !busy && picked == null && Game.HandCost(held, Me) <= Me.PlaysLeft;
@@ -184,6 +178,24 @@ public partial class BattleView
             Hud.Place((RectTransform)b.transform, x, y, widths[i], btnH);
             x += widths[i] + 10;
         }
+    }
+
+    /// <summary>A card not in play's attack and stability as printed (stabilityBadge), on its face `w` wide.</summary>
+    static void Printed(RectTransform face, string defId, float w)
+    {
+        var def = Cards.Def(defId);
+        if (!Game.Persists(defId) || Cards.IsBurst(def)) return;
+        void Badge(Faces.Place at, string kind, int n)
+        {
+            var r = Hud.Rect(face, kind);
+            Hud.Place(r, at.x * w, at.y * w, at.w * w, at.h * w);
+            var img = r.gameObject.AddComponent<RawImage>();
+            img.texture = Faces.Badge(kind, n);
+            img.raycastTarget = false;
+        }
+        int atk = Game.BaseAttack(def);
+        if (atk > 0) Badge(Faces.Where.atk, "atk", atk);
+        Badge(Faces.Where.stab, "stab", Game.BaseHealth(defId));
     }
 
     /// <summary>The explanations' panel (.kw-list): white, rounded 16, padded 12 x 14, rows 8 apart, `w` wide, at most `most` tall.</summary>

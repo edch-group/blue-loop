@@ -239,6 +239,7 @@ public partial class BattleView
             img.raycastTarget = false;
             // (0 24px 50px rgba(70,70,90,.28), 0 0 0 2px #fff; a trap sprung glows indigo too.)
             WebLook.Shadow(img, 24, 50, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.28f), scw * 0.08f, 2, Color.white);
+            if (!back) Printed(r, defId, scw);
             return img;
         }
         var main = Card(now.defId, 0, now.faceDown);
@@ -380,6 +381,7 @@ public partial class BattleView
             var img = face.gameObject.AddComponent<RawImage>();
             img.texture = Faces.Of(defId, false);
             img.raycastTarget = false;
+            Printed(face, defId, ow);
             // (0 0 0 1.5px #fff, 0 0 18px rgba(212,149,42,.55), 0 6px 18px rgba(90,90,110,.18).)
             WebLook.Shadow(img, 0, 18, new Color(212 / 255f, 149 / 255f, 42 / 255f, 0.55f), ow * 0.08f, 1.5f, Color.white);
             var t = Hud.Rect(o, "Tag");
@@ -403,6 +405,7 @@ public partial class BattleView
         var ci = card.gameObject.AddComponent<RawImage>();
         ci.texture = moveId != null ? Faces.Of(moveId, false) : Resources.Load<Texture2D>("Board/back");
         ci.raycastTarget = false;
+        if (moveId != null) Printed(card, moveId, scw);
         WebLook.Shadow(ci, 24, 50, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.28f), scw * 0.08f, 2, Color.white);
         float tw = Hud.Wide("⚡ ANSWER?", 8, 600, 16, 10, true) + 2, th = 8 * 1.25f + 6 + 2;
         var tagBox = Hud.Box(stagePane, "Answer tag", Hud.Rgba(212, 149, 42), 8);
