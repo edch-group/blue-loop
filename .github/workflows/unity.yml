@@ -50,10 +50,19 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           sudo chown -R "$(id -u)" unity/ci 2>/dev/null || true
-          git add unity/ci
-          git commit -m "Unity CI screenshot" || exit 0
-          git pull --rebase --autostash origin "$GITHUB_REF_NAME"
-          git push origin "HEAD:$GITHUB_REF_NAME"
+          # (Laid on the branch as it is now, again if another push lands first: two builds finishing together had
+          # clashed over the same pictures, and the later one's were lost. The newest are the ones kept.)
+          cp -r unity/ci "$RUNNER_TEMP/shots"
+          for try in 1 2 3 4 5; do
+            git fetch -q origin "$GITHUB_REF_NAME"
+            git reset -q --hard "origin/$GITHUB_REF_NAME"
+            rm -rf unity/ci && cp -r "$RUNNER_TEMP/shots" unity/ci
+            git add -A unity/ci
+            git commit -q -m "Unity CI screenshot" || exit 0
+            git push origin "HEAD:$GITHUB_REF_NAME" && exit 0
+            sleep $((try * 5))
+          done
+          exit 1
 
   # The browser's build, served by the site at /play/ (Cloudflare deploys whatever is pushed): made after the Mac's
   # when a commit's message asks for it ("[play]") or by hand. The baked pictures go beside it, each its own file (see
@@ -118,14 +127,21 @@ jobs:
           ls -la build/WebGL/Game
           du -sh build/WebGL/Game/* || true
           git checkout -- unity
-          rm -rf public/play
-          mkdir -p public/play
-          cp -r build/WebGL/Game/. public/play/
-          # (The site opens on it: the web game it was ported from stays at its own paths.)
-          printf '/ /play/ 302\n' > public/_redirects
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A public/play public/_redirects
-          git commit -m "Unity web build" || exit 0
-          git pull --rebase --autostash origin "$GITHUB_REF_NAME"
-          git push origin "HEAD:$GITHUB_REF_NAME"
+          # (Laid on the branch as it is now, again if another push lands first: two builds finishing together had
+          # clashed over the same files, and the later one was lost. The newest build is the one kept.)
+          for try in 1 2 3 4 5; do
+            git fetch -q origin "$GITHUB_REF_NAME"
+            git reset -q --hard "origin/$GITHUB_REF_NAME"
+            rm -rf public/play
+            mkdir -p public/play
+            cp -r build/WebGL/Game/. public/play/
+            # (The site opens on it: the web game it was ported from stays at its own paths.)
+            printf '/ /play/ 302\n' > public/_redirects
+            git add -A public/play public/_redirects
+            git commit -q -m "Unity web build" || exit 0
+            git push origin "HEAD:$GITHUB_REF_NAME" && exit 0
+            sleep $((try * 5))
+          done
+          exit 1
