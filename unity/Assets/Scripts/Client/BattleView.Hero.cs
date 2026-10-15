@@ -153,6 +153,7 @@ public partial class BattleView
             group.alpha = p.Off ? 0.6f : 1;
             if (!p.Off)
             {
+                pill.raycastTarget = true;
                 var b = pill.gameObject.AddComponent<Button>();
                 var cb = b.colors;
                 cb.highlightedColor = dark ? new Color(1.1f, 1.1f, 1.2f) : new Color(1f, 0.965f, 0.886f);

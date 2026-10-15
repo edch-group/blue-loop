@@ -172,6 +172,7 @@ public partial class BattleView
                 var box = Hud.Box(sheetR, "CLOSE", new Color(252 / 255f, 252 / 255f, 251 / 255f), 10);
                 WebLook.Shadow(box, 2, 10, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.12f), 10, 1, Color.white);
                 Hud.Label(box.transform, "CLOSE", 10.56f, Look.Ink, false, 500, 14);
+                box.raycastTarget = true;
                 b = box.gameObject.AddComponent<Button>();
                 b.onClick.AddListener(() => inspector.gameObject.SetActive(false));
             }

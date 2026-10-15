@@ -50,7 +50,6 @@ public partial class BattleView
         var sprung = Sprung(next);
         if (sprung != null) stage = sprung;
         if (stage != null) stage.Shown = Time.time;
-        Debug.Log($"[stage] {a.Type} by {actor.Id} ai={actor.IsAI} reaction={next.Reaction != null} stage={(stage == null ? "none" : stage.DefId)} confirm={stage?.Confirm} own={stage?.Own} sprung={next.Sprung?.Count} humans={next.Players.Count(p => !p.IsAI)} auto={Autoplay}");
         bool turnPassed = Game.ActivePlayer(prev).Id != Game.ActivePlayer(next).Id;
         void Land()
         {
@@ -270,6 +269,7 @@ public partial class BattleView
             Hud.Place((RectTransform)ok.transform, (pairW - bw) / 2, y, bw, okH);
             WebLook.Shadow(ok, 6, 18, new Color(30 / 255f, 40 / 255f, 60 / 255f, 0.35f), 10, 1, Hud.Rgba(47, 58, 82));
             Hud.Label(ok.transform, "OK", 10.56f, Color.white, false, 600, 14);
+            ok.raycastTarget = true;
             var b = ok.gameObject.AddComponent<Button>();
             b.onClick.AddListener(ConfirmStage);
         }
@@ -398,6 +398,7 @@ public partial class BattleView
         Hud.Place((RectTransform)pass.transform, (sideW - passW) / 2, opts.Count > 0 ? y : (h - passH) / 2, passW, passH);
         WebLook.Shadow(pass, 2, 10, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.12f), 10, 1, Color.white);
         Hud.Label(pass.transform, "LET IT PASS", 9.92f, Look.Ink, false, 500, 14);
+        pass.raycastTarget = true;
         var pb = pass.gameObject.AddComponent<Button>();
         pb.onClick.AddListener(() => Do(new EngineAction { Type = "react" }));
         // The move it answers, under its tag, and what it does.
