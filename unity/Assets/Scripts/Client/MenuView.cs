@@ -354,7 +354,8 @@ public class MenuView : MonoBehaviour
     void Studio()
     {
         // (The web's .studio: 8 across, spaced 0.3em, ink-faint, max(10px, the safe area) off the foot.)
-        K.Words(page, "CORONAL MASS GAMES", 0, K.H - Mathf.Max(10, K.SaB) - 9, K.W, 9, 8, Look.InkFaint, true, 400, 0.3f);
+        // (Centred with the spacing after its last letter, as the browser centres it: half of it to the left.)
+        K.Words(page, "CORONAL MASS GAMES", -0.15f * 8, K.H - Mathf.Max(10, K.SaB) - K.LineH(8), K.W, K.LineH(8), 8, Look.InkFaint, true, 400, 0.3f);
     }
 
     // ---- The hub ----
@@ -375,8 +376,13 @@ public class MenuView : MonoBehaviour
             Hud.Place((RectTransform)b.transform, linkX, top + 8, linkW, 30);
             linkX += linkW + linkGap;
             string to = icon;
-            // (The shop needs the server, as online play does.)
-            b.onClick.AddListener(() => { Sound.Play("click"); if (to == "shop" && !Net.Available) Toast("Offline."); else Show(to); });
+            b.onClick.AddListener(() => { Sound.Play("click"); Show(to); });
+            // (The shop needs the server, as online play does: without one it fades to 45% and takes no taps.)
+            if (to == "shop" && !Net.Available)
+            {
+                b.interactable = false;
+                b.gameObject.AddComponent<CanvasGroup>().alpha = 0.45f;
+            }
             Picture(b.transform, $"Icons/{icon}-small", 2, 4, 22, 22);
             K.Words(b.transform, name.ToUpperInvariant(), 31, 0, nameW + 4, 30, 10.24f, Look.Ink, true, 700, 0.2f, TextAlignmentOptions.Left);
         }
@@ -406,15 +412,37 @@ public class MenuView : MonoBehaviour
             var (key, name) = tiles[i];
             bool offline = key == "online" && !Net.Available;
             float x = x0 + i * (ht + gapX);
-            var tile = Hud.Box(page, name, Hud.Rgba(250, 250, 249), 16);
+            // (Offline, the tile, its shadows and all fade to 45% as one: .hub-offline's opacity.)
+            Transform under = page;
+            if (offline)
+            {
+                var col = Hud.Rect(page, "Faded");
+                Hud.Fill(col);
+                var fade = col.gameObject.AddComponent<CanvasGroup>();
+                fade.alpha = 0.45f;
+                under = col;
+            }
+            // (.hub-card: white fading to #f5f5f3 down it, in a white hairline.)
+            var tile = Hud.Box(under, name, Color.white, 16);
             Hud.Place(tile.rectTransform, x, cardY, ht, cardH);
             Hud.Shadow(tile, 16, new Hud.Drop(Hud.Rgba(80, 84, 100, 0.14f), 14, 34), new Hud.Drop(Hud.Rgba(80, 84, 100, 0.08f), 2, 6));
             tile.raycastTarget = true;
+            var shade = Hud.Box(tile.transform, "Fill", Color.white, 15);
+            Hud.Fill(shade.rectTransform);
+            shade.rectTransform.offsetMin = new Vector2(1, 1);
+            shade.rectTransform.offsetMax = new Vector2(-1, -1);
+            shade.raycastTarget = false;
+            shade.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+            var grad = Hud.Rect(shade.transform, "Gradient");
+            Hud.Fill(grad);
+            var gi = grad.gameObject.AddComponent<RawImage>();
+            gi.texture = K.Down(Color.white, Hud.Rgba(245, 245, 243));
+            gi.raycastTarget = false;
             var b = tile.gameObject.AddComponent<Button>();
             var colors = b.colors;
             colors.highlightedColor = new Color(0.99f, 0.99f, 1f);
             colors.pressedColor = new Color(0.95f, 0.96f, 0.98f);
-            colors.disabledColor = new Color(1, 1, 1, 0.45f);
+            colors.disabledColor = Color.white;
             b.colors = colors;
             // (Online play needs the server: without one its tile reads offline, faded.)
             b.interactable = !offline;
@@ -425,12 +453,10 @@ public class MenuView : MonoBehaviour
             float innerW = ht - 22;
             bool twoLines = K.TextW(shown, nameF, 700, 0.2f) > innerW;
             float nameH = K.LineH(nameF) * (twoLines ? 2 : 1), top2 = (cardH - (iconS + inner + nameH)) / 2;
-            var pic = Picture(tile.transform, $"Icons/{key}", (ht - iconS) / 2, top2, iconS, iconS);
-            if (offline) pic.color = new Color(1, 1, 1, 0.45f);
+            Picture(tile.transform, $"Icons/{key}", (ht - iconS) / 2, top2, iconS, iconS);
             var label = K.Words(tile.transform, shown, 11, top2 + iconS + inner, innerW, nameH, nameF, Look.Ink, true, 700, 0.2f);
             label.textWrappingMode = TextWrappingModes.Normal;
             label.lineSpacing = -8;
-            if (offline) label.alpha = 0.45f;
             // (A run or a game against the AI left part way: continue it, a small button 8 under its card.)
             System.Action cont = target == "campaign" && CampaignView.HasSave ? () => App.Instance.Run(CampaignView.Saved())
                 : target == "quickplay" && BattleView.HasSave ? () => App.Instance.Continue() : (System.Action)null;
@@ -863,25 +889,51 @@ public class MenuView : MonoBehaviour
     public Frame2 SetupTop(Transform parent, string title, System.Action back, bool pane = false, float foot = 0) => Setup(parent, title, back, pane, foot);
 
     RectTransform toast;
-    float toastUntil;
+    CanvasGroup toastFade;
+    float toastBorn;
 
     /// <summary>
     /// A word at the top of the screen for a few seconds (the web's .toast): white at 86%, corners 12, padded 7 by 16,
-    /// Exo 2 11.84 ink-soft, at most min(440px, 100vw - 32px) across; calc(--pad-t + 8px) down.
+    /// Exo 2 11.84 ink-soft, its lines 1.35 apart, centred, at most min(440px, 100vw - 32px) across; calc(--pad-t + 8px)
+    /// down. It drops in from 10 above as it shows (0.22 s), and after 2.6 s rises and fades away (0.3 s).
     /// </summary>
     public void Toast(string text)
     {
         if (toast != null) Mats.Kill(toast.gameObject);
-        var box = Hud.Box(canvas.transform, "Toast", new Color(1, 1, 1, 0.86f), 12);
+        toast = Hud.Rect(canvas.transform, "Toast");
+        Hud.Fill(toast);
+        toastFade = toast.gameObject.AddComponent<CanvasGroup>();
+        toastFade.blocksRaycasts = false;
+        var box = Hud.Box(toast, "Slip", new Color(1, 1, 1, 0.86f), 12);
         Hud.Shadow(box, 12, new Hud.Drop(Hud.Rgba(58, 66, 86, 0.08f), 0, 0, 1), new Hud.Drop(Hud.Rgba(40, 46, 70, 0.12f), 8, 22));
-        toast = box.rectTransform;
         float max = Mathf.Min(440, K.W - 32) - 32;
-        var words = K.Fill(toast, text, 11.84f, Look.InkSoft, false, 400);
+        var words = K.Fill(box.transform, text, 11.84f, Look.InkSoft, false, 400);
         words.textWrappingMode = TextWrappingModes.Normal;
+        words.lineSpacing = (1.35f - 1.2f) * 100;
         var size = words.GetPreferredValues(text, max, 0);
-        float w = Mathf.Min(max, size.x + 2) + 32, h = size.y + 14;
-        Hud.Place(toast, (K.W - w) / 2, Mathf.Max(6, K.SaT) + 8, w, h);
-        toastUntil = Time.realtimeSinceStartup + 3.6f;
+        int lines = Mathf.Max(1, Mathf.RoundToInt(size.y / (11.84f * 1.35f)));
+        float w = Mathf.Min(max, size.x + 2) + 32, h = lines * 11.84f * 1.35f + 14;
+        Hud.Place(box.rectTransform, (K.W - w) / 2, Mathf.Max(6, K.SaT) + 8, w, h);
+        toastBorn = Time.realtimeSinceStartup;
+        AnimateToast();
+    }
+
+    /// <summary>The toast's way in (toastIn, ease-out) and, after its time, out (.toast-out, ease).</summary>
+    void AnimateToast()
+    {
+        float t = Time.realtimeSinceStartup - toastBorn, k;
+        if (t < 2.6f)
+        {
+            float u = Mathf.Clamp01(t / 0.22f);
+            k = 1 - (1 - u) * (1 - u) * (1 - u);
+        }
+        else
+        {
+            float u = Mathf.Clamp01((t - 2.6f) / 0.3f);
+            k = 1 - u * u * (3 - 2 * u);
+        }
+        toastFade.alpha = k;
+        toast.anchoredPosition = new Vector2(0, 10 * (1 - k));
     }
 
     void Update()
@@ -890,13 +942,17 @@ public class MenuView : MonoBehaviour
         if (Css.Size != laidSize || Css.SafeInsets != laidInsets) Relayout();
         // (The settings' flower: a turn in 90 seconds.)
         if (flower != null) flower.localRotation = Quaternion.Euler(0, 0, -(Time.time * 4) % 360);
-        if (toast != null && Time.realtimeSinceStartup > toastUntil)
+        if (toast != null && Time.realtimeSinceStartup > toastBorn + 2.9f)
         {
             Mats.Kill(toast.gameObject);
             toast = null;
         }
-        // (Over a page drawn after it.)
-        else if (toast != null && toast.GetSiblingIndex() != toast.parent.childCount - 1) toast.SetAsLastSibling();
+        else if (toast != null)
+        {
+            AnimateToast();
+            // (Over a page drawn after it.)
+            if (toast.GetSiblingIndex() != toast.parent.childCount - 1) toast.SetAsLastSibling();
+        }
     }
 
     /// <summary>
