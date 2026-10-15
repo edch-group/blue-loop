@@ -192,9 +192,9 @@ public partial class CampaignView
                     var fused = Hud.Rect(act, "Fused");
                     fused.sizeDelta = lay.Phone ? new Vector2(66 * Z, 92 * Z) : new Vector2(88 * Z, 124 * Z);
                     var face = fused.gameObject.AddComponent<RawImage>();
-                    face.texture = Faces.Of(Builds.FusedId(a, b), false);
+                    face.texture = Faces.Of(Builds.FusedId(a, b), Faces.Look.Card, fused.sizeDelta.x / WebLook.Zoom);
                     face.raycastTarget = false;
-                    Kit.Printed(fused, Builds.FusedId(a, b), fused.sizeDelta.x);
+                    Kit.Printed(fused, Builds.FusedId(a, b), fused.sizeDelta.x, true);
                     Kit.Across(act, 14, fused, Kit.Go(act, $"fuse · ⬢{cost}", true, problem, () => StationFuse(nodeId, a, b)), Kit.Hint(act, "for good"));
                 }
             }
@@ -271,8 +271,8 @@ public partial class CampaignView
         var face = Hud.Rect(card, "Face");
         Hud.Fill(face);
         var raw = face.gameObject.AddComponent<RawImage>();
-        raw.texture = Faces.Of(id, false);
-        Kit.Printed(face, id, Kit.CardW);
+        raw.texture = Faces.Of(id, Faces.Look.Card, Kit.CardW / WebLook.Zoom);
+        Kit.Printed(face, id, Kit.CardW, true);
         var b = card.gameObject.AddComponent<Button>();
         b.targetGraphic = raw;
         b.onClick.AddListener(() => ArPick(id, inspect));
@@ -733,8 +733,9 @@ static class StationKit
     /// <summary>
     /// A card's attack and stability as printed (the web's .cmp-card, cardHtml, shows them on its face; the baked face
     /// has none), on its face `w` wide: as the battle's inspector draws a card not in play (BattleView.Printed).
+    /// `sized`: on a face baked for its width, the stones where the web sets them on a card that wide (Faces.At).
     /// </summary>
-    public static void Printed(RectTransform face, string defId, float w)
+    public static void Printed(RectTransform face, string defId, float w, bool sized = false)
     {
         var def = Cards.Def(defId);
         if (def == null || !Game.Persists(defId) || Cards.IsBurst(def)) return;
@@ -747,8 +748,8 @@ static class StationKit
             img.raycastTarget = false;
         }
         int atk = Game.BaseAttack(def);
-        if (atk > 0) Badge(Faces.Where.atk, "atk", atk);
-        Badge(Faces.Where.stab, "stab", Game.BaseHealth(defId));
+        if (atk > 0) Badge(sized ? Faces.At("atk", w / WebLook.Zoom, false) : Faces.Where.atk, "atk", atk);
+        Badge(sized ? Faces.At("stab", w / WebLook.Zoom, false) : Faces.Where.stab, "stab", Game.BaseHealth(defId));
     }
 
     /// <summary>A card on the shelf: its width (120 (CSS), on a phone 88), its height, and its cell's (its price beneath it).</summary>

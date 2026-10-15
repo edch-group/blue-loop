@@ -182,7 +182,7 @@ public partial class BattleView
     }
 
     /// <summary>A card not in play's attack and stability as printed (stabilityBadge), on its face `w` wide.</summary>
-    static void Printed(RectTransform face, string defId, float w)
+    static void Printed(RectTransform face, string defId, float w, bool sized = false)
     {
         var def = Cards.Def(defId);
         if (!Game.Persists(defId) || Cards.IsBurst(def)) return;
@@ -194,9 +194,10 @@ public partial class BattleView
             img.texture = Faces.Badge(kind, n);
             img.raycastTarget = false;
         }
+        // (`sized`: on a face baked for its width, the stones where the web sets them on a card that wide: Faces.At.)
         int atk = Game.BaseAttack(def);
-        if (atk > 0) Badge(Faces.Where.atk, "atk", atk);
-        Badge(Faces.Where.stab, "stab", Game.BaseHealth(defId));
+        if (atk > 0) Badge(sized ? Faces.At("atk", w, false) : Faces.Where.atk, "atk", atk);
+        Badge(sized ? Faces.At("stab", w, false) : Faces.Where.stab, "stab", Game.BaseHealth(defId));
     }
 
     /// <summary>The explanations' panel (.kw-list): white, rounded 16, padded 12 x 14, rows 8 apart, `w` wide, at most `most` tall.</summary>
