@@ -249,12 +249,19 @@ Object.assign(window, { loot });
 // ---- The shop's booster packs and the deck builder's marks (app.ts packFace, builder.ts), for scripts/bake-menus.mjs ----
 import { PROGRESSION, RACE_NAMES } from '../src/engine';
 import { modeArt } from '../src/ui/glyphs';
-/** A booster pack as the shop's row shows it: the foil wrapper, turned a little, its shadow under it (its sheen still). */
-function pack(kind: string, width: number): void {
+/**
+ * A booster pack as the shop's row shows it: the foil wrapper, turned a little, its shadow under it (its sheen still).
+ * `part` 'open' or 'tear': as a bought one is torn open (.pack-ripped), facing straight on, its body (no strip) or its
+ * tear strip alone; 'off': too dear to buy (.pack-slot[disabled] .pack: greyed and faded, its shadow gone).
+ */
+function pack(kind: string, width: number, part = ''): void {
   const k = kind === 'general' ? 'general' : Number(kind);
   const name = k === 'general' ? 'general' : RACE_NAMES[k].toLowerCase();
   const emblem = k === 'general' ? `<span class="pack-icon">${HUB_ICONS.pack}</span>` : factionAvatar(`f${k + 1}`, 'pack-emblem');
-  stage.innerHTML = `<span class="pack-slot" id="piece" style="display:inline-block;padding:24px 34px 40px 24px"><span class="pack pack-${k}" style="width:${width}px"><span class="pack-tear"></span><span class="pack-body"><span class="pack-brand">blue loop</span>${emblem}<span class="pack-name">${name}</span><span class="pack-count">${PROGRESSION.boosterSize} cards</span></span><span class="pack-shine" style="animation:none;background-position:150% 0"></span></span></span>`;
+  const flat = part === 'off' ? 'filter:saturate(0.4) opacity(0.6);' : part ? 'transform:none;' : '';
+  const hideTear = part === 'open' ? ' style="visibility:hidden"' : '';
+  const hideBody = part === 'tear' ? ' style="visibility:hidden"' : '';
+  stage.innerHTML = `<span class="pack-slot" id="piece" style="display:inline-block;padding:24px 34px 40px 24px"><span class="pack pack-${k}" style="width:${width}px;${flat}"><span class="pack-tear"${hideTear}></span><span class="pack-body"${hideBody}><span class="pack-brand">blue loop</span>${emblem}<span class="pack-name">${name}</span><span class="pack-count">${PROGRESSION.boosterSize} cards</span></span><span class="pack-shine" style="animation:none;background-position:150% 0;${part === 'tear' ? 'visibility:hidden' : ''}"></span></span></span>`;
 }
 /** A game mode's picture as the deck list's switch shows it (`off`: greyed, as when the other is picked). */
 function modePic(m: 'core' | 'lost', width: number, off: boolean): void {
