@@ -501,6 +501,7 @@ public class Board : MonoBehaviour
     /// <summary>Lay the battle out as it stands: every card where it belongs, every sun as hot as it is.</summary>
     public void Sync(GameState s, BattleView ui)
     {
+        dealing = 0;
         if (!Fits) Relayout();
         var me = s.Players.First(p => p.Id == Viewer);
         var rival = s.Players.First(p => p.Id != Viewer);
@@ -750,22 +751,26 @@ public class Board : MonoBehaviour
     {
         if (!table)
         {
+            // (Drawn: from the deck pile on the board to its place in the fan, one after another: app.ts dealCard,
+            // DEAL_STEP_MS apart.)
             var deck = this.table.TransformPoint(PileAt(true, 0));
             v.StartFrom(deck + Vector3.up * 0.1f, this.table.rotation, Vector3.one * PileScale);
+            v.Hold(0.06f + dealing++ * 0.11f);
             return;
         }
         if (!mine)
         {
-            var l = L;
-            const float depth = 5;
-            var f = Cam.transform.forward;
-            var at = Cam.transform.TransformPoint(l.Screen(l.W / 2, l.H * 0.45f, depth));
-            float w = Mathf.Min(250, 0.44f * l.H) / 1.4f;
-            v.StartFrom(at, Quaternion.LookRotation(Cam.transform.up, -f), Vector3.one * w * l.ScreenScale(depth));
-            v.Hold(0.85f);
+            // (A card arriving in a tableau without having been on screen flies in from its owner's sun.)
+            var sun = suns.Where(kv => kv.Key != Viewer).Select(kv => kv.Value).FirstOrDefault();
+            var from = sun != null ? sun.transform.position : this.table.TransformPoint(PileAt(false, 0));
+            v.StartFrom(from + Vector3.up * 0.1f, this.table.rotation, Vector3.one * 0.3f);
+            v.Hold(0.35f);
             return;
         }
     }
+
+    /// <summary>How many cards have been dealt into the hand this sync (each a little after the last).</summary>
+    int dealing;
 
     /// <summary>The sun of a player, as drawn.</summary>
     public SunView SunOf(string playerId) => suns.TryGetValue(playerId, out var s) ? s : null;
