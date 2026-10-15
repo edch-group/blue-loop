@@ -137,6 +137,16 @@ jobs:
             rm -rf public/play
             mkdir -p public/play
             cp -r build/WebGL/Game/. public/play/
+            # (Cloudflare serves no file over 25 MiB: one bigger, the game's data, goes in 20 MB pieces, listed beside
+            # it, which the page fetches and joins (WebGLTemplates/Fill). Since it grew past that, no build had been
+            # deployed at all.)
+            for f in public/play/Build/*; do
+              [ "$(stat -c %s "$f")" -le $((24 * 1024 * 1024)) ] && continue
+              split -b 20000000 -d -a 2 "$f" "$f.part"
+              rm "$f"
+              python3 -c "import json,os,sys; d=os.path.dirname(sys.argv[1]); ps=sorted(p for p in os.listdir(d) if p.startswith(os.path.basename(sys.argv[1]) + '.part')); json.dump([{'name': p, 'size': os.path.getsize(os.path.join(d, p))} for p in ps], open(sys.argv[1] + '.parts.json', 'w'))" "$f"
+              ls -la "$f".part*
+            done
             # (The site opens on it: the web game it was ported from stays at its own paths.)
             printf '/ /play/ 302\n' > public/_redirects
             git add -A public/play public/_redirects

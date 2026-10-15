@@ -44,8 +44,38 @@
     const lock = () => screen.orientation?.lock?.('landscape').catch(() => undefined);
     lock();
     window.addEventListener('pointerup', lock);
-    createUnityInstance(document.querySelector('#unity-canvas'), {
-      dataUrl: 'Build/{{{ DATA_FILENAME }}}',
+    // The game's data, in pieces when it is too big for the host to serve whole (Cloudflare serves no file over 25 MiB:
+    // the publish step splits it, and lists the pieces beside it); fetched together and joined here. The bar shows the
+    // download first, then the game's own loading.
+    async function gameData() {
+      const whole = 'Build/{{{ DATA_FILENAME }}}';
+      let parts = null;
+      try {
+        const r = await fetch(whole + '.parts.json');
+        if (r.ok) parts = await r.json();
+      } catch (e) { /* none: whole */ }
+      if (!parts) return whole;
+      const total = parts.reduce((n, p) => n + p.size, 0);
+      const got = parts.map(() => 0);
+      const show = () => { bar.style.width = `${Math.round(70 * got.reduce((a, b) => a + b, 0) / total)}%`; };
+      const pieces = await Promise.all(parts.map(async (p, i) => {
+        const r = await fetch('Build/' + p.name);
+        if (!r.ok || !r.body) throw new Error(`the game's data (${p.name}): ${r.status}`);
+        const reader = r.body.getReader();
+        const chunks = [];
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          got[i] += value.length;
+          show();
+        }
+        return new Blob(chunks);
+      }));
+      return URL.createObjectURL(new Blob(pieces));
+    }
+    gameData().then((dataUrl) => createUnityInstance(document.querySelector('#unity-canvas'), {
+      dataUrl,
       frameworkUrl: 'Build/{{{ FRAMEWORK_FILENAME }}}',
       codeUrl: 'Build/{{{ CODE_FILENAME }}}',
       streamingAssetsUrl: 'StreamingAssets',
@@ -54,7 +84,7 @@
       productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
       matchWebGLToCanvasSize: true,
       devicePixelRatio: window.devicePixelRatio || 1,
-    }, (p) => { bar.style.width = `${Math.round(p * 100)}%`; })
+    }, (p) => { bar.style.width = `${Math.round((dataUrl.startsWith('blob:') ? 70 + 30 * p : 100 * p))}%`; }))
       .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; })
       .catch((e) => { document.getElementById('loading').textContent = String(e); });
   </script>
