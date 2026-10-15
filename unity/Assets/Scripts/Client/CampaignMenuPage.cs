@@ -61,8 +61,9 @@ public static class CampaignMenuPage
     public static float EaseIn(float k) => Bezier(k, 0.42f, 0, 1, 1);
 
     /// <summary>
-    /// Leaving the menu for the Stellari's tree (.cs-captain-page.cs-focus): its header and foot put away at once, its
-    /// options fading out (0.3 s), the page then taken away. False if `page` is not the campaign's menu.
+    /// Leaving the menu for a section (the Stellari's tree, the ship tab, the Captain's page: .cs-captain-page.cs-focus):
+    /// its header and foot put away at once, its options fading out (0.3 s), the page then taken away. False if `page`
+    /// is not the campaign's menu.
     /// </summary>
     public static bool FadeOut(RectTransform page)
     {

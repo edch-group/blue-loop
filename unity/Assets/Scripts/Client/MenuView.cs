@@ -367,7 +367,9 @@ public class MenuView : MonoBehaviour
         // (The Stellari's tree opened from the campaign's menu (campaign.ts cmp-shop): its scene kept, the camera gliding
         // down to the Stellari on the horizon, the menu's options fading; the tree coming in over it once it is there.)
         bool glide = name == "stellari" && scene != null;
-        if (page != null && !(glide && CampaignMenuPage.FadeOut(page))) Mats.Kill(page.gameObject);
+        // (The ship tab and the Captain's page the same (.cs-focus): the options fading as the camera flies there.)
+        bool focus = glide || ((name == "captain" || name == "hangar") && scene != null);
+        if (page != null && !(focus && CampaignMenuPage.FadeOut(page))) Mats.Kill(page.gameObject);
         sheet = null;
         profileOpen = false;
         leaving = false;

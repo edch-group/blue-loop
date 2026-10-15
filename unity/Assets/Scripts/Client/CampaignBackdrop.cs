@@ -14,11 +14,11 @@ using UMesh = UnityEngine.Mesh;
 [ExecuteAlways]
 public class CampaignBackdrop : MonoBehaviour
 {
-    const int SkyLayer = 28, LandLayer = 29, ShipLayer = 30;
+    const int LitLayer = 27, SkyLayer = 28, LandLayer = 29, ShipLayer = 30;
     const float Loop = 150;
     static readonly Vector3 Flip = new Vector3(1, 1, -1);
 
-    Camera ui, skyCam, landCam, shipCam;
+    Camera ui, skyCam, landCam, shipCam, litCam;
     CameraClearFlags uiClear;
     int uiMask;
     Transform land, ship;
@@ -39,27 +39,26 @@ public class CampaignBackdrop : MonoBehaviour
     readonly Dictionary<string, Matrix4x4> crewM = new Dictionary<string, Matrix4x4>();
 
     /// <summary>
-    /// Frame a section (its page open beside it), or (null) the whole ship. The Captain's: the camera close on the
-    /// Captain, at the left, a little low; everything else covered, so all that shows is the Captain on the paper.
+    /// Frame a section (its page open beside it), or (null) the whole ship, the camera easing there. The Captain's (or
+    /// one of the crew's): the camera close on them, at the left, a little low; and the spotlight (base3d.ts spotlight
+    /// with campaign.ts's crewOn): everything washed out in the page's white but the one figure, the white coming in.
     /// </summary>
     public void Focus(string section)
     {
+        // (From one of the crew to another on the crew page: a quick settle onto them (base3d.ts focus); leaving it, the
+        // camera pans out from whoever it was on at its usual pace.)
+        if (section != zone) quick = Crew(zone) && Crew(section);
         zone = section;
         // (Opened afresh in the editor's pictures: settled at once.)
         if (!Application.isPlaying) calm = zone == "hangar" ? 1 : 0;
         // (A section opened from the menu: no longer opening afresh.)
         if (zone != null) introPending = false;
         // (Enlightenment, out on the land: the camera glides there, as it does for the ship tab.)
-        if (!Application.isPlaying) toward = research = zone == "research" ? 1 : 0;
-        // (The Captain or one of the crew, alone: everything else covered.)
-        bool alone = zone != null && zone != "hangar" && zone != "research";
-        if (landCam != null) landCam.enabled = !alone;
-        if (skyCam != null) skyCam.enabled = !alone && enabled;
-        shipCam.clearFlags = alone ? CameraClearFlags.SolidColor : CameraClearFlags.Depth;
-        shipCam.backgroundColor = Look.Paper;
-        shipModel.gameObject.SetActive(!alone);
-        captain.gameObject.SetActive(!alone || zone == "captain");
-        foreach (var c in crew) c.t.gameObject.SetActive(!alone || zone == c.id);
+        if (!Application.isPlaying) toward = zone == "research" ? 1 : 0;
+        // (The Captain or one of the crew: lit, all else veiled; in the editor's pictures, at once.)
+        lit = Crew(zone) ? zone : null;
+        if (lit != null) litShown = lit;
+        if (!Application.isPlaying) veil = lit != null ? 1 : 0;
         Pose();
     }
 
@@ -144,7 +143,7 @@ public class CampaignBackdrop : MonoBehaviour
         ui.clearFlags = CameraClearFlags.Depth;
         // (The page's camera draws the page alone, not the scene's layers again from where it stands.)
         uiMask = ui.cullingMask;
-        ui.cullingMask &= ~((1 << SkyLayer) | (1 << LandLayer) | (1 << ShipLayer));
+        ui.cullingMask &= ~((1 << LitLayer) | (1 << SkyLayer) | (1 << LandLayer) | (1 << ShipLayer));
         t0 = Time.realtimeSinceStartup;
         introPending = !story;
         if (!story) BuildLand();
@@ -301,6 +300,20 @@ public class CampaignBackdrop : MonoBehaviour
                 crew.Add((id, pl, Model(id, ModelMesh.Of("companion:" + id, () => CompanionModels.CompanionModel(id)))));
         shipCam = MakeCamera("Ship camera", ui.depth - 1, ShipLayer, 32);
         shipCam.clearFlags = CameraClearFlags.Depth;
+        // The spotlight's: drawn over the land and the ship, as the ship's camera sees them; the veil first, then the
+        // one figure lit over it (base3d.ts draws it again over its veil, its depth cleared).
+        litCam = MakeCamera("Lit camera", ui.depth - 0.5f, LitLayer, 32);
+        litCam.clearFlags = CameraClearFlags.Depth;
+        litCam.enabled = false;
+        var vq = new GameObject("Veil") { layer = LitLayer };
+        vq.transform.SetParent(litCam.transform, false);
+        vq.transform.localPosition = new Vector3(0, 0, 1);
+        vq.AddComponent<MeshFilter>().sharedMesh = Quad;
+        var vr = vq.AddComponent<MeshRenderer>();
+        veilMat = Mats.Make("Veil");
+        vr.sharedMaterial = veilMat;
+        vr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        vr.receiveShadows = false;
         if (story)
         {
             shipCam.clearFlags = CameraClearFlags.SolidColor;
@@ -310,9 +323,43 @@ public class CampaignBackdrop : MonoBehaviour
         Pose();
     }
 
-    // (How far the land's camera has glided down to the Stellari, and the ship's turned from the ship toward it; when
-    // the scene was last posed.)
-    float toward, research, lastPose;
+    // (How far the land's camera has glided down to the Stellari; when the scene was last posed.)
+    float toward, lastPose;
+
+    /// <summary>The Captain or one of the crew (base3d.ts focus's crew): framed close, alone.</summary>
+    static bool Crew(string z) => z != null && z != "hangar" && z != "research";
+
+    /// <summary>A framing of the ship's camera (base3d.ts Pose): what it looks at, from which way, how far, how far aside.</summary>
+    struct CamPose
+    {
+        public Vector3 Target;
+        public float Yaw, Pitch, Dist, Off;
+    }
+
+    // (The ship's camera as it is now, easing toward its framing; a quick settle from one of the crew to another.)
+    CamPose? camPose;
+    bool quick;
+
+    // (The spotlight: who is lit (none: going out), who was last (still drawn over the veil as it goes), how far the
+    // veil has come in, and who stands on the lit camera's layer now.)
+    string lit, litShown, litOn;
+    float veil;
+    Material veilMat;
+
+    /// <summary>The figure `id` (the Captain, one of the crew) on the lit camera's layer, or back on the ship's (null: none).</summary>
+    void LitOn(string id)
+    {
+        if (id == litOn) return;
+        Transform Of(string z) => z == null ? null : z == "captain" ? captain : crew.FirstOrDefault(c => c.id == z).t;
+        void Layer(Transform t, int layer)
+        {
+            if (t == null) return;
+            foreach (var x in t.GetComponentsInChildren<Transform>(true)) x.gameObject.layer = layer;
+        }
+        Layer(Of(litOn), ShipLayer);
+        Layer(Of(id), LitLayer);
+        litOn = id;
+    }
 
     double level;
     Dictionary<string, V3> slots;
@@ -501,7 +548,7 @@ public class CampaignBackdrop : MonoBehaviour
     }
 
     /// <summary>Its cameras, drawn before the page's own (the land, then the ship; the sky under them drawn on its own).</summary>
-    public Camera[] Cameras => landCam != null ? new[] { landCam, shipCam } : new[] { paperCam, shipCam };
+    public Camera[] Cameras => litCam != null && litCam.enabled ? new[] { landCam != null ? landCam : paperCam, shipCam, litCam } : landCam != null ? new[] { landCam, shipCam } : new[] { paperCam, shipCam };
 
     /// <summary>Drawn into a texture (the editor's screenshots): its cameras with the page's.</summary>
     public void Into(RenderTexture rt)
@@ -509,6 +556,8 @@ public class CampaignBackdrop : MonoBehaviour
         foreach (var c in Cameras) c.targetTexture = rt;
         if (story) shipCam.rect = new Rect(0, 0.36f, 1, 0.64f);
         Pose();
+        // (The spotlight's camera, shown once posed.)
+        if (litCam != null && litCam.enabled) litCam.targetTexture = rt;
         // (The sky first, at once: the land's camera, drawn next, keeps it.)
         if (skyCam != null && skyCam.enabled)
         {
@@ -558,6 +607,7 @@ public class CampaignBackdrop : MonoBehaviour
     void OnDestroy()
     {
         Mats.Kill(figureMesh);
+        Mats.Kill(veilMat);
         Mats.Kill(sunGlow.m);
         Mats.Kill(sunLine.m);
         if (ui == null) return;
@@ -607,8 +657,10 @@ public class CampaignBackdrop : MonoBehaviour
     void Pose()
     {
         float t = Now;
-        // (Eased by the time since the last pose, as the web's frames are: never more than a tenth of a second.)
+        // (Eased by the time since the last pose, as the web's frames are: never more than a tenth of a second; the ship's
+        // camera, as base3d.ts draw has it, never more than a fifth.)
         float step = Application.isPlaying ? Mathf.Clamp(t - lastPose, 0, 0.1f) : 0;
+        float camStep = Application.isPlaying ? Mathf.Clamp(t - lastPose, 0, 0.2f) : 0;
         lastPose = t;
         // The land: the flight along it, west to east and round again; the land breaking away behind.
         float k = (t % Loop) / Loop;
@@ -721,8 +773,8 @@ public class CampaignBackdrop : MonoBehaviour
             visitor.GetComponent<MeshRenderer>().sharedMaterial.SetFloat("_Burn", 0.4f + 0.6f * (1 - vk));
         }
 
-        // The ship's camera: the whole ship, side on and a little from ahead and below, set off to the left; or the
-        // Captain, close, in the middle of the left of the screen, low.
+        // The ship's camera (base3d.ts goal): the whole ship, side on and a little from ahead and below, set off to the
+        // left; or the Captain, close, in the middle of the left of the screen, low.
         float aspect = Mathf.Max(0.3f, story ? shipCam.aspect : ui.aspect);
         float half = Mathf.Tan(16 * Mathf.Deg2Rad);
         {
@@ -730,24 +782,39 @@ public class CampaignBackdrop : MonoBehaviour
             // (One of the crew: their chest, on the figure as it stands, crouches or flies.)
             bool mate = zone != null && crewM.ContainsKey(zone);
             bool cap = zone == "captain" || mate, hangar = zone == "hangar", alongside = visitor != null;
-            // (The ship from above: its nose to the right, on the left of the screen beside the hangar's page.)
-            // (A story scene: drawn back to take in the ship and whoever is alongside.)
-            float dist = alongside ? Mathf.Max(7 / (half * aspect), 3.6f / half) : cap ? 2.3f / narrow : hangar ? 9.2f / narrow : Mathf.Max(3.7f / (half * aspect), 2.4f / half);
-            float yaw = (alongside ? -0.36f : cap ? 1.0f : hangar ? 0 : -0.52f) + 0.03f * Mathf.Sin(t * 0.17f), pitch = alongside ? 0.14f : cap ? 0.04f : hangar ? 1.25f : 0.1f;
-            float off = alongside || story ? 0 : cap ? -0.29f : hangar ? -0.15f * narrow : -0.1f;
-            var target = alongside ? new Vector3(2.1f, 1.25f, -1.5f) : mate ? crewM[zone].MultiplyPoint(B(20, 12, zone == "engineer" ? 20 : zone == "shade" || zone == "seer" ? 22 : 28)) + new Vector3(0, 0.1f, 0)
-                : cap ? (Vector3)(capM.MultiplyPoint(B(20, 12, 30))) + new Vector3(0, 0.1f, 0) : hangar ? B(20, 12, 5) * SS : new Vector3(-0.3f, 0.74f, 0);
-            // (Enlightenment is the Stellari, out on the land: the camera turns from the ship, which slides away to the
-            // left; eased there and back at the camera's own pace, as base3d.ts eases toward its framing.)
-            research += ((zone == "research" ? 1 : 0) - research) * (1 - Mathf.Exp(-step * 2.6f));
-            if (research > 1e-4f)
+            CamPose goal;
+            // (Enlightenment is the Stellari, out on the land: the camera turns from the ship, which slides away to the left.)
+            if (zone == "research") goal = new CamPose { Target = new Vector3(7, 1.4f, -2), Yaw = -0.52f, Pitch = 0.1f, Dist = 6, Off = 0 };
+            else
             {
-                target += (new Vector3(7, 1.4f, -2) - target) * research;
-                yaw += (-0.52f + 0.03f * Mathf.Sin(t * 0.17f) - yaw) * research;
-                pitch += (0.1f - pitch) * research;
-                dist += (6 - dist) * research;
-                off += (0 - off) * research;
+                // (The ship from above: its nose to the right, on the left of the screen beside the hangar's page.)
+                // (A story scene: drawn back to take in the ship and whoever is alongside.)
+                goal = new CamPose
+                {
+                    Dist = alongside ? Mathf.Max(7 / (half * aspect), 3.6f / half) : cap ? 2.3f / narrow : hangar ? 9.2f / narrow : Mathf.Max(3.7f / (half * aspect), 2.4f / half),
+                    Yaw = alongside ? -0.36f : cap ? 1.0f : hangar ? 0 : -0.52f,
+                    Pitch = alongside ? 0.14f : cap ? 0.04f : hangar ? 1.25f : 0.1f,
+                    Off = alongside || story ? 0 : cap ? -0.29f : hangar ? -0.15f * narrow : -0.1f,
+                    Target = alongside ? new Vector3(2.1f, 1.25f, -1.5f) : mate ? crewM[zone].MultiplyPoint(B(20, 12, zone == "engineer" ? 20 : zone == "shade" || zone == "seer" ? 22 : 28)) + new Vector3(0, 0.1f, 0)
+                        : cap ? (Vector3)(capM.MultiplyPoint(B(20, 12, 30))) + new Vector3(0, 0.1f, 0) : hangar ? B(20, 12, 5) * SS : new Vector3(-0.3f, 0.74f, 0),
+                };
             }
+            // The camera eases toward its framing (base3d.ts draw: by 1 - e^(-2.6 dt) a frame; from one of the crew to
+            // another, 15), so a section opened (the ship tab, the Captain, the Stellari) is flown to, and back.
+            var now = camPose ?? goal;
+            if (camPose == null || !Application.isPlaying) now = goal;
+            else
+            {
+                float e = 1 - Mathf.Exp(-camStep * (quick ? 15 : 2.6f));
+                now.Target += (goal.Target - now.Target) * e;
+                now.Yaw += (goal.Yaw - now.Yaw) * e;
+                now.Pitch += (goal.Pitch - now.Pitch) * e;
+                now.Dist += (goal.Dist - now.Dist) * e;
+                now.Off += (goal.Off - now.Off) * e;
+            }
+            camPose = now;
+            var target = now.Target;
+            float yaw = now.Yaw + 0.03f * Mathf.Sin(t * 0.17f), pitch = now.Pitch, dist = now.Dist, off = now.Off;
             var dir = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch));
             Aim(shipCam, target + dir * dist, target);
             shipCam.ResetProjectionMatrix();
@@ -755,6 +822,26 @@ public class CampaignBackdrop : MonoBehaviour
             // (Set off centre by shearing the projection: the subject moves aside, its perspective unchanged.)
             p.m02 = -off * 2;
             shipCam.projectionMatrix = p;
+
+            // The spotlight (base3d.ts draw): the page's white (#fbfbfc) over everything, coming in or going by
+            // min(1, 4 dt) a frame, then the one figure drawn again over it.
+            if (litCam == null) return;
+            if (Application.isPlaying) veil += ((lit != null ? 1 : 0) - veil) * Mathf.Min(1, camStep * 4);
+            bool veiled = veil > 0.004f && litShown != null;
+            if (!veiled && lit == null) litShown = null;
+            LitOn(veiled ? litShown : null);
+            float va = Mathf.Min(1, veil);
+            veilMat.color = new Color(0.984f * va, 0.984f * va, 0.988f * va, va);
+            litCam.enabled = veiled;
+            litCam.transform.SetPositionAndRotation(shipCam.transform.position, shipCam.transform.rotation);
+            litCam.fieldOfView = shipCam.fieldOfView;
+            litCam.rect = shipCam.rect;
+            litCam.projectionMatrix = p;
+            // (Covered whole: the land, its sky and the ship under the veil need not be drawn.)
+            bool covered = Application.isPlaying && veiled && va >= 0.999f;
+            if (landCam != null) landCam.enabled = !covered;
+            if (skyCam != null) skyCam.enabled = !covered && enabled;
+            shipCam.enabled = !covered;
         }
     }
 }
