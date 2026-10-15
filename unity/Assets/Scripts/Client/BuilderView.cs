@@ -2049,6 +2049,9 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     {
         var r = Hud.Rect(box, name);
         Hud.Fill(r);
+        // (Its renderer added first: a graphic in a file not named for it is not given one in the editor, which never
+        // plays, and the screenshots taken there failed on the deck boxes.)
+        if (!r.TryGetComponent<CanvasRenderer>(out _)) r.gameObject.AddComponent<CanvasRenderer>();
         var f = r.gameObject.AddComponent<Facet>();
         f.Corners = corners;
         float mid = (corners.Min(c => c.y) + corners.Max(c => c.y)) / 2;

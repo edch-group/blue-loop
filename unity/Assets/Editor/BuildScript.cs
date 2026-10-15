@@ -98,6 +98,7 @@ public static class BuildScript
         UnityEngine.Object.DestroyImmediate(battle.gameObject);
         var app = App.Make();
         foreach (var page in new[] { "title", "hub", "quickplay", "collection", "deck", "shop", "glossary", "tutorial", "challenges", "campaign", "stellari", "captain", "hangar" })
+        try
         {
             var menu = app.Menu(page);
             app.MenuCam.targetTexture = new RenderTexture(1600, 1000, 24) { antiAliasing = 4 };
@@ -116,8 +117,11 @@ public static class BuildScript
             }
             Shot(app.MenuCam, Path.Combine(dir, $"menu-{page}.png"));
         }
+        // (Each page its own: one failing is logged, the rest still taken.)
+        catch (Exception e) { Debug.LogError($"Screenshot of {page} failed: " + e); }
         UnityEngine.Object.DestroyImmediate(app.gameObject);
-        CampaignShot(dir);
+        try { CampaignShot(dir); }
+        catch (Exception e) { Debug.LogError("Screenshots of the campaign failed: " + e); }
     }
 
     /// <summary>The board the web glossary photographs: both suns, Heroes, armed cards, a Guard, a trap set, shields, a hand.</summary>
