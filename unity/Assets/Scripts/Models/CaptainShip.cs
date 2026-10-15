@@ -167,18 +167,21 @@ namespace BlueLoop.Models
         // (Measured off the made hull: the engine block, the long flanks, the porthole's frame, the bow tapering.)
         static readonly (double X, double W)[] Width =
         {
-            (-2.6, 4.3), (-0.3, 4.3), (0, 5.55), (3.6, 5.58), (4.2, 4.75), (15.5, 4.75), (16, 5.25), (20.3, 5.25), (20.8, 4.75),
-            (32, 4.75), (33, 4.05), (34, 3.85), (35, 3.77), (36, 3.45), (37, 2.9), (38, 2.4), (39, 1.7), (40, 0.95), (40.5, 0.2),
+            (-2.9, 3.7), (-0.3, 3.7), (0, 4.9), (3.5, 4.78), (4.5, 4.31), (15, 4.3), (16, 4.47), (18, 4.49), (20, 4.3), (24, 3.85),
+            (28, 3.59), (31, 3.16), (32, 2.86), (33, 2.63), (34, 2.46), (35, 2.34), (36, 1.84), (37, 1.64), (38, 1.45), (39, 1.0),
+            (40, 0.56), (40.2, 0.2),
         };
 
         // Where things are on the made hull (box units).
         /// <summary>The foredeck's floor, between its rails; the rails' tops and how far out they run.</summary>
-        const double DeckFloor = 8.07, RailTop = 8.95, RailOut = 3.0;
-        /// <summary>The engine block's four bells: their mouths' centres (across, up), and where they open astern.</summary>
-        static readonly (double Y, double Z)[] Bells = { (9.96, 5.3), (14.08, 5.3), (10.9, 3.1), (13.2, 3.1) };
-        const double BellX = -2.6;
+        const double DeckFloor = 7.63, RailTop = 9.12, RailOut = 2.4;
+        /// <summary>The engine block's three bells: their mouths' centres (across, up), and where they open astern.</summary>
+        static readonly (double Y, double Z)[] Bells = { (9.76, 5.65), (14.04, 5.16), (11.85, 2.8) };
+        const double BellX = -2.9;
+        /// <summary>The engine block's half-width.</summary>
+        const double Block = 4.9;
         /// <summary>The bridge's roof.</summary>
-        const double BridgeTop = 9.4;
+        const double BridgeTop = 9.75;
 
         /// <summary>
         /// Where each part's slot is on the ship (box units: x along, y across, z up), as the hangar marks it [direction: a
@@ -194,8 +197,8 @@ namespace BlueLoop.Models
                 ["shield"] = S(12.6, 14, BridgeTop + 1.6),
                 ["port"] = S(24.5, 12 - (HalfWidth(24.5) + 1.3), 7.3),
                 ["starboard"] = S(24.5, 12 + HalfWidth(24.5) + 1.3, 7.3),
-                ["booster"] = S(4, 12 + 5.58 + 1.7, 6),
-                ["warp"] = S(1.8, 12 + 5.58 + 0.9, 7),
+                ["booster"] = S(4, 12 + Block + 1.7, 6),
+                ["warp"] = S(1.8, 12 + Block + 0.9, 7),
             };
         }
 
@@ -258,10 +261,9 @@ namespace BlueLoop.Models
                 p => { var b = V(p.X * 40 + 20, p.Z * 40 + 12, p.Y * 40); var s = S(b.X, b.Y, b.Z); return B(s.X, s.Y, s.Z); },
                 () =>
                 {
-                    // The bells burning in their throats (the right one sputtering embers while the ship is a wreck).
+                    // Where the engines burn, at each bell's mouth (Meshy painted their throats alight).
                     foreach (var (y, z) in Bells)
                     {
-                        m.Orb(BellX + 0.8, y, z - 0.8, 0.25, 0.8, 0.8, worn && y > 12 && z > 4 ? Ember : Engine, 2, false, 20, 10);
                         engines.Add(SB(BellX, y, z));
                     }
 
@@ -320,7 +322,7 @@ namespace BlueLoop.Models
                         var c = Tint("booster");
                         foreach (var sd in new[] { -1, 1 })
                         {
-                            var y = 12 + sd * (5.58 + 1.7);
+                            var y = 12 + sd * (Block + 1.7);
                             m.Loft(new[] { new Sec(-1, 1, 1, y: y, z: 5), new Sec(1, 1.3, 1.3, y: y, z: 5), new Sec(9, 1.2, 1.2, y: y, z: 5), new Sec(11.5, 0, 0, y: y, z: 5) }, c, 0, segs: 18);
                             foreach (var x in new[] { 2.0, 7.0 }) m.Cyl(V(x, 12 + sd * (HalfWidth(x) - 0.2), 5), V(x, y, 5), 0.3, 0.3, Slate, 0, 8);
                             m.Orb(-1.3, y, 4.1, 0.25, 0.9, 0.9, Engine, 2, false, 14, 8);
@@ -336,8 +338,8 @@ namespace BlueLoop.Models
                                 p => { var u = (p.Y * 40 - ZC) * 0.66 + ZC; return V(p.X, u / 40, p.Z); },
                                 () =>
                                 {
-                                    m.Ring(x, 12, ZC, 5.58 + 0.9, 0.3, Math.PI / 2, c, 0);
-                                    m.Ring(x, 12, ZC, 5.58 + 0.9, 0.12, Math.PI / 2, LampCyan, 2);
+                                    m.Ring(x, 12, ZC, Block + 0.9, 0.3, Math.PI / 2, c, 0);
+                                    m.Ring(x, 12, ZC, Block + 0.9, 0.12, Math.PI / 2, LampCyan, 2);
                                 });
                     }
                 });

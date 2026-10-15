@@ -1,7 +1,8 @@
 """
 The Captain's ship for Unity, baked from its model as Meshy textured it (unity/ModelSources/captain-ship/meshy-<task>/:
-model.glb and its textures, fetched by scripts/meshy/fetch.py), placed as its untextured export
-(iron-horizon.fbx) lies, so everything measured on that (the deck, the rails, the bells, where the crew stand) holds:
+model.glb and its textures, fetched by scripts/meshy/fetch.py; the newest), placed as its first, untextured export
+(iron-horizon.fbx) lies, nose to stern, so the cameras and the ship's place in its scenes hold (what is set on it, its
+deck, rails, bells and where the crew stand, is measured on the model itself: CaptainShip.cs):
 
   unity/Assets/Resources/Models/CaptainShip.bytes       the hull, cut down to a size the map can fly (its texture's seams
                                                         kept), in the ship's box units: each corner's place in the texture,
@@ -9,8 +10,7 @@ model.glb and its textures, fetched by scripts/meshy/fetch.py), placed as its un
   unity/Assets/Resources/Models/CaptainShipColour.png   its colour (rgb), and where it glows (a): its lit windows, the
                                                         porthole, its lamps, the bells' throats
 
-Its four bells are open tubes in the model, the lower two notched where their lips meet, so the sky showed through them
-from astern: each throat gets a burning disc, and a dark plate stands behind the lower two (CaptainShip.cs, Ship.shader).
+Drawn by Ship.shader's painted metal.
 
     pip install numpy pillow trimesh pymeshlab scipy
     python3 scripts/bake-captain-ship.py
@@ -35,18 +35,10 @@ TEXTURE = 2048
 # Box units (CaptainShip.cs: 40 to the model's 1, x along, y across, z up): as long as the old hull, nose to bells, its
 # middle where the old one's was, so the Captain, the crew and the cameras keep their places.
 LENGTH, NOSE, MID_Z = 43.1, 40.5, 7.3
-# The engine block's four bells, their mouths' centres (box units: across, up), as CaptainShip.cs has them; where each
-# throat's burning disc closes it (along), how wide; and the dark plate behind the lower two (along; across; up).
-BELLS = ((9.96, 5.3), (14.08, 5.3), (10.9, 3.1), (13.2, 3.1))
-THROAT_X, THROAT_R = -1.5, (1.05, 1.05, 0.95, 0.95)
-BACKING = (-0.9, (10.3, 13.8), (2.2, 3.6))
-# Windows Meshy lit where the model has none: its four lights along each side of the bridge sit off the model's three
-# window frames there. Its lights in that band (box units: along, up) are painted out with the plating round them, and
-# one lit inside each frame (along, up; width, height).
-WINDOW_BANDS = (((13.3, 18.3), (8.55, 9.4)),)
-WINDOWS = (((14.04, 8.95), (0.5, 0.24)), ((15.75, 8.95), (0.5, 0.24)), ((17.43, 8.95), (0.5, 0.24)))
-FIRE = (1.0, 0.5, 0.12)
-DARK = (0.13, 0.14, 0.16)
+# Windows Meshy lit where the model has none, to be painted out (along, up), and lit inside the model's own frames
+# instead (along, up; width, height): none now (Meshy's own fix holds).
+WINDOW_BANDS = ()
+WINDOWS = ()
 # Corners sharper than this (degrees) keep their own normals.
 CREASE = 42
 
@@ -253,30 +245,6 @@ def colour(folder, box, f, wuv):
     return out
 
 
-def close_bells(box, f, uv):
-    """The bells closed: a burning disc deep in each throat, a dark plate behind the lower two. Their triangles, and their colour."""
-    verts, tris, cols = [box], [f], []
-    n = len(box)
-
-    def add(points, faces, c):
-        nonlocal n
-        verts.append(np.array(points))
-        tris.append(np.array(faces) + n)
-        cols.append(np.tile(c, (len(faces), 1)))
-        n += len(points)
-
-    seg = 28
-    for (y, z), r in zip(BELLS, THROAT_R):
-        ring = [(THROAT_X, y + r * np.cos(a), z + r * np.sin(a)) for a in np.linspace(0, 2 * np.pi, seg, endpoint=False)]
-        add([(THROAT_X, y, z)] + ring, [(0, 1 + i, 1 + (i + 1) % seg) for i in range(seg)], FIRE)
-    x, (ya, yb), (za, zb) = BACKING
-    add([(x, ya, za), (x, yb, za), (x, yb, zb), (x, ya, zb)], [(0, 1, 2), (0, 2, 3)], DARK)
-    added = sum(len(t) for t in tris[1:])
-    glow = np.r_[np.zeros(len(f), bool), np.ones(added - 2, bool), np.zeros(2, bool)]
-    col = np.concatenate([np.zeros((len(f), 3))] + cols)
-    return np.concatenate(verts), np.concatenate(tris), np.concatenate([uv, np.zeros((added, 3, 2))]), col, glow
-
-
 def main():
     folder = max(glob.glob(os.path.join(SRC, 'meshy-*')), key=os.path.getmtime)
     fbx, _ = load_fbx(os.path.join(SRC, 'iron-horizon.fbx'))
@@ -287,14 +255,9 @@ def main():
     print(f'cut down to {len(bv)} corners, {len(bf)} triangles')
     os.makedirs(OUT, exist_ok=True)
     colour(folder, bv, bf, wuv).save(os.path.join(OUT, 'CaptainShipColour.png'), optimize=True)
-    bv, bf, wuv, col, glow = close_bells(bv, bf, wuv)
-    # (The bells' throats, painted pale by Meshy, burning: what lies deep in each, facing astern.)
-    cen, fn = bv[bf].mean(1), np.cross(bv[bf[:, 1]] - bv[bf[:, 0]], bv[bf[:, 2]] - bv[bf[:, 0]])
-    fn /= np.maximum(np.linalg.norm(fn, axis=1, keepdims=True), 1e-12)
-    for (y, z), r in zip(BELLS, THROAT_R):
-        # (Facing along the ship either way: Meshy's winding comes out turned with its axes.)
-        throat = (cen[:, 0] < -0.5) & (cen[:, 0] > -2.0) & (np.hypot(cen[:, 1] - y, cen[:, 2] - z) < r + 0.35) & (np.abs(fn[:, 0]) > 0.5)
-        col[throat], glow[throat] = FIRE, True
+    col, glow = np.zeros((len(bf), 3)), np.zeros(len(bf), bool)
+    # (Nothing is added to it now: Meshy's model closes its own bells. A triangle can still be given its own colour, and
+    # can glow, as the format allows.)
 
     # Each triangle's corners: their place, their normal (shared where smooth), and either their place in the texture
     # (painted metal, 8) or, for the bells' discs and plate, their own colour (9 glowing, 10 plain).
@@ -305,7 +268,7 @@ def main():
     nor = np.round(cn.reshape(-1, 3) * 127).astype(np.int8)
     m = np.repeat(mat, 3).astype(np.uint8)
     rgb = np.repeat(np.round(col * 255), 3, 0).astype(np.uint8)
-    tex = np.round(np.clip(wuv.reshape(-1, 2), 0, 1) * 65535).astype('<u2')
+    tex = np.ascontiguousarray(np.round(np.clip(wuv.reshape(-1, 2), 0, 1) * 65535).astype('<u2'))
     key = np.concatenate([pos.view(np.uint8).reshape(-1, 6), nor.view(np.uint8).reshape(-1, 3), m[:, None], rgb, tex.view(np.uint8).reshape(-1, 4)], 1)
     uniq, inv = np.unique(key, axis=0, return_inverse=True)
     inv = inv.reshape(-1)

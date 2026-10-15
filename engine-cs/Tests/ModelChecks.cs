@@ -121,7 +121,7 @@ public static class ModelChecks
             if (s.Mesh.Length == 0 || s.Mesh.Length % 30 != 0) bad = $"{s.Mesh.Length} floats";
             for (int i = 0; i < map.Mesh.Length && bad == null; i++)
                 if (float.IsNaN(map.Mesh[i]) || float.IsInfinity(map.Mesh[i])) bad = $"float {i} is {map.Mesh[i]}";
-            var engines = 4 + (spec.Parts.ContainsKey("booster") ? 2 : 0);
+            var engines = 3 + (spec.Parts.ContainsKey("booster") ? 2 : 0);
             if (s.Engines.Count != engines) bad ??= $"{s.Engines.Count} engines, wanted {engines}";
             // (Every engine astern, at the back of the hull.)
             if (s.Engines.Any(e => e.X > -0.5)) bad ??= "an engine not astern";
