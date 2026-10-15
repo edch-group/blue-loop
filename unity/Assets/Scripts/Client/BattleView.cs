@@ -145,6 +145,7 @@ public partial class BattleView : MonoBehaviour
     {
         if (!scoreLeft && state?.WinnerId != null && Application.isPlaying) { scoreLeft = true; Sound.Scene("voyage"); }
         if (FitScreen() && state != null) Refresh();
+        ExtrasTick();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
         if (state == null || state.WinnerId != null) return;
         StageTick();
@@ -588,7 +589,10 @@ public partial class BattleView : MonoBehaviour
     {
         // (Just after the stage's OK, or while a rival's card waits on it to be read, the board takes no taps.)
         if (Time.time < clickShieldUntil || (stage != null && stage.Confirm)) return;
-        if (!Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 100)) { Click(null, null); Refresh(); return; }
+        bool any = Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 100);
+        ZoomTap(any ? hit.collider : null);
+        if (!any) { Click(null, null); Refresh(); return; }
+        if (TapBoardHit(hit.collider)) { Refresh(); return; }
         var card = hit.collider.GetComponentInParent<CardView>();
         var slot = hit.collider.GetComponent<SlotTag>();
         var sun = hit.collider.GetComponentInParent<SunTag>();
@@ -606,6 +610,8 @@ public partial class BattleView : MonoBehaviour
         var (owner, c, hand) = Find(uid);
         if (c == null) { Click(null, null); return; }
         var (act, arg, _) = CardAct(owner, c, hand);
+        // (A card with nothing to do now, tapped, is read large: app.ts's data-act="inspect".)
+        if (act == "inspect" && pending == null && attacker == null) { InspectTap(uid); return; }
         Click(act, arg);
     }
 

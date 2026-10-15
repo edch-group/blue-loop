@@ -163,6 +163,37 @@ public partial class Board : MonoBehaviour
 
     public static Color Rgba(int r, int g, int b, float a = 1) => new Color(r / 255f, g / 255f, b / 255f, a);
 
+    /// <summary>Zoomed onto a tableau (BattleView.Zoom): the hand dropped to its peeking strip.</summary>
+    public bool Zoomed;
+    readonly List<GameObject> eyes = new List<GameObject>();
+
+    /// <summary>A button of the board's own, `w` × `d` (table units) at `at` in `parent`: a collider tagged with what it is.</summary>
+    static void Hit(Transform parent, string act, bool mine, Vector3 at, float w, float d)
+    {
+        var go = new GameObject("Hit " + act);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = at;
+        var col = go.AddComponent<BoxCollider>();
+        col.size = new Vector3(w, 0.05f, d);
+        var tag = go.AddComponent<BoardHit>();
+        tag.Act = act;
+        tag.Mine = mine;
+    }
+
+    /// <summary>
+    /// Zoomed onto a tableau, what steps out of the way on the board (styles.css: .tableau-eye display none; the
+    /// phase track and whose turn, opacity 0); back, they return.
+    /// </summary>
+    public void ZoomLook(bool zoomed)
+    {
+        foreach (var e in eyes) if (e != null && e.activeSelf == zoomed) e.SetActive(!zoomed);
+        if (decor == null) return;
+        foreach (Transform c in decor)
+            if (c.name == "Dot ring" || c.name == "Opponent" || c.name == "You" || c.name == "dawn" || c.name == "day" || c.name == "dusk"
+                || (phaseDots.Any(d => d != null && d.transform == c)) || (phaseGlows.Any(g => g != null && g.transform == c)))
+                if (c.gameObject.activeSelf == zoomed) c.gameObject.SetActive(!zoomed);
+    }
+
     void Build()
     {
         table = new GameObject("Table").transform;
@@ -346,8 +377,9 @@ public partial class Board : MonoBehaviour
         TrapSlot(RivalTrap, false);
         // (An eye at each row's left end, clear of the tableau's outline: the web's way to look closely at a tableau.)
         float eyeX = l.RowLeft - l.FramePad - 8 - l.Eye / 2;
-        Eye(l.At(eyeX, l.RivalRowCy));
-        Eye(l.At(eyeX, l.MyRowCy));
+        eyes.Clear();
+        Eye(l.At(eyeX, l.RivalRowCy), false);
+        Eye(l.At(eyeX, l.MyRowCy), true);
 
         // The piles.
         myDeck = Pile("My deck", PileAt(true, 0), true, out myDeckN);
@@ -365,6 +397,19 @@ public partial class Board : MonoBehaviour
         float nameOff = pileHalf + 14 + l.HandPillH;
         rivalLabel = Name("Rival name", l.At(l.PilesLeft + 6, l.RivalRowCy + nameOff), false);
         myLabel = Name("My name", l.At(l.PilesLeft + 6, l.MyRowCy - nameOff), true);
+        // (What on the board is a button of its own, and says what it is under the pointer: BoardHit.)
+        Hit(myDeck.transform.parent, "deck", true, Vector3.zero, 1, 1.4f);
+        Hit(rivalDeck.transform.parent, "deck", false, Vector3.zero, 1, 1.4f);
+        Hit(myDiscard.transform.parent, "discard", true, Vector3.zero, 1, 1.4f);
+        Hit(rivalDiscard.transform.parent, "discard", false, Vector3.zero, 1, 1.4f);
+        Hit(myWreck.transform.parent, "wreck", true, Vector3.zero, 1, 1.4f);
+        Hit(rivalWreck.transform.parent, "wreck", false, Vector3.zero, 1, 1.4f);
+        Hit(myHandN.transform.parent, "hand", true, Vector3.zero, l.U(l.PilesW), l.U(l.HandPillH));
+        Hit(rivalHandN.transform.parent, "hand", false, Vector3.zero, l.U(l.PilesW), l.U(l.HandPillH));
+        // (A name's button: the piles' width, a line of its words tall, by its edge nearest the hand count.)
+        float nameH = l.NameSize * 1.25f + 4;
+        Hit(table, "name", false, l.At(l.PilesLeft + l.PilesW / 2, l.RivalRowCy + nameOff + nameH / 2), l.U(l.PilesW), l.U(nameH));
+        Hit(table, "name", true, l.At(l.PilesLeft + l.PilesW / 2, l.MyRowCy - nameOff - nameH / 2), l.U(l.PilesW), l.U(nameH));
     }
 
     /// <summary>A player's name by their piles: from the left on one line; too long for it, wrapped and centred (as the web's button's text).</summary>
@@ -397,6 +442,7 @@ public partial class Board : MonoBehaviour
         shadow.transform.localPosition = new Vector3(0, 0.0015f, -l.U(2));
         // (Its 1 px white border, and inside it radial-gradient(circle at 40% 35%, #ffffff, #eeeeef).)
         var disc = Shape("Round", table, Color.white, d, d, d / 2, 2922, 0.002f);
+        Hit(table, "round", false, Vector3.zero, d, d);
         disc.transform.localPosition = new Vector3(0, 0.002f, 0);
         float inner = d - l.U(2);
         var face = Picture("Round face", table, RoundFace(), Color.white, inner, inner, 2923, 0.0021f);
@@ -557,7 +603,7 @@ public partial class Board : MonoBehaviour
     }
 
     /// <summary>A round white button by a row (styles.css .tableau-eye: 30% of a card's width, 26 to 40 px), an eye in it.</summary>
-    void Eye(Vector3 at)
+    void Eye(Vector3 at, bool mine)
     {
         var go = new GameObject("Eye");
         go.transform.SetParent(table, false);
@@ -568,6 +614,8 @@ public partial class Board : MonoBehaviour
         Shape("Button", go.transform, new Color(1, 1, 1, 0.92f), d, d, d / 2, 2927, 0.0015f);
         float s = d * 0.587f * 1.25f;
         Picture("Eye", go.transform, Resources.Load<Texture2D>("Icons/bt-eye"), Rgba(91, 97, 112), s, s, 2928, 0.002f);
+        Hit(go.transform, "eye", mine, Vector3.zero, d, d);
+        eyes.Add(go);
     }
 
     MeshRenderer Pile(string name, Vector3 at, bool back, out TextMeshPro count, string title = "")
@@ -814,6 +862,19 @@ public partial class Board : MonoBehaviour
         }
         float foot = l.HandBottom;
         float rise = HandUp && n > 0 ? Mathf.Max(0, Mathf.Round(foot + (l.HandTop + low - foot) * grow - l.H + 8)) : 0, size = HandUp ? grow : 1;
+        // (Zoomed onto a tableau and not raised (app.ts handDrop): the hand drops until only the top 60% of its lowest
+        // card peeks up from the screen's foot.)
+        float drop = 0;
+        if (Zoomed && !HandUp && n > 0)
+        {
+            float lowest = 0;
+            for (int i = 0; i < n; i++)
+            {
+                float a = (i - (n - 1) / 2f) * step * Mathf.Deg2Rad;
+                lowest = Mathf.Max(lowest, spot[i].y - (w * Mathf.Abs(Mathf.Sin(a)) + h * Mathf.Cos(a)) / 2);
+            }
+            drop = Mathf.Max(0, Mathf.Round(l.H - h * 0.6f - lowest));
+        }
         float mid = l.HandLeft + l.HandW / 2;
         HandRects.Clear();
         for (int i = 0; i < n; i++)
@@ -829,7 +890,7 @@ public partial class Board : MonoBehaviour
             float y = spot[i].y - (lifted ? l.DockHh * 0.08f : 0);
             // (Raised: grown from the hand's foot, then lifted.)
             float x = mid + (spot[i].x - mid) * size;
-            y = foot + (y - foot) * size - rise;
+            y = foot + (y - foot) * size - rise + drop;
             var at = l.Screen(x, y, depth);
             v.MoveTo(new Vector3(at.x, -depth + 0.001f * (lifted ? 50 : i), at.y), Quaternion.Euler(0, turn, 0), w * size * px);
             // (Drawn in the fan's order, the lifted card over all, each with its own badges.)
@@ -1258,6 +1319,13 @@ public class PileStack : MonoBehaviour
 }
 
 /// <summary>Which side's slot an object on the table is.</summary>
+/// <summary>One of the board's own buttons (a pile, a hand count, a name, an eye, the round): what it is, and whose.</summary>
+public class BoardHit : MonoBehaviour
+{
+    public string Act;
+    public bool Mine;
+}
+
 public class SlotTag : MonoBehaviour
 {
     public bool Mine;

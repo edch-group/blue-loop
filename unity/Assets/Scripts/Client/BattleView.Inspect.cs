@@ -87,6 +87,33 @@ public partial class BattleView
     {
         Texture back = null;
         yield return Blurred(t => back = t);
+        inspectBack = back;
+        BuildInspector(defId, uid, 0);
+    }
+
+    Texture inspectBack;
+
+    /// <summary>
+    /// A card with nothing to do now, tapped (app.ts renderCard's data-act="inspect"): read large in the inspector (a
+    /// rival's trap stays hidden).
+    /// </summary>
+    void InspectTap(string uid)
+    {
+        if (state == null || state.Players.Any(p => p.Id != you && p.Lightspeed?.Uid == uid)) return;
+        var c = state.Players.SelectMany(p => p.Tableau.Concat(p.Hand)).FirstOrDefault(x => x.Uid == uid);
+        if (c == null) return;
+        Sound.Play("hover");
+        ShowZoom(c.DefId, uid);
+    }
+
+    /// <summary>
+    /// The inspector drawn over the blurred screen taken (again, a tab chosen: in place). A card in play with Fusion
+    /// cards on it gets tabs along its top (app.ts inspectorCard, .insp-tabs: the card itself, then each fused card in
+    /// purple), to read each one; a fused card's tab shows it as printed, with its own explanations.
+    /// </summary>
+    void BuildInspector(string hostDefId, string uid, int tab)
+    {
+        var back = inspectBack;
         foreach (Transform c in inspector) Mats.Kill(c.gameObject);
         inspector.SetAsLastSibling();
         inspector.gameObject.SetActive(true);
@@ -113,9 +140,13 @@ public partial class BattleView
         sheetR.gameObject.AddComponent<Rise>();
 
         // The explanations, as wide as the card (.inspector-row .kw-wrap: width --pw), at most as tall.
-        var rows = new List<ExplainRow>(Explain(defId));
         var owner = uid != null ? state.Players.FirstOrDefault(p => p.Tableau.Any(c => c.Uid == uid)) : null;
         var card = owner?.Tableau.First(c => c.Uid == uid);
+        var fused = card?.Fused ?? new List<CardInstance>();
+        tab = Mathf.Clamp(tab, 0, fused.Count);
+        string defId = tab == 0 ? hostDefId : fused[tab - 1].DefId;
+        if (tab > 0) card = null;
+        var rows = new List<ExplainRow>(Explain(defId));
         if (card != null) rows.Add(new ExplainRow { head = "⛨ Defence", colour = "rgb(79, 112, 168)", icon = -1, body = "Takes heat before stability." });
         RectTransform panel = null;
         float panelH = 0;
@@ -124,11 +155,15 @@ public partial class BattleView
         // The actions: PLAY (your hand's card) and CLOSE.
         var held = uid != null ? Me.Hand.FirstOrDefault(c => c.Uid == uid) : null;
         float gap = Mathf.Clamp(2.4f * l.Vh, 10, 18), btnH = 10.56f * 1.25f + 18 + 2;
-        float rowW = pw + (panel != null ? 16 + pw : 0), rowH = Mathf.Max(ch, panelH);
+        // (.insp-tabs: a row along the card's top, 4% in either side, 4 apart, 12 above it; each an equal share, its
+        // name 10.56 px capitals spaced 0.12em, padded 6 × 10, corners 10.)
+        float tabsH = fused.Count > 0 ? MenuKit.LineH(10.56f) + 12 : 0, cardBlock = ch + (fused.Count > 0 ? tabsH + 12 : 0);
+        float rowW = pw + (panel != null ? 16 + pw : 0), rowH = Mathf.Max(cardBlock, panelH);
         float blockH = rowH + gap + btnH;
         float left = (l.W - rowW) / 2, top = (l.H - blockH) / 2;
+        if (fused.Count > 0) InspectTabs(sheetR, hostDefId, uid, fused, tab, left + 0.04f * pw, top + (rowH - cardBlock) / 2, 0.92f * pw, tabsH);
         var face = Hud.Rect(sheetR, "Card");
-        Hud.Place(face, left, top + (rowH - ch) / 2, pw, ch);
+        Hud.Place(face, left, top + (rowH - cardBlock) / 2 + (cardBlock - ch), pw, ch);
         var raw = face.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(defId, false);
         raw.raycastTarget = false;
@@ -178,6 +213,54 @@ public partial class BattleView
             }
             Hud.Place((RectTransform)b.transform, x, y, widths[i], btnH);
             x += widths[i] + 10;
+        }
+    }
+
+    static Texture2D fusedTab, fusedTabOn;
+
+    /// <summary>
+    /// The tabs (.insp-tab: #eef1f6, slate ink, a soft shadow; chosen white, darker ink, a deeper shadow; a fused card's
+    /// purple to blue (90deg, #8c5ad6 → #5f8fc4, its ink #f2ecff; chosen #7a44d0 → #4f7fbe, white, ringed white and
+    /// glowing violet)), each cut short with "…" when its name runs out of room.
+    /// </summary>
+    void InspectTabs(RectTransform parent, string hostDefId, string uid, List<CardInstance> fused, int tab, float x, float y, float w, float h)
+    {
+        int n = fused.Count + 1;
+        float tw = (w - 4 * (n - 1)) / n;
+        for (int i = 0; i < n; i++)
+        {
+            bool on = i == tab, f = i > 0;
+            string name = Cards.Def(i == 0 ? hostDefId : fused[i - 1].DefId).Name.ToUpperInvariant();
+            var box = Hud.Box(parent, "Tab", f ? Color.white : on ? Color.white : Hud.Rgba(0xee, 0xf1, 0xf6), 10);
+            Hud.Place(box.rectTransform, x + i * (tw + 4), y, tw, h);
+            box.raycastTarget = true;
+            if (f && on) Hud.Shadow(box, 10, new Hud.Drop(Color.white, 0, 0, 2), new Hud.Drop(Hud.Rgba(140, 90, 214, 0.5f), 2, 10));
+            else Hud.Shadow(box, 10, new Hud.Drop(Hud.Rgba(80, 84, 100, on ? 0.25f : 0.15f), 2, on ? 10 : 6));
+            if (f)
+            {
+                Texture2D Across(Color a, Color b)
+                {
+                    var t = new Texture2D(32, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+                    for (int k = 0; k < 32; k++) t.SetPixel(k, 0, Color.Lerp(a, b, k / 31f));
+                    t.Apply();
+                    return t;
+                }
+                fusedTab ??= Across(Hud.Rgba(0x8c, 0x5a, 0xd6), Hud.Rgba(0x5f, 0x8f, 0xc4));
+                fusedTabOn ??= Across(Hud.Rgba(0x7a, 0x44, 0xd0), Hud.Rgba(0x4f, 0x7f, 0xbe));
+                box.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+                var g = Hud.Rect(box.transform, "Fill");
+                Hud.Fill(g);
+                var gi = g.gameObject.AddComponent<RawImage>();
+                gi.texture = on ? fusedTabOn : fusedTab;
+                gi.raycastTarget = false;
+            }
+            var ink = f ? (on ? Color.white : Hud.Rgba(0xf2, 0xec, 0xff)) : on ? Hud.Rgba(0x2f, 0x3a, 0x52) : Hud.Rgba(0x5a, 0x62, 0x74);
+            var t = MenuKit.Words(box.transform, name, 10 + 0.06f * 10.56f, 0, tw - 20, h, 10.56f, ink, true, 500, 0.12f);
+            t.overflowMode = TextOverflowModes.Ellipsis;
+            var b = box.gameObject.AddComponent<Button>();
+            b.transition = Selectable.Transition.None;
+            int k2 = i;
+            b.onClick.AddListener(() => { Sound.Play("hover"); BuildInspector(hostDefId, uid, k2); });
         }
     }
 
