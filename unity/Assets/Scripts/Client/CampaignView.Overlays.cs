@@ -869,7 +869,8 @@ public partial class CampaignView
             said.lineSpacing = (1.5f - 1.2f) * 100 / 1.2f;
             lH = said.GetPreferredValues(said.text, lineW, 0).y;
         }
-        float total = face + gap + kH + gap + nH + (line != null ? gap + lH : 0) + gap + 6 * Z + actionsH, y = Middle(total);
+        // (.struggle: padded 24 all round, in place of the page's padding; the column in the middle of the screen.)
+        float total = face + gap + kH + gap + nH + (line != null ? gap + lH : 0) + gap + 6 * Z + actionsH, y = Mathf.Max(24 * Z, (PH - total) / 2);
         var f = Face(v, hero, mid, y + face / 2, face, WebLook.Hex("#1a1f2a"), (3 * Z, Color.white), (5 * Z, rust));
         var glow = WebLook.Rounded(f, "Glow", new Color(rust.r, rust.g, rust.b, 0.35f), 999);
         glow.sprite = Hud.Soft;
