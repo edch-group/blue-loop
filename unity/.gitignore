@@ -10,3 +10,8 @@ build/
 # Unity writes a .meta beside every asset as it opens the project; none are kept (the game builds its scenes and
 # materials in code, nothing refers to an asset by its id, and the build makes its own).
 *.meta
+# Nor the settings Unity makes on each machine (the game sets what it needs in code: BuildScript, Boot): only the
+# editor's version is kept, and the packages asked for (Packages/manifest.json).
+ProjectSettings/*
+!ProjectSettings/ProjectVersion.txt
+Packages/packages-lock.json
