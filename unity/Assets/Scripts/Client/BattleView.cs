@@ -1221,7 +1221,8 @@ public partial class BattleView : MonoBehaviour
     void Reaction()
     {
         foreach (Transform c in reactionPanel) Mats.Kill(c.gameObject);
-        bool show = state.Reaction != null && state.Reaction.PlayerId == you && !Autoplay;
+        // (Drawn on the stage now, as the web's .stage-react: see DrawReact.)
+        bool show = false;
         reactionPanel.gameObject.SetActive(show);
         if (!show) return;
         var r = state.Reaction;

@@ -191,6 +191,13 @@ public partial class BattleView
     void DrawStage()
     {
         if (hud == null) return;
+        // (While an answer is being chosen, the pane is the answer's.)
+        var r = state?.Reaction;
+        if (r != null && r.PlayerId == you && !Autoplay && state.WinnerId == null)
+        {
+            DrawReact(r);
+            return;
+        }
         var now = StageNow();
         var heroOpen = heroPanel != null && heroPanel.gameObject.activeSelf;
         string key = now.defId == null || heroOpen ? null : $"{now.defId}|{now.caption}|{now.faceDown}|{now.ok}|{now.against}|{stage?.Shown}|{BoardLayout.Current.W}x{BoardLayout.Current.H}";
@@ -289,6 +296,132 @@ public partial class BattleView
                 held.Delay = 0.64f;
             }
         }
+    }
+
+    /// <summary>
+    /// A reply window (app.ts renderReaction, .stage.stage-react): in the stage's place, the move it answers as the
+    /// pane's card (--scw min(250px, 40vh)) under an amber "⚡ answer?" tag, what it does under it; to its left, 14 px
+    /// off, the answers (your face-down card, free; cards in hand your banked energy pays for), each half the pane's
+    /// card, and "let it pass".
+    /// </summary>
+    void DrawReact(Reaction r)
+    {
+        var who = Me;
+        var enemy = state.Players.First(p => p.Id == r.EnemyId);
+        string Name(string uid) => Cards.Def(who.Tableau.FirstOrDefault(c => c.Uid == uid)?.DefId ?? "").Name ?? "";
+        string moveId = null, what;
+        if (r.Pending.Kind == "play")
+        {
+            var ev = r.Events[0];
+            var aimed = r.Events.FirstOrDefault(e => e.On == "targeted");
+            if (ev.FaceDown == true || ev.DefId == null) what = "a card set face down";
+            else
+            {
+                moveId = ev.DefId;
+                what = aimed != null ? $"aimed at {Name(aimed.MineUid)}" : $"{enemy.Name} plays it";
+            }
+        }
+        else
+        {
+            var atk = enemy.Tableau.FirstOrDefault(c => c.Uid == r.Pending.AttackerUid);
+            moveId = atk?.DefId;
+            what = $"attacks {(r.Pending.TargetUid != null ? Name(r.Pending.TargetUid) : "your sun")}";
+        }
+        var opts = new System.Collections.Generic.List<(string defId, string tag, EngineAction act)>();
+        if (r.Slot && who.Lightspeed != null) opts.Add((who.Lightspeed.DefId, "face down · free", new EngineAction { Type = "react", Slot = true }));
+        foreach (var uid in r.Hand)
+        {
+            var c = who.Hand.FirstOrDefault(x => x.Uid == uid);
+            if (c != null) opts.Add((c.DefId, $"{Game.ReactCost(c.DefId)} banked", new EngineAction { Type = "react", CardUid = uid }));
+        }
+        var l = BoardLayout.Current;
+        string key = $"react|{moveId}|{what}|{string.Join(",", opts.Select(o => o.defId))}|{l.W}x{l.H}";
+        if (key == stageKey) return;
+        stageKey = key;
+        if (stagePane != null) Destroy(stagePane.gameObject);
+        if (stageAim != null) Destroy(stageAim.gameObject);
+        stageAim = null;
+        float scw = Mathf.Min(250, 40 * l.Vh), ch = scw * 1.4f, ow = scw * 0.5f, oh = scw * 0.7f;
+        // (The answers' column: each card 4 px padded, its tag 4 under it; 8 between them; the pass button 10 under.)
+        float tagH = 8.96f * 1.25f, optH = 4 + oh + 4 + tagH + 4;
+        float passW = Hud.Wide("LET IT PASS", 9.92f, 500, 14, 14, false) + 2, passH = 9.92f * 1.25f + 14 + 2;
+        float sideW = Mathf.Max(ow + 8, passW), sideH = opts.Count * optH + Mathf.Max(0, opts.Count - 1) * 8 + (opts.Count > 0 ? 10 : 0) + passH;
+        float capW = scw, capLine = 8.96f * 1.6f;
+        var capT = what.ToUpperInvariant();
+        float mainH = ch + 8 + capLine * 2 + 10;
+        float w = sideW + 14 + scw, h = Mathf.Max(sideH, mainH);
+        float right = l.W - (l.PadR + 16), top = l.H / 2 - h / 2;
+        stagePane = Hud.Rect(hud.transform, "Stage (answer)");
+        Hud.Place(stagePane, right - w, top, w, h);
+        stagePane.SetAsLastSibling();
+        stagePane.gameObject.AddComponent<CanvasGroup>();
+        stagePane.gameObject.AddComponent<RiseFade>().Seconds = 0.25f;
+        var glow = Hud.Rect(stagePane, "Glow");
+        Hud.Fill(glow);
+        glow.offsetMin = new Vector2(-110, -50);
+        glow.offsetMax = new Vector2(110, 50);
+        var gi = glow.gameObject.AddComponent<RawImage>();
+        gi.texture = StageGlow();
+        gi.raycastTarget = false;
+        // The answers.
+        float y = (h - sideH) / 2;
+        foreach (var (defId, tag, act) in opts)
+        {
+            var o = Hud.Rect(stagePane, "Answer");
+            Hud.Place(o, (sideW - (ow + 8)) / 2, y, ow + 8, optH);
+            var hitImg = o.gameObject.AddComponent<Image>();
+            hitImg.color = new Color(1, 1, 1, 0.001f);
+            var b = o.gameObject.AddComponent<Button>();
+            b.transition = Selectable.Transition.None;
+            var a = act;
+            b.onClick.AddListener(() => Do(a));
+            var face = Hud.Rect(o, "Card");
+            Hud.Place(face, 4, 4, ow, oh);
+            var img = face.gameObject.AddComponent<RawImage>();
+            img.texture = Faces.Of(defId, false);
+            img.raycastTarget = false;
+            // (0 0 0 1.5px #fff, 0 0 18px rgba(212,149,42,.55), 0 6px 18px rgba(90,90,110,.18).)
+            WebLook.Shadow(img, 0, 18, new Color(212 / 255f, 149 / 255f, 42 / 255f, 0.55f), ow * 0.08f, 1.5f, Color.white);
+            var t = Hud.Rect(o, "Tag");
+            Hud.Place(t, -20, 4 + oh + 4, ow + 48, tagH);
+            var tt = t.gameObject.AddComponent<TextMeshProUGUI>();
+            Look.Style(tt, 8.96f, Hud.Rgba(168, 109, 16), false, 500, 14, TextAlignmentOptions.Top);
+            tt.text = tag.ToUpperInvariant();
+            y += optH + 8;
+        }
+        if (opts.Count > 0) y += 2;
+        var pass = Hud.Box(stagePane, "Let it pass", new Color(252 / 255f, 252 / 255f, 251 / 255f), 10);
+        Hud.Place((RectTransform)pass.transform, (sideW - passW) / 2, opts.Count > 0 ? y : (h - passH) / 2, passW, passH);
+        WebLook.Shadow(pass, 2, 10, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.12f), 10, 1, Color.white);
+        Hud.Label(pass.transform, "LET IT PASS", 9.92f, Look.Ink, false, 500, 14);
+        var pb = pass.gameObject.AddComponent<Button>();
+        pb.onClick.AddListener(() => Do(new EngineAction { Type = "react" }));
+        // The move it answers, under its tag, and what it does.
+        float mx = sideW + 14, my = (h - mainH) / 2 + 10;
+        var card = Hud.Rect(stagePane, "Move");
+        Hud.Place(card, mx, my, scw, ch);
+        var ci = card.gameObject.AddComponent<RawImage>();
+        ci.texture = moveId != null ? Faces.Of(moveId, false) : Resources.Load<Texture2D>("Board/back");
+        ci.raycastTarget = false;
+        WebLook.Shadow(ci, 24, 50, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.28f), scw * 0.08f, 2, Color.white);
+        float tw = Hud.Wide("⚡ ANSWER?", 8, 600, 16, 10, true) + 2, th = 8 * 1.25f + 6 + 2;
+        var tagBox = Hud.Box(stagePane, "Answer tag", Hud.Rgba(212, 149, 42), 8);
+        Hud.Place((RectTransform)tagBox.transform, mx + (scw - tw) / 2, my - 26, tw, th);
+        WebLook.Shadow(tagBox, 4, 12, new Color(170 / 255f, 110 / 255f, 20 / 255f, 0.35f), 8, 1, Hud.Rgba(196, 133, 28));
+        Hud.Label(tagBox.transform, "⚡ ANSWER?", 8, Color.white, true, 600, 16);
+        var cap = Hud.Rect(stagePane, "Caption");
+        Hud.Place(cap, mx, my + ch + 8, capW, capLine * 2 + 10);
+        var box = cap.gameObject.AddComponent<Image>();
+        box.sprite = Hud.Rounded;
+        box.type = Image.Type.Sliced;
+        box.color = new Color(1, 1, 1, 0.9f);
+        box.raycastTarget = false;
+        Corners(box, 8);
+        var ct = Hud.Label(cap, capT, 8.96f, Look.Ink, false, 500, 18);
+        ct.textWrappingMode = TextWrappingModes.Normal;
+        ct.margin = new Vector4(14, 5, 14, 5);
+        float need = ct.GetPreferredValues(capT, capW - 28, 0).y + 10;
+        cap.sizeDelta = new Vector2(capW, need);
     }
 
     /// <summary>The middle of a player's row of cards on the page (the rival's, as the web's .tableau-row).</summary>
