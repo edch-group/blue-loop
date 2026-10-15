@@ -60,7 +60,13 @@ public partial class BattleView : MonoBehaviour
     /// 22° away, seen in a perspective of twice the page's height from an eye a quarter of the way down it): every
     /// point of the table lands on the web's pixel, on a phone as on a big screen (BoardLayout.Frame).
     /// </summary>
-    public static void Frame(Camera cam) => BoardLayout.Current.Frame(cam);
+    public static void Frame(Camera cam)
+    {
+        // (A camera drawing to a texture, as the build's screenshots: laid out for the texture's size.)
+        var tex = cam.targetTexture;
+        BoardLayout.Target = tex != null ? new Vector2(tex.width, tex.height) : (Vector2?)null;
+        BoardLayout.Current.Frame(cam);
+    }
 
     /// <summary>The layout the screen was last laid out for (laid out again when it changes).</summary>
     BoardLayout laidOut;
@@ -119,16 +125,7 @@ public partial class BattleView : MonoBehaviour
 
     void Update()
     {
-        // The screen changed size (a phone turned, a window dragged): the table, the hand and the HUD laid out again as
-        // the web lays them out at the new size.
-        if (Cam != null && laidOut != BoardLayout.Current)
-        {
-            laidOut = BoardLayout.Current;
-            Frame(Cam);
-            Board.Relayout();
-            LayoutHud();
-            if (state != null) Refresh();
-        }
+        if (FitScreen() && state != null) Refresh();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
         if (state == null || state.WinnerId != null) return;
         if (!busy && AiToMove()) StartCoroutine(AiMove());
@@ -168,6 +165,24 @@ public partial class BattleView : MonoBehaviour
                 Tap();
             }
         }
+    }
+
+    /// <summary>
+    /// The screen changed size (a phone turned, a window dragged): the table, the hand and the HUD laid out again as the
+    /// web lays them out at the new size. Whether it had.
+    /// </summary>
+    bool FitScreen()
+    {
+        if (Cam == null || hud == null) return false;
+        var tex = Cam.targetTexture;
+        var want = tex != null ? new Vector2(tex.width, tex.height) : (Vector2?)null;
+        if (BoardLayout.Target != want) Frame(Cam);
+        if (laidOut == BoardLayout.Current) return false;
+        laidOut = BoardLayout.Current;
+        Frame(Cam);
+        Board.Relayout();
+        LayoutHud();
+        return true;
     }
 
     /// <summary>Whether a touch screen is in use (seen touched).</summary>
@@ -1129,6 +1144,7 @@ public partial class BattleView : MonoBehaviour
     void Refresh()
     {
         if (state == null) return;
+        FitScreen();
         Phase = Dawn != null ? "dawn" : "day";
         Persist();
         Board.Sync(state, this);

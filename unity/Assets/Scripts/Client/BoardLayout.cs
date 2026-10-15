@@ -61,16 +61,39 @@ public class BoardLayout
             // (Looked at once a frame: the screen's size comes from the browser.)
             if (current != null && checkedAt == Time.frameCount && Application.isPlaying) return current;
             checkedAt = Time.frameCount;
-            var size = Css.Size;
-            var insets = Css.SafeInsets;
+            var screen = Target ?? Css.Screen;
+            var size = Target != null ? screen / ZoomFor(screen) : Css.Size;
+            var insets = Target != null ? Vector4.zero : Css.SafeInsets;
             if (current == null || (size - madeFor).sqrMagnitude > 0.01f || (insets - madeInsets).sqrMagnitude > 0.01f)
             {
-                current = new BoardLayout(size, Css.Screen, insets);
+                current = new BoardLayout(size, screen, insets);
                 madeFor = size;
                 madeInsets = insets;
             }
             return current;
         }
+    }
+
+    /// <summary>
+    /// A picture's size to lay out for instead of the screen's (a still drawn to a texture, as the build's screenshots
+    /// are), in its own pixels taken as CSS pixels; null: the screen.
+    /// </summary>
+    public static Vector2? Target
+    {
+        get => target;
+        set
+        {
+            target = value;
+            checkedAt = -1;
+        }
+    }
+    static Vector2? target;
+
+    /// <summary>The web's zoom for a screen of this size (viewport.ts, as Css.Zoom).</summary>
+    static float ZoomFor(Vector2 s)
+    {
+        float z = Mathf.Max(1, Mathf.Min(Css.MaxZoom, Mathf.Min(s.x / Css.DesignW, s.y / Css.DesignH)));
+        return Mathf.Floor(z * 20) / 20;
     }
 
     static float Clamp(float min, float v, float max) => Css.Clamp(min, v, max);
