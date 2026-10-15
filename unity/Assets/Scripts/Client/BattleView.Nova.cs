@@ -39,6 +39,7 @@ public partial class BattleView
         layer.anchoredPosition = new Vector2(c.x, -c.y);
         layer.sizeDelta = Vector2.zero;
         layer.SetAsLastSibling();
+        Hud.Own(layer, 27);
         // The flash: white at the heart, orange at its edge, swelling past the sun and fading (1.3 s).
         var core = Disc(layer, "Core", NovaCore(), 2 * r);
         StartCoroutine(Animate(1.3f, 0, k =>
@@ -170,6 +171,7 @@ public partial class BattleView
         if (hud == null) yield break;
         var r = Hud.Rect(hud.transform, "Flash");
         Hud.Fill(r);
+        Hud.Own(r, 40);
         r.SetAsLastSibling();
         var img = r.gameObject.AddComponent<Image>();
         img.raycastTarget = false;

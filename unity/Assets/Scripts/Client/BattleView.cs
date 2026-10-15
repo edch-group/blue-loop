@@ -132,6 +132,7 @@ public partial class BattleView : MonoBehaviour
         if (state == null || state.WinnerId != null) return;
         StageTick();
         DreamTick();
+        if (!Autoplay) EndDayTick();
         if (!busy && StageClear && AiToMove()) StartCoroutine(AiMove());
         // (Skip all: a reply waiting on you is let pass.)
         if (!busy && confirmMode == "skip" && state.Reaction != null && state.Reaction.PlayerId == you && !online) StartCoroutine(PassReply());
@@ -447,8 +448,9 @@ public partial class BattleView : MonoBehaviour
             }
             if (!flown) StartCoroutine(After(at, Land));
             if (!hitAt.ContainsKey(p.Id)) hitAt[p.Id] = flown ? Mathf.Max(0, at - 0.4f) + 0.62f : at;
-            // (Until then, the sun keeps showing its old heat and shields.)
-            if (dHeat != 0 || p.Shields != w.Shields || p.Eliminated != w.Eliminated) Board?.HoldSun(p.Id, prev, w, flown ? Mathf.Max(0, at - 0.4f) + 0.62f : at);
+            // (Until then, the sun keeps showing its old heat and shields: those only, as the web's holdUntil swaps its
+            // vitals; its planets move on as they do, or they would sweep there, back and there again.)
+            if (dHeat != 0 || p.Shields != w.Shields || p.Eliminated != w.Eliminated) Board?.HoldSun(p.Id, next, WithSun(p, new SunAt { Heat = w.Heat, Shields = w.Shields, Eliminated = w.Eliminated }), flown ? Mathf.Max(0, at - 0.4f) + 0.62f : at);
             if (dHeat > 0)
             {
                 if (p.Id == you && byEnemy) Sound.Play("hurt", dHeat);
@@ -1010,6 +1012,8 @@ public partial class BattleView : MonoBehaviour
         var root = hud.transform;
         // (Beams lie under the screen's own layer, as .beam-arc.beam-attack under the dock and HUD.)
         beamLayer = Hud.Rect(root, "Beams");
+        // (A canvas of its own, in its place among the rest: its beams redrawn every frame batch only themselves.)
+        beamLayer.gameObject.AddComponent<Canvas>();
         Hud.Fill(beamLayer);
         chrome = Hud.Rect(root, "Chrome");
         Hud.Fill(chrome);
@@ -1050,7 +1054,7 @@ public partial class BattleView : MonoBehaviour
         // word clamp(0.46rem, 1.6vh, 0.6rem) over 9 px pips).
         float cw = Css.Clamp(120, 14 * l.Vw, 190), right = l.PadR, bottom = Mathf.Max(14, l.PadB);
         float eh = 10.56f * 1.2f + 2 * Css.Clamp(8, 3 * l.Vh, 14) + 2;
-        endDay = WhiteButton(chrome, "End day", EndDay, 10.56f, 10, 1);
+        endDay = WhiteButton(chrome, "End day", RequestEndDay, 10.56f, 10, 1);
         Hud.At((RectTransform)endDay.transform, new Vector2(1, 0), new Vector2(-right, bottom), new Vector2(cw, eh));
         float word = Css.Clamp(7.36f, 1.6f * l.Vh, 9.6f), plays = word * 1.22f + 3 + 9;
         var energy = Hud.Rect(chrome, "Energy");

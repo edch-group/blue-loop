@@ -78,6 +78,7 @@ public partial class BattleView
         var l = BoardLayout.Current;
         var root = Hud.Rect(hud.transform, "Banner");
         Hud.Fill(root);
+        Hud.Own(root, 30);
         root.SetAsLastSibling();
         var life = root.gameObject.AddComponent<CanvasGroup>();
         life.blocksRaycasts = false;

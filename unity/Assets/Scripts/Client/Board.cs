@@ -788,6 +788,8 @@ public class Board : MonoBehaviour
             y = foot + (y - foot) * size - rise;
             var at = l.Screen(x, y, depth);
             v.MoveTo(new Vector3(at.x, -depth + 0.001f * (lifted ? 50 : i), at.y), Quaternion.Euler(0, turn, 0), w * size * px);
+            // (Drawn in the fan's order, the lifted card over all, each with its own badges.)
+            v.Stack(lifted ? 50 : i);
             float a = turn * Mathf.Deg2Rad, bw = (w * Mathf.Abs(Mathf.Cos(a)) + h * Mathf.Abs(Mathf.Sin(a))) * size, bh = (w * Mathf.Abs(Mathf.Sin(a)) + h * Mathf.Cos(a)) * size;
             HandRects.Add(new Rect(x - bw / 2, y - bh / 2, bw, bh));
             // (Its attack and stability as printed, as the web's hand cards wear them: stabilityBadge.)
@@ -978,6 +980,23 @@ public class Board : MonoBehaviour
                 foreach (var k in cardHold.Where(kv => Time.time >= kv.Value.until).Select(kv => kv.Key).ToList()) cardHold.Remove(k);
                 Sync(synced, syncedBy);
             }
+        }
+    }
+
+    /// <summary>
+    /// The cards' rims and dimming done again for what is being chosen (a drag over a new spot), nothing else: a whole
+    /// Sync each time the pointer crossed into a slot or onto a card dropped frames while dragging.
+    /// </summary>
+    public void Redress(GameState s, BattleView ui)
+    {
+        foreach (var p in s.Players)
+        {
+            bool mine = p.Id == Viewer;
+            foreach (var c in p.Tableau)
+                if (cards.TryGetValue(c.Uid, out var v) && v != null) ui.Dress(v, p, c, true);
+            if (mine)
+                foreach (var c in p.Hand)
+                    if (cards.TryGetValue(c.Uid, out var v) && v != null) ui.Dress(v, p, c, false);
         }
     }
 

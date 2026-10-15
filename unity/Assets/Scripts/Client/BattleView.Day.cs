@@ -264,7 +264,7 @@ public partial class BattleView
         for (int i = 0; i < 3; i++) StartCoroutine(Ripple(centre, rx * 1.25f, ry * 1.25f, delay + duration * 0.35f + i * 0.11f, duration * 1.9f, i));
         if (delay > 0) yield return new WaitForSeconds(delay);
         if (hud == null) yield break;
-        var r = Hud.Rect(hud.transform, "Heat wave");
+        var r = Hud.Own(Hud.Rect(hud.transform, "Heat wave"), 28);
         r.anchorMin = r.anchorMax = new Vector2(0, 1);
         r.pivot = new Vector2(0.5f, 0.5f);
         r.anchoredPosition = new Vector2(centre.center.x, -centre.center.y);
@@ -293,7 +293,7 @@ public partial class BattleView
     {
         if (delay > 0) yield return new WaitForSeconds(delay);
         if (hud == null) yield break;
-        var r = Hud.Rect(hud.transform, "Ripple");
+        var r = Hud.Own(Hud.Rect(hud.transform, "Ripple"), 28);
         r.anchorMin = r.anchorMax = new Vector2(0, 1);
         r.pivot = new Vector2(0.5f, 0.5f);
         r.anchoredPosition = new Vector2(centre.center.x, -centre.center.y);

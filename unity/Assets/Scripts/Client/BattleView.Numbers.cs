@@ -92,6 +92,7 @@ public partial class BattleView
         r.sizeDelta = new Vector2(t.GetPreferredValues(text).x + 8, size * 1.25f);
         r.anchoredPosition = new Vector2(page.x, -page.y);
         r.SetAsLastSibling();
+        Hud.Own(r, 25);
         // (-webkit-text-stroke 1.5px #fff, painted under the fill; text-shadow 0 2px 10px rgba(0,0,0,.25).)
         t.outlineColor = Color.white;
         t.outlineWidth = Mathf.Clamp01(1.5f / size * 2.2f);
@@ -178,6 +179,7 @@ public partial class BattleView
         }
         var r = Hud.Rect(hud.transform, "Hurt");
         Hud.Fill(r);
+        Hud.Own(r, 26);
         r.SetAsLastSibling();
         var img = r.gameObject.AddComponent<RawImage>();
         img.texture = hurtGlow;
