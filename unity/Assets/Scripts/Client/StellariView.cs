@@ -252,17 +252,17 @@ public class StellariView : MonoBehaviour
         var box = WebLook.Rounded(root, "Search", new Color(1, 1, 1, 0.75f), 999);
         box.sprite = Hud.Rounded;
         box.type = Image.Type.Sliced;
-        box.pixelsPerUnitMultiplier = 22f / 19.5f;
+        box.pixelsPerUnitMultiplier = 22f / (14 * Z);
         box.raycastTarget = true;
         // (At the header's right: its words clamp(90, 14vw, 170) across, 44 more for its lens and padding.)
         float sw = (Css.Clamp(90, 14 * Css.Screen.x / 100, 170) + 44) * Z;
-        WebLook.Box(box.rectTransform, layer.W - Pad.y - sw, Pad.x, sw, 39);
-        WebLook.Shadow(box, 0, 0, Color.clear, 19.5f, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.14f));
-        var lens = WebLook.Centred(box.transform, "Lens", 27, 19.5f, 20, 20).gameObject.AddComponent<RawImage>();
+        WebLook.Box(box.rectTransform, layer.W - Pad.y - sw, Pad.x, sw, 28 * Z);
+        WebLook.Shadow(box, 0, 0, Color.clear, 14 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.14f));
+        var lens = WebLook.Centred(box.transform, "Lens", 19 * Z, 14 * Z, 14 * Z, 14 * Z).gameObject.AddComponent<RawImage>();
         lens.texture = Lens();
         lens.color = Look.InkFaint;
         lens.raycastTarget = false;
-        var area = WebLook.Box(box.transform, "Text", 46, 0, sw - 63, 39);
+        var area = WebLook.Box(box.transform, "Text", 46, 0, sw - 63, 28 * Z);
         area.gameObject.AddComponent<RectMask2D>();
         var hint = WebLook.Words(area, "SEARCH", 0.66f * 16 * Z, 0.14f, Look.InkFaint, true, 500, TextAlignmentOptions.Left);
         var text = WebLook.Words(area, "", 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
