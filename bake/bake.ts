@@ -230,7 +230,33 @@ async function offlineBoard(seconds: number): Promise<{ r: Board; ctx: OfflineAu
   }
   r.build(ctx);
   r.timers = [];
+  // (The star chime's two parts, at any note: as the board's starHover voices them, its notes the only thing changed.)
+  r.starTone = (midi: number) => {
+    const [main, shimmer] = starVoices(r);
+    r.voice(hzOf(midi), main[1]);
+    r.voice(hzOf(midi) * (shimmer[0] / main[0]), shimmer[1]);
+  };
+  r.starUp = (midi: number) => r.voice(hzOf(midi), { ...starVoices(r)[2][1], delay: 0 });
   return { r, ctx };
+}
+
+const hzOf = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
+
+/**
+ * The voices the board's starHover makes (sound.ts: the chord's tone, its octave shimmer, the chord's next tone up a
+ * moment after), each [frequency, its options], read by having it chime once with its voices caught, not sounded.
+ */
+function starVoices(r: Board): [number, Record<string, unknown>][] {
+  const calls: [number, Record<string, unknown>][] = [];
+  const voice = r.voice;
+  const playing = r.playing;
+  r.voice = (f: number, o: Record<string, unknown>) => calls.push([f, o]);
+  r.playing = null;
+  r.lastHover = -Infinity;
+  r.starHover(0);
+  r.voice = voice;
+  r.playing = playing;
+  return calls;
 }
 
 /** Run the board's timers as the render reaches them (every quarter second). */
@@ -246,8 +272,8 @@ function tick(r: Board, ctx: OfflineAudioContext, seconds: number, stopAt = Infi
     });
 }
 
-/** 16-bit stereo WAV of a render's first `frames` frames, as base64. */
-function wav(buf: AudioBuffer, frames = buf.length): string {
+/** 16-bit stereo WAV of a render's first `frames` frames (from frame `from`), as base64. */
+function wav(buf: AudioBuffer, frames = buf.length, from = 0): string {
   const bytes = new Uint8Array(44 + frames * 4);
   const view = new DataView(bytes.buffer);
   const text = (o: number, t: string) => [...t].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
@@ -257,8 +283,8 @@ function wav(buf: AudioBuffer, frames = buf.length): string {
   text(36, 'data'); view.setUint32(40, frames * 4, true);
   const l = buf.getChannelData(0), r = buf.getChannelData(1);
   for (let i = 0; i < frames; i++) {
-    view.setInt16(44 + i * 4, Math.max(-1, Math.min(1, l[i])) * 32767, true);
-    view.setInt16(46 + i * 4, Math.max(-1, Math.min(1, r[i])) * 32767, true);
+    view.setInt16(44 + i * 4, Math.max(-1, Math.min(1, l[from + i])) * 32767, true);
+    view.setInt16(46 + i * 4, Math.max(-1, Math.min(1, r[from + i])) * 32767, true);
   }
   let bin = '';
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -290,6 +316,14 @@ async function bakeScore(scene: 'ambient' | 'battle' | 'boss' | 'voyage', loop: 
   const { r, ctx } = await offlineBoard(loop + tail);
   r.scene = scene;
   r.playing = scene;
+  // (The chords as they sound through the pass, [second, pitch classes], kept in bakeChords: the star chime is tuned
+  // to the one sounding, as the board's hearChord keeps it.)
+  const chords: [number, number[]][] = [];
+  r.hearChord = (midis: number[], delay: number) => {
+    const at = ctx.currentTime + delay;
+    if (at < loop) chords.push([Math.round(at * 1000) / 1000, [...new Set(midis.map((n) => ((n % 12) + 12) % 12))].sort((a, b) => a - b)]);
+  };
+  Object.assign(window, { bakeChords: chords });
   for (const [bus, level] of r.faders(scene)) bus.gain.value = level;
   r.score(ctx, scene);
   tick(r, ctx, loop + tail, loop);
@@ -302,9 +336,33 @@ async function bakeScore(scene: 'ambient' | 'battle' | 'boss' | 'voyage', loop: 
     }
   return wav(buf, length);
 }
+/**
+ * A sound that runs for as long as it is on (the boosters' thrust): `length` seconds of it once it has settled (from
+ * `from`, past its swell and the hall's filling), a whole number of every cycle in it, so it loops seamlessly.
+ */
+async function bakeLoop(method: string, args: unknown[], from: number, length: number): Promise<string> {
+  const { r, ctx } = await offlineBoard(from + length);
+  r[method](...args);
+  const buf = await ctx.startRendering();
+  return wav(buf, Math.round(RATE * length), Math.round(RATE * from));
+}
+
+/** A recording (a hero's line, base64 data URL) played as the board plays it (sound.ts clip): in the hall, through the master. */
+async function bakeVoice(url: string): Promise<string> {
+  const bytes = Uint8Array.from(atob(url.slice(url.indexOf(',') + 1)), (c) => c.charCodeAt(0)).buffer;
+  const seconds = (await new OfflineAudioContext(2, RATE, RATE).decodeAudioData(bytes.slice(0))).duration + 5;
+  const { r, ctx } = await offlineBoard(seconds);
+  r.decoded.set(url, await ctx.decodeAudioData(bytes));
+  r.clip(url);
+  const buf = await ctx.startRendering();
+  let end = buf.length;
+  const l = buf.getChannelData(0), rr = buf.getChannelData(1);
+  while (end > RATE * 0.05 && Math.abs(l[end - 1]) < 1e-4 && Math.abs(rr[end - 1]) < 1e-4) end--;
+  return wav(buf, Math.min(buf.length, end + Math.round(RATE * 0.02)));
+}
 import { HEROES } from '../src/ui/voice';
 import { factionAvatar } from '../src/ui/factions';
-Object.assign(window, { bakeEffect, bakeScore, heroLines: () => Object.fromEntries(Object.entries(HEROES).map(([id, h]) => [id, h.lines])) });
+Object.assign(window, { bakeEffect, bakeScore, bakeLoop, bakeVoice, heroLines: () => Object.fromEntries(Object.entries(HEROES).map(([id, h]) => [id, h.lines])) });
 
 // ---- The Stellari's skill tree (campaign.ts renderShop): each skill's mark, what each level says, the flower ----
 import { PETAL, UPGRADE_LOOK, UP_BRANCHES } from '../src/ui/campaign';

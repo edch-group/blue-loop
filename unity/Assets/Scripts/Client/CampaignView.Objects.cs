@@ -1187,6 +1187,14 @@ public partial class CampaignView
         sh.Dur = dur;
     }
 
+    /// <summary>Whether a ship's boosters are heard (nebula-objects.ts shipsMoving): flying in, cruising, gliding home; a warp has its own sound.</summary>
+    bool ShipsMoving()
+    {
+        float now = Clock;
+        foreach (var sh in tracks.Values) if (sh.Cruise != null || (!sh.Warp && sh.Dur > 0 && now - sh.T0 < sh.Dur)) return true;
+        return false;
+    }
+
     /// <summary>Whether any ship is under way (cruising in, or flying a route).</summary>
     bool ShipsUnderway()
     {

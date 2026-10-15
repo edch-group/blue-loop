@@ -3,8 +3,9 @@ using UnityEngine;
 
 /// <summary>
 /// What the game keeps on this device (the web's localStorage, key for key: "blue-loop:decks:v1" and the rest), each
-/// key a file in the app's own data folder. An account syncs the same keys (account.ts); a desktop build's folder can
-/// sit in Steam Cloud.
+/// key a file in the app's own data folder (in the browser, written through to its IndexedDB as each changes, as
+/// localStorage keeps a change at once). An account syncs the same keys (account.ts); a desktop build's folder can sit
+/// in Steam Cloud.
 /// </summary>
 public static class Store
 {
@@ -30,6 +31,8 @@ public static class Store
         {
             Directory.CreateDirectory(Dir);
             File.WriteAllText(FileOf(key), value);
+            // (In the browser the folder lives in memory until written through to its storage: now, not at some later save.)
+            PageLife.Persist();
         }
         catch
         {
@@ -44,7 +47,11 @@ public static class Store
         try
         {
             var f = FileOf(key);
-            if (File.Exists(f)) File.Delete(f);
+            if (File.Exists(f))
+            {
+                File.Delete(f);
+                PageLife.Persist();
+            }
         }
         catch
         {

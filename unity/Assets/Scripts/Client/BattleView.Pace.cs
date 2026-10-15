@@ -48,6 +48,7 @@ public partial class BattleView
         sentHover = null;
         ScheduleAI(0.9f);
         BeginAiGame();
+        BeginStats();
         AnnounceTurn(0.4f);
     }
 

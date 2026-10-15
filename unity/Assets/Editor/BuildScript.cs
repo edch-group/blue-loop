@@ -40,6 +40,10 @@ public static class BuildScript
         Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.SaveScene(scene, "Assets/Scenes/Main.unity");
         PlayerSettings.productName = "Blue Loop";
+        // (The game's version and build day, as the web's __GAME_VERSION__ (vite.config.ts): sent with each anonymous game
+        // summary, so a balance change can be told apart.)
+        var pkg = File.Exists("../package.json") ? System.Text.RegularExpressions.Regex.Match(File.ReadAllText("../package.json"), "\"version\"\\s*:\\s*\"([^\"]+)\"") : null;
+        PlayerSettings.bundleVersion = $"{(pkg != null && pkg.Success ? pkg.Groups[1].Value : "0")}+{System.DateTime.UtcNow:yyyy-MM-dd}";
         PlayerSettings.defaultScreenWidth = 1600;
         PlayerSettings.defaultScreenHeight = 900;
         PlayerSettings.fullScreenMode = FullScreenMode.Windowed;

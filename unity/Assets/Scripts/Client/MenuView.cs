@@ -342,7 +342,8 @@ public class MenuView : MonoBehaviour
     void Begin()
     {
         var invite = Online.TakeInvite();
-        if (AccountView.Needed)
+        // (Back to your seat in the room after a reload, straight away: app.ts, signed in or holding a seat.)
+        if (AccountView.Needed && !(invite != null && Online.HasSeat(invite)))
         {
             AccountView.Begin();
             AccountView.ThenRoom = invite;

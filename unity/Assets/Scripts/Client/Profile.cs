@@ -77,6 +77,7 @@ public class Profile
         p.Name = clean.Length > 18 ? clean.Substring(0, 18) : clean.Length == 0 ? "Commander" : clean;
         p.SignedIn = true;
         Save();
+        Online.NameChanged();
     }
 }
 

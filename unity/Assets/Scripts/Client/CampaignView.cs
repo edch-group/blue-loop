@@ -111,7 +111,7 @@ public partial class CampaignView : MonoBehaviour
         overlay = RefLayer.Make(hud.transform, "Overlay", Relayout).Rect;
         sheetRoot = RefLayer.Make(hud.transform, "Sheet").Rect;
         notes = RefLayer.Make(hud.transform, "Notes").Rect;
-        Sound.Scene(Score);
+        Sound.Scene(Score, TimeRift);
         // (A new run's hero has their say first: whatever else the opening brought on waits behind it.)
         if (!(fresh && state.Story.Queue.Count > 0 && state.Story.Queue[0].Id == "intro")) SkipSilentScenes();
         // A new run: the opening shot, alongside the flagship as it cruises in while its hero speaks.
@@ -554,6 +554,9 @@ public partial class CampaignView : MonoBehaviour
         LandFade();
     }
 
+    // (The map gone: its boosters with it, nebula3d.ts destroy.)
+    void OnDisable() => Sound.Thrust(false);
+
     void Update()
     {
         float now = Clock;
@@ -588,7 +591,11 @@ public partial class CampaignView : MonoBehaviour
         // The system under the pointer swells and flares.
         string under = null;
         if (still && !overUi && Input.mousePresent && Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var over, 200)) under = over.collider.GetComponent<NodeTag>()?.Id;
+        // (A star come under the pointer chimes, each its own note: campaign.ts setHovered. A finger's touch is a tap, not a hover.)
+        if (under != null && under != hovered && Input.touchCount == 0) Sound.StarHover(Sound.SeedOf(under));
         hovered = under;
+        // The boosters, heard while a ship is under way on the map (nebula3d.ts onThrust).
+        Sound.Thrust(Application.isPlaying && ShipsMoving());
         Animate();
         Camera();
         if (!still || overUi) return;
@@ -930,15 +937,18 @@ public partial class CampaignView : MonoBehaviour
 
     /// <summary>Back from a battle: its result handed to the run (a retreat, a loss, a win, its salvage owed as a choice).</summary>
     /// <summary>
-    /// The map's score (app.ts render): the ambient one; in Time Dense Space, the home menu's voyage instead (which the
-    /// web also plays backwards there: Sound has no reversed scores yet).
+    /// The map's score (app.ts render): the ambient one; in Time Dense Space, the home menu's voyage instead, played
+    /// backwards (TimeRift: its battles' scores too).
     /// </summary>
-    string Score => state?.Rift?.Kind == "time" ? "voyage" : "ambient";
+    string Score => TimeRift ? "voyage" : "ambient";
+
+    /// <summary>In Time Dense Space: the map's score and its battles' run backwards (app.ts render, sound.ts setReverse).</summary>
+    public bool TimeRift => state?.Rift?.Kind == "time";
 
     public void FinishBattle(GameState game, bool auto = false)
     {
         battleOpening = false;
-        Sound.Scene(Score);
+        Sound.Scene(Score, TimeRift);
         Apply(new CampaignAction { Type = "finishBattle", Game = game, Auto = auto });
         Map();
         var f = Campaign.Flagship(state, state.PlayerId);

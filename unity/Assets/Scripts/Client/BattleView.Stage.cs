@@ -47,6 +47,7 @@ public partial class BattleView
         var prev = state;
         var actor = Game.ActivePlayer(prev);
         var next = Game.Apply(prev, a);
+        NoteMove(prev, a);
         stage = next.Reaction != null ? null : actor.IsAI ? StageFor(actor, a) : OwnStage(actor, a);
         // (With someone watching, an AI's card waits on the stage until they have read it.)
         if (stage != null && !stage.Own && !Autoplay && next.WinnerId == null && next.Players.Any(p => !p.IsAI)) stage.Confirm = true;
@@ -172,11 +173,18 @@ public partial class BattleView
         clickShieldUntil = Time.time + 0.4f;
         stage = null;
         Sound.Play("click");
+        // (Online, the room hears it: the rival carries on.)
+        if (online)
+        {
+            Online.Ack();
+            OnlineChanged();
+        }
+        // Now the card takes effect.
         if (landing != null) FlushLanding();
         else
         {
             Refresh();
-            ScheduleAI(0.45f);
+            if (!online) ScheduleAI(0.45f);
         }
     }
 
@@ -190,7 +198,8 @@ public partial class BattleView
         }
         if (stage == null) return;
         if (stage.Confirm && (AutoConfirms || stage.FaceDown) && Time.time - stage.Shown > (stage.FaceDown ? 1.1f : AutoConfirm)) ConfirmStage();
-        else if (stage.Own && landing != null && Time.time - landingSince > OwnHold) FlushLanding();
+        // (Online, your own card hangs there until your rival has read it: app.ts holdOwn.)
+        else if (stage.Own && landing != null && Time.time - landingSince > OwnHold && !(online && Online.WaitFor == "rival")) FlushLanding();
         else if (stage.Until > 0 && Time.time > stage.Until) { stage = null; Refresh(); }
     }
 

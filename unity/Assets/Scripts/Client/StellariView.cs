@@ -517,7 +517,13 @@ public class StellariView : MonoBehaviour
         // (Under the pointer, the mote swells.)
         var hover = n.gameObject.AddComponent<EventTrigger>();
         var enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
-        enter.callback.AddListener(_ => breathe.Over = true);
+        // (And chimes, a note of the chord the score is on, by its place among the skills: campaign.ts, not for a finger.)
+        int place = Skills.ToList().FindIndex(x => x.Id == u.Id);
+        enter.callback.AddListener(_ =>
+        {
+            breathe.Over = true;
+            if (Input.touchCount == 0) Sound.StarHover(place / 7.3);
+        });
         hover.triggers.Add(enter);
         var exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
         exit.callback.AddListener(_ => breathe.Over = false);
@@ -716,7 +722,7 @@ public class StellariView : MonoBehaviour
             return;
         }
         // (A battery charging up, higher with each point already in it.)
-        Sound.Play("charge-" + Mathf.Clamp(Meta.LevelOf(meta, id), 0, 3));
+        Sound.Play("charge-" + Mathf.Clamp(Meta.LevelOf(meta, id), 0, 6));
         CampaignView.SaveMeta(Meta.BuyUpgrade(meta, id));
         placed.Add(id);
         just = id;
