@@ -37,7 +37,7 @@
     <p>turn your device sideways to play</p>
     <small>screen not turning? switch off rotation lock</small>
   </div></div>
-  <script src="Build/db00d37753c52de2d8e1eeecdf666446.loader.js"></script>
+  <script src="Build/6dee2b3e723037231eabb90f99adcdaa.loader.js"></script>
   <script>
     const bar = document.querySelector('#loading i');
     // (Lock the screen sideways where that is allowed, Android in full screen; some browsers only after a tap.)
@@ -48,7 +48,7 @@
     // the publish step splits it, and lists the pieces beside it); fetched together and joined here. The bar shows the
     // download first, then the game's own loading.
     async function gameData() {
-      const whole = 'Build/caadf1986339bada5aa51099889018bf.data.unityweb';
+      const whole = 'Build/127ece03bfc22be53abc59abf2b9c9e7.data.unityweb';
       let parts = null;
       try {
         const r = await fetch(whole + '.parts.json');
@@ -76,8 +76,8 @@
     }
     gameData().then((dataUrl) => createUnityInstance(document.querySelector('#unity-canvas'), {
       dataUrl,
-      frameworkUrl: 'Build/392403ec9e2239552e3c3d5b23945ae1.framework.js.unityweb',
-      codeUrl: 'Build/bfa02ecd72730ed2d6bd686749d49490.wasm.unityweb',
+      frameworkUrl: 'Build/8f47ec0e264e35a5900d096aa7f6fae5.framework.js.unityweb',
+      codeUrl: 'Build/4559657a7e5a8d8fe47c1ddcf0c9e053.wasm.unityweb',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: "DefaultCompany",
       productName: "Blue Loop",

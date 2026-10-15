@@ -17,7 +17,7 @@ import { fitCardText } from '../src/ui/fittext';
 import { cardCost } from '../src/engine/game';
 import { GUARD_SHIELD_SVG, GUARD_SVG, HUB_ICONS, SHIELD_SVG } from '../src/ui/app';
 import { shownKind } from '../src/engine/cards';
-import { effectMark, keywordList, raceTraitTags } from '../src/ui/glyphs';
+import { effectMark, keywordList, raceTraitTags, symbolIcon } from '../src/ui/glyphs';
 import { plainText } from '../src/engine/keywords';
 import { SUBRACES, raceTrait } from '../src/engine/races';
 import { baseAttack, baseHealth, persists } from '../src/engine/game';
@@ -88,13 +88,68 @@ Object.assign(window, { faceIn });
 
 /**
  * A card in play's badges for one value: its attack and stability jewels and its defence shield (a Guard's too), on a
- * bare table card, for the bake to take each on its own. `low`: the stability jewel's low look; `dim`: a dimmed attack.
+ * bare table card, for the bake to take each on its own. `low`: the stability jewel's low look; `dim`: a dimmed attack;
+ * `dent`: the shield worn (.stat-dented); `pv`: the number as a choosable card shows it hovered while heat is aimed
+ * (app.ts pv: .card-choosable:hover .pv-after, the value the heat would leave, in red).
  */
-function badges(n: number, width: number, opts: { low?: boolean; dim?: boolean } = {}): void {
-  const def = (guard: boolean) => `<b class="stat-def stat-def-floor ${guard ? 'stat-def-guard' : ''}">${guard ? GUARD_SVG + GUARD_SHIELD_SVG : SHIELD_SVG}<span class="def-n">${n}</span></b>`;
+function badges(n: number, width: number, opts: { low?: boolean; dim?: boolean; dent?: boolean; pv?: boolean } = {}): void {
+  const num = opts.pv ? `<span class="pv-after" style="display:inline;color:#d8452b">${n}</span>` : `${n}`;
+  const def = (guard: boolean) => `<b class="stat-def stat-def-floor ${opts.dent ? 'stat-dented' : ''} ${guard ? 'stat-def-guard' : ''}">${guard ? GUARD_SVG + GUARD_SHIELD_SVG : SHIELD_SVG}<span class="def-n">${num}</span></b>`;
   const card = (inner: string, cls = '') => `<div class="card card-table kind-attack ${cls}" style="--tcw:${width}px;--kc:#888;background:none;border:none;box-shadow:none;margin:${width * 0.3}px">${inner}</div>`;
-  stage.innerHTML = `<div class="board-plane" style="display:flex;flex-wrap:wrap">${card(cardJewels({ atk: n, hp: n, dim: opts.dim, lowHp: opts.low }), 'b-jewels')}${card(def(false), 'b-def')}${card(def(true), 'b-guard')}</div>`;
+  stage.innerHTML = `<div class="board-plane" style="display:flex;flex-wrap:wrap">${card(cardJewels({ atk: n, hp: num, dim: opts.dim, lowHp: opts.low }), 'b-jewels')}${card(def(false), 'b-def')}${card(def(true), 'b-guard')}</div>`;
 }
+
+// (The places a card in play or in hand stands in, for marks: as bake-wrap, but the card itself keeps its own look.)
+document.head.insertAdjacentHTML(
+  'beforeend',
+  `<style>
+    .bake-m { display: block !important; position: static !important; inset: auto !important; width: max-content !important; height: auto !important; margin: 0 !important; padding: 0 !important; background: none !important; border: 0 !important; box-shadow: none !important; transform: none !important; filter: none !important; opacity: 1 !important; overflow: visible !important; animation: none !important; perspective: none !important; }
+    .bake-m::before, .bake-m::after { display: none !important; }
+    .bake-m.tableau-row, .bake-m.hand { padding: 60px !important; }
+    .bake-m .card { background: transparent !important; border-color: transparent !important; transition: none !important; transform: none !important; }
+    .bake-m .card::before, .bake-m .card.card-full::after { display: none !important; }
+    .bake-m .card > :not(.bake-keep) { visibility: hidden !important; }
+    .bake-m .card .bake-keep, .bake-m .card .bake-keep * { animation: none !important; }
+  </style>`,
+);
+
+/** app.ts chillMark: a chilled card's snowflake, its chill in the middle. */
+const chillMark = (n: number) => `<span class="chill-mark" aria-hidden="true"><svg viewBox="-12 -12 24 24">${[0, 60, 120, 180, 240, 300].map((a) => `<g transform="rotate(${a})"><path d="M0 -4.4V-10.5M0 -7l-2.6 -2.4M0 -7l2.6 -2.4"/></g>`).join('')}</svg><b>${n}</b></span>`;
+
+/**
+ * What app.ts renderCard sets on a card beyond its face, one at a time, for scripts/bake-marks.mjs to take on its own
+ * (the card itself drawn clear; the mark `#m` on it, or the card's own look: its class `kind`, the card itself `#m`): in
+ * play (`table`, --tcw) or in hand (`hand`, --hw). `frame`: an animated look held that many seconds in (none: at rest).
+ */
+function marks(ctx: 'table' | 'hand', width: number, kind: string, n: number, frame?: number): void {
+  const keep = (html: string) => html.replace(/^<(\w+) class="/, '<$1 id="m" class="bake-keep ');
+  let inner = '';
+  let cls = '';
+  if (kind === 'shields') inner = keep(`<b class="card-shields">${symbolIcon('shield')}<span>${n}</span></b>`);
+  else if (kind === 'growth') inner = keep(`<span class="growth">${n}</span>`);
+  else if (kind === 'chill') inner = keep(chillMark(n));
+  else if (kind === 'aimheat') inner = keep(`<b class="boss-aim-heat">${symbolIcon('heat')}<span>${n}</span></b>`);
+  else if (kind === 'discount') inner = keep(`<b class="card-discount">−${n}</b>`);
+  else if (kind.startsWith('boon-') || kind === 'guns') {
+    // (app.ts boonMarks, roomMarks: a mark in the card's room row, along its top.)
+    const k = kind === 'guns' ? 'guns' : kind.slice(5);
+    inner = `<span class="card-room bake-keep"><i id="m" class="boon-mark${kind === 'guns' ? ' room-mark' : ''}">${effectMark(k)}${n ? `<small>${n}</small>` : ''}</i></span>`;
+  } else if (kind.startsWith('fused-')) {
+    // (A Fusion card tucked behind: its id after "fused-"; n, its place behind, 0 the nearest.)
+    const fd = cardDef(kind.slice(6));
+    inner = `<span class="fused-behind bake-keep" id="m" style="--fi:${n};--fk:${KIND_COLOUR[shownKind(fd)]}"><i>${fd.name.toLowerCase()}</i></span>`;
+    cls = ' card-has-fused';
+  } else cls = ` ${kind}`;
+  const anim = frame === undefined ? 'animation:none' : `animation-delay:-${frame}s;animation-play-state:paused`;
+  const plain = kind === 'card-frozen' || kind === 'card-chilled' || !!inner;
+  const card = `<div class="card kind-attack rarity-dwarf ${ctx === 'table' ? 'card-table' : ''}${cls}"${inner ? '' : ' id="m"'} style="--kc:#888;${anim}${plain ? ';box-shadow:none' : ''}">${inner}</div>`;
+  const wrap = (c: string, html: string, style = '') => `<div class="${c} bake-m"${style ? ` style="${style}"` : ''}>${html}</div>`;
+  stage.innerHTML =
+    ctx === 'table'
+      ? wrap('table-view', wrap('game', wrap('display board', wrap('board3d', wrap('board-plane', wrap('tableau tableau-mine', wrap('tableau-row-wrap', wrap('tableau-row', card)))))), `--tcw:${width}px`))
+      : wrap('table-view', wrap('dock dock-raised', wrap('hand-zone', wrap('hand', card)), `--hw:${width}px`));
+}
+Object.assign(window, { marks, fusionIds: () => registeredCardDefs().filter((d) => d.fusion).map((d) => d.id) });
 
 /** The board's own pieces: a card's back (`back`), and the Stellari's flower (`flower`). */
 function piece(kind: 'back' | 'flower', width: number): void {

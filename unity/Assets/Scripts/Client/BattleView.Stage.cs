@@ -81,6 +81,19 @@ public partial class BattleView
             // (A new day isn't under way until its dawn has played out.)
             if (turnPassed) Phase = "dawn";
             Refresh();
+            // (No dawn replayed effect by effect: the new player's dawn cards light up, oldest first, as they trigger:
+            // app.ts animate's endTurn, pulse fx-trigger at 220 + 90 ms each, in their tableau's order, its Hero last.)
+            if (a.Type == "endTurn" && replayEnd <= 0 && Application.isPlaying && !Autoplay)
+            {
+                int k = 0;
+                var source = Game.ActivePlayer(next);
+                foreach (var c in source.Tableau.OrderBy(c => c.Slot == Game.CommandSlot ? 1 : 0).ThenBy(c => c.Slot ?? 0))
+                {
+                    var def = Cards.Def(c.DefId);
+                    if (def.OnTurn == null || def.OnTurn.Count == 0) continue;
+                    Board?.View(c.Uid)?.Trigger(Look.Kind.TryGetValue(BuilderView.ShownKind(def), out var kc) ? kc : Look.Ink, 0.22f + 0.09f * k++);
+                }
+            }
             replaying = false;
             // (The dusk ticking in, the next day's dawn: its banner when the timeline brings it, after the dusk's
             // effects, and the day once they are over: app.ts announcePhases.)
@@ -291,8 +304,15 @@ public partial class BattleView
         bool caption = now.caption != null && now.caption != "you play";
         float lsSize = 9.92f, lsH = lsSize * 1.25f + 14 + 2;
         float capH = caption ? 8.96f * 1.25f + 10 + 2 : 0, okH = now.ok ? 10.56f * 1.25f + 16 + 2 : 0;
-        float pairW = now.against != null ? scw * 2 + 8 : scw;
-        float h = ch + (caption ? 8 + capH : 0) + (now.ok ? 8 + 2 + okH : 0) + (asTrap ? 6 + lsH : 0);
+        // A sprung trap, or a Lightspeed card played in reply, with the card that set it off (.stage-pair): that card is
+        // the stage's own, plain, to be read; the answer the same size 18 px to its left (.stage-ls), a Lightspeed one
+        // under an amber "⚡ lightspeed" tag 26 px above it. Played in reply with nothing to show beside it: the tag over
+        // the card, in its column (.stage-ls-tag-solo, 2 px into the gap under it).
+        bool pair = now.against != null, trapped = !Game.IsLightspeed(now.defId);
+        bool soloTag = !pair && !now.faceDown && now.caption != null && now.caption.StartsWith("⚡") && !trapped;
+        float tagH = 8 * 1.25f + 6 + 2, cardY = soloTag ? tagH - 2 + 8 : 0;
+        float pairW = pair ? scw * 2 + 18 : scw;
+        float h = cardY + ch + (caption ? 8 + capH : 0) + (now.ok ? 8 + 2 + okH : 0) + (asTrap ? 6 + lsH : 0);
         float right = l.W - (l.PadR + 16), top = l.H / 2 - h / 2;
         stagePane = Hud.Rect(hud.transform, "Stage");
         Hud.Place(stagePane, right - pairW, top, pairW, h);
@@ -308,34 +328,60 @@ public partial class BattleView
         gi.texture = StageGlow();
         gi.raycastTarget = false;
         // The card (and, a sprung card, the one it answered beside it on the right, the answer on the left).
-        RawImage Card(string defId, float x, bool back)
+        RawImage Card(string defId, float x, bool back, Color? glow)
         {
             var r = Hud.Rect(stagePane, "Card");
-            Hud.Place(r, x, 0, scw, ch);
+            Hud.Place(r, x, cardY, scw, ch);
             var img = r.gameObject.AddComponent<RawImage>();
             img.texture = back ? Resources.Load<Texture2D>("Board/back") : Faces.Of(defId, Faces.Look.Card, scw);
             img.raycastTarget = false;
-            // (0 24px 50px rgba(70,70,90,.28), 0 0 0 2px #fff; a trap sprung glows indigo too.)
+            // (0 24px 50px rgba(70,70,90,.28), 0 0 0 2px #fff; sprung, a glow too: 0 0 30px.)
+            if (glow != null) WebLook.Shadow(img, 0, 30, glow.Value, scw * 0.08f);
             WebLook.Shadow(img, 24, 50, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.28f), scw * 0.08f, 2, Color.white);
             if (!back) Printed(r, defId, scw, true);
             return img;
         }
-        var main = Card(now.defId, 0, now.faceDown);
-        stageCardRect = new Rect(right - pairW, top, scw, ch);
-        if (now.against != null) Card(now.against, scw + 8, false);
-        float y = ch;
+        // (.stage-sprung .card: indigo, rgba(75,79,176,.6); in a pair, .stage-ls .card amber, rgba(212,149,42,.6), a
+        // trap's indigo (.stage-trap .stage-ls .card); the card that set it off none, .stage-pair .card.)
+        Color indigo = new Color(75 / 255f, 79 / 255f, 176 / 255f, 0.6f), amber = new Color(212 / 255f, 149 / 255f, 42 / 255f, 0.6f);
+        bool sprung = pair || now.caption != null && !now.faceDown;
+        var main = Card(now.defId, 0, now.faceDown, pair ? (trapped ? indigo : amber) : sprung ? indigo : (Color?)null);
+        stageCardRect = new Rect(right - pairW, top + cardY, scw, ch);
+        if (pair) Card(now.against, scw + 18, false, null);
+        // (.stage-ls-tag: amber #d4952a, white, a 1 px #c4851c edge, 0 4px 12px rgba(170,110,20,.35); 0.5rem spaced 0.16em.)
+        if (pair && !trapped || soloTag)
+        {
+            float tw = Hud.Wide("⚡ LIGHTSPEED", 8, 600, 16, 10, true) + 2;
+            var tagBox = Hud.Box(stagePane, "Lightspeed tag", Hud.Rgba(212, 149, 42), 8);
+            Hud.Place((RectTransform)tagBox.transform, (scw - tw) / 2, pair ? -26 : 0, tw, tagH);
+            WebLook.Shadow(tagBox, 4, 12, new Color(170 / 255f, 110 / 255f, 20 / 255f, 0.35f), 8, 1, Hud.Rgba(196, 133, 28));
+            Hud.Label(tagBox.transform, "⚡ LIGHTSPEED", 8, Color.white, true, 600, 16);
+        }
+        float y = cardY + ch;
         if (caption)
         {
             y += 8;
-            bool ls = now.sprung;
+            bool ls = sprung;
             var ink = ls ? Hud.Rgba(60, 63, 143) : Look.Ink;
-            string text = now.against != null && now.trap ? "trap triggered!" : now.caption;
-            float tw = Mathf.Min(pairW + 220, Hud.Wide(text.ToUpperInvariant(), 8.96f, now.trap ? 600 : 500, 18, 14, false) + 2);
+            // (A pair's caption, under the card that set it off: a trap says only that it was triggered; a Lightspeed card
+            // who played it, and against what.)
+            string text = now.caption;
+            if (pair)
+            {
+                var actor = state.Players.FirstOrDefault(p => p.Id == stage?.ActorId);
+                var trigger = state.Sprung?.FirstOrDefault(x => x.OwnerId == stage?.ActorId)?.Trigger ?? "enemyPlays";
+                string how = trigger == "sunAttacked" || trigger == "cardAttacked" ? "against its attack" : trigger == "targeted" ? "against this" : "in answer to this";
+                text = trapped ? "trap triggered!" : $"{(actor?.Name ?? "").ToLowerInvariant()} plays {Cards.Def(now.defId).Name.ToLowerInvariant()} {how}";
+            }
+            // (.stage-trap .stage-caption: bolder.)
+            bool bold = pair ? trapped : now.caption == "trap triggered!";
+            float tw = Mathf.Min(pairW + 220, Hud.Wide(text.ToUpperInvariant(), 8.96f, bold ? 600 : 500, 18, 14, false) + 2);
             var cap = Hud.Box(stagePane, "Caption", new Color(1, 1, 1, 0.9f), 8);
             var cr = (RectTransform)cap.transform;
-            Hud.Place(cr, (pairW - tw) / 2, y, tw, capH);
+            // (Centred under the stage's own column: in a pair, the card that set it off.)
+            Hud.Place(cr, (pair ? scw + 18 + scw / 2 : pairW / 2) - tw / 2, y, tw, capH);
             WebLook.Shadow(cap, 2, 10, ls ? new Color(75 / 255f, 79 / 255f, 176 / 255f, 0.4f) : new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.12f), 8, 1, ls ? new Color(75 / 255f, 79 / 255f, 176 / 255f, 0.6f) : Color.white);
-            Hud.Label(cap.transform, text.ToUpperInvariant(), 8.96f, ink, false, now.trap ? 600 : 500, 18);
+            Hud.Label(cap.transform, text.ToUpperInvariant(), 8.96f, ink, false, bold ? 600 : 500, 18);
             y += capH;
         }
         if (now.ok)
@@ -360,7 +406,7 @@ public partial class BattleView
             {
                 var fly = main.gameObject.AddComponent<FlyIn>();
                 float w = Mathf.Min(row.Value.height / 1.4f, scw);
-                var to = new Rect(right - pairW, top, scw, ch);
+                var to = stageCardRect.Value;
                 fly.From = new Rect(row.Value.center.x - w / 2, row.Value.center.y - w * 0.7f, w, w * 1.4f);
                 fly.To = to;
                 fly.Arc = Mathf.Min(140, Mathf.Abs(to.y - fly.From.y) * 0.35f + 60);
@@ -373,7 +419,7 @@ public partial class BattleView
                 stageAim = Beam.Make(beamLayer, removal ? Beam.Kind.Plain : Beam.Kind.Attack);
                 var held = stageAim.gameObject.AddComponent<HeldAim>();
                 held.View = this;
-                held.From = new Rect(right - pairW, top, scw, ch);
+                held.From = stageCardRect.Value;
                 held.Target = stage.Target;
                 held.Delay = 0.64f;
             }
@@ -387,7 +433,7 @@ public partial class BattleView
             {
                 var fly = main.gameObject.AddComponent<FlyIn>();
                 fly.From = sun.Value;
-                fly.To = new Rect(right - pairW, top, scw, ch);
+                fly.To = stageCardRect.Value;
                 fly.Seconds = 0.52f;
             }
         }

@@ -40,6 +40,7 @@ public class CardView : MonoBehaviour
         if (flash != null) flash.sharedMaterial.renderQueue = 2996 + Lift;
         face.sharedMaterial.renderQueue = 3000 + Lift;
         foreach (var b in badges.Values) b.sharedMaterial.renderQueue = 3010 + Lift;
+        foreach (var kv in marks) kv.Value.sharedMaterial.renderQueue = markQueue[kv.Key] + Lift;
     }
 
     /// <param name="css">The CSS width it is drawn at (see DrawnAt); 0: not known.</param>
@@ -110,7 +111,111 @@ public class CardView : MonoBehaviour
         shadow.gameObject.SetActive(!on);
     }
 
-    public void Dimmed(bool on) => face.sharedMaterial.SetFloat("_Grey", on ? 0.75f : 0);
+    public void Dimmed(bool on) => Grey(0, on ? 0.75f : 0);
+
+    // (Each look that greys the face, the strongest shown: dimmed, frozen, too costly, its side out of the game.)
+    readonly float[] greys = new float[4];
+
+    void Grey(int i, float k)
+    {
+        greys[i] = k;
+        face.sharedMaterial.SetFloat("_Grey", Mathf.Max(Mathf.Max(greys[0], greys[1]), Mathf.Max(greys[2], greys[3])));
+    }
+
+    /// <summary>
+    /// Frozen (.card-table.card-frozen .card-glyph: saturate(0.4) hue-rotate(-10deg) brightness(1.05)): its colours muted
+    /// under the frost (the "frozen" mark).
+    /// </summary>
+    public void Frozen(bool on) => Grey(1, on ? 0.6f : 0);
+
+    /// <summary>
+    /// Too costly to play right now (.hand .card.card-pricey: its picture and words at saturate(0.4), its cost greyed):
+    /// still a solid card, its colours muted.
+    /// </summary>
+    public void Pricey(bool on) => Grey(2, on ? 0.6f : 0);
+
+    /// <summary>Its side out of the game (.tableau-dead: opacity 0.45, grayscale(0.7)).</summary>
+    public void Dead(bool on)
+    {
+        if ((whole < 1) == on) return;
+        whole = on ? 0.45f : 1;
+        Grey(3, on ? 0.7f : 0);
+        if (!flying) Fade(1);
+    }
+
+    /// <summary>How much of it shows (its side out of the game: 0.45).</summary>
+    float whole = 1;
+
+    // ---- Marks: what app.ts renderCard sets on it beyond its face and badges, baked (Marks) ----
+
+    readonly Dictionary<string, MeshRenderer> marks = new Dictionary<string, MeshRenderer>();
+    readonly Dictionary<string, int> markQueue = new Dictionary<string, int>();
+    readonly Dictionary<string, string> markName = new Dictionary<string, string>();
+    readonly Dictionary<string, float> markAt = new Dictionary<string, float>();
+
+    /// <summary>How many marks its room row (.card-room) shows, room0 onwards.</summary>
+    public int RoomShown { get; set; }
+
+    /// <summary>
+    /// A mark in `slot` (one at a time each): `name` as baked (Marks), drawn at render queue `queue` (over the face, 3000,
+    /// or under it), `dx` card widths across from where it was baked; none (null), it is put away.
+    /// </summary>
+    public void Mark(string slot, string name, int queue, float dx = 0)
+    {
+        marks.TryGetValue(slot, out var r);
+        var got = name != null ? Marks.Get(name, Table, Css) : null;
+        if (got == null)
+        {
+            if (r != null) r.gameObject.SetActive(false);
+            markName.Remove(slot);
+            return;
+        }
+        if (r == null)
+        {
+            r = Mats.Flat(slot, transform, Mats.Make("Card"), 1, 1, 0.004f);
+            r.sharedMaterial.SetFloat("_Radius", 0);
+            marks[slot] = r;
+        }
+        markQueue[slot] = queue;
+        r.sharedMaterial.renderQueue = queue + Lift;
+        r.gameObject.SetActive(true);
+        var (tex, at) = got.Value;
+        if (!markName.ContainsKey(slot)) markAt[slot] = Time.time;
+        markName[slot] = name;
+        r.sharedMaterial.mainTexture = tex;
+        r.sharedMaterial.SetFloat("_Aspect", at.h / at.w);
+        // (Over the face a little higher the later it is drawn; under it, a little below.)
+        float lift = queue >= 3000 ? 0.004f + (queue - 3000) * 0.0001f : -0.0006f + (queue - 2990) * 0.00005f;
+        var c = r.sharedMaterial.color;
+        c.a = (flying && flyFade ? face.sharedMaterial.color.a : whole);
+        r.sharedMaterial.color = c;
+        r.transform.localScale = new Vector3(at.w, at.h, 1);
+        r.transform.localPosition = new Vector3(-0.5f + at.x + at.w / 2 + dx, lift, 0.7f - (at.y + at.h / 2));
+        r.transform.localRotation = Quaternion.Euler(90, 0, 0);
+    }
+
+    /// <summary>
+    /// The chill's snowflake comes in (@keyframes chill-in, 0.5 s ease-out: from nothing, 0.6 of its size and turned back
+    /// 30°).
+    /// </summary>
+    string chillIn;
+
+    void MarksIn()
+    {
+        if (!marks.TryGetValue("chill", out var r) || !r.gameObject.activeSelf || !markName.TryGetValue("chill", out var name)) return;
+        float t = Mathf.Clamp01((Time.time - markAt["chill"]) / 0.5f);
+        if (t >= 1 && chillIn == name) return;
+        chillIn = t >= 1 ? name : null;
+        var got = Marks.Get(name, Table, Css);
+        if (got == null) return;
+        float e = Ease(0, 0, 0.58f, 1, t);
+        var p = got.Value.at;
+        r.transform.localScale = new Vector3(p.w, p.h, 1) * Mathf.Lerp(0.6f, 1, e);
+        r.transform.localRotation = Quaternion.Euler(90, Mathf.Lerp(-30, 0, e), 0);
+        var c = r.sharedMaterial.color;
+        c.a = e * (flying && flyFade ? face.sharedMaterial.color.a : whole);
+        r.sharedMaterial.color = c;
+    }
 
     /// <summary>Its rim: none, or a colour (playable green, picked blue, aimed red), soft or strong.</summary>
     public void Rim(Color? c, float strength = 1)
@@ -206,7 +311,7 @@ public class CardView : MonoBehaviour
     void PlaceBadge(string slot, MeshRenderer r)
     {
         badgeKind.TryGetValue(slot, out var kind);
-        var at = slot == "def" && kind == "guard" ? "guard" : slot;
+        var at = slot == "def" && kind != null && kind.StartsWith("guard") ? "guard" : slot;
         var p = Css > 0 ? Faces.At(at, Css, Table) : at == "atk" ? Faces.Where.atk : at == "stab" ? Faces.Where.stab : at == "guard" ? Faces.Where.guard : Faces.Where.def;
         r.transform.localScale = new Vector3(p.w, p.h, 1);
         r.sharedMaterial.SetFloat("_Aspect", p.h / p.w);
@@ -264,14 +369,16 @@ public class CardView : MonoBehaviour
     /// <summary>The whole card faded to `k` (its face, shadow and badges) as it flies in.</summary>
     void Fade(float k)
     {
+        // (Its side out of the game, all of it at 0.45.)
+        k *= whole;
         var f = face.sharedMaterial.color;
-        f.a = k;
-        face.sharedMaterial.color = f;
         if (shadowA < 0) shadowA = shadow.sharedMaterial.color.a;
         var sc = shadow.sharedMaterial.color;
+        f.a = k;
+        face.sharedMaterial.color = f;
         sc.a = shadowA * k;
         shadow.sharedMaterial.color = sc;
-        foreach (var b in badges.Values)
+        foreach (var b in badges.Values.Concat(marks.Values))
         {
             var c = b.sharedMaterial.color;
             c.a = k;
@@ -452,6 +559,7 @@ public class CardView : MonoBehaviour
     void Update()
     {
         Flashing();
+        MarksIn();
         if (flying) { Fly(); return; }
         if (Time.time < holdUntil) return;
         float k = 1 - Mathf.Exp(-Time.deltaTime * 12);
@@ -652,5 +760,55 @@ public class Dissolving : MonoBehaviour
         }
         float v = 1 - t;
         return 3 * v * t * t + t * t * t;
+    }
+}
+
+/// <summary>
+/// What the web sets on a card beyond its face and badges, baked as it draws each on a card that wide
+/// (scripts/bake-marks.mjs: Resources/Marks/<size>/<name>.png, and where each sits in Marks/places.json, in card widths
+/// from the card's top left): in play on a phone's board (t-p56, t-p66, t-p78) or a desktop's (t-d84, t-d96), or in
+/// the hand (h-66 … h-124). The boons and guns along a card's top scale with it alone: baked once, at t-d96.
+/// </summary>
+public static class Marks
+{
+    [System.Serializable] class Item { public string k; public float x, y, w, h; }
+    [System.Serializable] class Items { public List<Item> items; }
+
+    static Dictionary<string, Faces.Place> places;
+    static readonly Dictionary<string, Texture2D> cache = new Dictionary<string, Texture2D>();
+    static readonly int[] TablePhone = { 56, 66, 78 }, TableDesk = { 84, 96 }, Hand = { 66, 79, 100, 124 };
+
+    /// <summary>The baked size nearest a card `css` px wide, in play or in the hand (as Faces picks a face's).</summary>
+    static string Dir(string name, bool table, float css)
+    {
+        if (name.StartsWith("boon-") || name.StartsWith("guns-")) return "t-d96";
+        bool phone = table && BoardLayout.Current.Phone;
+        var sizes = table ? (phone ? TablePhone : TableDesk) : Hand;
+        if (css <= 0) css = table ? BoardLayout.Current.Tcw : BoardLayout.Current.HandCard;
+        int best = sizes[0];
+        foreach (var w in sizes) if (Mathf.Abs(w - css) < Mathf.Abs(best - css)) best = w;
+        return table ? $"t-{(phone ? "p" : "d")}{best}" : $"h-{best}";
+    }
+
+    /// <summary>A mark by name ("shields-3", "frozen", "fused-<id>-0", …) for a card `css` px wide: its picture and place.</summary>
+    public static (Texture2D tex, Faces.Place at)? Get(string name, bool table, float css)
+    {
+        if (places == null)
+        {
+            places = new Dictionary<string, Faces.Place>();
+            var json = Resources.Load<TextAsset>("Marks/places");
+            if (json != null)
+                foreach (var it in JsonUtility.FromJson<Items>(json.text).items)
+                    places[it.k] = new Faces.Place { x = it.x, y = it.y, w = it.w, h = it.h };
+        }
+        var key = $"{Dir(name, table, css)}/{name}";
+        if (!places.TryGetValue(key, out var at)) return null;
+        if (!cache.TryGetValue(key, out var tex))
+        {
+            tex = Resources.Load<Texture2D>("Marks/" + key);
+            if (tex != null) { tex.wrapMode = TextureWrapMode.Clamp; tex.anisoLevel = 4; }
+            cache[key] = tex;
+        }
+        return tex != null ? (tex, at) : ((Texture2D, Faces.Place)?)null;
     }
 }
