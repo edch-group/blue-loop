@@ -1235,12 +1235,100 @@ public partial class CampaignView
                 new SetRow("sound", () => { Sound.Muted = !Sound.Muted; Settings(); }, value: Sound.Muted ? "off" : "on"),
                 new SetRow("music", Sound.Muted ? (System.Action)null : () => { Sound.MusicOn = !Sound.MusicOn; Settings(); }, value: Sound.MusicOn && !Sound.Muted ? "on" : "off"),
                 new SetRow("ai speed", () => { BattleView.NextSpeed(); Settings(); }, value: BattleView.Speed),
-                new SetRow("campaign log", Log),
+                new SetRow("how the loop works", Help),
                 new SetRow("main menu", () => App.Instance.Menu("hub")));
             var note = WebLook.Words(WebLook.Box(body, "Note", 0, h + 12 * Z, body.sizeDelta.x, 0.7f * 16 * Z * 1.4f), "Your run is saved; continue it from the main menu.", 0.7f * 16 * Z, 0, Look.InkFaint, false, 400);
             note.raycastTarget = false;
             return h + 12 * Z + 0.7f * 16 * Z * 1.4f;
         }, 620 * Z, sheetRoot, CloseSheet);
+    }
+
+    /// <summary>
+    /// How the campaign works (renderOverlay's help sheet, opened from the settings' "how the loop works"): the wide
+    /// modal (as wide as its words let it, 94vw at most), the materials' legend (.cmp-legend: the token 1.3em, 8 to its
+    /// words, 0.78rem soft ink, 4 above and 2 below), then the rules (.rules: 0.86rem, line-height 1.55, a bullet each,
+    /// 18 in, 6 between), the stations' and materials' marks in their lines.
+    /// </summary>
+    void Help()
+    {
+        CloseSheet();
+        sheetNow = Help;
+        var T = Campaign.T;
+        string Star(string k) => Campaign.D.StarTypes.TryGetValue(k, out var st) ? $"<b>{st.Name}:</b> {st.Boon} {st.Cost}" : "";
+        // (A mark in a line: room kept for it, 1.15em and 0.18em after it (materials 1.3em), drawn over that room.)
+        string Mark(string icon) => $"<mspace={(icon == "materials" ? 0.74f : 0.665f).ToString(System.Globalization.CultureInfo.InvariantCulture)}em><alpha=#00>{icon[0]}{icon[0]}<alpha=#FF></mspace>";
+        var rules = new[]
+        {
+            $"<b>The loop:</b> each galaxy is a strip of systems, {T.Lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian, a Lost Overlord, to go through, into a harder galaxy (the universe is dying, galaxy by galaxy: each one you reach is younger, and burns hotter). An Overlord fights with its body already in play (limbs, gear, retainers) and takes one great action a day, its best for the board as it stands; the next is always shown, and changes as the board does. The run goes on until your flagship is lost.",
+            $"<b>The collapse:</b> regional stability lasts {T.StabilityTurns} moves in the first universe, {T.StabilityStep} fewer in each one after (never under {T.StabilityMin}). Then the strip gives way from the near end, a whole column with every move, each marked (⚠) a move before. Whatever stands there is lost, your flagship too.",
+            "<b>Every move is a turn.</b> Your flagship flies one route at a time, any way you like, back on itself too. Into a system you hold it simply moves; into a <b>find</b> (a derelict, a depot, an archive) it takes what is there with no fight; into any other, it fights. After each move the collapse comes on. Changing the deck or repairing costs no move. If your flagship has nowhere to go, time moves on by itself.",
+            "<b>Win</b> a system and it is yours: it pays its materials once, your flagship moves in, and it counts for petals. Nothing pays by the move. Some worlds hold extra materials, taken with the system.",
+            "<b>Stellari petals</b> are grabbed at every wormhole: a few for getting there, more for every share of the strip you conquered. They are banked at once and outlive the run. Spend them between runs on a stronger start, a tougher flagship, run perks, and new races. A race's later heroes are earned by conquering stars as it.",
+            $"<b>Its deck</b> starts with {T.ArmySize} cards: your hero and your race's own, with a few neutral cards. It grows with every card you salvage or put in, and never drops below {T.ArmySize}.",
+            "<b>Battles</b> are the card game, by its rules. Your hero is in your deck, played like any card. Each universe's <b>galaxy</b> (a black hole, a pulsar, a meteor shower, a nebula or dark matter) bends every battle fought in it.",
+            $"{Mark("armory")} <b>Space stations</b> sell {T.ArmoryStock} cards each, every one only once. {Mark("research")} <b>Research stations</b> offer {T.ResearchOptions} upgrades each: pick one, free. Both are better deep in the strip. Bring your flagship to one to use it.",
+            "A system with no flagship in it fights as a <b>garrison</b>: more cards, thicker walls and a bigger sun the further along the strip, and the further along the run.",
+            $"<b>Stars</b> differ. {string.Join(" ", new[] { "red", "white", "brown", "neutron" }.Select(Star))}",
+            $"Your sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with {Mark("materials")} materials at a space station.",
+        };
+        Modal("how the campaign works", body =>
+        {
+            float W = body.sizeDelta.x, y = 4 * Z;
+            // The legend: the materials' token and what they are for.
+            float ls = 0.78f * 16 * Z, tok = 1.3f * ls;
+            var legend = WebLook.Words(WebLook.Box(body, "Legend", tok + 8 * Z, y, W - tok - 8 * Z, 10), "<color=#3e424a><b>Materials</b></color> pay for everything. Earned: every system you take, finds and battles. Spent: cards at space stations, fusing cards and repairs.", ls, 0, Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
+            legend.textWrappingMode = TextWrappingModes.Normal;
+            float lh = Mathf.Max(tok, legend.GetPreferredValues(legend.text, W - tok - 8 * Z, 0).y);
+            legend.rectTransform.sizeDelta = new Vector2(W - tok - 8 * Z, lh + 2);
+            var mt = WebLook.Box(body, "Token", 0, y, tok, tok).gameObject.AddComponent<RawImage>();
+            mt.texture = Resources.Load<Texture2D>("Icons/materials");
+            mt.raycastTarget = false;
+            y += lh + 2 * Z;
+            // The rules, a bullet each.
+            float fs = 0.86f * 16 * Z, indent = 18 * Z, tw = W - indent;
+            for (int i = 0; i < rules.Length; i++)
+            {
+                if (i > 0) y += 6 * Z;
+                var t = WebLook.Words(WebLook.Box(body, "Rule", indent, y, tw, 10), rules[i], fs, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
+                t.textWrappingMode = TextWrappingModes.Normal;
+                t.lineSpacing = (1.55f - 1.26f) * 100 / 1.26f;
+                float h = t.GetPreferredValues(t.text, tw, 0).y;
+                t.rectTransform.sizeDelta = new Vector2(tw, h + 2);
+                WebLook.Words(WebLook.Box(body, "Bullet", indent - 14 * Z, y, 14 * Z, 1.55f * fs), "•", fs, 0, Look.Ink, false, 400, TextAlignmentOptions.Left);
+                RuleMarks(t, rules[i], fs);
+                y += Mathf.Max(h, 1.55f * fs);
+            }
+            return y;
+        }, 900 * Z, sheetRoot, CloseSheet);
+    }
+
+    /// <summary>The marks kept room for in a rule (Help's Mark): each drawn over its room, on the line's baseline as the web's .cur sits.</summary>
+    static void RuleMarks(TextMeshProUGUI t, string text, float fs)
+    {
+        var marks = new List<(int at, string icon, float size, float drop)>();
+        foreach (var (icon, size, drop) in new[] { ("armory", 1.15f, 0.22f), ("research", 1.15f, 0.22f), ("materials", 1.3f, 0.3f) })
+        {
+            int i = text.IndexOf($"<alpha=#00>{icon[0]}{icon[0]}", System.StringComparison.Ordinal);
+            if (i < 0) continue;
+            // (Its place among the characters drawn: the words before it, their tags left out.)
+            marks.Add((System.Text.RegularExpressions.Regex.Replace(text.Substring(0, i), "<[^>]+>", "").Length, icon, size * fs, drop * fs));
+        }
+        if (marks.Count == 0) return;
+        t.ForceMeshUpdate();
+        var info = t.textInfo;
+        foreach (var (at, icon, size, drop) in marks)
+        {
+            if (info == null || info.characterInfo == null || at >= info.characterCount) continue;
+            var c = info.characterInfo[at];
+            var r = Hud.Rect(t.rectTransform, icon);
+            r.anchorMin = r.anchorMax = t.rectTransform.pivot;
+            r.pivot = new Vector2(0, 0);
+            r.anchoredPosition = new Vector2(c.bottomLeft.x, c.baseLine - drop);
+            r.sizeDelta = new Vector2(size, size);
+            var raw = r.gameObject.AddComponent<RawImage>();
+            raw.texture = Resources.Load<Texture2D>(icon == "materials" ? "Icons/materials" : $"Icons/station-{icon}");
+            raw.raycastTarget = false;
+        }
     }
 
     /// <summary>The campaign's log (renderOverlay's log sheet): what has happened, a line each, the latest last.</summary>

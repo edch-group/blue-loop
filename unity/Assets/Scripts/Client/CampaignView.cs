@@ -102,7 +102,9 @@ public partial class CampaignView : MonoBehaviour
         world.SetParent(transform, false);
         // (In the web's own units, at the size it lays its page out at: each layer the whole screen, laid out as the web
         // lays its page out at that size, clear of the safe area where the web keeps clear of it; again when it changes.)
-        hud = Hud.CssCanvas(Cam);
+        // (Sorted after the map's own see-through things, its rings and glows queued past the UI's, as the web's page
+        // lies over its canvas: a veil and its modal over every ring.)
+        hud = Hud.CssCanvas(Cam, 1);
         hud.transform.SetParent(transform, false);
         // (The overlay's layer, never put away, says when the screen changes.)
         top = RefLayer.Make(hud.transform, "Top").Rect;
