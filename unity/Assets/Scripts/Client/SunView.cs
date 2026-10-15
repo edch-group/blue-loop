@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using BlueLoop.Engine;
 using TMPro;
 using UnityEngine;
@@ -308,6 +309,10 @@ public class SunView : MonoBehaviour
         float now = Time.realtimeSinceStartup, ms = now * 1000;
         // (Drawn pixel by pixel on the one thread the page has: at most one drawing a frame across all the suns, the
         // corona and the dome taking turns, so their work is spread over frames rather than piled into one.)
+        // (Taking turns frame by frame, each sun its own: one with work always due never starves the others.)
+        if (!all.Contains(this)) all.Add(this);
+        all.RemoveAll(x => x == null);
+        if (all.Count > 1 && all[Time.frameCount % all.Count] != this) return;
         if (drawnFrame == Time.frameCount) return;
         // The corona flickers about 20 times a second; the dome turns about 10 (every other frame while the orbit swings).
         if (now >= nextCorona && !domeDirty)
@@ -340,6 +345,8 @@ public class SunView : MonoBehaviour
         }
     }
 
+    static readonly List<SunView> all = new List<SunView>();
+
     /// <summary>The frame a sun last drew on (shared by all of them).</summary>
     static int drawnFrame = -1;
 
@@ -356,6 +363,7 @@ public class SunView : MonoBehaviour
         float c = heat < 0 ? Mathf.Min(1, heat / (float)Balance.MinHeat) : 0;
         SunArt.Corona(coronaPx, size, t, c, danger, dead, seed, ms);
         Upload(coronaTex, coronaPx, coronaFlip, size);
+        corona.enabled = true;
     }
 
     void DrawDome(float ms, float now)
@@ -378,6 +386,7 @@ public class SunView : MonoBehaviour
         };
         SunArt.Dome(domePx, size, vs, cam, st, ms);
         Upload(domeTex, domePx, domeFlip, size);
+        dome.enabled = true;
         PlaceHeat(cam);
     }
 
@@ -423,6 +432,8 @@ public class SunView : MonoBehaviour
         px = new Color32[size * size];
         flip = new Color32[size * size];
         r.sharedMaterial.mainTexture = tex;
+        // (Hidden until its first drawing is in: an empty texture shows as a white square.)
+        r.enabled = false;
     }
 
     /// <summary>A canvas's rows (top down) into a texture's (bottom up).</summary>
