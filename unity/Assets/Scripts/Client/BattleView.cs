@@ -898,10 +898,13 @@ public partial class BattleView : MonoBehaviour
         return img;
     }
 
+    /// <summary>The .btn-primary's face, white shading to #eeeff1.</summary>
+    static Texture2D buttonShade;
+
     /// <summary>
-    /// The web's .btn-primary (End Day, a result's way on): white, a white hairline inside a faint ring, corners of
-    /// `radius`, a soft shadow; its words bold spaced capitals. Disabled, the whole of it fades to 0.4. (In the units of
-    /// the canvas it is on: `ring` the ring's width.)
+    /// The web's .btn-primary (End Day, a result's way on): white shading to #eeeff1, a white hairline inside a faint
+    /// ring, corners of `radius`, a soft shadow; its words bold spaced capitals. Disabled, the whole of it fades to 0.4.
+    /// (In the units of the canvas it is on: `ring` the ring's width.)
     /// </summary>
     static Button WhiteButton(Transform parent, string text, System.Action onClick, float size, float radius = 14.5f, float ring = 1.5f)
     {
@@ -930,6 +933,13 @@ public partial class BattleView : MonoBehaviour
         fi.raycastTarget = false;
         Corners(fi, radius - ring * 0.67f);
         fi.color = Color.white;
+        // (Its face shading down, linear-gradient(180deg, #ffffff, #eeeff1), within its rounded corners.)
+        face.gameObject.AddComponent<Mask>().showMaskGraphic = true;
+        var shade = Hud.Rect(face, "Shade");
+        Hud.Fill(shade);
+        var si = shade.gameObject.AddComponent<RawImage>();
+        si.texture = buttonShade != null ? buttonShade : (buttonShade = MenuKit.Down(Color.white, Hud.Rgba(0xee, 0xef, 0xf1)));
+        si.raycastTarget = false;
         img.color = Color.white;
         var b = img.gameObject.AddComponent<Button>();
         b.transition = Selectable.Transition.None;
@@ -1059,18 +1069,9 @@ public partial class BattleView : MonoBehaviour
         float pw = widths.Sum() + 2 * 2 + 2 * 3;
         float inX = l.PadL + (l.Phone ? 8 : 16), inY = l.PadB + (l.Phone ? 8 : 16);
         var pace = Hud.Box(chrome, "Pace", new Color(1, 1, 1, 0.92f), (bh + 6) / 2);
-        Hud.Shadow(pace, (bh + 6) / 2, new Hud.Drop(Hud.Rgba(70, 76, 100, 0.14f), 4, 14));
+        // (Its 1 px ring and its shadow both outside it: a ring drawn as its child had lain over it, greying it.)
+        Hud.Shadow(pace, (bh + 6) / 2, new Hud.Drop(Hud.Rgba(120, 126, 150, 0.22f), 0, 0, 1), new Hud.Drop(Hud.Rgba(70, 76, 100, 0.14f), 4, 14));
         Hud.At((RectTransform)pace.transform, new Vector2(0, 0), new Vector2(inX, inY), new Vector2(pw, bh + 6));
-        var edge = Hud.Rect(pace.transform, "Ring");
-        Hud.Fill(edge);
-        edge.offsetMin = new Vector2(-1, -1);
-        edge.offsetMax = new Vector2(1, 1);
-        edge.SetAsFirstSibling();
-        var ei = edge.gameObject.AddComponent<Image>();
-        ei.sprite = Hud.Rounded;
-        ei.type = Image.Type.Sliced;
-        ei.color = new Color(120 / 255f, 126 / 255f, 150 / 255f, 0.22f);
-        Corners(ei, (bh + 8) / 2);
         paceOn = new Image[3];
         float x = 3;
         for (int i = 0; i < 3; i++)
