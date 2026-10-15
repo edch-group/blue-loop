@@ -1,4 +1,5 @@
-== f851b5cc-b4a7-453b-9863-17e508dbdeb9 captain-ship 
+== rigged captain nobake
+no finished task rigged
 v2/text-to-3d: 0 tasks
 v1/text-to-3d: 404
 v1/image-to-3d: 19 tasks
@@ -30,61 +31,4 @@ v1/rigging: 0 tasks
   2fc18a67-e6e6-43d9-82b8-95e6003bef64 v1/image-to-3d SUCCEEDED created 1791977357715 textured dark_weathered_sword [model_urls, texture_urls]
   ae5fce22-e328-589c-a440-a1279c59fd11 v1/image-to-3d SUCCEEDED created 1791976920909 untextured anime_warrior_character [model_urls]
   59d6b3f4-9e81-5c4c-abbe-acd8f95ed8cd v1/image-to-3d SUCCEEDED created 1791976855520 untextured anime_warrior_cape [model_urls]
-fetching f851b5cc-b4a7-453b-9863-17e508dbdeb9 (v1/image-to-3d)
-task: {"id": "f851b5cc-b4a7-453b-9863-17e508dbdeb9", "type": "image-to-3d", "name": "Iron Horizon Clean", "art_style": "", "object_prompt": "", "style_prompt": "", "negative_prompt": "", "texture_prompt": "Slate-grey metallic spaceship hull plating with gold-yellow nose ring and trim stripes. Exactly four rectangular glowing observation windows cleanly aligned on both sides of the hull. Four rear booster engines as full, solid conical objects with no gaps or holes inside the cones, with bronze metallic rims.", "texture_image_url": "\u2026", "text_style_prompt": "", "image_style_url": "\u2026", "status": "SUCCEEDED", "created_at": 1792071309849, "progress": 100, "started_at": 1792071309864, "finished_at": 1792071397222, "expires_at": 1792330597222, "task_error": null, "model_url": "\u2026", "model_urls": ["glb"], "thumbnail_url": "\u2026", "texture_urls": "\u2026", "hd_texture": true, "texture_resolution": "4k", "consumed_credits": 0, "_kind": "v1/image-to-3d"}
-  model.glb: 41219 KB
-  texture-base_color.png: 21376 KB
-  texture-metallic.png: 1670 KB
-  texture-roughness.png: 1552 KB
-  texture-normal.png: 16705 KB
-FOLDER=/home/runner/work/_temp/meshy/meshy-f851b5cc-b4a7-453b-9863-17e508dbdeb9
-RELEASE=model-captain-ship-f851b5cc
-https://github.com/edch-group/blue-loop/releases/tag/model-captain-ship-f851b5cc
-model (meshy-f851b5cc-b4a7-453b-9863-17e508dbdeb9): 380650 corners, 689006 triangles
-textured model set on the export: median 0.89% of its length off
-cut down to 29890 corners, 60000 triangles
-CaptainShip.bytes: 75401 vertices, 60000 triangles
-written unity/Assets/Resources/Models
-== 01a13eaf-79d3-751c-8f15-97454e23d9c6 captain nobake
-v2/text-to-3d: 0 tasks
-v1/text-to-3d: 404
-v1/image-to-3d: 19 tasks
-v2/image-to-3d: 404
-v1/multi-image-to-3d: 4 tasks
-v1/retexture: 1 tasks
-v1/remesh: 0 tasks
-v1/text-to-texture: 404
-v1/texture: 404
-v1/texturing: 404
-v1/rigging: 0 tasks
-  e233e83a-6896-44f0-aa08-1fad7be1e696 v1/image-to-3d SUCCEEDED created 1792073886896 textured dark_veteran_base_ultra [model_urls, texture_urls]
-  03507b2c-f73f-5579-83f4-c09ab055c80a v1/image-to-3d SUCCEEDED created 1792073616486 untextured dark_veteran_base_character [model_urls]
-  c98525c5-db04-4701-a305-4c9c9f7a7eb1 v1/image-to-3d SUCCEEDED created 1792073485291 textured dark_veteran_base_character [model_urls, texture_urls]
-  b3b7d07c-b2a4-5d77-8f5d-b3e799f10024 v1/image-to-3d SUCCEEDED created 1792071400598 untextured Iron Horizon Clean [model_urls]
-  f851b5cc-b4a7-453b-9863-17e508dbdeb9 v1/image-to-3d SUCCEEDED created 1792071309849 textured Iron Horizon Clean [model_urls, texture_urls]
-  5173abc6-06ec-5326-a610-2b17a5beedc4 v1/multi-image-to-3d SUCCEEDED created 1792070334661 untextured Iron Horizon Multi-View [model_urls]
-  01a13fb5-879c-7078-bed0-c7c9cc71c4c4 v1/multi-image-to-3d SUCCEEDED created 1792070223778 textured Iron Horizon Multi-View [model_urls, texture_urls]
-  0cdda1ae-3dea-5687-a1d9-b13a182659e5 v1/multi-image-to-3d SUCCEEDED created 1792069748764 untextured Iron Horizon Multi-View [model_urls]
-  e3223595-ee88-47d9-ab60-733d86f03570 v1/multi-image-to-3d SUCCEEDED created 1792069607955 textured Iron Horizon Multi-View [model_urls, texture_urls]
-  a71de10e-23be-4f22-a54c-57bd1d137d44 v1/retexture SUCCEEDED created 1792067126549 textured Iron Horizon Textured [model_urls, texture_urls]
-  d5e6370f-3691-5e71-9f55-c4cfb703361f v1/image-to-3d SUCCEEDED created 1792013706151 untextured stylized_dark_veteran [model_urls]
-  e7f3c084-8853-4442-bb95-4c1dccf40020 v1/image-to-3d SUCCEEDED created 1792013570086 textured stylized_dark_veteran [model_urls, texture_urls]
-  57c4810b-7ee9-5efc-88e9-8049236ad459 v1/image-to-3d SUCCEEDED created 1791977549884 untextured dark_warrior_character [model_urls]
-  93e46df3-36a5-58e5-b8e6-c61db2ed405f v1/image-to-3d SUCCEEDED created 1791977494202 untextured dark_tattered_cape [model_urls]
-  5e1596c8-9b61-5268-a925-ec8a0b5f9e4a v1/image-to-3d SUCCEEDED created 1791977423209 untextured dark_weathered_sword [model_urls]
-  5d3ee36b-2da2-4eab-9263-7d442fc0a331 v1/image-to-3d SUCCEEDED created 1791977357857 textured dark_warrior_character [model_urls, texture_urls]
-  67e0852a-16f4-40fc-840a-488217bf1257 v1/image-to-3d SUCCEEDED created 1791977357838 textured dark_tattered_cape [model_urls, texture_urls]
-  2fc18a67-e6e6-43d9-82b8-95e6003bef64 v1/image-to-3d SUCCEEDED created 1791977357715 textured dark_weathered_sword [model_urls, texture_urls]
-  ae5fce22-e328-589c-a440-a1279c59fd11 v1/image-to-3d SUCCEEDED created 1791976920909 untextured anime_warrior_character [model_urls]
-  59d6b3f4-9e81-5c4c-abbe-acd8f95ed8cd v1/image-to-3d SUCCEEDED created 1791976855520 untextured anime_warrior_cape [model_urls]
-01a13eaf-79d3-751c-8f15-97454e23d9c6: found as v2/text-to-3d
-fetching 01a13eaf-79d3-751c-8f15-97454e23d9c6 (v2/text-to-3d)
-task: {"id": "01a13eaf-79d3-751c-8f15-97454e23d9c6", "mode": "preview", "name": "stylized_dark_veteran_highdetail", "seed": 0, "prompt": "", "texture_prompt": "", "texture_image_url": "\u2026", "status": "SUCCEEDED", "created_at": 1792053051291, "progress": 100, "started_at": 1792053051304, "finished_at": 1792053107926, "task_error": null, "model_urls": ["fbx", "glb", "obj", "stl", "usdz"], "thumbnail_url": "\u2026", "texture_urls": "\u2026", "consumed_credits": 0, "_kind": "v2/text-to-3d"}
-  model.glb: 31630 KB
-  model.fbx: 403, left out
-  texture-base_color.png: 16448 KB
-  texture-metallic.png: 2197 KB
-  texture-roughness.png: 3511 KB
-FOLDER=/home/runner/work/_temp/meshy/meshy-01a13eaf-79d3-751c-8f15-97454e23d9c6
-RELEASE=model-captain-01a13eaf
-https://github.com/edch-group/blue-loop/releases/tag/model-captain-01a13eaf
+fetch failed
