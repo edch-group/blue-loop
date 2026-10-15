@@ -190,10 +190,11 @@ public partial class CampaignView
                     // (What the two become, beside the way to make it.)
                     // (.ar-fused: 88 across (on a phone 66), 1.4 times as tall.)
                     var fused = Hud.Rect(act, "Fused");
-                    fused.sizeDelta = lay.Phone ? new Vector2(66 * Z, 92 * Z) : new Vector2(88, 124);
+                    fused.sizeDelta = lay.Phone ? new Vector2(66 * Z, 92 * Z) : new Vector2(88 * Z, 124 * Z);
                     var face = fused.gameObject.AddComponent<RawImage>();
                     face.texture = Faces.Of(Builds.FusedId(a, b), false);
                     face.raycastTarget = false;
+                    Kit.Printed(fused, Builds.FusedId(a, b), fused.sizeDelta.x);
                     Kit.Across(act, 14, fused, Kit.Go(act, $"fuse · ⬢{cost}", true, problem, () => StationFuse(nodeId, a, b)), Kit.Hint(act, "for good"));
                 }
             }
@@ -271,6 +272,7 @@ public partial class CampaignView
         Hud.Fill(face);
         var raw = face.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(id, false);
+        Kit.Printed(face, id, Kit.CardW);
         var b = card.gameObject.AddComponent<Button>();
         b.targetGraphic = raw;
         b.onClick.AddListener(() => ArPick(id, inspect));
@@ -438,6 +440,7 @@ public partial class CampaignView
         var raw = f.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(id, false);
         raw.raycastTarget = false;
+        Kit.Printed(f, id, fh / 1.4f);
     }
 
     // ---- The ship tab (the Captain's runs) ----
@@ -704,6 +707,27 @@ static class StationKit
     public static readonly Color SlotLitLine = new Color32(0xb8, 0x89, 0x2f, 255);
     public static readonly Color SlotLitFill = new Color(214 / 255f, 189 / 255f, 122 / 255f, 0.22f);
     public static readonly Color PickRing = new Color32(0xd6, 0xbd, 0x7a, 255);
+
+    /// <summary>
+    /// A card's attack and stability as printed (the web's .cmp-card, cardHtml, shows them on its face; the baked face
+    /// has none), on its face `w` wide: as the battle's inspector draws a card not in play (BattleView.Printed).
+    /// </summary>
+    public static void Printed(RectTransform face, string defId, float w)
+    {
+        var def = Cards.Def(defId);
+        if (def == null || !Game.Persists(defId) || Cards.IsBurst(def)) return;
+        void Badge(Faces.Place at, string kind, int n)
+        {
+            var r = Hud.Rect(face, kind);
+            Hud.Place(r, at.x * w, at.y * w, at.w * w, at.h * w);
+            var img = r.gameObject.AddComponent<RawImage>();
+            img.texture = Faces.Badge(kind, n);
+            img.raycastTarget = false;
+        }
+        int atk = Game.BaseAttack(def);
+        if (atk > 0) Badge(Faces.Where.atk, "atk", atk);
+        Badge(Faces.Where.stab, "stab", Game.BaseHealth(defId));
+    }
 
     /// <summary>A card on the shelf: its width (120 (CSS), on a phone 88), its height, and its cell's (its price beneath it).</summary>
     public static float CardW => (Css.MaxHeight(560) ? 88 : 120) * WebLook.Zoom;
