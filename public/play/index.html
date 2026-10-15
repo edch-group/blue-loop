@@ -37,7 +37,7 @@
     <p>turn your device sideways to play</p>
     <small>screen not turning? switch off rotation lock</small>
   </div></div>
-  <script src="Build/2233a9467785ad2f092a78bdc88b6905.loader.js"></script>
+  <script src="Build/745f63579bec12745a31f7732a88d8ee.loader.js"></script>
   <script>
     const bar = document.querySelector('#loading i');
     // (Lock the screen sideways where that is allowed, Android in full screen; some browsers only after a tap.)
@@ -45,15 +45,15 @@
     lock();
     window.addEventListener('pointerup', lock);
     createUnityInstance(document.querySelector('#unity-canvas'), {
-      dataUrl: 'Build/43105ded4c12594e3730f56f70eda6ff.data.unityweb',
-      frameworkUrl: 'Build/6ea8bfe07e1dab36977d1d008d76439b.framework.js.unityweb',
-      codeUrl: 'Build/74b898a80e4936a649d64e089487dad3.wasm.unityweb',
+      dataUrl: 'Build/dd16cb2a2779af959ccc35b6a82d3bcb.data.unityweb',
+      frameworkUrl: 'Build/b29326cbec5a99fd12501f524330f7fc.framework.js.unityweb',
+      codeUrl: 'Build/3c90b33f3af424393cd854f7131066c4.wasm.unityweb',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: "DefaultCompany",
       productName: "Blue Loop",
       productVersion: "1.0",
       matchWebGLToCanvasSize: true,
-      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      devicePixelRatio: window.devicePixelRatio || 1,
     }, (p) => { bar.style.width = `${Math.round(p * 100)}%`; })
       .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; })
       .catch((e) => { document.getElementById('loading').textContent = String(e); });
