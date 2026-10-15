@@ -85,7 +85,7 @@ public class CrewView : MonoBehaviour
         var crew = Meta.CompanionsFound(meta);
         if (tab != null && !crew.Contains(tab)) tab = null;
         scene?.Focus(tab ?? "captain");
-        headH = crew.Count > 0 ? Mathf.Max(30 * Z, 2 * 8 * Z + 0.58f * 16 * Z * 1.25f + 8 * Z) : 30 * Z;
+        headH = crew.Count > 0 ? Mathf.Max(30 * Z, TabH(meta, crew) + 8 * Z) : 30 * Z;
         // The header (.crew-top): back, then undo, clear and the page's own tools, 6 apart.
         var back = WebLook.UpBack(root, () => menu.Show("campaign"), PagePad.w, PagePad.x + (headH - 42) / 2);
         x = PagePad.w + ((RectTransform)back.transform).sizeDelta.x + 6 * Z;
@@ -98,6 +98,24 @@ public class CrewView : MonoBehaviour
         if (crew.Count > 0) Tabs(meta, crew);
         if (tab == null) CaptainPage(meta);
         else CompanionPage(meta, tab);
+        if (peek != null) Peek(peek);
+    }
+
+    /// <summary>The companion's card looked over (the card tool), or none.</summary>
+    string peek;
+
+    /// <summary>A card looked over (the web's inspect): its face, large, over a veil; a tap puts it back.</summary>
+    void Peek(string id)
+    {
+        var v = Hud.Rect(root, "Inspect");
+        Hud.Fill(v);
+        v.gameObject.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.94f, 0.86f);
+        v.gameObject.AddComponent<Button>().onClick.AddListener(() => { peek = null; Draw(); });
+        float fh = Mathf.Min(476, layer.H * 0.86f);
+        var f = Hud.At(Hud.Rect(v, "Face"), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(fh / 1.4f, fh));
+        var raw = f.gameObject.AddComponent<RawImage>();
+        raw.texture = Faces.Of(id, false);
+        raw.raycastTarget = false;
     }
 
     float x;
@@ -125,6 +143,16 @@ public class CrewView : MonoBehaviour
     }
 
     /// <summary>
+    /// A tab's height (.crew-tab): padded 8 above and below its name (0.58rem at 1.25), or, with any tab's badge of
+    /// points (16 tall) showing, round that: every tab as tall as the tallest.
+    /// </summary>
+    static float TabH(MetaState meta, List<string> crew)
+    {
+        bool badge = Meta.PointsLeft(meta) > 0 || crew.Any(id => Meta.CompanionPoints(meta, id) > 0);
+        return 2 * 8 * Z + Mathf.Max(0.58f * 16 * Z * 1.25f, badge ? 16 * Z : 0);
+    }
+
+    /// <summary>
     /// The tabs (.crew-tabs), in the middle of the header: a capsule of white, a tab each (the Captain, then each of the
     /// crew found), the one open white and ringed; a dark badge of the points each has to spend.
     /// </summary>
@@ -147,7 +175,7 @@ public class CrewView : MonoBehaviour
             labels.Add((t, w, pts));
             total += w + 4 * Z;
         }
-        float h = 2 * 8 * Z + font * 1.25f, barH = h + 8 * Z;
+        float h = TabH(meta, crew), barH = h + 8 * Z;
         bar.pixelsPerUnitMultiplier = 22f / (barH / 2);
         var br = bar.rectTransform;
         br.anchorMin = br.anchorMax = br.pivot = new Vector2(0.5f, 1);
@@ -180,6 +208,7 @@ public class CrewView : MonoBehaviour
             cell.gameObject.AddComponent<Button>().onClick.AddListener(() =>
             {
                 tab = id;
+                peek = null;
                 placed.Clear();
                 history.Clear();
                 compHistory.Clear();
@@ -268,6 +297,9 @@ public class CrewView : MonoBehaviour
         int left = Meta.CompanionPoints(meta, id);
         var crew = Meta.ActiveCrew(meta);
         bool aboard = crew.Contains(id), full = !aboard && crew.Count >= Companions.ActiveCrew;
+        // (The card as the tree has made it, to look over.)
+        var card = Companions.CompanionCardId(id, Companions.CompanionFromAscent(id, a));
+        Small("card", () => { peek = card; Sound.Play("hover"); Draw(); }, Look.InkSoft);
         if (Meta.CompanionsFound(meta).Count > Companions.ActiveCrew || !aboard)
             Small(aboard ? "aboard" : full ? $"ashore · {Companions.ActiveCrew} aboard" : "ashore · send aboard", () =>
             {
