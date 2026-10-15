@@ -59,6 +59,13 @@ public static class Css
     /// <summary>CSS clamp(min, value, max).</summary>
     public static float Clamp(float min, float value, float max) => Mathf.Max(min, Mathf.Min(value, max));
 
+    /// <summary>
+    /// The web's media queries, on the screen's own size as the browser has it (before the page's zoom): (max-height:
+    /// h) and (max-width: w). A phone turned sideways is (max-height: 560px); the web's narrow rules (max-width: 960px).
+    /// </summary>
+    public static bool MaxHeight(float h) => Screen.y <= h;
+    public static bool MaxWidth(float w) => Screen.x <= w;
+
     /// <summary>The safe area's insets (env(safe-area-inset-*)) in the page's own pixels: top, right, bottom, left.</summary>
     public static Vector4 SafeInsets
     {

@@ -270,7 +270,9 @@ public partial class CampaignView
             {
                 var r = (RectTransform)b.transform;
                 var c = RectTransformUtility.WorldToScreenPoint(menuCam, r.position);
-                var size = r.rect.size * scale;
+                // (Screen pixels to the button's own units: the canvas's scale, and any layer's under it.)
+                float k = scale * (r.parent != null ? r.parent.lossyScale.x / Mathf.Max(1e-6f, menuCanvas.transform.lossyScale.x) : 1);
+                var size = r.rect.size * k;
                 float x = c.x, fromTop = H - c.y;
                 float left = x, right = W - x;
                 float m = Mathf.Min(left, Mathf.Min(right, fromTop));
@@ -279,7 +281,7 @@ public partial class CampaignView
                     : new Vector2(right + size.x + 80, H * 0.18f);
                 var fade = b.GetComponent<CanvasGroup>();
                 if (fade == null) fade = b.gameObject.AddComponent<CanvasGroup>();
-                options.Add((r, r.anchoredPosition, way / scale, fade));
+                options.Add((r, r.anchoredPosition, way / k, fade));
             }
         }
         Sound.Play("whoosh");

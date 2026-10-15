@@ -281,3 +281,86 @@ public class WebShadow : MonoBehaviour
         return img;
     }
 }
+
+/// <summary>
+/// A layer measured in the reference's drawn pixels (the web's CSS pixels times WebLook.Zoom, as these screens were
+/// first measured at 1600 x 1000) spanning its parent, so a box the web sizes s (CSS) is s x Zoom here on any screen.
+/// On a canvas in CSS pixels (Hud.CssCanvas) it is the page's own size (the web's --app-w x --app-h) times Zoom, drawn
+/// 1/Zoom as large: on a phone the web's own sizes, never shrunk to fit. (Under a page still in reference pixels, it
+/// is simply its parent's size.) It says when its size or the safe area changes, for what it holds to be laid out
+/// again, as the web lays its page out again when the window changes.
+/// </summary>
+public class RefLayer : MonoBehaviour
+{
+    public System.Action Changed;
+    RectTransform me;
+    Vector2 lastSize;
+    Vector4 lastInsets;
+    bool css;
+
+    public static RefLayer Make(Transform parent, string name, System.Action changed = null)
+    {
+        var r = Hud.Rect(parent, name);
+        var l = r.gameObject.AddComponent<RefLayer>();
+        l.me = r;
+        l.Changed = changed;
+        l.css = r.GetComponentInParent<CssScaler>(true) != null;
+        r.anchorMin = r.anchorMax = r.pivot = new Vector2(0.5f, 0.5f);
+        l.Fit(false);
+        return l;
+    }
+
+    public RectTransform Rect => me;
+    /// <summary>This layer's units to its parent's (Zoom on a CSS canvas, else 1).</summary>
+    public float K => css ? WebLook.Zoom : 1;
+    /// <summary>Its size, in its own units.</summary>
+    public Vector2 Size => me.sizeDelta;
+    public float W => me.sizeDelta.x;
+    public float H => me.sizeDelta.y;
+
+    /// <summary>The safe area's insets (env(safe-area-inset-*)) in its own units: top, right, bottom, left.</summary>
+    public Vector4 Insets
+    {
+        get
+        {
+            var i = Safe.Insets;
+            var s = me.sizeDelta;
+            return new Vector4(i.x * s.y, i.y * s.x, i.z * s.y, i.w * s.x);
+        }
+    }
+
+    /// <summary>The web's page padding (--pad-t, -r, -b, -l: the safe area, at least 6 at the top and foot and 12 at the sides, in CSS pixels).</summary>
+    public Vector4 Pad
+    {
+        get
+        {
+            var i = Insets;
+            const float Z = WebLook.Zoom;
+            return new Vector4(Mathf.Max(6 * Z, i.x), Mathf.Max(12 * Z, i.y), Mathf.Max(6 * Z, i.z), Mathf.Max(12 * Z, i.w));
+        }
+    }
+
+    /// <summary>The layer nearest above a rect (or on it).</summary>
+    public static RefLayer Of(Transform t) => t != null ? t.GetComponentInParent<RefLayer>() : null;
+
+    void LateUpdate() => Fit(true);
+
+    void Fit(bool tell)
+    {
+        var p = me.parent as RectTransform;
+        if (p == null) return;
+        var size = p.rect.size;
+        // (A canvas not yet sized: the page as the web would lay it out.)
+        if (size.x < 2 || size.y < 2) size = css ? Css.Size : new Vector2(Hud.W, Hud.H);
+        size *= K;
+        var ins = Safe.Insets;
+        if ((size - lastSize).sqrMagnitude < 0.01f && ins == lastInsets) return;
+        bool had = lastSize != Vector2.zero;
+        lastSize = size;
+        lastInsets = ins;
+        me.sizeDelta = size;
+        me.localScale = Vector3.one / K;
+        me.anchoredPosition = Vector2.zero;
+        if (tell && had) Changed?.Invoke();
+    }
+}

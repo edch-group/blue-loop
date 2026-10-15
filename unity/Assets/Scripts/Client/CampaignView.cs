@@ -20,7 +20,7 @@ public partial class CampaignView : MonoBehaviour
     public Camera Cam;
     CampaignState state;
     Canvas hud;
-    RectTransform top, overlay, sheetRoot;
+    RectTransform top, overlay, sheetRoot, notes;
     Transform world, mapRoot;
     readonly Dictionary<string, Transform> nodes = new Dictionary<string, Transform>();
     Vector3 focus, focusGoal;
@@ -100,15 +100,15 @@ public partial class CampaignView : MonoBehaviour
         Cam.cullingMask = ~((1 << 29) | (1 << 30));
         world = new GameObject("World").transform;
         world.SetParent(transform, false);
-        hud = Hud.Canvas(Cam);
+        // (In the web's own units, at the size it lays its page out at: each layer the whole screen, laid out as the web
+        // lays its page out at that size, clear of the safe area where the web keeps clear of it; again when it changes.)
+        hud = Hud.CssCanvas(Cam);
         hud.transform.SetParent(transform, false);
-        // (Each drawn whole on any screen, inside its safe area: see Frame.)
-        top = Hud.Rect(hud.transform, "Top");
-        Frame.Make(top, false);
-        overlay = Hud.Rect(hud.transform, "Overlay");
-        Frame.Make(overlay, false);
-        sheetRoot = Hud.Rect(hud.transform, "Sheet");
-        Frame.Make(sheetRoot, false);
+        // (The overlay's layer, never put away, says when the screen changes.)
+        top = RefLayer.Make(hud.transform, "Top").Rect;
+        overlay = RefLayer.Make(hud.transform, "Overlay", Relayout).Rect;
+        sheetRoot = RefLayer.Make(hud.transform, "Sheet").Rect;
+        notes = RefLayer.Make(hud.transform, "Notes").Rect;
         Sound.Scene("ambient");
         // (A new run's hero has their say first: whatever else the opening brought on waits behind it.)
         if (!(fresh && state.Story.Queue.Count > 0 && state.Story.Queue[0].Id == "intro")) SkipSilentScenes();

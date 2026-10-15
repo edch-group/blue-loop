@@ -589,7 +589,7 @@ public class MenuView : MonoBehaviour
     /// The campaign's menu (campaign.ts renderSetup): A DYING UNIVERSE, your Captain, the ship and the Stellari to build
     /// up between runs, and the run to begin (or the one under way to carry on).
     /// </summary>
-    void CampaignMenu() => CampaignMenuPage.Make(page, this);
+    void CampaignMenu() => CampaignMenuPage.Make(page, this, scene);
 
     /// <summary>
     /// A round-ended white button (.hub-options): 46 by 40, white at 92%, its soft shadow (0 4 14), its mark in the

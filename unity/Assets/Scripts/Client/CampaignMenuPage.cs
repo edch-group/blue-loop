@@ -6,32 +6,44 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// The campaign's menu page (campaign.ts renderSetup, styles.css .cs-*), laid to the web's measures at 1600 x 1000:
-/// back at the top left and A DYING UNIVERSE over the middle; the sections arced round the ship's bow, each a white
-/// disc with its emblem (the skill tree's nodes), its name and what it holds beside it, on a fine dotted half circle;
-/// BEGIN RUN at the foot. A section with nothing in it yet is greyed out and can't be opened.
+/// The campaign's menu page (campaign.ts renderSetup, styles.css .cs-*), laid out as the web lays it out at the
+/// screen's size (and again when that changes): back at the top left and A DYING UNIVERSE over the middle, in the
+/// page's padding (clear of the safe area); the sections arced round the ship's bow, each a white disc with its emblem
+/// (the skill tree's nodes), its name and what it holds beside it, on a fine dotted half circle, placed where the
+/// ship's camera has the bow on this screen; BEGIN RUN at the foot. A section with nothing in it yet is greyed out and
+/// can't be opened. (The page it is given is taken to fill the screen.)
 /// </summary>
 public static class CampaignMenuPage
 {
-    // Where the web lays the options on its page (campaign.ts showBase's onFrame: round the bow of the ship at rest,
-    // three a quarter turn apart), and the half circle they sit on, in its drawn pixels.
-    static readonly Vector2[] Spots = { new Vector2(1133.9f, 313.2f), new Vector2(1196.3f, 504.6f), new Vector2(1122.3f, 701.8f) };
-    static readonly float[] Arc =
+    public static void Make(RectTransform page, MenuView menu, CampaignBackdrop scene = null)
     {
-        694.1f, 532.2f, 717.2f, 525.8f, 739.2f, 514.6f, 759.5f, 499.1f, 777.7f, 479.8f, 793.4f, 457.3f, 806.1f, 432.2f, 815.7f, 405.3f,
-        821.9f, 377.0f, 824.6f, 348.2f, 823.7f, 319.5f, 819.3f, 291.6f, 811.2f, 265.3f, 799.8f, 241.1f, 785.1f, 220.0f, 767.5f, 202.4f,
-        747.4f, 189.0f, 725.2f, 180.5f, 701.7f, 177.1f,
-    };
+        RefLayer layer = null;
+        layer = RefLayer.Make(page, "Campaign menu", () =>
+        {
+            foreach (Transform c in layer.Rect) Mats.Kill(c.gameObject);
+            Lay(layer, menu, scene);
+        });
+        Lay(layer, menu, scene);
+    }
 
-    public static void Make(RectTransform page, MenuView menu)
+    static void Lay(RefLayer layer, MenuView menu, CampaignBackdrop scene)
     {
         const float Z = WebLook.Zoom;
-        // The header: back (.btn.btn-small) and the page's name (.menu-heading).
-        var back = WebLook.Button(page, "‹ back", () => menu.Show("hub"), false, 13f, 0.14f);
-        WebLook.Box((RectTransform)back.transform, 26, 36, 92, 38);
-        var head = WebLook.Box(page, "Heading", 0, 37, 1600, 37);
-        var h = WebLook.Words(head, "A DYING UNIVERSE", 30.2f, 0.3f, WebLook.Hex("#555a63"));
-        h.margin = new Vector4(0, 0, 0.3f * 30.2f, 0);
+        var page = layer.Rect;
+        float W = layer.W, H = layer.H;
+        var sa = layer.Insets;
+        // (.cs-page: padded 12 at the top and foot and 18 at the sides, clear of the safe area; on a short screen, 6 at
+        // the top and foot, its header 36 high (not 52), BEGIN RUN 7 20 (not 11 24) and nothing under it.)
+        bool phone = Css.MaxHeight(560);
+        float padT = Mathf.Max((phone ? 6 : 12) * Z, sa.x), padB = Mathf.Max((phone ? 6 : 12) * Z, sa.z), padL = Mathf.Max(18 * Z, sa.w);
+        float headH = (phone ? 36 : 52) * Z;
+        // The header: back (.btn.btn-small, 26 high) and the page's name (.menu-heading, clamp(0.9rem, 4vh, 1.3rem)).
+        var back = WebLook.Button(page, "‹ back", () => menu.Show("hub"), false, 0.56f * 16 * Z, 0.14f);
+        WebLook.Box((RectTransform)back.transform, padL, padT + headH / 2 - 13 * Z, 63 * Z, 26 * Z);
+        float hs = Css.Clamp(0.9f * 16 * Z, 4 * H / 100, 1.3f * 16 * Z);
+        var head = WebLook.Box(page, "Heading", 0, padT + headH / 2 - hs * 0.62f, W, hs * 1.25f);
+        var h = WebLook.Words(head, "A DYING UNIVERSE", hs, 0.3f, WebLook.Hex("#555a63"));
+        h.margin = new Vector4(0, 0, 0.3f * hs, 0);
 
         // (Sections opened for good once there is first something in them.)
         var was = CampaignView.LoadMeta();
@@ -47,33 +59,51 @@ public static class CampaignMenuPage
             ("stellari", "stellari", "the stellari", $"{meta.Petals} petals", "stellari"),
         };
 
+        // The options round the ship's bow (campaign.ts showBase's onFrame): a half circle 13.5 across the ship's box
+        // about its bow (39.5, 5), standing upright along it, seen as the ship's camera frames the whole ship at rest
+        // on this screen; three a quarter turn apart (52 degrees), top to bottom.
+        Vector2? On(float deg)
+        {
+            float r = deg * Mathf.Deg2Rad;
+            var q = scene != null ? scene.ShipViewport(39.5f + 13.5f * Mathf.Cos(r), 12, 5 + 13.5f * Mathf.Sin(r)) : null;
+            return q != null ? new Vector2(q.Value.x * W, q.Value.y * H) : (Vector2?)null;
+        }
+
         // The half circle round the bow: a fine dotted ink line (stroke 1.2, dashes 2 and 5, in CSS pixels).
         var arc = Hud.Rect(page, "Arc");
         Hud.Fill(arc);
         var lines = arc.gameObject.AddComponent<UiLines>();
         var pts = new List<Vector2>();
-        for (int i = 0; i < Arc.Length; i += 2) pts.Add(new Vector2(Arc[i] * Z - 800, 500 - Arc[i + 1] * Z));
-        lines.Add(pts, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.32f), 1.2f * Z, 2.5f * Z, 4.5f * Z);
+        for (int i = 0; i < 19; i++)
+        {
+            var q = On(-90 + i * 10);
+            if (q != null) pts.Add(new Vector2(q.Value.x - W / 2, H / 2 - q.Value.y));
+        }
+        if (pts.Count > 1) lines.Add(pts, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.32f), 1.2f * Z, 2.5f * Z, 4.5f * Z);
 
         for (int i = 0; i < options.Length; i++)
         {
             var (section, mark, title, sub, to) = options[i];
             bool shut = !Meta.SectionOpen(meta, section);
-            var at = Spots[i];
-            // (Its disc 42 across, its words 10 to the right of it: the whole a button.)
-            var node = WebLook.Box(page, title, at.x - 21 * Z, at.y - 21 * Z, 280, 42 * Z);
+            // (Without the ship's camera, where the web's have them at 1600 x 1000, as fractions of the screen.)
+            var at = On((1 - i) * 52) ?? new Vector2(new[] { 0.709f, 0.748f, 0.701f }[i] * W, new[] { 0.313f, 0.505f, 0.702f }[i] * H);
+            // (Its disc 42 across, its words 10 to the right of it: the whole a button; kept on the screen, its words and all.)
+            var node = WebLook.Box(page, title, 0, 0, 52 * Z + 150 * Z, 42 * Z);
             var hit = node.gameObject.AddComponent<Image>();
             hit.color = new Color(1, 1, 1, 0);
             var disc = WebLook.Centred(node, "Disc", 21 * Z, 21 * Z, 84 * Z, 84 * Z);
             var di = disc.gameObject.AddComponent<RawImage>();
             di.texture = Resources.Load<Texture2D>($"Icons/menu-node-{mark}{(shut ? "-shut" : "")}");
             di.raycastTarget = false;
-            var words = WebLook.Box(node, "Words", 52 * Z, 21 * Z - 20, 220, 40);
+            var words = WebLook.Box(node, "Words", 52 * Z, 21 * Z - 20, 150 * Z, 40);
             var group = words.gameObject.AddComponent<CanvasGroup>();
             group.alpha = shut ? 0.4f : 1;
             group.blocksRaycasts = false;
-            var name = WebLook.Words(WebLook.Box(words, "Name", 0, 0, 220, 18), title.ToUpperInvariant(), 0.62f * 16 * Z, 0.22f, Look.InkSoft, true, 500, TextAlignmentOptions.Left);
-            WebLook.Words(WebLook.Box(words, "Holds", 0, 21, 220, 19), sub, 0.68f * 16 * Z, 0, Look.InkFaint, false, 400, TextAlignmentOptions.Left);
+            var name = WebLook.Words(WebLook.Box(words, "Name", 0, 0, 150 * Z, 18), title.ToUpperInvariant(), 0.62f * 16 * Z, 0.22f, Look.InkSoft, true, 500, TextAlignmentOptions.Left);
+            var holds = WebLook.Words(WebLook.Box(words, "Holds", 0, 21, 150 * Z, 19), sub, 0.68f * 16 * Z, 0, Look.InkFaint, false, 400, TextAlignmentOptions.Left);
+            float textW = Mathf.Max(name.GetPreferredValues(name.text).x, holds.GetPreferredValues(holds.text).x);
+            float nodeW = 52 * Z + textW;
+            WebLook.Box(node, Mathf.Round(Mathf.Min(at.x, W - nodeW + 21 * Z - 4 * Z)) - 21 * Z, Mathf.Round(at.y) - 21 * Z, 52 * Z + 150 * Z, 42 * Z);
             if (shut) continue;
             var b = node.gameObject.AddComponent<Button>();
             b.transition = Selectable.Transition.None;
@@ -85,9 +115,13 @@ public static class CampaignMenuPage
             lift.Over = Look.Ink;
         }
 
-        // Begin the run (.setup-foot .btn-primary): or carry on the one under way.
+        // Begin the run (.setup-foot .btn-primary: at least 160 across, padded 11 24, on a short screen 7 20; clamp(4,
+        // 2vh, 16) above the page's foot padding, on a short screen none): or carry on the one under way.
         var saved = CampaignView.Saved();
-        var begin = WebLook.Button(page, saved != null ? "continue run" : "begin run", () => App.Instance.Run(saved ?? CampaignView.NewRun()), true, 15.3f, 0.24f);
-        WebLook.Box((RectTransform)begin.transform, 800 - 116, 910, 232, 53);
+        var begin = WebLook.Button(page, saved != null ? "continue run" : "begin run", () => App.Instance.Run(saved ?? CampaignView.NewRun()), true, 0.66f * 16 * Z, 0.24f);
+        var bt = begin.GetComponentInChildren<TextMeshProUGUI>();
+        float bw = Mathf.Max(160 * Z, bt.GetPreferredValues(bt.text).x + 2 * (phone ? 20 : 24) * Z), bh = 0.66f * 16 * Z * 1.25f + 2 * (phone ? 7 : 11) * Z;
+        float foot = phone ? 0 : Css.Clamp(4 * Z, 2 * H / 100, 16 * Z);
+        WebLook.Box((RectTransform)begin.transform, W / 2 - bw / 2, H - padB - foot - bh, bw, bh);
     }
 }

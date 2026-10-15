@@ -15,77 +15,110 @@ public partial class CampaignView
 
     // ---- Along the top ----
 
+    /// <summary>The layers' size (the web's page, laid out, in drawn pixels) and its padding clear of the safe area.</summary>
+    float PW => overlay.rect.width;
+    float PH => overlay.rect.height;
+    Vector4 Pad => overlay.GetComponent<RefLayer>().Pad;
+
+    /// <summary>The screen changed size (or its safe area): all that is over the map laid out again, as the web lays its page out again.</summary>
+    void Relayout()
+    {
+        if (state == null) return;
+        Refresh();
+        if (stationId != null) Station();
+        else sheetNow?.Invoke();
+    }
+
+    /// <summary>
+    /// The map's top bar (campaign.ts renderCampaign, .cmp-top): along the top inside the page's padding (clear of the
+    /// safe area), its row as tall as its tallest; you at the left, your purse in the middle (on a narrow screen, after
+    /// you), the settings at the right. On a phone turned sideways (max-height 560) the pill and its face are smaller.
+    /// </summary>
     void Top()
     {
         const float Z = WebLook.Zoom;
         foreach (Transform c in top) Mats.Kill(c.gameObject);
         var me = Campaign.Player(state);
         var meta = LoadMeta();
+        var pad = Pad;
+        bool phone = Css.MaxHeight(560), narrow = Css.MaxWidth(960);
+        // (.cmp-profile: 44 high, its face 36, padded 4 14 4 4; on a phone 38, 30 and 10. The settings, clamp(36, 8vh, 44).)
+        float pillH = (phone ? 38 : 44) * Z, faceD = (phone ? 30 : 36) * Z, padR = (phone ? 10 : 14) * Z, whoMin = (phone ? 80 : 96) * Z;
+        float navD = Css.Clamp(36 * Z, 8 * PH / 100, 44 * Z), rowH = Mathf.Max(pillH, navD);
+        float x0 = pad.w, y0 = pad.x;
         // (The commander's experience in all: what is banked, and what this run has earned and not yet banked.)
         var level = Meta.LevelFor(meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)));
         // You (campaign.ts renderProfile, .cmp-profile): a white pill, your face ringed in white and gold, your name and
         // level, and under them how far into it you are.
-        var chip = WebLook.Rounded(top, "You", Look.GlassStrong, 32);
+        var chip = WebLook.Rounded(top, "You", Look.GlassStrong, pillH / 2);
         chip.raycastTarget = true;
-        WebLook.Box(chip.rectTransform, 17, 9, 314, 64);
-        WebLook.Shadow(chip, 8 * Z, 30 * Z, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.13f), 32);
-        Face(chip.transform, me.Hero ?? Campaign.Flagship(state, state.PlayerId)?.General, 7 + 26, 6 + 26, 52, new Color32(0x1a, 0x1c, 0x2a, 255), (2 * Z, Color.white), (3 * Z, new Color(201 / 255f, 162 / 255f, 78 / 255f, 0.7f)));
         string name = string.IsNullOrEmpty(Profile.Me.Name) ? "commander" : Profile.Me.Name.ToLowerInvariant();
-        var who = WebLook.Words(WebLook.Box(chip.transform, "Name", 71, 17, 120 * Z, 19), name.ToUpperInvariant(), 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
+        float whoX = (1 + 4) * Z + faceD + 8 * Z;
+        var who = WebLook.Words(WebLook.Box(chip.transform, "Name", whoX, 0, 120 * Z, 12.4f * Z), name.ToUpperInvariant(), 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
         who.overflowMode = TextOverflowModes.Ellipsis;
         float nameW = Mathf.Min(120 * Z, who.GetPreferredValues(who.text).x);
-        WebLook.Words(WebLook.Box(chip.transform, "Level", 71 + nameW + 8 * Z, 19, 80, 16), $"LEVEL {level.Level}", 0.56f * 16 * Z, 0.14f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
+        var lv = WebLook.Words(WebLook.Box(chip.transform, "Level", whoX + nameW + 8 * Z, 0, 80 * Z, 10.4f * Z), $"LEVEL {level.Level}", 0.56f * 16 * Z, 0.14f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
+        float whoW = Mathf.Max(whoMin, nameW + 8 * Z + lv.GetPreferredValues(lv.text).x);
+        float pillW = whoX + whoW + padR + 1 * Z;
+        WebLook.Box(chip.rectTransform, x0, y0 + (rowH - pillH) / 2, pillW, pillH);
+        WebLook.Shadow(chip, 8 * Z, 30 * Z, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.13f), pillH / 2);
+        // (The name over the bar, 3 between: the two in the pill's middle.)
+        float whoH = 12.4f * Z + 3 * Z + 4 * Z, whoY = (pillH - whoH) / 2;
+        WebLook.Box(who.rectTransform, whoX, whoY, 120 * Z, 12.4f * Z);
+        WebLook.Box(lv.rectTransform, whoX + nameW + 8 * Z, whoY + 1.4f * Z, 80 * Z, 10.4f * Z);
+        Face(chip.transform, me.Hero ?? Campaign.Flagship(state, state.PlayerId)?.General, 5 * Z + faceD / 2, pillH / 2, faceD, new Color32(0x1a, 0x1c, 0x2a, 255), (2 * Z, Color.white), (3 * Z, new Color(201 / 255f, 162 / 255f, 78 / 255f, 0.7f)));
         var bar = WebLook.Rounded(chip.transform, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.25f), 2 * Z);
-        WebLook.Box(bar.rectTransform, 71, 40, 222, 6);
+        WebLook.Box(bar.rectTransform, whoX, whoY + whoH - 4 * Z, whoW, 4 * Z);
         float into = Mathf.Clamp01((float)level.Into / Mathf.Max(1, (float)level.Need));
         if (into > 0)
         {
             var fill = WebLook.Rounded(bar.transform, "Fill", Color.white, 2 * Z);
-            WebLook.Box(fill.rectTransform, 0, 0, 222 * into, 6);
+            WebLook.Box(fill.rectTransform, 0, 0, whoW * into, 4 * Z);
             WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f1d48a"), true);
         }
-        // The story's word, under you.
+        // The story's word, under you (10 below your pill).
         var scene = OverlayUp() ? null : state.Story.Queue.FirstOrDefault();
-        if (scene != null && Shown(scene).Count > 0) Story(scene);
-        // Your purse (.cmp-purse), centred: your sun's heat (it starts the next battle as the last left it), materials,
-        // petals; each its token and its count.
+        if (scene != null && Shown(scene).Count > 0) Story(scene, x0, y0 + (rowH - pillH) / 2 + pillH + 10 * Z);
+        // Your purse (.cmp-purse), centred in the bar (on a narrow screen, 8 after you): your sun's heat (it starts the
+        // next battle as the last left it), materials, petals; each its token (1.5em; the petal 1.3em) and its count.
         var f = Campaign.Flagship(state, state.PlayerId);
         int heat = f?.Damage ?? 0;
         var purse = Hud.Rect(top, "Purse");
         Hud.Fill(purse);
+        float fs = (phone ? 0.66f : 0.78f) * 16 * Z, gap = narrow ? 8 * Z : Css.Clamp(8, 1.6f * PW / Z / 100, 18) * Z;
         var items = new (string icon, float size, string n)[]
         {
-            ($"sun-{(heat > 0 ? "hot" : heat < 0 ? "cold" : "warm")}", 27, heat.ToString()),
-            ("materials", 27, me.Materials.ToString()),
-            ("petal", 24, state.Petals.ToString()),
+            ($"sun-{(heat > 0 ? "hot" : heat < 0 ? "cold" : "warm")}", 1.5f * fs, heat.ToString()),
+            ("materials", 1.5f * fs, me.Materials.ToString()),
+            ("petal", 1.3f * fs, state.Petals.ToString()),
         };
         var counts = new TextMeshProUGUI[items.Length];
         float total = 0;
         for (int i = 0; i < items.Length; i++)
         {
             // (Orbitron at 600 is drawn at 700 on the web: the nearest heavier weight it has.)
-            counts[i] = WebLook.Words(Hud.Fill(Hud.Rect(purse, "Count")), items[i].n, 0.78f * 16 * Z, 0, Look.Ink, true, 700, TextAlignmentOptions.Left);
-            total += items[i].size + 4 * Z + counts[i].GetPreferredValues(items[i].n).x + (i > 0 ? 18 * Z : 0);
+            counts[i] = WebLook.Words(Hud.Fill(Hud.Rect(purse, "Count")), items[i].n, fs, 0, Look.Ink, true, 700, TextAlignmentOptions.Left);
+            total += items[i].size + 4 * Z + counts[i].GetPreferredValues(items[i].n).x + (i > 0 ? gap : 0);
         }
-        float x = 800 - total / 2;
+        float x = narrow ? x0 + pillW + 8 * Z : (x0 + PW - pad.y) / 2 - total / 2, mid = y0 + rowH / 2;
         for (int i = 0; i < items.Length; i++)
         {
             var (icon, size, n) = items[i];
-            var mark = WebLook.Centred(purse, icon, x + size / 2, 40.5f, size, size).gameObject.AddComponent<RawImage>();
+            var mark = WebLook.Centred(purse, icon, x + size / 2, mid, size, size).gameObject.AddComponent<RawImage>();
             mark.texture = Resources.Load<Texture2D>($"Icons/purse-{icon}");
             mark.raycastTarget = false;
             x += size + 4 * Z;
             float w = counts[i].GetPreferredValues(n).x;
-            WebLook.Box((RectTransform)counts[i].transform, x, 30, w + 4, 22);
-            x += w + 18 * Z;
+            WebLook.Box((RectTransform)counts[i].transform, x, mid - fs * 0.75f, w + 4, fs * 1.5f);
+            x += w + gap;
         }
-        // Settings (.icon-btn): a white disc, its gear.
+        // Settings (.icon-btn): a white disc, its gear, at the bar's right.
         var gear = WebLook.Rounded(top, "Settings", Look.GlassStrong, 999);
         gear.raycastTarget = true;
-        WebLook.Box(gear.rectTransform, 1519, 9, 64, 64);
-        WebLook.Shadow(gear, 2 * Z, 10 * Z, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.12f), 32);
+        WebLook.Box(gear.rectTransform, PW - pad.y - navD, y0 + (rowH - navD) / 2, navD, navD);
+        WebLook.Shadow(gear, 2 * Z, 10 * Z, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.12f), navD / 2);
         gear.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); Settings(); });
-        var raw = WebLook.Centred(gear.transform, "Icon", 32, 32, 50, 50).gameObject.AddComponent<RawImage>();
+        var raw = WebLook.Centred(gear.transform, "Icon", navD / 2, navD / 2, navD * 50 / 64, navD * 50 / 64).gameObject.AddComponent<RawImage>();
         raw.texture = Resources.Load<Texture2D>("Icons/hud-settings");
         raw.raycastTarget = false;
     }
@@ -121,7 +154,7 @@ public partial class CampaignView
     /// speaker's portrait ringed in their colour, their name small over their words; × puts it away. Guidance, not a
     /// gate: the game goes on round it.
     /// </summary>
-    void Story(StoryScene scene)
+    void Story(StoryScene scene, float x0, float y0)
     {
         const float Z = WebLook.Zoom;
         var line = Shown(scene)[0];
@@ -135,14 +168,16 @@ public partial class CampaignView
         var ring = faction != null ? ColourOf(faction.Id) : Hex(NeutralHex);
         var bubble = WebLook.Rounded(top, "Story", new Color(1, 1, 1, 0.92f), 18 * Z);
         bubble.raycastTarget = true;
-        // (Padded 10 and 12; the face 34 across, 12 to the words; the button 30 across, 12 before it.)
-        float textW = 479 - 2 * 12 * Z - 34 * Z - 30 * Z - 2 * 12 * Z;
+        // (min(330, 100vw - 36) across, padded 10 and 12; the face 34 across, 12 to the words; the button 30 across,
+        // 12 before it.)
+        float bw = Mathf.Min(330 * Z, PW - 36 * Z);
+        float textW = bw - 2 * 12 * Z - 34 * Z - 30 * Z - 2 * 12 * Z;
         var words = WebLook.Words(Hud.Fill(Hud.Rect(bubble.transform, "Words")), line.Text, 0.8f * 16 * Z, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
         words.textWrappingMode = TextWrappingModes.Normal;
         float textH = words.GetPreferredValues(line.Text, textW, 0).y;
         float bodyH = 16 + 2 * Z + textH;
         float h = Mathf.Max(34 * Z, bodyH) + 2 * 10 * Z;
-        WebLook.Box(bubble.rectTransform, 17, 87, 479, h);
+        WebLook.Box(bubble.rectTransform, x0, y0, bw, h);
         WebLook.Shadow(bubble, 8 * Z, 24 * Z, new Color(40 / 255f, 46 / 255f, 70 / 255f, 0.12f), 18 * Z);
         Face(bubble.transform, sp?.Card, 12 * Z + 17 * Z, h / 2, 34 * Z, WebLook.Hex("#1a1f2a"), (2 * Z, ring));
         float left = 12 * Z + 34 * Z + 12 * Z, top0 = (h - bodyH) / 2;
@@ -242,14 +277,18 @@ public partial class CampaignView
     }
 
     /// <summary>
-    /// A modal (the web's .modal, campaign.ts modal): a white card 620 (CSS) across, rounded 18, softly shadowed, its
-    /// title in spaced capitals with a hairline under it, its body under that (laid out from its top by `body`, which
-    /// says how tall it is); the card as tall as they are, in the middle of the screen. Closable: × at the title's right.
+    /// A modal (the web's .modal, campaign.ts modal): a white card 620 (CSS) across (never more than 94vw, nor wider
+    /// than the page inside its padding), rounded 18, softly shadowed, its title in spaced capitals with a hairline under
+    /// it, its body under that (laid out from its top by `body`, which says how tall it is); the card as tall as they
+    /// are, at most 94vh (its body scrolling past that), in the middle of the page inside its padding (clear of the
+    /// safe area). Closable: × at the title's right.
     /// </summary>
     RectTransform Modal(string title, System.Func<RectTransform, float> body, float width = 620 * Z, Transform parent = null, System.Action close = null)
     {
         var v = Veil(parent ?? overlay, close != null);
         if (close != null) v.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
+        var pad = Pad;
+        width = Mathf.Min(width, 0.94f * PW, PW - pad.y - pad.w);
         var card = WebLook.Rounded(v, "Card", Color.white, 18 * Z);
         card.raycastTarget = true;
         card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
@@ -271,17 +310,39 @@ public partial class CampaignView
             WebLook.Words(x.transform, "×", 1 * 16 * Z, 0, Look.InkSoft, false, 400);
             x.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
         }
-        // (.modal-body: 22 above and below, 28 either side.)
-        float padY = 22 * Z * 0.94f, padX = 28 * Z;
+        // (.modal-body: clamp(10, 3vh, 22) above and below, clamp(14, 3vw, 28) either side.)
+        float padY = Css.Clamp(10 * Z, 3 * Vh, 22 * Z), padX = Css.Clamp(14 * Z, 3 * Vw, 28 * Z);
         var b = WebLook.Box(cr, "Body", padX, barH + padY, width - 2 * padX, 10);
         float h = body(b);
         b.sizeDelta = new Vector2(width - 2 * padX, h);
-        float total = barH + padY + h + padY;
+        float total = barH + padY + h + padY, most = Mathf.Min(94 * Vh, PH - pad.x - pad.z);
+        if (total > most)
+        {
+            // (Taller than the page allows: its body scrolls under its title.)
+            var view = WebLook.Box(cr, "Scroll", 0, barH, width, most - barH);
+            var content = StationKit.Scroller(view, padY + h + padY);
+            b.SetParent(content, false);
+            WebLook.Box(b, padX, padY, width - 2 * padX, h);
+            total = most;
+        }
         cr.anchorMin = cr.anchorMax = cr.pivot = new Vector2(0.5f, 0.5f);
-        cr.anchoredPosition = Vector2.zero;
+        cr.anchoredPosition = new Vector2((pad.w - pad.y) / 2, (pad.z - pad.x) / 2);
         cr.sizeDelta = new Vector2(width, total);
         WebLook.Shadow(card, 30 * Z, 80 * Z, new Color(80 / 255f, 80 / 255f, 100 / 255f, 0.18f), 18 * Z, Z, new Color(120 / 255f, 124 / 255f, 134 / 255f, 0.08f));
         return v;
+    }
+
+    /// <summary>The web's --vh and --vw (a hundredth of the page as laid out), and its raw vh and vw (of the screen), in drawn pixels.</summary>
+    float Vh => PH / 100;
+    float Vw => PW / 100;
+    static float RawVh => Css.Screen.y / 100 * Z;
+    static float RawVw => Css.Screen.x / 100 * Z;
+
+    /// <summary>Where a column of things `total` tall starts, in the middle of the page inside its padding (never above it).</summary>
+    float Middle(float total)
+    {
+        var pad = Pad;
+        return pad.x + Mathf.Max(0, (PH - pad.x - pad.z - total) / 2);
     }
 
     static Texture2D hairline;
@@ -317,9 +378,10 @@ public partial class CampaignView
     /// a panel of white glass, each row its words in spaced capitals (the choice the modal is for a little bolder, its
     /// chevron blue), a note under them, a hairline between rows; a row held back faded. Its height.
     /// </summary>
-    static float SetList(RectTransform body, float y, params SetRow[] rows)
+    float SetList(RectTransform body, float y, params SetRow[] rows)
     {
-        float w = Mathf.Min(380 * Z, body.sizeDelta.x), x = (body.sizeDelta.x - w) / 2, rowH = 46 * Z, pad = 4 * Z, gap = 2 * Z;
+        // (.set-row: at least clamp(36, 7vh, 46) high.)
+        float w = Mathf.Min(380 * Z, body.sizeDelta.x), x = (body.sizeDelta.x - w) / 2, rowH = Css.Clamp(36 * Z, 7 * Vh, 46 * Z), pad = 4 * Z, gap = 2 * Z;
         float h = 2 * pad + rows.Length * rowH + (rows.Length - 1) * gap;
         var list = WebLook.Rounded(body, "List", new Color(1, 1, 1, 0.72f), 16 * Z);
         WebLook.Box(list.rectTransform, x, y, w, h);
@@ -428,8 +490,9 @@ public partial class CampaignView
     // ---- The run over ----
 
     /// <summary>
-    /// The run over (.run-over): no box, on the veil; YOU ARE DEAD large and widely spaced, a line in italics, the petals
-    /// it banked; one card from the run to keep for the next, picked from a row of them; exit.
+    /// The run over (.run-over): no box, on the veil, a column in the middle of the page 14 apart: YOU ARE DEAD large and
+    /// widely spaced (clamp(1.6rem, 6vh, 2.6rem)), a line in italics, the petals it banked; one card from the run to keep
+    /// for the next, picked from rows of them (wrapping within min(92vw, 900), scrolling past 42vh); exit.
     /// </summary>
     void RunOver()
     {
@@ -437,46 +500,56 @@ public partial class CampaignView
         float t0 = RevealFrom("over");
         var keepable = Campaign.KeepableCards(state);
         if (keepPick != null && !keepable.Contains(keepPick)) keepPick = null;
-        float gap = 14 * Z, h2 = 60.3f * 1.26f, p = 24.4f * 1.2f, pet = 32, keepH = keepable.Count > 0 ? 20 + 8 * Z + 180 + 2 * 6 * Z : 0, exitH = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
-        float total = h2 + gap + p + gap + pet + (keepable.Count > 0 ? gap + keepH : 0) + gap + 10 * Z + exitH;
-        float y = 500 - total / 2;
-        var title = WebLook.Words(WebLook.Box(v, "Title", 0, y, 1600, h2), "YOU ARE DEAD", 60.3f, 0.32f, Look.Ink, true, 400);
-        title.margin = new Vector4(0, 0, 0.32f * 60.3f, 0);
+        float h2s = Css.Clamp(1.6f * 16 * Z, 6 * RawVh, 2.6f * 16 * Z), ps = Css.Clamp(0.85f * 16 * Z, 3 * RawVh, 1.05f * 16 * Z);
+        float gap = 14 * Z, h2 = h2s * 1.26f, p = ps * 1.2f, pet = 20 * Z, exitH = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
+        // (.run-keep-cards: 88 across, 8 apart, padded 6; as many to a row as min(92vw, 900) allows.)
+        float cw = 88 * Z, cg = 8 * Z, smallH = 0.7f * 16 * Z * 1.25f;
+        float keepW = Mathf.Min(92 * RawVw, 900 * Z, PW);
+        int n = keepable.Count, cols = Mathf.Max(1, Mathf.Min(n, Mathf.FloorToInt((keepW - 12 * Z + cg) / (cw + cg))));
+        int rowsN = n > 0 ? (n + cols - 1) / cols : 0;
+        float cardsH = rowsN > 0 ? 12 * Z + rowsN * cw * 1.4f + (rowsN - 1) * cg : 0, areaH = Mathf.Min(cardsH, 42 * RawVh);
+        float keepH = n > 0 ? smallH + 8 * Z + areaH : 0;
+        float total = h2 + gap + p + gap + pet + (n > 0 ? gap + keepH : 0) + gap + 10 * Z + exitH;
+        float y = Middle(total), mid = PW / 2;
+        var title = WebLook.Words(WebLook.Box(v, "Title", 0, y, PW, h2), "YOU ARE DEAD", h2s, 0.32f, Look.Ink, true, 400);
+        title.margin = new Vector4(0, 0, 0.32f * h2s, 0);
         RiseIn.On(title.rectTransform, t0, 0);
         y += h2 + gap;
-        var said = WebLook.Words(WebLook.Box(v, "Said", 0, y, 1600, p), "The others will follow, soon enough…", 24.4f, 0, Look.InkSoft, false, 400);
+        var said = WebLook.Words(WebLook.Box(v, "Said", 0, y, PW, p), "The others will follow, soon enough…", ps, 0, Look.InkSoft, false, 400);
         said.fontStyle = FontStyles.Italic;
         RiseIn.On(said.rectTransform, t0, 0.6f);
         y += p + gap;
-        // (+ its petals, the petal after.)
-        var petals = WebLook.Words(Hud.Fill(Hud.Rect(v, "Petals")), $"+ {state.Petals}", 25.5f, 0.08f, Look.Ink, true, 400, TextAlignmentOptions.Left);
-        float pw = petals.GetPreferredValues(petals.text).x, rowW = pw + 6 * Z + 29;
-        var pr = WebLook.Box(Hud.Rect(v, "Banked"), 800 - rowW / 2, y, rowW, pet);
+        // (+ its petals, the petal after: 1.1rem, the petal 20 across, 6 between.)
+        var petals = WebLook.Words(Hud.Fill(Hud.Rect(v, "Petals")), $"+ {state.Petals}", 1.1f * 16 * Z, 0.08f, Look.Ink, true, 400, TextAlignmentOptions.Left);
+        float pw = petals.GetPreferredValues(petals.text).x, rowW = pw + 6 * Z + pet;
+        var pr = WebLook.Box(Hud.Rect(v, "Banked"), mid - rowW / 2, y, rowW, pet);
         petals.transform.SetParent(pr, false);
         WebLook.Box(petals.rectTransform, 0, 0, pw + 4, pet);
-        var mark = WebLook.Centred(pr, "Petal", pw + 6 * Z + 14.5f, pet / 2, 29, 29).gameObject.AddComponent<RawImage>();
+        var mark = WebLook.Centred(pr, "Petal", pw + 6 * Z + pet / 2, pet / 2, pet, pet).gameObject.AddComponent<RawImage>();
         mark.texture = Resources.Load<Texture2D>("Icons/purse-petal");
         mark.raycastTarget = false;
         RiseIn.On(pr, t0, 1.3f);
         y += pet;
-        if (keepable.Count > 0)
+        if (n > 0)
         {
             y += gap;
-            var keep = WebLook.Box(v, "Keep", 0, y, 1600, keepH);
-            WebLook.Words(WebLook.Box(keep, "Words", 0, 0, 1600, 20), "KEEP ONE CARD FOR YOUR NEXT RUN", 0.7f * 16 * Z, 0.18f, Look.InkSoft, true, 400);
-            int n = keepable.Count;
-            float cw = 88 * Z, cg = 8 * Z + 2 * 6 * Z * 0;
-            float rw = n * cw + (n - 1) * cg;
+            var keep = WebLook.Box(v, "Keep", 0, y, PW, keepH);
+            WebLook.Words(WebLook.Box(keep, "Words", 0, 0, PW, smallH), "KEEP ONE CARD FOR YOUR NEXT RUN", 0.7f * 16 * Z, 0.18f, Look.InkSoft, true, 400);
+            float rw = cols * cw + (cols - 1) * cg;
+            var area = WebLook.Box(keep, "Cards", mid - rw / 2 - 6 * Z, smallH + 8 * Z, rw + 12 * Z, areaH);
+            var cards = cardsH > areaH + 0.5f ? StationKit.Scroller(area, cardsH) : area;
             for (int i = 0; i < n; i++)
             {
                 var id = keepable[i];
-                CardPick(keep, id, new Vector2(800 - rw / 2 + i * (cw + cg), -(20 + 8 * Z + 6 * Z)), cw, keepPick == id, () => { Sound.Play("hover"); keepPick = keepPick == id ? null : id; Refresh(); }, new Vector2(0, 1));
+                int row = i / cols, inRow = Mathf.Min(cols, n - row * cols);
+                float x0 = 6 * Z + (rw - (inRow * cw + (inRow - 1) * cg)) / 2;
+                CardPick(cards, id, new Vector2(x0 + (i % cols) * (cw + cg), -(6 * Z + row * (cw * 1.4f + cg))), cw, keepPick == id, () => { Sound.Play("hover"); keepPick = keepPick == id ? null : id; Refresh(); }, new Vector2(0, 1));
             }
             RiseIn.On(keep, t0, 1.6f);
             y += keepH;
         }
         y += gap + 10 * Z;
-        var exit = WebButton(v, keepPick != null ? $"keep {Cards.Def(keepPick).Name.ToLowerInvariant()} · exit" : "exit", NewRunFromHere, true, 800, y);
+        var exit = WebButton(v, keepPick != null ? $"keep {Cards.Def(keepPick).Name.ToLowerInvariant()} · exit" : "exit", NewRunFromHere, true, mid, y);
         RiseIn.On((RectTransform)exit.transform, t0, 1.8f);
     }
 
@@ -502,18 +575,23 @@ public partial class CampaignView
     {
         var l = state.Loot;
         var v = Veil(overlay, true);
+        float mid = PW / 2;
         if (!lootOpen)
         {
-            var cache = WebLook.Box(v, "Cache", 800 - 160, 500 - 178, 319, 355);
-            var halo = WebLook.Centred(cache, "Halo", 160, 160, 436, 436).gameObject.AddComponent<RawImage>();
-            halo.texture = CacheHalo();
-            halo.raycastTarget = false;
-            var art = WebLook.Box(cache, "Art", 0, 0, 319, 319).gameObject.AddComponent<RawImage>();
-            art.texture = Resources.Load<Texture2D>("Icons/loot-cache");
-            var tap = WebLook.Words(WebLook.Box(cache, "Tap", -100, 319 + 10 * Z, 519, 21), $"{(l.Found != null ? "FOUND" : l.Won ? "VICTORY" : "WHAT WAS SAVED")} · TAP TO OPEN", 0.72f * 16 * Z, 0.24f, Look.InkSoft, true, 400);
+            // (Its art min(220, 38vh) across, its halo min(300, 52vh) round it; the words 10 under it; the whole in the
+            // middle of the page.)
+            float art = Mathf.Min(220 * Z, 38 * RawVh), halo = Mathf.Min(300 * Z, 52 * RawVh), tapH = 0.72f * 16 * Z * 1.25f;
+            float y0 = Middle(art + 10 * Z + tapH);
+            var cache = WebLook.Box(v, "Cache", mid - art / 2, y0, art, art + 10 * Z + tapH);
+            var ring = WebLook.Centred(cache, "Halo", art / 2, Mathf.Min(110 * Z, 19 * RawVh), halo, halo).gameObject.AddComponent<RawImage>();
+            ring.texture = CacheHalo();
+            ring.raycastTarget = false;
+            var pic = WebLook.Box(cache, "Art", 0, 0, art, art).gameObject.AddComponent<RawImage>();
+            pic.texture = Resources.Load<Texture2D>("Icons/loot-cache");
+            var tap = WebLook.Words(WebLook.Box(cache, "Tap", art / 2 - 260 * Z, art + 10 * Z, 520 * Z, tapH), $"{(l.Found != null ? "FOUND" : l.Won ? "VICTORY" : "WHAT WAS SAVED")} · TAP TO OPEN", 0.72f * 16 * Z, 0.24f, Look.InkSoft, true, 400);
             tap.raycastTarget = false;
             cache.gameObject.AddComponent<Float>();
-            art.gameObject.AddComponent<Button>().onClick.AddListener(() =>
+            pic.gameObject.AddComponent<Button>().onClick.AddListener(() =>
             {
                 lootOpen = true;
                 Sound.Play("cache-open");
@@ -524,38 +602,41 @@ public partial class CampaignView
             return;
         }
         float t0 = RevealFrom("loot open");
-        float lw = 112 * Z, lh = lw * 1.4f, gap = 34 * Z;
-        var tiles = new List<System.Action<RectTransform>>();
-        if (l.Materials > 0) tiles.Add(r => LootToken(r, "loot-materials", $"+{l.Materials}", lw));
-        if (l.Petals > 0) tiles.Add(r => LootToken(r, "loot-petal", $"+{l.Petals}", lw));
-        foreach (var rel in l.Relics ?? new List<Relic>()) tiles.Add(r => Token(r, "✧", rel.Name.ToLowerInvariant(), Heroes.RelicText(rel)));
-        foreach (var id in l.Cards ?? new List<string>()) tiles.Add(r => { LootGlow(r, lw, lh, lw * 1.2f); CardPick(r, id, Vector2.zero, lw, false, null); });
-        foreach (var id in l.Parts ?? new List<string>()) tiles.Add(r => LootPart(r, id, lw));
+        var tiles = new List<System.Action<RectTransform, float>>();
+        if (l.Materials > 0) tiles.Add((r, w) => LootToken(r, "loot-materials", $"+{l.Materials}", w));
+        if (l.Petals > 0) tiles.Add((r, w) => LootToken(r, "loot-petal", $"+{l.Petals}", w));
+        foreach (var rel in l.Relics ?? new List<Relic>()) tiles.Add((r, w) => Token(r, "✧", rel.Name.ToLowerInvariant(), Heroes.RelicText(rel)));
+        foreach (var id in l.Cards ?? new List<string>()) tiles.Add((r, w) => { LootGlow(r, w, w * 1.4f, w * 1.2f); CardPick(r, id, Vector2.zero, w, false, null); });
+        foreach (var id in l.Parts ?? new List<string>()) tiles.Add((r, w) => LootPart(r, id, w));
         int count = tiles.Count, split = count > 3 ? (count + 1) / 2 : count;
-        int rows = count > split ? 2 : 1;
-        float xpH = l.Xp > 0 ? 33 + 4 * Z + 4 * Z : 0, itemsH = 2 * 20 * Z + rows * lh + (rows - 1) * gap, takeH = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
-        float total = xpH + itemsH + 4 * Z + 6 * Z + takeH, y = 500 - total / 2;
+        int rows = count > split ? 2 : 1, cols = split;
+        // (.loot-items: --gap clamp(14, 3vw, 34); each tile min(112, what fits the columns across 92vw, what fits the rows
+        // in 100vh less 190) across and 1.4 times as tall; padded 20 18, on a phone 10 14.)
+        float gap = Css.Clamp(14 * Z, 3 * RawVw, 34 * Z);
+        float lw = Mathf.Min(112 * Z, (92 * RawVw - (cols - 1) * gap) / cols, (100 * RawVh - 190 * Z - (rows - 1) * gap) / rows / 1.45f);
+        float lh = lw * 1.4f, padY = (Css.MaxHeight(560) ? 10 : 20) * Z;
+        float xpH = l.Xp > 0 ? 1.15f * 16 * Z * 1.26f + 4 * Z + 4 * Z : 0, itemsH = 2 * padY + rows * lh + (rows - 1) * gap, takeH = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
+        float total = xpH + itemsH + 4 * Z + 6 * Z + takeH, y = Middle(total);
         if (l.Xp > 0)
         {
             XpGauge(v, y, l.Xp, t0);
             y += xpH;
         }
-        y += 20 * Z;
+        y += padY;
         int first = l.Xp > 0 ? 1 : 0;
         for (int i = 0; i < count; i++)
         {
             int row = i < split ? 0 : 1, j = row == 0 ? i : i - split, n = row == 0 ? split : count - split;
             float at = j - (n - 1) / 2f;
-            float cx = 800 + at * (lw + gap) + (row == 1 ? lw * 0.3f : 0);
+            float cx = mid + at * (lw + gap) + (row == 1 ? lw * 0.3f : 0);
             float cy = y + row * (lh + gap) + lh / 2 + at * at * 7 * Z;
             var slot = WebLook.Centred(v, "Reward", cx, cy, lw, lh);
             slot.localRotation = Quaternion.Euler(0, 0, -((i % 2 == 1 ? 1 : -1) * (2 + i % 3)));
-            tiles[i](slot);
+            tiles[i](slot, lw);
             RiseIn.On(slot, t0, 0.45f + (i + first) * 0.42f);
         }
-        y += itemsH - 20 * Z + 4 * Z + 6 * Z;
-        var ok = WebButton(v, "take it", () => { lootOpen = false; Act(new CampaignAction { Type = "dismissLoot" }, "buy"); }, true, 800, y);
-        WebLook.Box((RectTransform)ok.transform, 800 - (((RectTransform)ok.transform).sizeDelta.x) / 2, y, ((RectTransform)ok.transform).sizeDelta.x, takeH);
+        y += itemsH - padY + 4 * Z + 6 * Z;
+        var ok = WebButton(v, "take it", () => { lootOpen = false; Act(new CampaignAction { Type = "dismissLoot" }, "buy"); }, true, mid, y);
         RiseIn.On((RectTransform)ok.transform, t0, 0.45f + (count + first) * 0.42f + 0.2f);
     }
 
@@ -564,12 +645,12 @@ public partial class CampaignView
     {
         var meta = LoadMeta();
         var now = Meta.LevelFor(meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)));
-        var g = WebLook.Box(v, "Experience", 0, y, 1600, 33);
+        var g = WebLook.Box(v, "Experience", 0, y, PW, 33);
         var lv = WebLook.Words(Hud.Fill(Hud.Rect(g, "Level")), "LEVEL", 0.7f * 16 * Z, 0.12f, Look.InkSoft, true, 400, TextAlignmentOptions.Left);
         var n = WebLook.Words(Hud.Fill(Hud.Rect(g, "N")), now.Level.ToString(), 1.15f * 16 * Z, 0.12f, Look.Ink, true, 700, TextAlignmentOptions.Left);
         var gain = WebLook.Words(Hud.Fill(Hud.Rect(g, "Gain")), $"+{gained} XP", 0.8f * 16 * Z, 0.12f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
         float lw = lv.GetPreferredValues(lv.text).x, nw = n.GetPreferredValues(n.text).x, gw = gain.GetPreferredValues(gain.text).x, bar = 260 * Z, gap = 12 * Z;
-        float w = lw + 4 * Z + nw + gap + bar + gap + gw, x = 800 - w / 2;
+        float w = lw + 4 * Z + nw + gap + bar + gap + gw, x = PW / 2 - w / 2;
         WebLook.Box(lv.rectTransform, x, 0, lw + 4, 33);
         WebLook.Box(n.rectTransform, x + lw + 4 * Z, 0, nw + 4, 33);
         var track = WebLook.Rounded(g, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.22f), 5 * Z);
@@ -608,7 +689,7 @@ public partial class CampaignView
     static void LootPart(RectTransform r, string id, float lw)
     {
         var p = Parts.ShipPart(id);
-        float s = 128 * Z;
+        float s = lw * 128 / 112;
         var glow = WebLook.Centred(r, "Glow", lw / 2, s / 2, s * 2.3f, s * 2.3f).gameObject.AddComponent<RawImage>();
         glow.texture = Resources.Load<Texture2D>("Icons/loot-glow");
         glow.raycastTarget = false;
@@ -665,6 +746,9 @@ public partial class CampaignView
 
     // ---- Choices ----
 
+    /// <summary>A card to pick's width (.cmp-card: 107, on a phone 88).</summary>
+    static float PickW => (Css.MaxHeight(560) ? 88 : 107) * Z;
+
     /// <summary>A new card to choose (renderOverlay's card reward): the cards in a row, skip or confirm under them.</summary>
     void CardReward(CardReward reward)
     {
@@ -672,7 +756,7 @@ public partial class CampaignView
         Modal($"★ {reward.Source.ToLowerInvariant()} · choose a new card", body =>
         {
             int n = reward.Options.Count;
-            float cw = 155, gap = 10 * Z, bw = body.sizeDelta.x, rw = n * cw + (n - 1) * gap;
+            float cw = PickW, gap = 10 * Z, bw = body.sizeDelta.x, rw = n * cw + (n - 1) * gap;
             for (int i = 0; i < n; i++)
             {
                 var id = reward.Options[i];
@@ -703,7 +787,7 @@ public partial class CampaignView
                 y += 112 * Z + 8 * Z;
             }
             var offers = state.Prophet.Offers;
-            float cw = 155, gap = 10 * Z, rw = offers.Count * cw + (offers.Count - 1) * gap;
+            float cw = PickW, gap = 10 * Z, rw = offers.Count * cw + (offers.Count - 1) * gap;
             for (int i = 0; i < offers.Count; i++)
             {
                 int index = i;
@@ -771,9 +855,23 @@ public partial class CampaignView
         var v = Veil(overlay, true);
         float t0 = RevealFrom(kicker + hero);
         var rust = WebLook.Hex("#c2401c");
-        float face = 140 * Z, gap = 12 * Z, kH = 0.66f * 16 * Z * 1.25f, nH = 2 * 16 * Z * 0.9f * 1.26f, lH = line != null ? 1.1f * 16 * Z * 1.5f : 0;
-        float total = face + gap + kH + gap + nH + (line != null ? gap + lH : 0) + gap + 6 * Z + actionsH, y = 500 - total / 2;
-        var f = Face(v, hero, 800, y + face / 2, face, WebLook.Hex("#1a1f2a"), (3 * Z, Color.white), (5 * Z, rust));
+        // (.struggle: 12 apart; the face clamp(88, 16vh, 140), the name clamp(1.3rem, 4.5vh, 2rem), the line
+        // clamp(0.9rem, 2.6vh, 1.1rem) at most 34em across.)
+        float face = Css.Clamp(88 * Z, 16 * RawVh, 140 * Z), ns = Css.Clamp(1.3f * 16 * Z, 4.5f * RawVh, 2 * 16 * Z), ls = Css.Clamp(0.9f * 16 * Z, 2.6f * RawVh, 1.1f * 16 * Z);
+        float mid = PW / 2, lineW = Mathf.Min(34 * ls, PW - 2 * 24 * Z), gap = 12 * Z, kH = 0.66f * 16 * Z * 1.25f, nH = ns * 1.26f;
+        TextMeshProUGUI said = null;
+        float lH = 0;
+        if (line != null)
+        {
+            said = WebLook.Words(Hud.Fill(Hud.Rect(v, "Line")), $"“{line}”", ls, 0, Look.InkSoft, false, 400);
+            said.fontStyle = FontStyles.Italic;
+            said.textWrappingMode = TextWrappingModes.Normal;
+            said.lineSpacing = (1.5f - 1.2f) * 100 / 1.2f;
+            lH = said.GetPreferredValues(said.text, lineW, 0).y;
+        }
+        // (.struggle: padded 24 all round, in place of the page's padding; the column in the middle of the screen.)
+        float total = face + gap + kH + gap + nH + (line != null ? gap + lH : 0) + gap + 6 * Z + actionsH, y = Mathf.Max(24 * Z, (PH - total) / 2);
+        var f = Face(v, hero, mid, y + face / 2, face, WebLook.Hex("#1a1f2a"), (3 * Z, Color.white), (5 * Z, rust));
         var glow = WebLook.Rounded(f, "Glow", new Color(rust.r, rust.g, rust.b, 0.35f), 999);
         glow.sprite = Hud.Soft;
         glow.type = Image.Type.Sliced;
@@ -784,21 +882,19 @@ public partial class CampaignView
         glow.transform.SetAsFirstSibling();
         RiseIn.On(f, t0, 0);
         y += face + gap;
-        WebLook.Words(WebLook.Box(v, "Kicker", 0, y, 1600, kH), kicker.ToUpperInvariant(), 0.66f * 16 * Z, 0.32f, rust, true, 400);
+        WebLook.Words(WebLook.Box(v, "Kicker", 0, y, PW, kH), kicker.ToUpperInvariant(), 0.66f * 16 * Z, 0.32f, rust, true, 400);
         y += kH + gap;
-        WebLook.Words(WebLook.Box(v, "Name", 0, y, 1600, nH), Cards.Def(hero).Name.ToUpperInvariant(), 2 * 16 * Z * 0.9f, 0.24f, Look.Ink, true, 400);
+        WebLook.Words(WebLook.Box(v, "Name", 0, y, PW, nH), Cards.Def(hero).Name.ToUpperInvariant(), ns, 0.24f, Look.Ink, true, 400);
         y += nH;
-        if (line != null)
+        if (said != null)
         {
             y += gap;
-            var said = WebLook.Words(WebLook.Box(v, "Line", 800 - 17 * 1.1f * 16 * Z, y, 34 * 1.1f * 16 * Z, lH), $"“{line}”", 1.1f * 16 * Z, 0, Look.InkSoft, false, 400);
-            said.fontStyle = FontStyles.Italic;
-            said.textWrappingMode = TextWrappingModes.Normal;
+            WebLook.Box(said.rectTransform, mid - lineW / 2, y, lineW, lH + 2);
             RiseIn.On(said.rectTransform, t0, 0.4f);
             y += lH;
         }
         y += gap + 6 * Z;
-        var acts = WebLook.Box(v, "Actions", 0, y, 1600, actionsH);
+        var acts = WebLook.Box(v, "Actions", 0, y, PW, actionsH);
         actions(acts, actionsH);
         RiseIn.On(acts, t0, 1);
     }
@@ -829,9 +925,11 @@ public partial class CampaignView
     static string SpeakerCard(string who) => who == "captain" ? Builds.CaptainId : who == "visitor" ? null : Companions.All.FirstOrDefault(c => c.Id == who)?.Card;
 
     /// <summary>
-    /// A scene with the ship in it (campaign.ts scene, .enc): its kind small and its title in spaced capitals at the top,
-    /// over the ship; the talk at the foot, 720 (CSS) across: each line its speaker's face (the visitor's none, set in,
-    /// in italics), their name small over their words; a note; the choices under them, coming in one after another.
+    /// A scene with the ship in it (campaign.ts scene, .enc): its kind small and its title in spaced capitals at the top
+    /// (clear of the safe area), over the ship; the talk at the foot (clear of the safe area), min(720, 100% - 32)
+    /// across: each line its speaker's face (the visitor's none, set in, in italics), their name small over their words;
+    /// a note; the choices under them, coming in one after another. The talk at most 52% of the screen tall, scrolling
+    /// past that, so the choices are always on the screen.
     /// </summary>
     void ShipScene(string kicker, string title, List<(string who, string text)> lines, System.Action<RectTransform> actions, string note = null, Transform parent = null, System.Func<RectTransform, float, float> body = null, string visitor = null)
     {
@@ -839,45 +937,30 @@ public partial class CampaignView
         var v = Hud.Rect(parent ?? overlay, "Scene");
         Hud.Fill(v);
         v.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0);
-        var head = WebLook.Box(v, "Head", 0, 14 * Z, 1600, 52);
-        WebLook.Words(WebLook.Box(head, "Kicker", 0, 0, 1600, 14), kicker.ToUpperInvariant(), 0.5f * 16 * Z, 0.24f, Look.InkSoft, false, 400);
-        WebLook.Words(WebLook.Box(head, "Title", 0, 17, 1600, 35), title.ToUpperInvariant(), 1.2f * 16 * Z, 0.2f, Look.Ink, true, 400);
+        var pad = Pad;
+        // (.enc-head: max(14, the safe area) from the top; its title clamp(0.9rem, 2.6vh, 1.2rem).)
+        float ts = Css.Clamp(0.9f * 16 * Z, 2.6f * RawVh, 1.2f * 16 * Z), kh = 0.5f * 16 * Z * 1.25f;
+        var head = WebLook.Box(v, "Head", 0, Mathf.Max(14 * Z, pad.x), PW, kh + 2 * Z + ts * 1.26f);
+        WebLook.Words(WebLook.Box(head, "Kicker", 0, 0, PW, kh), kicker.ToUpperInvariant(), 0.5f * 16 * Z, 0.24f, Look.InkSoft, false, 400);
+        WebLook.Words(WebLook.Box(head, "Title", 0, kh + 2 * Z, PW, ts * 1.26f), title.ToUpperInvariant(), ts, 0.2f, Look.Ink, true, 400);
         RiseIn.On(head, from, 0);
-        const float W = 720 * Z, X = 800 - 720 * Z / 2;
-        float fs = 0.98f * 16 * Z, lh = fs * 1.45f, textX = 44 * Z, textW = W - textX;
-        // (From the foot up: the choices, the note, then the lines, the last nearest them.)
-        float y = 1000 - 14 * Z;
-        float actsH = 4 * Z + 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
-        y -= actsH;
-        var acts = WebLook.Box(v, "Actions", 0, y + 4 * Z, 1600, actsH - 4 * Z);
-        actions(acts);
-        RiseIn.On(acts, from, LineDelay(lines.Count(l => l.who != "found" && l.who != "damage")));
-        if (note != null)
-        {
-            float nh = 0.72f * 16 * Z * 1.25f;
-            y -= 10 * Z + nh;
-            var n = WebLook.Words(WebLook.Box(v, "Note", X, y, W, nh), note, 0.72f * 16 * Z, 0.08f, Look.InkSoft, false, 400);
-            RiseIn.On(n.rectTransform, from, 1.6f);
-        }
-        if (body != null)
-        {
-            // (What the scene offers, between its talk and its choices: laid out by `body`, which says how tall it is.)
-            var mid = WebLook.Box(v, "Offers", X, 0, W, 10);
-            float mh = body(mid, from);
-            y -= 10 * Z + mh;
-            WebLook.Box(mid, X, y, W, mh);
-        }
-        y -= 10 * Z;
-        for (int i = lines.Count - 1; i >= 0; i--)
+        // (.enc-line p: clamp(0.82rem, 2.2vh, 0.98rem), 1.45 high; the words 44 in, past the face and its gap.)
+        float W = Mathf.Min(720 * Z, PW - 32 * Z);
+        float fs = Css.Clamp(0.82f * 16 * Z, 2.2f * RawVh, 0.98f * 16 * Z), textX = 44 * Z, textW = W - textX, whoH = 0.48f * 16 * Z * 1.2f;
+        // The talk, top down (10 between its lines, what it offers, its note and its choices; 8 between lines).
+        var talk = Hud.Rect(v, "Talk");
+        float y = 0;
+        var rising = new List<(RectTransform r, float delay)>();
+        for (int i = 0; i < lines.Count; i++)
         {
             var (who, text) = lines[i];
+            if (i > 0) y += who == "found" || who == "damage" ? 10 * Z : 8 * Z;
             if (who == "found" || who == "damage")
             {
                 // (What came of it, a part found or a slot wrecked: .enc-result, with the first line.)
                 var part = who == "found" ? Parts.ShipPart(state.Encounter?.Part) : null;
                 float rh = (part != null ? 84 * Z + 4 * Z : 0) + 0.78f * 16 * Z * 1.25f + 4 * Z + 0.78f * 16 * Z * 1.3f;
-                y -= rh;
-                var res = WebLook.Box(v, "Result", X, y, W, rh);
+                var res = WebLook.Box(talk, "Result", 0, y, W, rh);
                 float ry = 0;
                 if (part != null)
                 {
@@ -892,27 +975,61 @@ public partial class CampaignView
                 string head2 = part != null ? part.Name : $"slot {(state.Encounter?.Slot ?? 0) + 1} wrecked", sub = part != null ? part.Text : "until a space station";
                 WebLook.Words(WebLook.Box(res, "Name", 0, ry, W, 0.78f * 16 * Z * 1.25f), head2.ToUpperInvariant(), 0.78f * 16 * Z, 0.22f, Look.Ink, true, 400);
                 WebLook.Words(WebLook.Box(res, "What", 0, ry + 0.78f * 16 * Z * 1.25f + 4 * Z, W, 0.78f * 16 * Z * 1.3f), sub, 0.78f * 16 * Z, 0, Look.InkSoft, false, 400);
-                RiseIn.On(res, from, 0.9f);
-                y -= 10 * Z;
+                rising.Add((res, 0.9f));
+                y += rh;
                 continue;
             }
             bool them = who == "visitor";
-            var p = WebLook.Words(Hud.Fill(Hud.Rect(v, "Words")), text, fs, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
+            var line = Hud.Rect(talk, "Line");
+            var p = WebLook.Words(Hud.Fill(Hud.Rect(line, "Words")), text, fs, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
             p.textWrappingMode = TextWrappingModes.Normal;
             if (them) p.fontStyle = FontStyles.Italic;
             p.lineSpacing = (1.45f - 1.26f) * 100 / 1.26f;
             float ph = p.GetPreferredValues(text, textW, 0).y;
-            float h = 0.48f * 16 * Z * 1.2f + 1 * Z + ph;
-            y -= h;
-            var line = WebLook.Box(v, "Line", X, y, W, h);
-            p.transform.SetParent(line, false);
-            var card = SpeakerCard(who);
-            if (card != null) Face(line, card, 17 * Z, 17 * Z, 34 * Z, WebLook.Hex("#1a1f2a"));
-            WebLook.Words(WebLook.Box(line, "Who", textX, 0, textW, 0.48f * 16 * Z * 1.2f), SpeakerName(who, visitor ?? title).ToUpperInvariant(), 0.48f * 16 * Z, 0.2f, Look.InkSoft, false, 400, TextAlignmentOptions.Left);
-            WebLook.Box(p.rectTransform, textX, 0.48f * 16 * Z * 1.2f + 1 * Z, textW, ph + 2);
-            RiseIn.On(line, from, LineDelay(i));
-            y -= 8 * Z;
+            float h = Mathf.Max(card(who) != null ? 34 * Z : 0, whoH + 1 * Z + ph);
+            WebLook.Box(line, 0, y, W, h);
+            var face = card(who);
+            if (face != null) Face(line, face, 17 * Z, 17 * Z, 34 * Z, WebLook.Hex("#1a1f2a"));
+            WebLook.Words(WebLook.Box(line, "Who", textX, 0, textW, whoH), SpeakerName(who, visitor ?? title).ToUpperInvariant(), 0.48f * 16 * Z, 0.2f, Look.InkSoft, false, 400, TextAlignmentOptions.Left);
+            WebLook.Box(p.rectTransform, textX, whoH + 1 * Z, textW, ph + 2);
+            rising.Add((line, LineDelay(i)));
+            y += h;
         }
+        if (body != null)
+        {
+            // (What the scene offers, between its talk and its choices: laid out by `body`, which says how tall it is.)
+            var mid = WebLook.Box(talk, "Offers", 0, y + 10 * Z, W, 10);
+            float mh = body(mid, from);
+            WebLook.Box(mid, 0, y + 10 * Z, W, mh);
+            y += 10 * Z + mh;
+        }
+        if (note != null)
+        {
+            float nh = 0.72f * 16 * Z * 1.25f;
+            var n = WebLook.Words(WebLook.Box(talk, "Note", 0, y + 10 * Z, W, nh), note, 0.72f * 16 * Z, 0.08f, Look.InkSoft, false, 400);
+            rising.Add((n.rectTransform, 1.6f));
+            y += 10 * Z + nh;
+        }
+        // (.enc-acts: 4 above its buttons; they wrap onto more rows on a narrow screen.)
+        float bh = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
+        var acts = WebLook.Box(talk, "Actions", 0, y + 10 * Z + 4 * Z, W, bh);
+        actions(acts);
+        float actsH = acts.sizeDelta.y;
+        rising.Add((acts, LineDelay(lines.Count(l => l.who != "found" && l.who != "damage"))));
+        y += 10 * Z + 4 * Z + actsH;
+        // (At the foot, max(14, the safe area) up from it; at most 52% of the screen, scrolling past that.)
+        float most = 0.52f * PH, shown = Mathf.Min(y, most), bottom = PH - Mathf.Max(14 * Z, pad.z);
+        var box = WebLook.Box(v, "Foot", PW / 2 - W / 2, bottom - shown, W, shown);
+        if (y > most + 0.5f)
+        {
+            var content = StationKit.Scroller(box, y);
+            talk.SetParent(content, false);
+        }
+        else talk.SetParent(box, false);
+        WebLook.Box(talk, 0, 0, W, y);
+        foreach (var (r, delay) in rising) RiseIn.On(r, from, delay);
+
+        string card(string who) => SpeakerCard(who);
     }
 
     /// <summary>
@@ -923,36 +1040,48 @@ public partial class CampaignView
 
     void Buttons(RectTransform row, int purse, params (string label, bool primary, string why, System.Action act)[] bs)
     {
-        float h = row.sizeDelta.y, gap = 10 * Z;
-        var made = new List<RectTransform>();
-        float total = 0;
+        float gap = 10 * Z, rowW = row.sizeDelta.x;
+        var items = new List<RectTransform>();
         foreach (var (label, primary, why, act) in bs)
         {
             var b = WebButton(row, label.Replace("⬢", "").ToLowerInvariant(), () => act(), primary, 0, 0, why == null);
-            var r = (RectTransform)b.transform;
-            made.Add(r);
-            total += r.sizeDelta.x;
+            items.Add((RectTransform)b.transform);
         }
-        TextMeshProUGUI count = null;
         if (purse >= 0)
         {
-            count = WebLook.Words(Hud.Fill(Hud.Rect(row, "Purse")), purse.ToString(), 0.8f * 16 * Z, 0, Look.InkSoft, false, 700, TextAlignmentOptions.Left);
-            total += 20 + 4 * Z + count.GetPreferredValues(count.text).x;
-        }
-        total += gap * (made.Count - (purse >= 0 ? 0 : 1));
-        float x = 800 - total / 2;
-        foreach (var r in made)
-        {
-            WebLook.Box(r, x, (h - r.sizeDelta.y) / 2, r.sizeDelta.x, r.sizeDelta.y);
-            x += r.sizeDelta.x + gap;
-        }
-        if (count != null)
-        {
-            var mark = WebLook.Centred(row, "Materials", x + 10, h / 2, 20, 20).gameObject.AddComponent<RawImage>();
+            // (.enc-purse: the materials token, 4, and how many.)
+            var r = Hud.Rect(row, "Purse");
+            var count = WebLook.Words(Hud.Fill(Hud.Rect(r, "Count")), purse.ToString(), 0.8f * 16 * Z, 0, Look.InkSoft, false, 700, TextAlignmentOptions.Left);
+            float cw = count.GetPreferredValues(count.text).x;
+            r.sizeDelta = new Vector2(14 * Z + 4 * Z + cw + 4, items.Count > 0 ? items[0].sizeDelta.y : 24 * Z);
+            var mark = WebLook.Centred(r, "Materials", 7 * Z, r.sizeDelta.y / 2, 14 * Z * 1.4f, 14 * Z * 1.4f).gameObject.AddComponent<RawImage>();
             mark.texture = Resources.Load<Texture2D>("Icons/purse-materials");
             mark.raycastTarget = false;
-            WebLook.Box(count.rectTransform, x + 20 + 4 * Z, 0, count.GetPreferredValues(count.text).x + 4, h);
+            WebLook.Box(count.rectTransform, 18 * Z, 0, cw + 4, r.sizeDelta.y);
+            items.Add(r);
         }
+        // (display: flex; flex-wrap: wrap; justify-content: center; 10 apart each way.)
+        var rows = new List<List<RectTransform>> { new List<RectTransform>() };
+        float w = 0;
+        foreach (var r in items)
+        {
+            var now = rows[rows.Count - 1];
+            if (now.Count > 0 && w + gap + r.sizeDelta.x > rowW) { rows.Add(new List<RectTransform>()); w = 0; now = rows[rows.Count - 1]; }
+            w += (now.Count > 0 ? gap : 0) + r.sizeDelta.x;
+            now.Add(r);
+        }
+        float y = 0;
+        foreach (var line in rows)
+        {
+            float lineW = line.Sum(r => r.sizeDelta.x) + gap * (line.Count - 1), lineH = line.Max(r => r.sizeDelta.y), x = (rowW - lineW) / 2;
+            foreach (var r in line)
+            {
+                WebLook.Box(r, x, y + (lineH - r.sizeDelta.y) / 2, r.sizeDelta.x, r.sizeDelta.y);
+                x += r.sizeDelta.x + gap;
+            }
+            y += lineH + gap;
+        }
+        row.sizeDelta = new Vector2(rowW, Mathf.Max(0, y - gap));
     }
 
     List<string> Crew() => (Campaign.Player(state).Reserve ?? new List<string>()).Where(id => id.StartsWith("companion_")).Select(id => id.Substring("companion_".Length)).ToList();
@@ -996,8 +1125,9 @@ public partial class CampaignView
             return;
         }
         var closing = Encounters.ClosingLines(e.Kind, e.Outcome, e.Stage, Crew()).Select(l => (l.Who, l.Text)).ToList();
-        if (e.Part != null) closing.Insert(0, ("found", ""));
-        else if (e.Outcome == "bad" && e.Slot != null) closing.Insert(0, ("damage", ""));
+        // (What came of it after what is said, before the choices, as the web puts its .enc-result.)
+        if (e.Part != null) closing.Add(("found", ""));
+        else if (e.Outcome == "bad" && e.Slot != null) closing.Add(("damage", ""));
         ShipScene(kicker, title, closing, row => Buttons(row, ("fly on", true, null, () => Act(new CampaignAction { Type = "encounter", Choice = "done" }))));
     }
 
@@ -1076,12 +1206,17 @@ public partial class CampaignView
         // (A station's screen goes with it: CampaignView.Stations.cs.)
         stationId = null;
         arLooking = null;
+        sheetNow = null;
         foreach (var c in sheetRoot.Cast<Transform>().ToList()) if (c != null) Mats.Kill(c.gameObject);
     }
+
+    /// <summary>The sheet open (to draw it again when the screen changes).</summary>
+    System.Action sheetNow;
 
     void Ask(string title, string words, (string label, System.Action act) yes)
     {
         CloseSheet();
+        sheetNow = () => Ask(title, words, yes);
         // (renderOverlay's rift sheet: the narrow modal, the choice it is for and its words under it, then stay.)
         Modal(title, body => SetList(body, 0, new SetRow(yes.label, () => { CloseSheet(); yes.act(); }, words, true), new SetRow("stay", CloseSheet)), 560 * Z, sheetRoot);
     }
@@ -1093,6 +1228,7 @@ public partial class CampaignView
     void Settings()
     {
         CloseSheet();
+        sheetNow = Settings;
         Modal("settings", body =>
         {
             float h = SetList(body, 0,
@@ -1111,15 +1247,16 @@ public partial class CampaignView
     void Log()
     {
         CloseSheet();
+        sheetNow = Log;
         var lines = state.Log.Skip(Mathf.Max(0, state.Log.Count - 24)).Select(l => l.Text);
         Modal("campaign log", body =>
         {
             var t = WebLook.Words(body, string.Join("\n", lines), 0.8f * 16 * Z, 0, Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
             t.textWrappingMode = TextWrappingModes.Normal;
-            float h = Mathf.Min(620, t.GetPreferredValues(t.text, body.sizeDelta.x, 0).y);
-            WebLook.Box(t.rectTransform, 0, 0, body.sizeDelta.x, h);
-            t.overflowMode = TextOverflowModes.Truncate;
-            return h;
+            // (All of it: the modal's body scrolls past what the screen holds.)
+            float h = t.GetPreferredValues(t.text, body.sizeDelta.x, 0).y;
+            WebLook.Box(t.rectTransform, 0, 0, body.sizeDelta.x, h + 2);
+            return h + 2;
         }, 620 * Z, sheetRoot, CloseSheet);
     }
 
@@ -1135,7 +1272,7 @@ public partial class CampaignView
         const float Z = WebLook.Zoom;
         if (toastText == null)
         {
-            var t = WebLook.Rounded(hud.transform, "Toast", new Color(1, 1, 1, 0.86f), 12 * Z);
+            var t = WebLook.Rounded(notes, "Toast", new Color(1, 1, 1, 0.86f), 12 * Z);
             WebLook.Shadow(t, 8 * Z, 22 * Z, new Color(40 / 255f, 46 / 255f, 70 / 255f, 0.12f), 12 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.08f));
             toastText = WebLook.Words(t.transform, "", 0.74f * 16 * Z, 0, Look.InkSoft, false, 400);
             toastText.textWrappingMode = TextWrappingModes.Normal;
@@ -1143,10 +1280,11 @@ public partial class CampaignView
         }
         toastText.text = text;
         var box = (RectTransform)toastText.transform.parent;
-        float w = Mathf.Min(440 * Z, toastText.GetPreferredValues(text).x + 32 * Z + 2);
+        float w = Mathf.Min(440 * Z, PW - 32 * Z, toastText.GetPreferredValues(text).x + 32 * Z + 2);
         float h = toastText.GetPreferredValues(text, w - 32 * Z, 0).y + 14 * Z;
         box.anchorMin = box.anchorMax = box.pivot = new Vector2(0.5f, 1);
-        box.anchoredPosition = new Vector2(0, -14 * Z);
+        // (14 down, clear of the safe area.)
+        box.anchoredPosition = new Vector2(0, -Mathf.Max(14 * Z, Pad.x));
         box.sizeDelta = new Vector2(w, h);
         box.SetAsLastSibling();
         box.gameObject.SetActive(true);
@@ -1162,21 +1300,22 @@ public partial class CampaignView
     void Banner(string text, string sub)
     {
         const float Z = WebLook.Zoom;
-        var v = Hud.Rect(hud.transform, "Banner");
+        var v = Hud.Rect(notes, "Banner");
         Hud.Fill(v);
         var group = v.gameObject.AddComponent<CanvasGroup>();
         group.blocksRaycasts = false;
         group.alpha = 0;
-        var glow = WebLook.Centred(v, "Glow", 800, 500, 1600, 260 * Z).gameObject.AddComponent<RawImage>();
+        float mx = PW / 2, my = PH / 2;
+        var glow = WebLook.Centred(v, "Glow", mx, my, PW, 260 * Z).gameObject.AddComponent<RawImage>();
         glow.texture = BannerGlow();
         glow.raycastTarget = false;
-        var line = WebLook.Centred(v, "Line", 800, 500 + 2.4f * 16 * Z, 420 * Z, 1.5f).gameObject.AddComponent<RawImage>();
+        var line = WebLook.Centred(v, "Line", mx, my + 2.4f * 16 * Z, Mathf.Min(420 * Z, PW * 0.8f), 1.5f).gameObject.AddComponent<RawImage>();
         line.texture = BannerLine();
         line.raycastTarget = false;
         bool longer = text.Length > 12;
         float size = (longer ? 2.6f : 3.4f) * 16 * Z;
-        var words = WebLook.Words(WebLook.Centred(v, "Words", 800, 500 - 6, 1600, size * 1.4f), text.ToUpperInvariant(), size, longer ? 0.34f : 0.5f, WebLook.Hex("#5b5f67"), true, 400);
-        var under = WebLook.Words(WebLook.Centred(v, "Sub", 800, 500 + size * 0.7f + 6 * Z, 1600, 24), sub.ToUpperInvariant(), 0.6f * 16 * Z, 0.4f, Look.InkSoft, true, 500);
+        var words = WebLook.Words(WebLook.Centred(v, "Words", mx, my - 6, PW, size * 1.4f), text.ToUpperInvariant(), size, longer ? 0.34f : 0.5f, WebLook.Hex("#5b5f67"), true, 400);
+        var under = WebLook.Words(WebLook.Centred(v, "Sub", mx, my + size * 0.7f + 6 * Z, PW, 24), sub.ToUpperInvariant(), 0.6f * 16 * Z, 0.4f, Look.InkSoft, true, 500);
         v.gameObject.AddComponent<BannerLife>().Set(group, words, under, line.rectTransform, longer ? 0.34f : 0.5f);
         Sound.Play("turn");
     }
