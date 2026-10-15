@@ -813,6 +813,14 @@ public class Board : MonoBehaviour
     public float RoundHalf => L.U(L.Round) / 2 * table.lossyScale.x;
     public float StarHalf => L.U(L.Star) / 2 * table.lossyScale.x;
 
+    /// <summary>Your deck run out (.fx-shuffle): its pile rocks a little either way, 0.6 s.</summary>
+    public void ShuffleDeck()
+    {
+        if (myDeck == null || !Application.isPlaying) return;
+        var pile = myDeck.transform.parent;
+        if (pile.GetComponent<Rocking>() == null) pile.gameObject.AddComponent<Rocking>();
+    }
+
     /// <summary>The cards on the table.</summary>
     public IEnumerable<string> OnTable() => cards.Where(kv => kv.Value != null && kv.Value.Table).Select(kv => kv.Key).ToList();
 
@@ -1244,5 +1252,33 @@ public static class BoardArt
                 n -= v[i];
             }
         return sb.ToString();
+    }
+}
+
+/// <summary>@keyframes shufflePile (0.6 s, each step eased in and out): turned -6 degrees by 25%, 6 by 75%, and back.</summary>
+public class Rocking : MonoBehaviour
+{
+    float t0;
+    Quaternion home;
+
+    void Start()
+    {
+        t0 = Time.time;
+        home = transform.localRotation;
+    }
+
+    void Update()
+    {
+        float k = (Time.time - t0) / 0.6f;
+        if (k >= 1)
+        {
+            transform.localRotation = home;
+            Destroy(this);
+            return;
+        }
+        float E(float x) => x * x * (3 - 2 * x);
+        float deg = k < 0.25f ? Mathf.Lerp(0, -6, E(k / 0.25f)) : k < 0.75f ? Mathf.Lerp(-6, 6, E((k - 0.25f) / 0.5f)) : Mathf.Lerp(6, 0, E((k - 0.75f) / 0.25f));
+        // (Turned in the table's plane, clockwise as the page sees it.)
+        transform.localRotation = home * Quaternion.Euler(0, deg, 0);
     }
 }

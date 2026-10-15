@@ -513,6 +513,8 @@ public partial class BattleView : MonoBehaviour
         int drawn = mine.Hand.Count(c => !Was(mine).Hand.Any(x => x.Uid == c.Uid));
         for (int i = 0; i < drawn; i++) Sound.Play("draw", 0.35f + i * 0.12f);
         if (next.WinnerId != null && prev.WinnerId == null) Sound.Play("supernova", 0.4f);
+        // (Your deck run out: its pile rocks.)
+        if (mine.Deck.Count == 0 && Was(mine).Deck.Count > 0) Board?.ShuffleDeck();
     }
 
     /// <summary>A Hero's line as it lands: a caption over its card on the board.</summary>
