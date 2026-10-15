@@ -291,76 +291,114 @@ public static class Hud
     }
 
     /// <summary>
-    /// A sheet (the web's .modal with its settings panel): over a veil of the page, a white card with its title in
-    /// spaced capitals and a short rule under it, and a panel of rows, each its name and either its setting in a pill
-    /// or a chevron. A tap on the veil closes it.
+    /// A sheet (app.ts sheetFrame with settings.ts settingsPanel), laid out in the web's CSS pixels whatever the scale
+    /// of `parent`: over a veil of the page, a white card (.modal: min(380px, 92vw) across, corners 18, a faint ring
+    /// and two soft shadows), its title (.bar-title: 11.2, spaced 0.28em, padded 14 44 10, a 44-wide hairline fading
+    /// out either side at its foot), then its rows' list (.set-list: 72% white, corners 16, padded 4, 2 between, a ring
+    /// and a soft shadow) padded clamp(10px, 3vh, 22px) by clamp(14px, 3vw, 28px); each row (.set-row) at least
+    /// clamp(36px, 7vh, 46px) tall with a hairline above all but the first, its name (10.56, spaced 0.22em; bold when
+    /// it is the choice the sheet is for; a line under it after a newline) 16 in, and its setting in a grey pill or a
+    /// chevron (17.6, faint; #5f8fc4 for the choice) 12 from its right. Centred; a tap on the veil closes it.
     /// </summary>
     public static RectTransform Sheet(Transform parent, string title, Row[] rows, Action close)
     {
-        var veil = Rect(parent, "Sheet");
+        // (In CSS pixels: undo the parent's own scale.)
+        var css = Rect(parent, "Sheet");
+        css.anchorMin = css.anchorMax = css.pivot = new Vector2(0.5f, 0.5f);
+        float k = parent.localScale.x != 0 ? 1 / parent.localScale.x : 1;
+        css.localScale = Vector3.one * k;
+        float W = MenuKit.W, H = MenuKit.H;
+        css.sizeDelta = new Vector2(W, H);
+        var veil = Rect(css, "Veil");
         Fill(veil);
         var v = veil.gameObject.AddComponent<Image>();
         v.color = new Color(0.95f, 0.95f, 0.94f, 0.8f);
         veil.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
-        float rowH = 70, inner = rows.Length * rowH;
-        var card = Glass(veil, "Card", Color.white);
-        Hud.At((RectTransform)card.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(549, inner + 150));
+        float w = Mathf.Min(380, 0.92f * W);
+        float pv = MenuKit.Clamp(10, 3 * MenuKit.Vh, 22), ph = MenuKit.Clamp(14, 3 * MenuKit.Vw, 28);
+        float minRow = MenuKit.Clamp(36, 7 * MenuKit.Vh, 46), nameH = MenuKit.LineH(10.56f), subH = MenuKit.LineH(10.56f, false);
+        var heights = new float[rows.Length];
+        for (int i = 0; i < rows.Length; i++) heights[i] = Mathf.Max(minRow, rows[i].Label.Contains("\n") ? nameH + 3 + subH : 0);
+        float listH = 8 + 2 * (rows.Length - 1);
+        foreach (var rh in heights) listH += rh;
+        float titleH = 14 + MenuKit.LineH(11.2f) + 10, h = 1 + titleH + pv + listH + pv + 1;
+        var card = Box(veil, "Card", Color.white, 18);
+        Place(card.rectTransform, (W - w) / 2, (H - h) / 2, w, h);
+        Shadow(card, 18, new Drop(Rgba(120, 124, 134, 0.08f), 0, 0, 1), new Drop(Rgba(80, 80, 100, 0.18f), 30, 80), new Drop(Rgba(80, 80, 100, 0.08f), 6, 18));
+        card.raycastTarget = true;
         // (The card itself swallows taps, so only the veil closes.)
         card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
-        var t = Label(card.transform, title.ToUpperInvariant(), 18, Look.Ink, true, 500, 34, TextAlignmentOptions.Top);
-        t.margin = new Vector4(0, 26, 0, 0);
+        // (Centred with the spacing after its last letter, as the browser centres it: half of it to the left.)
+        MenuKit.Words(card.transform, title.ToUpperInvariant(), 1 + 44 - 0.14f * 11.2f, 1 + 14, w - 2 - 88, MenuKit.LineH(11.2f), 11.2f, Look.Ink, true, 500, 0.28f);
         var rule = Rect(card.transform, "Rule");
-        Hud.At(rule, new Vector2(0.5f, 1), new Vector2(0, -56), new Vector2(60, 2));
-        var ri = rule.gameObject.AddComponent<Image>();
-        ri.color = new Color(0.55f, 0.57f, 0.63f, 0.6f);
-        var panel = Glass(card.transform, "Panel", Color.white, false);
-        Hud.At((RectTransform)panel.transform, new Vector2(0.5f, 1), new Vector2(0, -86), new Vector2(467, inner + 16));
-        var edge = Rect(panel.transform, "Edge");
-        Fill(edge);
-        edge.offsetMin = new Vector2(-1, -1);
-        edge.offsetMax = new Vector2(1, 1);
-        edge.SetAsFirstSibling();
-        var ei = edge.gameObject.AddComponent<Image>();
-        ei.sprite = Rounded;
-        ei.type = Image.Type.Sliced;
-        ei.color = new Color(0.88f, 0.89f, 0.92f);
+        Place(rule, (w - 44) / 2, 1 + titleH - 1, 44, 1);
+        var ri = rule.gameObject.AddComponent<RawImage>();
+        var rt = new Texture2D(16, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int x = 0; x < 16; x++) rt.SetPixel(x, 0, new Color(120 / 255f, 124 / 255f, 134 / 255f, 0.45f * (1 - Mathf.Abs(x - 7.5f) / 7.5f)));
+        rt.Apply();
+        ri.texture = rt;
+        ri.raycastTarget = false;
+        float lw = w - 2 - 2 * ph;
+        var list = Box(card.transform, "List", new Color(1, 1, 1, 0.72f), 16);
+        Place(list.rectTransform, 1 + ph, 1 + titleH + pv, lw, listH);
+        Shadow(list, 16, new Drop(Rgba(58, 66, 86, 0.08f), 0, 0, 1), new Drop(Rgba(40, 46, 70, 0.06f), 6, 18));
+        float rowW = lw - 8, ry = 4;
         for (int i = 0; i < rows.Length; i++)
         {
             var row = rows[i];
-            var r = Rect(panel.transform, row.Label);
-            Hud.At(r, new Vector2(0.5f, 1), new Vector2(0, -8 - i * rowH), new Vector2(451, rowH));
-            var hit = r.gameObject.AddComponent<Image>();
-            hit.color = new Color(1, 1, 1, 0.001f);
+            float rowH = heights[i];
+            var r = Box(list.transform, row.Label, Color.white, 12);
+            Place(r.rectTransform, 4, ry, rowW, rowH);
+            r.raycastTarget = true;
             var b = r.gameObject.AddComponent<Button>();
+            var colors = b.colors;
+            // (Clear, and a faint blue under the pointer, as the web's row hover.)
+            colors.normalColor = new Color(1, 1, 1, 0);
+            colors.highlightedColor = Rgba(95, 143, 196, 0.08f);
+            colors.pressedColor = Rgba(95, 143, 196, 0.14f);
+            colors.selectedColor = new Color(1, 1, 1, 0);
+            colors.disabledColor = new Color(1, 1, 1, 0);
+            b.colors = colors;
             var act = row.Act;
             if (act != null) b.onClick.AddListener(() => { Sound.Play("click"); act(); });
             else b.interactable = false;
+            float fade = act != null ? 1 : 0.45f;
             if (i > 0)
             {
-                var line = Rect(r, "Line");
-                Hud.At(line, new Vector2(0.5f, 1), Vector2.zero, new Vector2(435, 1));
-                line.gameObject.AddComponent<Image>().color = new Color(0.92f, 0.92f, 0.94f);
+                var line = Rect(list.transform, "Line");
+                Place(line, 4, ry - 1, rowW, 1);
+                var li = line.gameObject.AddComponent<Image>();
+                li.color = Rgba(58, 66, 86, 0.06f);
+                li.raycastTarget = false;
             }
-            var l = Label(r, row.Label.ToUpperInvariant(), 16, row.Strong ? Look.Ink : Look.InkSoft, true, row.Strong ? 700 : 500, 26, TextAlignmentOptions.Left);
-            l.margin = new Vector4(30, 0, 0, 0);
+            var parts = row.Label.Split('\n');
+            float labelH = parts.Length > 1 ? nameH + 3 + subH : nameH;
+            var l = MenuKit.Words(r.transform, parts[0].ToUpperInvariant(), 16, (rowH - labelH) / 2, rowW - 100, nameH, 10.56f, Look.Ink, true, row.Strong ? 600 : 400, 0.22f, TextAlignmentOptions.Left);
+            l.alpha = fade;
+            if (parts.Length > 1)
+            {
+                var sub = MenuKit.Words(r.transform, parts[1], 16, (rowH - labelH) / 2 + nameH + 3, rowW - 100, subH, 10.56f, Look.InkFaint, false, 400, 0.02f, TextAlignmentOptions.Left);
+                sub.alpha = fade;
+            }
             if (row.Value != null)
             {
-                var pill = Rect(r, "Value");
-                float w = 26 + row.Value.Length * 12;
-                Hud.At(pill, new Vector2(1, 0.5f), new Vector2(-24, 0), new Vector2(w, 29));
-                var pi = pill.gameObject.AddComponent<Image>();
-                pi.sprite = Rounded;
-                pi.type = Image.Type.Sliced;
-                pi.color = new Color(0.93f, 0.93f, 0.95f);
-                Label(pill, row.Value.ToUpperInvariant(), 13, Look.InkSoft, true, 500, 14);
+                string val = row.Value.ToUpperInvariant();
+                float vw = Mathf.Max(44, MenuKit.TextW(val, 9.6f, 500, 0.16f) + 0.16f * 9.6f + 20), vh = MenuKit.LineH(9.6f) + 8;
+                var pill = Box(r.transform, "Value", Rgba(240, 242, 246), vh / 2);
+                Place(pill.rectTransform, rowW - 12 - vw, (rowH - vh) / 2, vw, vh);
+                pill.color = new Color(pill.color.r, pill.color.g, pill.color.b, fade);
+                var vl = MenuKit.Fill(pill.transform, val, 9.6f, Look.InkSoft, true, 500, 0.16f);
+                vl.alpha = fade;
             }
             else
             {
-                var chev = Label(r, "›", 22, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Right);
-                chev.margin = new Vector4(0, 4, 26, 0);
+                // (.set-link i: 17.6, its line 22 tall, its right edge 12 in.)
+                var chev = MenuKit.Words(r.transform, "›", rowW - 12 - 16, (rowH - 22) / 2, 16, 22, 17.6f, row.Strong ? Rgba(95, 143, 196) : Look.InkFaint, false, 400, 0, TextAlignmentOptions.Right);
+                chev.alpha = fade;
             }
+            ry += rowH + 2;
         }
-        return veil;
+        return css;
     }
 }
 

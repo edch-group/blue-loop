@@ -49,8 +49,11 @@ public static class MenuKit
     public static TextMeshProUGUI Fill(Transform parent, string text, float size, Color color, bool display = true, int weight = 500, float em = 0, TextAlignmentOptions align = TextAlignmentOptions.Center)
         => Hud.Label(parent, text, size, color, display, Weight(weight, display), em * 100, align);
 
-    /// <summary>A line's height in the web's fonts (its normal line height: Orbitron 1.12 of its size, Exo 2 1.2).</summary>
-    public static float LineH(float size, bool display = true) => size * (display ? 1.12f : 1.2f);
+    /// <summary>
+    /// A line's height in the web's fonts (line-height: normal, as Chrome sets it: the font's ascent and descent each
+    /// rounded to the pixel; Orbitron's 1.011 and 0.243 of its size, Exo 2's 0.999 and 0.201).
+    /// </summary>
+    public static float LineH(float size, bool display = true) => display ? Mathf.Round(size * 1.011f) + Mathf.Round(size * 0.243f) : Mathf.Round(size * 0.999f) + Mathf.Round(size * 0.201f);
 
     /// <summary>A rect placed by its top-left corner (x right, y down) in its parent.</summary>
     public static RectTransform Place(Component c, float x, float y, float w, float h) => Hud.Place((RectTransform)c.transform, x, y, w, h);
@@ -84,20 +87,25 @@ public static class MenuKit
     /// <summary>A button's kind: .btn, .btn-small, .pill-btn, .btn-primary (and the setup foot's wide primary).</summary>
     public enum Kind { Btn, Small, Pill, Primary }
 
-    /// <summary>A button's size as the web gives it: its word's size, its padding across and down, its height.</summary>
+    /// <summary>
+    /// A button's size as the web gives it: its word's size, its padding across, its height (its line, padding and
+    /// hairlines, as the browser measures them: .btn-small 11 + 14 + 2, .pill-btn 11 + 10 + 2, .btn and .btn-primary
+    /// 14 + 18 + 2), its corners.
+    /// </summary>
     public static (float size, float padX, float h, float radius) Measure(Kind kind) => kind switch
     {
-        Kind.Small => (0.56f * Rem, 10, 26, 10),
-        Kind.Pill => (0.56f * Rem, 11, 22, 11),
-        Kind.Primary => (0.66f * Rem, 16, 32, 10),
-        _ => (0.66f * Rem, 16, 32, 10),
+        Kind.Small => (0.56f * Rem, 10, 27, 10),
+        Kind.Pill => (0.56f * Rem, 11, 23, 11),
+        Kind.Primary => (0.66f * Rem, 16, 34, 10),
+        _ => (0.66f * Rem, 16, 34, 10),
     };
 
     /// <summary>A button's width: its word, its padding, its hairline.</summary>
     public static float BtnW(string text, Kind kind, float? size = null, float em = 0.14f, float? padX = null)
     {
         var m = Measure(kind);
-        return TextW(text.ToUpperInvariant(), size ?? m.size, kind == Kind.Primary ? 700 : 500, em) + 2 * (padX ?? m.padX) + 2;
+        // (The browser counts the spacing after the last letter too.)
+        return TextW(text.ToUpperInvariant(), size ?? m.size, kind == Kind.Primary ? 700 : 500, em) + em * (size ?? m.size) + 2 * (padX ?? m.padX) + 2;
     }
 
     /// <summary>
@@ -126,7 +134,7 @@ public static class MenuKit
     public static float Link(Transform parent, string text, System.Action act, float x, float y, float size = 0.6f * Rem, Color? ink = null, bool fromRight = false)
     {
         string t = text.ToUpperInvariant();
-        float tw = TextW(t, size, 400, 0.16f), w = tw + 4, h = LineH(size) + 8;
+        float tw = TextW(t, size, 400, 0.16f), w = tw + 0.16f * size + 4, h = LineH(size) + 8;
         var b = Hit(parent, text, act);
         Hud.Place((RectTransform)b.transform, fromRight ? x - w : x, y, w, h);
         Fill(b.transform, t, size, ink ?? Look.InkSoft, true, 400, 0.16f);

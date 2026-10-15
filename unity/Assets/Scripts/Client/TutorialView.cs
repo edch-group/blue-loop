@@ -48,9 +48,10 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
     public static Rect Frame(RectTransform root, MenuView menu, string line, string title)
     {
         float l = Mathf.Max(16, K.SaL), t = Mathf.Max(14, K.SaT), r = K.W - Mathf.Max(16, K.SaR), b = K.H - Mathf.Max(12, K.SaB);
-        float hf = K.Clamp(1.2f * K.Rem, 5 * K.Vh, 2 * K.Rem), headH = 11 + 2 + hf * 1.16f;
-        K.Words(root, line.ToUpperInvariant(), l, t, r - l, 11, 9.6f, Look.InkFaint, true, 400, 0.3f);
-        K.Words(root, title.ToUpperInvariant(), l, t + 13, r - l, hf * 1.16f, hf, Look.Ink, true, 400, 0.4f);
+        float hf = K.Clamp(1.2f * K.Rem, 5 * K.Vh, 2 * K.Rem), lineH = K.LineH(9.6f), headH = lineH + 2 + K.LineH(hf);
+        // (Centred with the spacing after their last letters, as the browser centres them: half of it to the left.)
+        K.Words(root, line.ToUpperInvariant(), l - 0.15f * 9.6f, t, r - l, lineH, 9.6f, Look.InkFaint, true, 400, 0.3f);
+        K.Words(root, title.ToUpperInvariant(), l - 0.2f * hf, t + lineH + 2, r - l, K.LineH(hf), hf, Look.Ink, true, 400, 0.4f);
         MenuView.BackButton(root, () => menu.Show("hub"), l, t);
         return new Rect(l, t + headH + 8, r - l, b - 64 - 8 - (t + headH + 8));
     }
@@ -65,18 +66,22 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
         float l = Mathf.Max(16, K.SaL), r = K.W - Mathf.Max(16, K.SaR), top = K.H - Mathf.Max(12, K.SaB) - 64, cx = (l + r) / 2;
         if (name == null)
         {
-            K.Words(root, hint.ToUpperInvariant(), l, top + 26.5f, r - l, 11, 9.92f, Look.InkFaint, true, 400, 0.24f);
+            K.Words(root, hint.ToUpperInvariant(), l - 0.12f * 9.92f, top + (64 - K.LineH(9.92f)) / 2, r - l, K.LineH(9.92f), 9.92f, Look.InkFaint, true, 400, 0.24f);
             return;
         }
         small = small.ToUpperInvariant();
         name = name.ToUpperInvariant();
-        float colW = Mathf.Max(K.TextW(small, 8.32f, 400, 0.24f), K.TextW(name, 16, 400, 0.24f), K.TextW(what, 12.48f, 400, 0, false)) + 2;
+        // (Its column as wide as its widest line, the spacing after the last letters counted; its lines 10, 20 and 15
+        // tall, 2 apart; begin centred beside them.)
+        float colW = Mathf.Max(K.TextW(small, 8.32f, 400, 0.24f) + 0.24f * 8.32f, K.TextW(name, 16, 400, 0.24f) + 0.24f * 16, K.TextW(what, 12.48f, 400, 0, false)) + 1;
         float bw = K.BtnW(go, K.Kind.Primary), x = cx - (colW + 18 + bw) / 2;
-        float colH = 9.5f + 2 + 18.5f + 2 + 15, y = top + (64 - colH) / 2;
-        K.Words(root, small, x, y, colW, 9.5f, 8.32f, Look.InkFaint, true, 400, 0.24f, TextAlignmentOptions.Left);
-        K.Words(root, name, x, y + 11.5f, colW, 18.5f, 16, Look.Ink, true, 400, 0.24f, TextAlignmentOptions.Left);
-        K.Words(root, what, x, y + 32, colW, 15, 12.48f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
-        K.Btn(root, go, begin, x + colW + 18, top + 16, K.Kind.Primary, bw);
+        float sh = K.LineH(8.32f), nh = K.LineH(16), wh = K.LineH(12.48f, false);
+        float colH = sh + 2 + nh + 2 + wh, y = top + (64 - colH) / 2;
+        K.Words(root, small, x, y, colW, sh, 8.32f, Look.InkFaint, true, 400, 0.24f, TextAlignmentOptions.Left);
+        K.Words(root, name, x, y + sh + 2, colW, nh, 16, Look.Ink, true, 400, 0.24f, TextAlignmentOptions.Left);
+        K.Words(root, what, x, y + sh + 2 + nh + 2, colW, wh, 12.48f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
+        float bh = K.Measure(K.Kind.Primary).h;
+        K.Btn(root, go, begin, x + colW + 18, top + (64 - bh) / 2, K.Kind.Primary, bw);
     }
 
     void Draw()
@@ -146,13 +151,15 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
                 : isDone ? new Hud.Drop(Hud.Rgba(150, 110, 30, 0.5f), 0, 0, 1)
                 : open ? new Hud.Drop(Hud.Rgba(95, 143, 196), 0, 0, 2)
                 : new Hud.Drop(Hud.Rgba(58, 66, 86, 0.2f), 0, 0, 1);
+            Hud.Shadow(di, d / 2, ring);
+            // (Its soft shadow drawn as the browser blurs a disc's: see Glow.)
             var glow = on ? new Hud.Drop(Hud.Rgba(40, 46, 70, 0.25f), 6, 18)
                 : isDone ? new Hud.Drop(Hud.Rgba(230, 190, 90, 0.5f), 0, 14)
                 : open ? new Hud.Drop(Hud.Rgba(95, 143, 196, 0.5f), 0, 16)
                 : new Hud.Drop(Hud.Rgba(40, 46, 70, 0.1f), 4, 12);
-            var shades = Hud.Shadow(di, d / 2, ring, glow);
+            var halo = Glow(node, dot, d, glow);
             // (tutPulse: an open lesson's glow swelling and settling, 2.4 s.)
-            if (open && !isDone && !on) dot.gameObject.AddComponent<Pulse>().Shades = shades;
+            if (open && !isDone && !on) dot.gameObject.AddComponent<Pulse>().Set(halo, dot, d);
             var ink = isDone ? Hud.Rgba(106, 74, 18) : open ? Look.Ink : Look.InkSoft;
             if (locked) ink.a *= 0.5f;
             K.Fill(dot, isDone ? "✓" : (i + 1).ToString(), 11.52f, ink, true, 400);
@@ -220,16 +227,80 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
         }
     }
 
-    /// <summary>@keyframes tutPulse: the glow from 16 at half to 26 at three quarters and back, eased, every 2.4 s.</summary>
+    /// <summary>
+    /// A disc's soft shadow (box-shadow 0 y blur colour), `d` across, under `dot` in `parent`: the disc blurred as the
+    /// browser blurs it (a Gaussian of half the blur), its picture worked out for the disc's size and the blur.
+    /// </summary>
+    static RawImage Glow(RectTransform parent, RectTransform dot, float d, Hud.Drop g)
+    {
+        var r = Hud.Rect(parent, "Glow");
+        r.SetSiblingIndex(0);
+        var img = r.gameObject.AddComponent<RawImage>();
+        img.raycastTarget = false;
+        Shape(img, dot, d, g);
+        return img;
+    }
+
+    static void Shape(RawImage img, RectTransform dot, float d, Hud.Drop g)
+    {
+        float reach = d / 2 + 1.5f * g.Blur;
+        var r = img.rectTransform;
+        r.anchorMin = r.anchorMax = dot.anchorMin;
+        r.pivot = new Vector2(0.5f, 0.5f);
+        r.anchoredPosition = dot.anchoredPosition + new Vector2(g.X, -g.Y);
+        r.sizeDelta = new Vector2(2 * reach, 2 * reach);
+        img.texture = GlowTexture(d / 2, g.Blur);
+        img.color = g.Color;
+    }
+
+    static readonly Dictionary<int, Texture2D> glows = new Dictionary<int, Texture2D>();
+
+    /// <summary>A disc of radius `rad` blurred by `blur` (σ = blur / 2), white, its alpha the shadow's, out to 1.5 blurs.</summary>
+    static Texture2D GlowTexture(float rad, float blur)
+    {
+        int key = Mathf.RoundToInt(rad * 4) * 1000 + Mathf.RoundToInt(blur * 4);
+        if (glows.TryGetValue(key, out var have)) return have;
+        const int N = 96;
+        float reach = rad + 1.5f * blur, sigma = Mathf.Max(0.5f, blur / 2);
+        var t = new Texture2D(N, N, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+        var px = new Color32[N * N];
+        for (int y = 0; y < N; y++)
+            for (int x = 0; x < N; x++)
+            {
+                float u = ((x + 0.5f) / N * 2 - 1) * reach, v = ((y + 0.5f) / N * 2 - 1) * reach;
+                float dist = Mathf.Sqrt(u * u + v * v) - rad;
+                px[y * N + x] = new Color(1, 1, 1, 0.5f * Erfc(dist / (sigma * 1.41421f)));
+            }
+        t.SetPixels32(px);
+        t.Apply();
+        return glows[key] = t;
+    }
+
+    /// <summary>The complementary error function (Numerical Recipes' erfcc, to 1.2e-7).</summary>
+    static float Erfc(float x)
+    {
+        float z = Mathf.Abs(x), t = 1 / (1 + 0.5f * z);
+        float r = t * Mathf.Exp(-z * z - 1.26551223f + t * (1.00002368f + t * (0.37409196f + t * (0.09678418f + t * (-0.18628806f + t * (0.27886807f + t * (-1.13520398f + t * (1.48851587f + t * (-0.82215223f + t * 0.17087277f)))))))));
+        return x >= 0 ? r : 2 - r;
+    }
+
+    /// <summary>@keyframes tutPulse: the glow from 16 (at half) to 26 (at three quarters) at the middle and back, eased, every 2.4 s.</summary>
     class Pulse : MonoBehaviour
     {
-        public Shades Shades;
+        RawImage halo;
+        RectTransform dot;
+        float d;
+        int shown = -1;
+        public void Set(RawImage h, RectTransform at, float size) { halo = h; dot = at; d = size; }
         void Update()
         {
-            if (Shades == null) return;
+            if (halo == null) return;
             float x = Time.time % 2.4f / 1.2f, u = x < 1 ? x : 2 - x;
             float k = u * u * (3 - 2 * u);
-            Shades.Set(1, new Hud.Drop(Hud.Rgba(95, 143, 196, Mathf.Lerp(0.5f, 0.75f, k)), 0, Mathf.Lerp(16, 26, k)));
+            // (The blur in whole pixels, so each look is worked out once.)
+            int blur = Mathf.RoundToInt(Mathf.Lerp(16, 26, k));
+            if (blur != shown) { shown = blur; Shape(halo, dot, d, new Hud.Drop(Hud.Rgba(95, 143, 196, 0.5f), 0, blur)); }
+            halo.color = Hud.Rgba(95, 143, 196, Mathf.Lerp(0.5f, 0.75f, k));
         }
     }
 }
