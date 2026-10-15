@@ -52,6 +52,16 @@ def main():
     # (The newest that has its textures: a bare model, made to be textured, is not what is wanted.)
     done = [t for t in every if t.get('status') == 'SUCCEEDED' and t.get('model_urls') and textured(t)]
     pick = max(done, key=lambda t: t.get('created_at') or 0) if want == 'latest' else next((t for t in every if t.get('id') == want), None)
+    if pick is None and want != 'latest':
+        # (A task made in Meshy's own site, not listed: asked for by its id, of each kind in turn.)
+        for kind in KINDS:
+            try:
+                pick = get(f'{API}/{kind}/{want}')
+                pick['_kind'] = kind
+                print(f'{want}: found as {kind}')
+                break
+            except urllib.error.HTTPError as e:
+                print(f'{want} as {kind}: {e.code}')
     if pick is None: sys.exit(f'no finished task {want}')
     print(f"fetching {pick['id']} ({pick['_kind']})")
     out = os.path.join('unity', 'ModelSources', folder, f"meshy-{pick['id']}")
@@ -60,6 +70,8 @@ def main():
     for i, tex in enumerate(pick.get('texture_urls') or []):
         for k, u in tex.items():
             if u: files[f'texture{i or ""}-{k}.png'] = u
+    # (What Meshy says of it, without its signed links, and which files it offers.)
+    print('task:', json.dumps({k: (v if 'url' not in k else sorted(v) if isinstance(v, dict) else '…') for k, v in pick.items()})[:1500])
     for name, url in files.items():
         data = get(url, raw=True)
         if len(data) > LIMIT:
