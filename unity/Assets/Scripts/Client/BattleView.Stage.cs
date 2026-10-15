@@ -50,6 +50,7 @@ public partial class BattleView
         var sprung = Sprung(next);
         if (sprung != null) stage = sprung;
         if (stage != null) stage.Shown = Time.time;
+        Debug.Log($"[stage] {a.Type} by {actor.Id} ai={actor.IsAI} reaction={next.Reaction != null} stage={(stage == null ? "none" : stage.DefId)} confirm={stage?.Confirm} own={stage?.Own} sprung={next.Sprung?.Count} humans={next.Players.Count(p => !p.IsAI)} auto={Autoplay}");
         bool turnPassed = Game.ActivePlayer(prev).Id != Game.ActivePlayer(next).Id;
         void Land()
         {
