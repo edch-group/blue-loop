@@ -460,7 +460,7 @@ public class MenuView : MonoBehaviour
     /// The campaign's menu (campaign.ts renderSetup): A DYING UNIVERSE, your Captain, the ship and the Stellari to build
     /// up between runs, and the run to begin (or the one under way to carry on).
     /// </summary>
-    void CampaignMenu() => CampaignMenuPage.Make(page, this);
+    void CampaignMenu() => CampaignMenuPage.Make(page, this, scene);
 
     /// <summary>You, top right: your name and level, your stardust and flux (the hub's chip, on the pages off it too). Tap it for your profile.</summary>
     public void Chip(Transform parent) => Chip(parent, new Vector2(-26.1f, -26.5f));

@@ -226,6 +226,30 @@ public class CampaignBackdrop : MonoBehaviour
 
     public Camera ShipCamera => shipCam;
 
+    /// <summary>
+    /// A point of the ship's box (x along, y across, z up) on the screen as the ship's camera frames the whole ship at
+    /// rest on it (base3d.ts shipScreen: never as it sways, nor as the camera moves to a section), as fractions of the
+    /// screen from its top left; null if behind the camera.
+    /// </summary>
+    public Vector2? ShipViewport(float x, float y, float z)
+    {
+        float aspect = Mathf.Max(0.3f, ui != null ? ui.aspect : 1.6f), half = Mathf.Tan(16 * Mathf.Deg2Rad);
+        // (goal()'s whole ship: back far enough for all of it, a little to the left.)
+        float dist = Mathf.Max(3.7f / (half * aspect), 2.4f / half);
+        const float yaw = -0.52f, pitch = 0.1f, off = -0.1f;
+        var target = new Vector3(-0.3f, 0.74f, 0);
+        var eye = target + new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch)) * dist;
+        // (In the web's own axes: lookAt's right, up and forward; the projection sheared by off.)
+        var f = (target - eye).normalized;
+        var r = Vector3.Cross(f, Vector3.up).normalized;
+        var u = Vector3.Cross(r, f);
+        var d = B(x, y, z) * 4.2f - eye;
+        float vz = Vector3.Dot(d, f);
+        if (vz <= 1e-4f) return null;
+        float nx = Vector3.Dot(d, r) / (vz * half * aspect) + 2 * off, ny = Vector3.Dot(d, u) / (vz * half);
+        return new Vector2((nx + 1) / 2, (1 - ny) / 2);
+    }
+
     static CaptainShipSpec Spec(MetaState meta)
     {
         var fitted = meta.Fitted ?? new Dictionary<string, string>();
