@@ -38,10 +38,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'unity', 'ModelSources', 'captain')
 OUT = os.path.join(ROOT, 'unity', 'Assets', 'Resources', 'Models')
 # How many triangles he keeps (the model has 143k; he is seen close beside his skill tree, and small on the ship).
-TRIANGLES = 26000
+TRIANGLES = 30000
 # His height in his box units, as his old figure's; his texture's size.
 HEIGHT = 40
-TEXTURE = 2048
+TEXTURE = 4096
 # Positions' precision (box units: 1/Q), as the ship's.
 Q = 512
 
@@ -66,6 +66,16 @@ def cut_down(bpy, body):
     tris = sum(len(p.vertices) - 2 for p in body.data.polygons)
     m = body.modifiers.new('cut', 'DECIMATE')
     m.ratio = min(1.0, TRIANGLES / tris)
+    # (His face kept whole, his eyes most of all: what is cut is cut from the rest of him. Cut as much, his eyes had run
+    # into his skin, and his texture smeared across his cheeks.)
+    keep = body.vertex_groups.new(name='keep')
+    groups = {g.index: g.name for g in body.vertex_groups}
+    for v in body.data.vertices:
+        w = sum(g.weight for g in v.groups if groups.get(g.group) in ('Head', 'head_end', 'headfront', 'neck'))
+        if w > 0.05: keep.add([v.index], min(1.0, w), 'REPLACE')
+    m.vertex_group = 'keep'
+    m.invert_vertex_group = True
+    m.vertex_group_factor = 1000
     # (First, before the skeleton bends it; its weights carried onto what is left.)
     bpy.context.view_layer.objects.active = body
     bpy.ops.object.modifier_move_to_index(modifier=m.name, index=0)
@@ -170,7 +180,8 @@ def pose(bpy, arm, spec, name):
         c.pole_target = empty(bone + ' toward', at(r['toward']))
         c.pole_angle = math.radians(-90)
         c.chain_count = 2
-    bpy.context.view_layer.update()
+        # (Each in turn: a reach may be measured from a joint an earlier one has put in place.)
+        bpy.context.view_layer.update()
     for bone, p in spec.get('aim', {}).items():
         c = arm.pose.bones[bone].constraints.new('DAMPED_TRACK')
         c.target = empty(bone + ' aim', at(p))

@@ -21,7 +21,8 @@ public class ImportRules : AssetPostprocessor
             t.wrapMode = UnityEngine.TextureWrapMode.Clamp;
             t.mipmapEnabled = true;
             t.anisoLevel = 4;
-            t.maxTextureSize = 2048;
+            // (The Captain's own at 4K: seen close beside his skill tree, his eyes are a few of its pixels.)
+            t.maxTextureSize = assetPath.EndsWith("CaptainColour.jpg") ? 4096 : 2048;
             t.textureCompression = TextureImporterCompression.CompressedHQ;
             t.isReadable = false;
         }

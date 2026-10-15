@@ -1,19 +1,123 @@
 {
- "_": "The Captain's poses (scripts/bake-captain.py says how one is written). The game uses foot-up; each is baked, its own name.",
- "foot-up": {
+ "_": "The Captain's poses (scripts/bake-captain.py says how one is written), each baked under its name; CaptainFigure.cs moves him between them.",
+ "stand": {
   "hips": [
-   0,
-   -0.03,
-   -0.03
+   -0.015,
+   0.0,
+   -0.01
+  ],
+  "reach": {
+   "LeftForeArm": {
+    "to": [
+     0.25,
+     0.04,
+     0.92
+    ],
+    "toward": [
+     0.45,
+     -0.4,
+     1.15
+    ]
+   },
+   "RightForeArm": {
+    "to": [
+     -0.24,
+     0.05,
+     0.93
+    ],
+    "toward": [
+     -0.45,
+     -0.4,
+     1.15
+    ]
+   }
+  },
+  "aim": {
+   "LeftHand": {
+    "from": "LeftHand",
+    "by": [
+     0.0,
+     0.03,
+     -0.2
+    ]
+   },
+   "RightHand": {
+    "from": "RightHand",
+    "by": [
+     0.0,
+     0.03,
+     -0.2
+    ]
+   }
+  }
+ },
+ "shield": {
+  "hips": [
+   -0.015,
+   0.0,
+   -0.01
   ],
   "turn": {
-   "Spine02": [
-    7,
+   "Spine01": [
+    -3,
     0,
     0
    ],
-   "Spine01": [
-    4,
+   "Head": [
+    -6,
+    0,
+    0
+   ]
+  },
+  "reach": {
+   "LeftForeArm": {
+    "to": [
+     0.25,
+     0.04,
+     0.92
+    ],
+    "toward": [
+     0.45,
+     -0.4,
+     1.15
+    ]
+   }
+  },
+  "aim": {
+   "LeftHand": {
+    "from": "LeftHand",
+    "by": [
+     0.0,
+     0.03,
+     -0.2
+    ]
+   },
+   "RightArm": [
+    -0.42,
+    0.16,
+    1.5
+   ],
+   "RightForeArm": [
+    -0.16,
+    0.15,
+    1.71
+   ],
+   "RightHand": [
+    0.02,
+    0.18,
+    1.75
+   ]
+  }
+ },
+ "crouch": {
+  "hips": [
+   0,
+   -0.08,
+   -0.45
+  ],
+  "turn": {
+   "Spine02": [
+    15,
     0,
     0
    ]
@@ -21,101 +125,293 @@
   "reach": {
    "LeftLeg": {
     "to": [
-     0.17,
-     0.42,
-     0.44
+     0.21,
+     -0.09,
+     0.16
     ],
     "toward": [
-     0.2,
+     0.3,
      1.0,
-     1.0
+     0.6
+    ]
+   },
+   "RightLeg": {
+    "to": [
+     -0.2,
+     -0.05,
+     0.16
+    ],
+    "toward": [
+     -0.3,
+     1.0,
+     0.6
+    ]
+   },
+   "LeftForeArm": {
+    "to": {
+     "from": "LeftLeg",
+     "by": [
+      -0.05,
+      0.1,
+      0.0
+     ]
+    },
+    "toward": [
+     0.5,
+     -0.1,
+     0.9
+    ]
+   },
+   "RightForeArm": {
+    "to": [
+     -0.3,
+     -0.35,
+     0.25
+    ],
+    "toward": [
+     -0.5,
+     -0.1,
+     0.6
     ]
    }
   },
   "aim": {
    "LeftFoot": [
-    0.2,
-    0.55,
-    0.36
+    0.25,
+    0.03,
+    0.04
    ],
    "LeftToeBase": [
-    0.21,
-    0.75,
-    0.36
+    0.3,
+    0.2,
+    0.04
    ],
-   "LeftArm": {
-    "from": "LeftLeg",
-    "by": [
-     0.04,
-     -0.06,
-     0.2
-    ]
-   },
-   "LeftForeArm": {
-    "from": "LeftLeg",
-    "by": [
-     -0.1,
-     0.1,
-     0.02
-    ]
-   },
-   "LeftHand": {
-    "from": "LeftLeg",
-    "by": [
-     -0.16,
-     0.2,
-     -0.06
-    ]
-   },
-   "RightArm": [
-    -0.24,
-    -0.03,
-    1.1
+   "RightFoot": [
+    -0.22,
+    0.08,
+    0.04
    ],
-   "RightForeArm": [
+   "RightToeBase": [
     -0.25,
-    0.04,
-    0.86
-   ],
-   "RightHand": [
-    -0.24,
-    0.06,
-    0.72
+    0.25,
+    0.04
    ]
   }
  },
- "stand": {
-  "aim": {
-   "LeftArm": [
-    0.25,
-    -0.03,
-    1.1
-   ],
-   "LeftForeArm": [
-    0.27,
-    0.02,
-    0.85
-   ],
-   "LeftHand": [
-    0.27,
-    0.03,
-    0.7
-   ],
-   "RightArm": [
-    -0.24,
-    -0.03,
-    1.1
-   ],
-   "RightForeArm": [
-    -0.26,
-    0.02,
-    0.85
-   ],
-   "RightHand": [
-    -0.26,
-    0.03,
-    0.7
+ "sit": {
+  "hips": [
+   0,
+   -0.12,
+   -0.8
+  ],
+  "turn": {
+   "Spine02": [
+    -6,
+    0,
+    0
    ]
+  },
+  "reach": {
+   "LeftLeg": {
+    "to": [
+     0.18,
+     0.38,
+     0.12
+    ],
+    "toward": [
+     0.25,
+     1.0,
+     1.2
+    ]
+   },
+   "RightLeg": {
+    "to": [
+     0.02,
+     0.33,
+     0.08
+    ],
+    "toward": [
+     -1.0,
+     0.4,
+     0.1
+    ]
+   },
+   "LeftForeArm": {
+    "to": {
+     "from": "LeftLeg",
+     "by": [
+      -0.1,
+      0.12,
+      0.04
+     ]
+    },
+    "toward": {
+     "from": "LeftLeg",
+     "by": [
+      0.15,
+      -0.15,
+      0.05
+     ]
+    }
+   },
+   "RightForeArm": {
+    "to": [
+     -0.28,
+     -0.33,
+     0.12
+    ],
+    "toward": [
+     -0.45,
+     -0.3,
+     0.55
+    ]
+   }
+  },
+  "aim": {
+   "LeftFoot": [
+    0.21,
+    0.5,
+    0.04
+   ],
+   "LeftToeBase": [
+    0.22,
+    0.68,
+    0.04
+   ],
+   "LeftHand": {
+    "from": "LeftHand",
+    "by": [
+     -0.05,
+     0.08,
+     -0.15
+    ]
+   },
+   "RightHand": {
+    "from": "RightHand",
+    "by": [
+     -0.02,
+     -0.15,
+     -0.03
+    ]
+   }
+  }
+ },
+ "sit-look": {
+  "hips": [
+   0,
+   -0.12,
+   -0.8
+  ],
+  "turn": {
+   "Spine02": [
+    -6,
+    -15,
+    0
+   ],
+   "Spine01": [
+    0,
+    -12,
+    0
+   ],
+   "Spine": [
+    0,
+    -10,
+    0
+   ],
+   "neck": [
+    0,
+    -20,
+    0
+   ],
+   "Head": [
+    0,
+    -25,
+    0
+   ]
+  },
+  "reach": {
+   "LeftLeg": {
+    "to": [
+     0.18,
+     0.38,
+     0.12
+    ],
+    "toward": [
+     0.25,
+     1.0,
+     1.2
+    ]
+   },
+   "RightLeg": {
+    "to": [
+     0.02,
+     0.33,
+     0.08
+    ],
+    "toward": [
+     -1.0,
+     0.4,
+     0.1
+    ]
+   },
+   "LeftForeArm": {
+    "to": {
+     "from": "LeftLeg",
+     "by": [
+      -0.1,
+      0.12,
+      0.04
+     ]
+    },
+    "toward": {
+     "from": "LeftLeg",
+     "by": [
+      0.15,
+      -0.15,
+      0.05
+     ]
+    }
+   },
+   "RightForeArm": {
+    "to": [
+     -0.28,
+     -0.33,
+     0.12
+    ],
+    "toward": [
+     -0.45,
+     -0.3,
+     0.55
+    ]
+   }
+  },
+  "aim": {
+   "LeftFoot": [
+    0.21,
+    0.5,
+    0.04
+   ],
+   "LeftToeBase": [
+    0.22,
+    0.68,
+    0.04
+   ],
+   "LeftHand": {
+    "from": "LeftHand",
+    "by": [
+     -0.05,
+     0.08,
+     -0.15
+    ]
+   },
+   "RightHand": {
+    "from": "RightHand",
+    "by": [
+     -0.02,
+     -0.15,
+     -0.03
+    ]
+   }
   }
  },
  "kneel": {

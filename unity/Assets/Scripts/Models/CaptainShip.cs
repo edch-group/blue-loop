@@ -366,7 +366,7 @@ namespace BlueLoop.Models
         /// tails stream in the wind; here they are still): at the rail, facing ahead and a little out, his height 0.7 of
         /// the menu ship's 4.2.
         /// </summary>
-        static float[] WithCaptain(float[] ship, V3 at) => Placed(ship, new[] { CaptainFigure.Model("foot-up") }, B(at.X, at.Y, at.Z), B(20, 12, 0), 0.7 / 4.2, 1.3);
+        static float[] WithCaptain(float[] ship, V3 at) => Placed(ship, new[] { CaptainFigure.Model("stand") }, B(at.X, at.Y, at.Z), B(20, 12, 0), 0.8 * 0.7 / 4.2, 1.3);
 
         /// <summary>
         /// The companions aboard [direction: the map's ship shows the friends on it too, both ships identical]: each where the

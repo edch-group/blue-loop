@@ -68,10 +68,11 @@ Shader "BlueLoop/Ship"
                 if (m > 10.5)
                 {
                     // The Captain, as Meshy painted him (CaptainFigure.cs): leather, cloth and skin, lit softly, a little
-                    // sheen on the leather, the paper's light at his edges.
+                    // sheen on the leather, the paper's light at his edges; and a soft light from the eye, so his face (his
+                    // eyes under his brow) is never lost in the key light's shadow.
                     float3 base = tex2D(_CaptainBodyTex, i.c.rg).rgb;
-                    float spec = pow(max(dot(n, h), 0.0), 24.0) * 0.18;
-                    c = base * (0.55 + 0.8 * diff) + spec * (0.4 + 0.6 * base);
+                    float spec = pow(max(dot(n, h), 0.0), 24.0) * 0.18 + pow(ndv, 30.0) * 0.12;
+                    c = base * (0.45 + 0.65 * diff + 0.35 * ndv) + spec * (0.4 + 0.6 * base);
                     c += base * max(-n.y, 0.0) * 0.1;
                     c = lerp(c, sky, fres * 0.22);
                     return fixed4(min(c, 1) * _Alpha, _Alpha);

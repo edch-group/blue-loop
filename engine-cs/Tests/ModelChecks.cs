@@ -164,8 +164,9 @@ public static class ModelChecks
                 lo = Math.Min(lo, f.Pos[i * 3 + 1]);
                 hi = Math.Max(hi, f.Pos[i * 3 + 1]);
             }
-            if (Math.Abs(lo) > 0.04) bad ??= $"his feet at {lo}, not on the floor";
-            if (hi < (pose == "kneel" ? 0.55 : 0.85) || hi > 1.05) bad ??= $"{hi} tall";
+            if (Math.Abs(lo) > 1e-4) bad ??= $"his feet at {lo}, not on the floor";
+            bool up = pose == "stand" || pose == "shield";
+            if (hi < (up ? 0.85 : 0.4) || hi > (up ? 1.05 : 0.9)) bad ??= $"{hi} tall";
             var still = (float[])f.Pos.Clone();
             var (_, ms) = Timed(() => { for (int k = 1; k <= 10; k++) f.Pose(k * 0.37); return 0; });
             float most = 0;
@@ -181,6 +182,50 @@ public static class ModelChecks
                 System.IO.File.WriteAllText(System.IO.Path.Combine(dir, pose + ".obj"), o.ToString());
             }
             check($"model the Captain ({pose}: {f.Count} corners, {f.Tris.Length / 3} triangles, {hi:0.00} tall, standing him {ms / 10:0.0} ms)", bad == null, bad);
+        }
+        {
+            // His routine: as it begins, standing as he stands held (his poses blended back to the same); all the way
+            // through, whole, his feet on the floor, never jumping from one moment to the next.
+            string bad = null;
+            var held = new CaptainFigure("stand");
+            var going = new CaptainFigure();
+            held.Pose(0.5);
+            going.Pose(0.5);
+            float off = 0;
+            for (int i = 0; i < held.Pos.Length; i++) off = Math.Max(off, Math.Abs(held.Pos[i] - going.Pos[i]));
+            if (off > 2e-3) bad = $"his routine's standing {off} off his standing";
+            var last = (float[])going.Pos.Clone();
+            float jump = 0;
+            int steps = (int)(CaptainFigure.RoutineLength * 30);
+            for (int k = 1; k <= steps && bad == null; k++)
+            {
+                going.Pose(0.5 + k / 30.0);
+                float lo = float.MaxValue;
+                for (int i = 0; i < going.Count; i++)
+                {
+                    if (float.IsNaN(going.Pos[i * 3 + 1])) { bad = $"not a number at {k / 30.0:0.0} s"; break; }
+                    lo = Math.Min(lo, going.Pos[i * 3 + 1]);
+                    jump = Math.Max(jump, Math.Abs(going.Pos[i * 3 + 1] - last[i * 3 + 1]));
+                }
+                if (Math.Abs(lo) > 0.05) bad ??= $"his lowest at {lo} at {k / 30.0:0.0} s";
+                Array.Copy(going.Pos, last, last.Length);
+            }
+            if (jump > 0.06) bad ??= $"a corner jumping {jump} in a frame";
+            // (CAPTAIN_OBJ: his routine, 8 frames a second, every corner's place, to watch.)
+            var dir = Environment.GetEnvironmentVariable("CAPTAIN_OBJ");
+            if (dir != null)
+                using (var o = new System.IO.BinaryWriter(System.IO.File.Create(System.IO.Path.Combine(dir, "routine.bin"))))
+                {
+                    int frames = (int)(CaptainFigure.RoutineLength * 8);
+                    o.Write(frames);
+                    o.Write(going.Count);
+                    for (int k = 0; k < frames; k++)
+                    {
+                        going.Pose(k / 8.0);
+                        foreach (var x in going.Pos) o.Write(x);
+                    }
+                }
+            check($"model the Captain's routine ({CaptainFigure.RoutineLength:0.0} s, most a corner moves in a frame {jump:0.000})", bad == null, bad);
         }
     }
 
