@@ -445,6 +445,12 @@ public partial class CampaignView
                 WebLook.Words(WebLook.Box(r.transform, "Note", 16 * Z, top + lh + 3 * Z, w - 80 * Z, nh), row.Note, fs, 0.02f, Look.InkFaint, false, row.Go ? 600 : 400, TextAlignmentOptions.Left);
             }
             else label.margin = new Vector4(16 * Z, 0, 60 * Z, 0);
+            if (row.Label.Contains("⬢"))
+            {
+                // (Materials in its words: their mark, as the web's choiceRow carries it.)
+                label.text = row.Label.ToUpperInvariant().Replace("⬢", InlineMark("materials"));
+                RuleMarks(label, label.text, fs);
+            }
             if (row.Value != null)
             {
                 // (.opt-value: a grey pill, its value in spaced capitals.)
