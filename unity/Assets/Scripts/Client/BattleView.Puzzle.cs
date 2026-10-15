@@ -39,13 +39,19 @@ public partial class BattleView
 
     void PuzzleTag()
     {
-        if (puzzleKind == null || state == null) { Board.SetTag(null, null); return; }
-        if (state.WinnerId != null) { Board.SetTag(null, null); return; }
+        if (puzzleKind == null || state == null || state.WinnerId != null) { GalaxyTag(); return; }
         if (lesson != null) { Board.SetTag(lesson.Name, lesson.Teaches); return; }
         int days = state.Challenge?.Days ?? 1;
         string goal = state.Challenge?.Goal == "survive" ? "survive their day" : days > 1 ? $"win within {days} days · day {Mathf.Min(days, state.Players[0].TurnsTaken)}" : "win this day";
         int left = Mathf.Max(0, Mathf.CeilToInt(clockLeft));
         Board.SetTag($"challenge {Puzzles.Challenges.FindIndex(c => c.Id == puzzleId) + 1}", $"{goal} · {left / 60}:{left % 60:00}");
+    }
+
+    /// <summary>app.ts renderGalaxyTag: a campaign galaxy's trade-off, its name and what it does in short (none: no tag).</summary>
+    void GalaxyTag()
+    {
+        var g = state?.Players.SelectMany(p => p.Conditions ?? new List<BattleCondition>()).FirstOrDefault(c => c.Galaxy == true);
+        Board.SetTag(g?.Name?.ToLowerInvariant(), g?.Short);
     }
 
     float lastShown = -1;

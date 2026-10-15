@@ -17,7 +17,6 @@ public partial class BattleView : MonoBehaviour
     public Camera Cam;
     public Board Board;
     public bool Autoplay;
-    public float MoveDelay = 0.75f;
     GameState state;
     string you = "p1";
     bool busy;
@@ -49,6 +48,8 @@ public partial class BattleView : MonoBehaviour
         var v = new GameObject("Battle").AddComponent<BattleView>();
         v.Cam = cam;
         v.Board = Board.Make(cam);
+        // (The pill as it was left: auto kept between games, as the web's AUTO_CONFIRM_KEY.)
+        v.confirmMode = Store.Get(AutoConfirmKey) == "1" ? "auto" : "normal";
         v.BuildHud();
         return v;
     }
@@ -94,7 +95,7 @@ public partial class BattleView : MonoBehaviour
         Sound.Scene("battle");
         // (The opening hand: shuffled, then dealt in from the deck: app.ts begin, dealOpening.)
         Board.DealOpening(state);
-        DawnBanner(state, 0.4f);
+        Begin();
     }
 
     /// <summary>The names the AI plays under in quickplay (app.ts BOT_NAMES).</summary>
@@ -133,7 +134,7 @@ public partial class BattleView : MonoBehaviour
         scoreLeft = false;
         // (The opening hand: shuffled, then dealt in from the deck: app.ts begin, dealOpening.)
         Board.DealOpening(state);
-        DawnBanner(state, 0.4f);
+        Begin();
     }
 
     /// <summary>Whether the match's score has given way to the voyage, the game being over (app.ts render's inPlay).</summary>
@@ -147,14 +148,16 @@ public partial class BattleView : MonoBehaviour
         if (FitScreen() && state != null) Refresh();
         ExtrasTick();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
+        if (state != null && !Autoplay) KeysTick();
         if (state == null || state.WinnerId != null) return;
         StageTick();
         DreamTick();
         if (!Autoplay) EndDayTick();
-        if (!busy && StageClear && AiToMove()) StartCoroutine(AiMove());
-        // (Skip all: a reply waiting on you is let pass.)
-        if (!busy && confirmMode == "skip" && state.Reaction != null && state.Reaction.PlayerId == you && !online) StartCoroutine(PassReply());
+        AiTick();
+        // (Skip all: a reply waiting on you is let pass, online too, where it is yours to make: app.ts skipReply.)
+        if (!busy && confirmMode == "skip" && state.Reaction != null && state.Reaction.PlayerId == you) StartCoroutine(PassReply());
         if (Autoplay) return;
+        HoverRustle();
         // (A touch screen has no hover: a first tap on the hand raises it, a tap away lowers it, as the web's.)
         if (Input.touchCount > 0) touch = true;
         var page = Page(Input.mousePosition);
@@ -238,6 +241,7 @@ public partial class BattleView : MonoBehaviour
         if (up && !Board.HandUp) Sound.Play("hand-lift");
         Board.HandUp = up;
         Board.HandHover = over;
+        SendHover(over);
         if (state != null) Board.Sync(state, this);
     }
 
@@ -258,21 +262,15 @@ public partial class BattleView : MonoBehaviour
         if (state == s && confirmMode == "skip") Do(new EngineAction { Type = "react" });
     }
 
-    IEnumerator AiMove()
-    {
-        busy = true;
-        yield return new WaitForSeconds(Delay);
-        Step();
-        busy = false;
-    }
+    /// <summary>One move by the AI for whoever is to move (`a`: the move it made up its mind to, as it began thinking).</summary>
+    public void Step() => Step(null);
 
-    /// <summary>One move by the AI for whoever is to move.</summary>
-    public void Step()
+    void Step(EngineAction a)
     {
         if (state.WinnerId != null) return;
         try
         {
-            var a = HumanDawnChoice() ? AI.DawnChoiceFor(state) : AI.Choose(state);
+            a ??= HumanDawnChoice() ? AI.DawnChoiceFor(state) : AI.Choose(state);
             Commit(a);
         }
         catch (System.Exception e)
@@ -346,7 +344,6 @@ public partial class BattleView : MonoBehaviour
 
     public static string Speed => System.Array.IndexOf(Speeds, Store.Get(SpeedKey)) >= 0 ? Store.Get(SpeedKey) : "normal";
     public static void NextSpeed() => Store.Set(SpeedKey, Speeds[(System.Array.IndexOf(Speeds, Speed) + 1) % 3]);
-    float Delay => 0.75f * SpeedFactor[System.Array.IndexOf(Speeds, Speed)];
 
     void CloseSheet()
     {
@@ -643,6 +640,12 @@ public partial class BattleView : MonoBehaviour
             Clear();
             discarding = new List<string>();
             Refresh();
+            return;
+        }
+        // (Short of what must go: how many more, and the picking goes on: app.ts finishDay.)
+        if (Over > 0 && discarding.Count(u => Me.Hand.Any(c => c.Uid == u)) < Over)
+        {
+            Say($"Discard {Over - discarding.Count(u => Me.Hand.Any(c => c.Uid == u))} more");
             return;
         }
         Do(new EngineAction { Type = "endTurn", Discard = discarding?.ToList() });
@@ -1068,7 +1071,8 @@ public partial class BattleView : MonoBehaviour
     /// <summary>
     /// The rival's hand (app.ts renderRivalHand, styles.css .rival-hand): a card's back for each card they hold,
     /// clamp(40px, 4.3vw, 64px) wide, hanging half off the top of the screen in a fan (each 62% of a card from the next,
-    /// turned 4° about a point well above the screen), white-edged with a soft shadow.
+    /// turned 4° about a point well above the screen), white-edged with a soft shadow; the one they are hovering (an
+    /// online rival's pointer, the AI as it thinks) lifted out of it (.rh-card.lifted: RivalLift).
     /// </summary>
     void RivalHand()
     {
@@ -1087,6 +1091,11 @@ public partial class BattleView : MonoBehaviour
             card.sizeDelta = new Vector2(w, h);
             card.anchoredPosition = new Vector2(o * w * 0.62f, (0.54f + 2.6f) * h);
             card.localRotation = Quaternion.Euler(0, 0, 4 * o);
+            // (Its own frame, lifted down out of the fan along the card's turn: translateY after the rotate.)
+            var lift = Hud.Rect(card, "Lift");
+            Hud.Fill(lift);
+            card.gameObject.AddComponent<RivalLift>().Init(lift, h, rivalHover == i);
+            card = lift;
             var shadow = Hud.Rect(card, "Shadow");
             Hud.Fill(shadow);
             shadow.offsetMin = new Vector2(-w * 0.15f, -w * 0.19f);
@@ -1145,7 +1154,6 @@ public partial class BattleView : MonoBehaviour
     {
         if (state == null) return;
         FitScreen();
-        Phase = Dawn != null ? "dawn" : "day";
         Persist();
         Board.Sync(state, this);
         Usable(endDay, MyDay);
@@ -1198,6 +1206,7 @@ public partial class BattleView : MonoBehaviour
         }
         RivalHand();
         Reaction();
+        ReactWait();
         ShowHint();
         ShowChoice();
         PuzzleTag();
@@ -1240,6 +1249,7 @@ public partial class BattleView : MonoBehaviour
     /// </summary>
     void HoldResult(GameState next, EngineAction a)
     {
+        PayAiGame(next);
         var pulses = (next.TurnPulses ?? new List<TurnPulse>()).Where(p => p.Kind != "start" && p.Together != true).ToList();
         float waves = pulses.Count(IsWave) * WaveExtra;
         float wait = (a.Type == "endTurn" ? (pulses.Count > 0 ? 2 * (BannerShown + 0.15f) + pulses.Count * PulseStep * SpeedK + waves + 0.7f : 0) : 0.9f) + 1.8f;
@@ -1269,7 +1279,8 @@ public partial class BattleView : MonoBehaviour
         if (online) { OnlineEnd(title, tone, why, quitter != null); return; }
         // (A battle of the run's goes back to the map, what it won waiting there.)
         var act = campaignOf != null ? new ResultAction("continue", BackToCampaign, true) : new ResultAction("return to menu", () => App.Instance?.Menu("hub"), true);
-        ResultCard(title, tone, why, null, new[] { act }, false);
+        // (Against the AI, what the game earned you, once the server has said: app.ts resultExtra.)
+        ResultCard(title, tone, why, resultExtra, new[] { act }, false);
     }
 
     /// <summary>Everything settled where it is going (for a still picture).</summary>

@@ -78,12 +78,18 @@ public partial class BattleView
                 foreach (var c in prev.Players.SelectMany(p => p.Tableau))
                     if (!nowIn.Contains(c.Uid)) Board?.LeaveAfter(c.Uid, (replayEnd > 0 ? replayEnd : 0.2f) + faded++ * 0.11f);
             }
+            // (A new day isn't under way until its dawn has played out.)
+            if (turnPassed) Phase = "dawn";
             Refresh();
             replaying = false;
-            // (The next day's dawn: its banner when the timeline brings it, after the dusk's effects.)
-            if (turnPassed && day.Item2 != null) DawnBanner(next, day.Item2.Value, day.Item3);
+            // (The dusk ticking in, the next day's dawn: its banner when the timeline brings it, after the dusk's
+            // effects, and the day once they are over: app.ts announcePhases.)
+            if (turnPassed) AnnouncePhases(next, day);
             // (Until the day's banner and its effects are over, it is still dawn: no cards but Lightspeed ones count as playable.)
             if (turnPassed) dayFrom = Time.time + day.Item3 + (day.Item2 != null ? BannerShown : 0);
+            // The AI waits for the day's banner to have come and gone (after its dusk and dawn have played out) before it
+            // acts; otherwise a pause for the kind of move just made.
+            ScheduleAI(turnPassed ? Mathf.Max(AiPause("endTurn"), (day.Item3 + BannerShown + 0.3f) / SpeedK) : AiPause(a.Type));
         }
         if (stage != null && stage.Confirm)
         {
@@ -153,9 +159,12 @@ public partial class BattleView
         clickShieldUntil = Time.time + 0.4f;
         stage = null;
         Sound.Play("click");
-        aiAfter = Time.time + 0.45f;
         if (landing != null) FlushLanding();
-        else Refresh();
+        else
+        {
+            Refresh();
+            ScheduleAI(0.45f);
+        }
     }
 
     /// <summary>The stage's clock: auto-confirming, your own card's hold, a sprung card's moment.</summary>
@@ -574,8 +583,12 @@ public partial class BattleView
     void SetConfirmMode(string mode)
     {
         confirmMode = mode;
+        // (Auto and normal are kept between games; skip lasts the day.)
+        Store.Set(AutoConfirmKey, mode == "normal" ? "0" : "1");
         Sound.Play("hover");
         if (AutoConfirms && stage != null && stage.Confirm) ConfirmStage();
+        // (Online, the rival's card waiting to be read is read now.)
+        if (AutoConfirms && online && Online.WaitFor == "you" && state?.WinnerId == null) { Online.Ack(); OnlineChanged(); }
         Refresh();
     }
 

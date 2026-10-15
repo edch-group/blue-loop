@@ -786,17 +786,7 @@ public partial class Board : MonoBehaviour
         Color lit = Rgba(47, 58, 82), pale = Rgba(185, 191, 202);
         turnYou.color = mineNow ? lit : pale;
         turnThem.color = mineNow ? pale : lit;
-        string phase = ui.Phase;
-        for (int i = 0; i < phases.Length; i++)
-        {
-            bool on = new[] { "dawn", "day", "dusk" }[i] == phase;
-            phases[i].color = on ? Rgba(49, 60, 84) : Rgba(161, 168, 179);
-            // (.phase-step.on i: each phase in its own colour, dawn amber, day gold, dusk violet, glowing; the rest grey.)
-            var pc = i == 0 ? Rgba(240, 160, 64) : i == 1 ? Rgba(232, 194, 58) : Rgba(138, 106, 208);
-            phaseDots[i].sharedMaterial.color = on ? pc : Rgba(201, 206, 216);
-            phaseDots[i].transform.localScale = dotScale;
-            phaseGlows[i].sharedMaterial.color = new Color(pc.r, pc.g, pc.b, on ? 0.8f : 0);
-        }
+        ShowPhase(ui.Phase);
         // The round, and regional stability's ticks: one drains each round; gone, the track reddens and every sun
         // takes the round's heat at its dawn.
         int total = roundTicks.Count, left = Mathf.Max(0, total - (s.Round - 1)), unstable = Game.InstabilityHeat(s);
@@ -933,21 +923,6 @@ public partial class Board : MonoBehaviour
     }
 
     TextMeshPro tagName, tagSub;
-
-    /// <summary>A lesson's or a challenge's name, and what it asks, under the flower (where a galaxy's would be); null: none.</summary>
-    public void SetTag(string name, string sub)
-    {
-        if (tagName == null)
-        {
-            float under = L.Star / 2;
-            tagName = Mats.FlatText("Tag", decor, "", Px(13.9f), Look.Ink, true, 600, 24);
-            tagName.transform.localPosition = new Vector3(0, 0.01f, -L.U(under + 9));
-            tagSub = Mats.FlatText("Tag words", decor, "", Px(12.2f), Look.InkSoft, false, 400, 4);
-            tagSub.transform.localPosition = new Vector3(0, 0.01f, -L.U(under + 25));
-        }
-        tagName.text = name?.ToUpperInvariant() ?? "";
-        tagSub.text = sub ?? "";
-    }
 
     /// <summary>Whether the board has been laid out once (after that, cards arriving come from somewhere).</summary>
     bool dealt;

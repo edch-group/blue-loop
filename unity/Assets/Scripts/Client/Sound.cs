@@ -68,7 +68,7 @@ public class Sound : MonoBehaviour
     public static void Play(string name, float delay = 0, float volume = 1)
     {
         var s = Get();
-        if (s == null) return;
+        if (s == null || !MaySound(name)) return;
         var clip = s.Clip(name);
         if (clip == null) return;
         var v = s.voices.Find(x => !x.isPlaying) ?? s.NewVoice();
@@ -76,6 +76,35 @@ public class Sound : MonoBehaviour
         v.volume = volume;
         if (delay > 0) v.PlayDelayed(delay);
         else v.Play();
+    }
+
+    static float lastHover = -10, lastRustle = -10, lastHandLift = -10;
+
+    /// <summary>
+    /// The web's throttles (sound.ts hover, rustle, handLift): a hover at most every 90 ms, a rustle every 70; the hand
+    /// lifting once in 900 ms (it can lift twice in a breath, as the pointer grazes its edge), counted as a rustle too.
+    /// Whether it may sound now.
+    /// </summary>
+    static bool MaySound(string name)
+    {
+        float now = Time.realtimeSinceStartup;
+        switch (name)
+        {
+            case "hover":
+                if (now - lastHover < 0.09f) return false;
+                lastHover = now;
+                return true;
+            case "rustle":
+                if (now - lastRustle < 0.07f) return false;
+                lastRustle = now;
+                return true;
+            case "hand-lift":
+                if (now - lastHandLift < 0.9f) return false;
+                lastHandLift = lastRustle = now;
+                return true;
+            default:
+                return true;
+        }
     }
 
     /// <summary>A recording (a voice line) through the same voices as the effects.</summary>

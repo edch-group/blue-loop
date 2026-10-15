@@ -205,6 +205,9 @@ public static class Online
     /// <summary>A move of yours: the room plays it and sends back the result.</summary>
     public static void Act(EngineAction a) => Client?.Send(new JObject { ["t"] = "action", ["action"] = JObject.Parse(Json.Write(a)) });
 
+    /// <summary>The card of your hand under your pointer (by place; null: none), for your rival to see lift.</summary>
+    public static void Hover(int? index) => Client?.Send(new JObject { ["t"] = "hover", ["i"] = index != null ? (JToken)index.Value : JValue.CreateNull() });
+
     /// <summary>You have read the card your rival just played: they may carry on.</summary>
     public static void Ack()
     {
@@ -297,6 +300,11 @@ public static class Online
                 Sound.Play("error");
                 Say(message);
                 if (message.Contains("full")) Leave();
+                break;
+            case "rivalHover":
+                // (The card of their hand your rival is hovering, by place: lifted out of their fan.)
+                var hovered = msg["i"];
+                battle?.SetRivalHover(hovered != null && hovered.Type == JTokenType.Integer ? (int)hovered : (int?)null);
                 break;
             case "presence":
                 bool on = (bool?)msg["rivalOnline"] ?? true;
