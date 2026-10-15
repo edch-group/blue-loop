@@ -575,15 +575,12 @@ public class MenuView : MonoBehaviour
         var d = deck ?? (seat >= 0 ? SeatDeck(seat) : null);
         if (d != null)
         {
-            // (.lobby-deck: the box, and its name 6 under it: clamp(0.4rem, 1.5vh, 0.52rem), spaced 0.1em, in ink.)
-            float nameSize = K.Clamp(6.4f, 1.5f * K.Vh, 8.32f), nameH = K.LineH(nameSize);
-            float boxH = BuilderView.MiniH(bw), midTop = pv + headH + gap, midH = footY - gap - midTop;
-            float groupH = boxH + 6 + nameH;
+            // (.lobby-deck: the box, and its name 6 under it, as the deck's mini box draws them.)
+            float midTop = pv + headH + gap, midH = footY - gap - midTop;
+            float groupH = BuilderView.MiniH(bw);
             float by = midTop + (midH - groupH - bw * 0.12f) / 2 + bw * 0.12f;
             System.Action act = deck == null && seat >= 0 ? () => { pickSeat = seat; pickFrom = current; Show("pickdeck"); } : (System.Action)null;
             BuilderView.DeckBoxMini(r, (w - bw) / 2, by, d, true, act, bw);
-            var dn = K.Words(r, d.Name.ToUpperInvariant(), (w - (bw + 10)) / 2, by + boxH + 6, bw + 10, nameH, nameSize, Look.Ink, true, 400, 0.1f);
-            Hud.Ellipsis(dn);
         }
         return r;
     }
