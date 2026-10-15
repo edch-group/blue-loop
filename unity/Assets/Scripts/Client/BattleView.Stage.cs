@@ -444,6 +444,9 @@ public partial class BattleView
         return new Rect(x0, (pa.y + pb.y) / 2 - hgt / 2, x1 - x0, hgt);
     }
 
+    /// <summary>A card picked from the hand waits for its place (the web's pending step 'slot').</summary>
+    public bool ChoosingSlot => picked != null && options != null && options.Any(o => o.SlotIndex != null) && options.Select(o => o.SlotIndex).Distinct().Count() > 0;
+
     /// <summary>Whether a card of your hand is on the stage instead (picked, or just played and hanging there).</summary>
     public bool OffHand(string uid) => uid == picked || (stage != null && stage.Own && stage.Uid == uid);
 

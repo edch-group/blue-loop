@@ -54,6 +54,8 @@ public class Board : MonoBehaviour
     readonly Dictionary<string, CardView> cards = new Dictionary<string, CardView>();
     readonly Dictionary<string, SunView> suns = new Dictionary<string, SunView>();
     readonly List<GameObject> slotMarks = new List<GameObject>();
+    /// <summary>Each of your slots' two looks: plain, and open to the card picked.</summary>
+    readonly Dictionary<int, (GameObject plain, GameObject choose)> slotLooks = new Dictionary<int, (GameObject, GameObject)>();
     TextMeshPro[] phases;
     readonly MeshRenderer[] phaseDots = new MeshRenderer[3], phaseGlows = new MeshRenderer[3];
     TextMeshPro myLabel, rivalLabel, turnThem, turnYou, roundN, roundUp;
@@ -160,6 +162,7 @@ public class Board : MonoBehaviour
         tagName = tagSub = null;
         if (decor != null) Mats.Kill(decor.gameObject);
         slotMarks.Clear();
+        slotLooks.Clear();
         roundTicks.Clear();
         decor = new GameObject("Decor").transform;
         decor.SetParent(table, false);
@@ -354,19 +357,40 @@ public class Board : MonoBehaviour
         var go = new GameObject($"Slot {(mine ? "mine" : "rival")} {s}");
         go.transform.SetParent(table, false);
         go.transform.localPosition = at;
+        var plain = new GameObject("Plain").transform;
+        plain.SetParent(go.transform, false);
         // (styles.css .slot-empty: pale, a white line inside a dashed edge, corners of 8% of its width.)
-        Picture("Outline", go.transform, BoardArt.Slot(false), Color.white, 1, 1.4f, 2925, 0.0005f);
+        Picture("Outline", plain, BoardArt.Slot(false), Color.white, 1, 1.4f, 2925, 0.0005f);
         var ink = Rgba(120, 128, 150, 0.55f);
         int def = Game.SlotDefence(s);
         float size = Mathf.Max(9, L.Tcw * 0.14f);
         if (s < 0)
         {
             // (The Hero's slot: its defence, and "hero" small under it.)
-            Defence(go.transform, def.ToString(), new Vector3(0, 0, 0.059f), ink, size);
-            var hero = Mats.FlatText("Hero", go.transform, "HERO", Px(Mathf.Max(6, L.Tcw * 0.075f)), new Color(ink.r, ink.g, ink.b, ink.a * 0.8f), true, 400, 20);
+            Defence(plain, def.ToString(), new Vector3(0, 0, 0.059f), ink, size);
+            var hero = Mats.FlatText("Hero", plain, "HERO", Px(Mathf.Max(6, L.Tcw * 0.075f)), new Color(ink.r, ink.g, ink.b, ink.a * 0.8f), true, 400, 20);
             hero.transform.localPosition = new Vector3(0, 0.002f, -0.102f);
         }
-        else Defence(go.transform, def.ToString(), Vector3.zero, ink, size);
+        else Defence(plain, def.ToString(), Vector3.zero, ink, size);
+        if (mine)
+        {
+            // A place to put the card picked (button.slot-choosable): a coral dashed edge on white, a faint coral glow,
+            // its defence and "here" under it in coral.
+            var choose = new GameObject("Choosable").transform;
+            choose.SetParent(go.transform, false);
+            float k = 1f / L.Tcw;
+            Shape("Glow", choose, Rgba(208, 101, 75, 0.25f), 1, 1.4f, 0.08f, 2920, 0.0003f, 10 * k, 14 * k, true);
+            Picture("Outline", choose, BoardArt.SlotChoose(), Color.white, 1, 1.4f, 2925, 0.0005f);
+            var coral = Rgba(192, 86, 61);
+            float hereSize = Mathf.Max(7, L.Tcw * 0.08f), defH = size * 1.2f, hereH = hereSize * 1.2f;
+            // (The two lines centred together, 2 px apart.)
+            float top = (defH + 2 + hereH) / 2;
+            Defence(choose, def.ToString(), new Vector3(0, 0, (top - defH / 2) * k), coral, size);
+            var here = Mats.FlatText("Here", choose, "HERE", Px(hereSize), coral, true, 400, 20);
+            here.transform.localPosition = new Vector3(0, 0.002f, -(top - hereH / 2) * k);
+            choose.gameObject.SetActive(false);
+            slotLooks[s] = (plain.gameObject, choose.gameObject);
+        }
         var col = go.AddComponent<BoxCollider>();
         col.size = new Vector3(1, 0.05f, 1.4f);
         go.AddComponent<SlotTag>().Set(mine, s);
@@ -570,6 +594,14 @@ public class Board : MonoBehaviour
         for (int i = 0; i < total; i++) roundTicks[i].sharedMaterial.color = new Color(1, 1, 1, unstable > 0 ? 0.35f : i < left ? 1 : 0.5f);
         roundTrack.sharedMaterial.color = unstable > 0 ? Rgba(201, 138, 134, 0.25f) : Rgba(120, 124, 134, 0.14f);
         foreach (var slot in slotMarks) slot.SetActive(true);
+        // (A card picked, waiting for its place: each empty slot of yours open to it.)
+        var viewer = s.Players.FirstOrDefault(p => p.Id == Viewer);
+        foreach (var kv in slotLooks)
+        {
+            bool open = ui.ChoosingSlot && viewer != null && !viewer.Tableau.Any(c => c.Slot == kv.Key);
+            if (kv.Value.plain.activeSelf == open) kv.Value.plain.SetActive(!open);
+            if (kv.Value.choose.activeSelf != open) kv.Value.choose.SetActive(open);
+        }
     }
 
     /// <summary>
@@ -969,6 +1001,15 @@ public static class BoardArt
         t = Dashed(160, 224, 12.8f, new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.66f), new Color(1, 1, 1, 0.5f), 1.84f,
             trap ? new Color(75 / 255f, 79 / 255f, 176 / 255f, 0.4f) : new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.35f), 1.5f, 4.6f, 3.1f);
         made[key] = t;
+        return t;
+    }
+
+    /// <summary>A slot open to the card picked (button.slot-choosable): white at 0.7, a 1.5 px coral dashed edge.</summary>
+    public static Texture2D SlotChoose()
+    {
+        if (made.TryGetValue("choose", out var t)) return t;
+        t = Dashed(160, 224, 12.8f, new Color(1, 1, 1, 0.7f), new Color(1, 1, 1, 0), 0, new Color(208 / 255f, 101 / 255f, 75 / 255f, 0.7f), 1.5f, 4.6f, 3.1f);
+        made["choose"] = t;
         return t;
     }
 
