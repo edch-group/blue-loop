@@ -17,7 +17,9 @@ public static class Faces
     static Texture2D Load(string path)
     {
         if (cache.TryGetValue(path, out var t)) return t;
-        t = Pictures.Load(path);
+        // (Its shape beside it: CardFaces/<variant>-alpha/<id>.)
+        var slash = path.LastIndexOf('/');
+        t = Pictures.Load(path, path.Substring(0, slash) + "-alpha" + path.Substring(slash));
         if (t != null)
         {
             t.wrapMode = TextureWrapMode.Clamp;
