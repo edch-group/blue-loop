@@ -1,7 +1,8 @@
 // A model (nebula-objects.ts SHIP_FRAG): its look worked out from each part's material and colour. Plated metal:
 // panels of slightly differing tone, seams cut in, wear and grime, a stripe in its holder's colour; glass and crystal,
 // deep and bright at the edge; glowing parts white-hot at heart and flickering; living hide, mottled; dark gloss;
-// molten; pearl. Lit by a key light with a sharp highlight and the paper's light caught at its edges.
+// molten; pearl; the Captain's ship's made hull, painted after its art. Lit by a key light with a sharp highlight and the
+// paper's light caught at its edges.
 Shader "BlueLoop/Ship"
 {
     Properties { _Color ("Holder's colour", Color) = (0.36,0.56,0.86,1) _Alpha ("Alpha", Range(0,1)) = 1 _Burn ("Burn", Float) = 0 _Flip ("Z flip (a scene in the web's own axes)", Float) = 1 }
@@ -17,6 +18,8 @@ Shader "BlueLoop/Ship"
             #include "UnityCG.cginc"
             fixed4 _Color;
             float _Alpha, _Burn, _Flip;
+            // (The Captain's ship's paint: ModelMesh sets it for all.)
+            sampler2D _CaptainPaint;
             struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; float4 color : COLOR; float2 uv : TEXCOORD0; };
             struct v2f { float4 pos : SV_POSITION; float3 n : TEXCOORD0; float3 w : TEXCOORD1; float3 l : TEXCOORD2; float3 ln : TEXCOORD3; float m : TEXCOORD4; float3 c : TEXCOORD5; };
             v2f vert (appdata v)
@@ -59,6 +62,34 @@ Shader "BlueLoop/Ship"
                 float m = i.m;
                 float t = _Time.y;
                 float3 c;
+                if (m > 7.5)
+                {
+                    // The Captain's ship's made hull, painted after its art (CaptainShip.cs): the art laid over it side on,
+                    // where it lies in the vertex's colour. Its flanks wear the art as it is, lit glass and lamps glowing;
+                    // faces turned up or down from the side (the art's outline there, its glass smeared) take the slate of
+                    // its plating, keeping only its amber bands; the engines' throats (9) glow seen from astern as well.
+                    float4 p = tex2D(_CaptainPaint, i.c.rg);
+                    float3 ln = normalize(i.ln);
+                    float side = smoothstep(0.2, 0.5, abs(ln.z)), lit = smoothstep(0.05, 0.3, abs(ln.z));
+                    if (m > 8.5)
+                    {
+                        side = max(side, smoothstep(0.3, 0.6, -ln.x));
+                        lit = max(lit, side);
+                    }
+                    float3 slate = float3(0.33, 0.36, 0.4);
+                    float amber = saturate((p.r - p.b - 0.22) * 4.0) * (1.0 - p.a);
+                    float3 base = lerp(lerp(slate, p.rgb, amber), p.rgb, side);
+                    float grime = n3(i.l * 46.0) * 0.6 + n3(i.l * 110.0) * 0.4;
+                    base *= 0.94 + 0.1 * grime;
+                    float rough = 0.35 + 0.3 * grime;
+                    float spec = pow(max(dot(n, h), 0.0), lerp(90.0, 14.0, rough)) * (1.0 - rough) * 0.9;
+                    c = base * (0.62 + 0.55 * diff) + spec;
+                    c += base * max(-n.y, 0.0) * 0.12;
+                    c = lerp(c, sky, fres * 0.25);
+                    float flick = 0.95 + 0.05 * sin(t * 7.0 + i.l.x * 40.0) * sin(t * 4.3 + i.l.z * 30.0);
+                    c = lerp(c, p.rgb * flick * (1.0 + _Burn * 0.1), p.a * lit);
+                    return fixed4(min(c, 1) * _Alpha, _Alpha);
+                }
                 if (m > 1.5 && m < 2.5)
                 {
                     float flick = 0.9 + 0.1 * sin(t * 23.0 + i.l.x * 30.0) * sin(t * 13.0 + i.l.z * 20.0);

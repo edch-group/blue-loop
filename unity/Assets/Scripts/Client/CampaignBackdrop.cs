@@ -361,7 +361,7 @@ public class CampaignBackdrop : MonoBehaviour
         shipNow = shipM;
         Place(shipModel, shipM);
         // The Captain on the foredeck, facing ahead and a little toward us; the tails and scarf streaming.
-        var at = B(32, 12, build.Deck);
+        var at = B(build.Captain.X, build.Captain.Y, build.Captain.Z);
         var foot = B(20, 12, 0);
         var capM = shipM * T(at) * RY(1.3f) * S(0.7f / SS) * T(new Vector3(-foot.x, 0, -foot.z));
         Place(captain, capM);
@@ -372,8 +372,8 @@ public class CampaignBackdrop : MonoBehaviour
         foreach (var (id, pl, tr) in crew)
         {
             float kk = (float)pl.Size / SS;
-            var spot = pl.On == "rail" ? B(pl.X, build.RailY, build.RailZ)
-                : pl.On == "dish" ? B(pl.X, pl.Y, build.Dish)
+            var on = pl.On != "air" ? build.CrewAt(pl) : default;
+            var spot = pl.On != "air" ? B(on.X, on.Y, on.Z)
                 : B(pl.X + 0.5 * Mathf.Sin(t * 0.37f), pl.Y + 0.3 * Mathf.Sin(t * 0.29f + 2), pl.Z + 0.9 * Mathf.Sin(t * 0.83f + 1.7f));
             var o = B(pl.Anchor.X, pl.Anchor.Y, pl.Anchor.Z);
             var local = RY((float)pl.Turn) * S(kk) * T(-o);

@@ -90,20 +90,58 @@ public static class ModelChecks
         return (r, sw.Elapsed.TotalMilliseconds);
     }
 
-    static CaptainShipSpec Spec(JToken j)
-    {
-        var spec = new CaptainShipSpec { Level = (double)j["level"] };
-        foreach (var p in ((JObject)j["parts"]).Properties()) spec.Parts[p.Name] = (string)p.Value;
-        foreach (var p in ((JObject)j["rarity"]).Properties()) spec.Rarity[p.Name] = (string)p.Value;
-        if (j["crew"] != null) spec.Crew = j["crew"].Select(c => (string)c).ToList();
-        return spec;
-    }
-
     static Strip StripOf(JToken j) => new Strip
     {
         Nodes = j["nodes"].Select(n => n.Select(x => (double)x).ToArray()).ToList(),
         Routes = j["routes"].Select(n => n.Select(x => (double)x).ToArray()).ToList(),
     };
+
+    /// <summary>
+    /// The Captain's ship: in Unity a made model (Resources/Models/CaptainShip.bytes), no longer the web's captain-ship.ts,
+    /// so checked for itself: it builds whole however fitted, its engines and smoke where they should be, the Captain and
+    /// the crew standing on it, its slots marked.
+    /// </summary>
+    public static void CaptainShips(Action<string, bool, string> check)
+    {
+        CaptainShip.HullSource = () => System.IO.File.ReadAllBytes(System.IO.Path.Combine(Repo.Root, "unity/Assets/Resources/Models/CaptainShip.bytes"));
+        var all = new Dictionary<string, string> { ["armour"] = "aegis_hull", ["shield"] = "halo_generator", ["port"] = "nova_lance", ["starboard"] = "nova_lance", ["booster"] = "afterburners", ["warp"] = "fold_drive" };
+        var specs = new[]
+        {
+            new CaptainShipSpec { Level = 0 },
+            new CaptainShipSpec { Level = 3, Parts = new Dictionary<string, string> { ["armour"] = "scrap_plating" }, Rarity = new Dictionary<string, string> { ["armour"] = "dwarf" }, Crew = new List<string> { "lancer" } },
+            new CaptainShipSpec { Level = 7, Parts = new Dictionary<string, string> { ["booster"] = "ion_boosters" }, Crew = new List<string> { "engineer", "shade", "seer" } },
+            new CaptainShipSpec { Level = 15, Parts = all, Rarity = all.ToDictionary(kv => kv.Key, kv => "anomaly"), Crew = new List<string> { "lancer", "engineer", "defector", "shade", "seer" } },
+            new CaptainShipSpec { Level = 22, Parts = new Dictionary<string, string> { ["warp"] = "fold_drive" }, Rarity = new Dictionary<string, string> { ["warp"] = "unknown" }, Crew = new List<string> { "nobody" } },
+        };
+        foreach (var spec in specs)
+        {
+            var (s, ms) = Timed(() => CaptainShip.CaptainShipModel(spec));
+            var (map, ms2) = Timed(() => CaptainShip.CaptainShipMap(spec));
+            string bad = null;
+            if (s.Mesh.Length == 0 || s.Mesh.Length % 30 != 0) bad = $"{s.Mesh.Length} floats";
+            for (int i = 0; i < map.Mesh.Length && bad == null; i++)
+                if (float.IsNaN(map.Mesh[i]) || float.IsInfinity(map.Mesh[i])) bad = $"float {i} is {map.Mesh[i]}";
+            var engines = 3 + (spec.Parts.ContainsKey("booster") ? 2 : 0);
+            if (s.Engines.Count != engines) bad ??= $"{s.Engines.Count} engines, wanted {engines}";
+            // (Every engine astern, at the back of the hull.)
+            if (s.Engines.Any(e => e.X > -0.5)) bad ??= "an engine not astern";
+            if (s.Smoke.Count != (spec.Level < 4 ? 2 : 0)) bad ??= $"{s.Smoke.Count} smoke vents at level {spec.Level}";
+            // (The Captain on the foredeck's floor, between its rails, its rails above it.)
+            var floor = CaptainShip.ZC + (CaptainShip.TopAt(30, 14) - CaptainShip.ZC) * s.Swell;
+            if (Math.Abs(s.Captain.Z - floor) > 0.3) bad ??= $"the Captain at {s.Captain.Z}, the deck at {floor}";
+            if (s.RailZ < s.Deck + 0.5) bad ??= $"the rail ({s.RailZ}) not above the deck ({s.Deck})";
+            // (The crew who stand on the hull standing on it, not in it or over it.)
+            foreach (var id in spec.Crew ?? new List<string>())
+                if (CompanionModels.Places.TryGetValue(id, out var pl) && pl.On == "dish")
+                {
+                    var at = s.CrewAt(pl);
+                    if (at.Z < CaptainShip.ZC + 2) bad ??= $"{id} at {at}, inside the hull";
+                }
+            var spots = CaptainShip.SlotSpots(spec.Level);
+            if (spots.Count != CaptainShip.Slots.Length || CaptainShip.Slots.Any(k => !spots.ContainsKey(k))) bad ??= $"{spots.Count} slots";
+            check($"model Captain's ship (level {spec.Level}, {s.Mesh.Length / 10} vertices, {ms:0.0} ms; on the map {map.Mesh.Length / 10}, {ms2:0.0} ms)", bad == null, bad);
+        }
+    }
 
     public static void Run(Action<string, bool, string> check, JObject t)
     {
@@ -133,45 +171,6 @@ public static class ModelChecks
             var (m, ms) = Timed(() => CompanionModels.CompanionModel(p.Name));
             var d = Mesh(m, p.Value);
             check($"model companion {p.Name} ({m.Length / 10} vertices, {ms:0.0} ms)", d == null, d);
-        }
-        int si = 0;
-        foreach (var c in t["captainShips"])
-        {
-            var spec = Spec(c["spec"]);
-            var (s, ms) = Timed(() => CaptainShip.CaptainShipModel(spec));
-            var w = c["model"];
-            var d = First(
-                () => Mesh(s.Mesh, w["mesh"]),
-                () => Points(s.Smoke, w["smoke"], "smoke"),
-                () => Points(s.Engines, w["engines"], "engine"),
-                () => Num(s.Deck, w["deck"], "deck"),
-                () => Num(s.Bridge, w["bridge"], "bridge"),
-                () => Num(s.RailY, w["rail"]["y"], "rail y"),
-                () => Num(s.RailZ, w["rail"]["z"], "rail z"),
-                () => Num(s.Dish, w["dish"], "dish"));
-            check($"model Captain's ship {si} (level {spec.Level}, {s.Mesh.Length / 10} vertices, {ms:0.0} ms)", d == null, d);
-            var (map, ms2) = Timed(() => CaptainShip.CaptainShipMap(spec));
-            var wm = c["map"];
-            d = First(
-                () => Mesh(map.Mesh, wm["mesh"]),
-                () => Points(map.Engines, wm["engines"], "engine"),
-                () => Colour(map.Glow, wm["glow"], "glow"),
-                () => Suns(map.Suns, wm["suns"]),
-                () => Points(map.Smoke, wm["smoke"], "smoke"));
-            check($"model Captain's ship {si} on the map ({map.Mesh.Length / 10} vertices, {ms2:0.0} ms)", d == null, d);
-            si++;
-        }
-        {
-            string bad = null;
-            foreach (var c in t["slotSpots"])
-            {
-                var spots = CaptainShip.SlotSpots((double)c["level"]);
-                var want = (JObject)c["spots"];
-                if (want.Properties().Count() != spots.Count) bad ??= $"level {c["level"]}: {spots.Count} slots";
-                foreach (var p in want.Properties())
-                    bad ??= spots.TryGetValue(p.Name, out var v) ? Points(new[] { v }, new JArray(p.Value), $"level {c["level"]} {p.Name}") : $"no {p.Name}";
-            }
-            check($"model slot spots ({t["slotSpots"].Count()} levels)", bad == null, bad);
         }
         foreach (var c in t["nebulas"])
         {

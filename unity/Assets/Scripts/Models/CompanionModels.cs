@@ -443,14 +443,17 @@ namespace BlueLoop.Models
             }
         }
 
-        /// <summary>Where each is on the ship and how it is set there (see CompanionPlace).</summary>
+        /// <summary>
+        /// Where each is on the ship and how it is set there (see CompanionPlace): on the made hull (CaptainShip), the
+        /// engineer just fore of the dish, the shade and the seer on the bridge's roof either side of its mast.
+        /// </summary>
         public static readonly Dictionary<string, CompanionPlace> Places = new Dictionary<string, CompanionPlace>
         {
             ["lancer"] = new CompanionPlace { On = "rail", X = 25.2, Y = 0, Z = 0, Anchor = new V3(20, 12, 19.2), Turn = -0.4, Size = 0.8 },
-            ["engineer"] = new CompanionPlace { On = "dish", X = 8.7, Y = 13, Z = 0, Anchor = new V3(20, 13, 0), Turn = -1.25, Size = 0.66 },
+            ["engineer"] = new CompanionPlace { On = "dish", X = 10, Y = 13, Z = 0, Anchor = new V3(20, 13, 0), Turn = -1.25, Size = 0.66 },
             ["defector"] = new CompanionPlace { On = "air", X = 5, Y = 19, Z = -0.6, Anchor = new V3(20, 12, 24), Turn = Math.PI / 2 - 0.25, Size = 1 },
-            ["shade"] = new CompanionPlace { On = "dish", X = 14, Y = 9.5, Z = 0, Anchor = new V3(20, 12, 0), Turn = -0.6, Size = 0.66 },
-            ["seer"] = new CompanionPlace { On = "dish", X = 17.5, Y = 14.5, Z = 0, Anchor = new V3(20, 12, 0), Turn = -0.2, Size = 0.66 },
+            ["shade"] = new CompanionPlace { On = "dish", X = 13.1, Y = 10.8, Z = 0, Anchor = new V3(20, 12, 0), Turn = -0.6, Size = 0.66 },
+            ["seer"] = new CompanionPlace { On = "dish", X = 17.3, Y = 13.3, Z = 0, Anchor = new V3(20, 12, 0), Turn = -0.2, Size = 0.66 },
         };
     }
 }

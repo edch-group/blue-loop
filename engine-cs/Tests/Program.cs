@@ -202,8 +202,11 @@ WorldChecks.Run(Check);
     }
 }
 
-// The procedural 3D models (ships, stations, the Captain and his crew, his ship, the campaign's land), each built here as
-// the TypeScript builds it (npx vite-node scripts/record-models.ts).
+// The Captain's ship (a made model in Unity, checked for itself).
+ModelChecks.CaptainShips(Check);
+
+// The procedural 3D models (ships, stations, the Captain and his crew, the campaign's land), each built here as the
+// TypeScript builds it (npx vite-node scripts/record-models.ts).
 {
     var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/models.json");
     if (!System.IO.File.Exists(path)) Check("models", false, "no recording: run npm run record-models");

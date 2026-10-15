@@ -28,13 +28,23 @@ namespace BlueLoop.Models
         public double Deck;
         public double Bridge;
         public double RailY, RailZ;
-        public double Dish;
+        /// <summary>Where the Captain stands on the foredeck (box units).</summary>
+        public V3 Captain;
+        /// <summary>How much the hull has swollen with the Captain's level (across and up, about its axis).</summary>
+        public double Swell;
+
+        /// <summary>Where one of the crew stands aboard (box units): at the near rail, or on the hull's top where they are placed.</summary>
+        public V3 CrewAt(CompanionPlace pl) =>
+            pl.On == "rail" ? new V3(pl.X, RailY, RailZ) : new V3(pl.X, pl.Y, CaptainShip.ZC + (CaptainShip.TopAt(pl.X, pl.Y) - CaptainShip.ZC) * Swell);
     }
 
     /// <summary>
-    /// The Captain's ship (captain-ship.ts), as one model wherever it is seen: on the campaign's menu (base3d.ts, large, the
-    /// Captain on its deck) and on the map (nebula-objects.ts, flying between systems) [direction: the hero's ship on the map
-    /// the same model as the campaign menu's]. Box units as the ships' (ship3d.ts): 40 to the model's 1, x along, y across, z up.
+    /// The Captain's ship, as one model wherever it is seen: on the campaign's menu (CampaignBackdrop, large, the Captain on
+    /// its deck) and on the map (flying between systems) [direction: the hero's ship on the map the same model as the
+    /// campaign menu's]. Its hull is a made model (Resources/Models/CaptainShip.bytes, baked by scripts/bake-captain-ship.py
+    /// from unity/ModelSources/captain-ship), painted after its art (CaptainShipPaint.png, Ship.shader's painted metal); the
+    /// parts fitted, its wounds while the Captain is low, and the engines' glow are built onto it here. Box units as the
+    /// ships' (ship3d.ts): 40 to the model's 1, x along, y across, z up.
     /// </summary>
     public static class CaptainShip
     {
@@ -43,19 +53,16 @@ namespace BlueLoop.Models
         static V3 V(double x, double y, double z) => new V3(x, y, z);
         static Rgb C(double r, double g, double b) => new Rgb(r, g, b);
 
-        // ---- Colours ----
-        static readonly Rgb Hull = C(0.66, 0.68, 0.73);
-        static readonly Rgb HullDark = C(0.4, 0.42, 0.48);
+        // ---- Colours (after the art: dark slate plating, amber trim) ----
+        static readonly Rgb HullDark = C(0.24, 0.26, 0.3);
+        static readonly Rgb Slate = C(0.15, 0.16, 0.19);
+        /// <summary>(The old hull's darkest grey, which the Captain's own model still wears.)</summary>
         public static readonly Rgb HullDeep = C(0.26, 0.27, 0.31);
         static readonly Rgb Rust = C(0.52, 0.41, 0.36);
-        static readonly Rgb Scorch = C(0.17, 0.15, 0.15);
+        static readonly Rgb Scorch = C(0.14, 0.12, 0.11);
         static readonly Rgb Engine = C(1, 0.8, 0.52);
         static readonly Rgb Ember = C(1, 0.55, 0.22);
-        static readonly Rgb Window = C(1, 0.9, 0.62);
-        static readonly Rgb Canopy = C(0.16, 0.22, 0.34);
-        static readonly Rgb LampAmber = C(1, 0.78, 0.36);
         static readonly Rgb LampCyan = C(0.55, 0.88, 1);
-        static readonly Rgb Stripe = C(0.86, 0.62, 0.26);
         static readonly Dictionary<string, Rgb> PartTint = new Dictionary<string, Rgb> { ["dwarf"] = C(0.62, 0.7, 0.82), ["stellar"] = C(0.93, 0.75, 0.38), ["anomaly"] = C(0.72, 0.56, 0.98) };
 
         /// <summary>The ship's slots, in the hangar's order.</summary>
@@ -72,17 +79,107 @@ namespace BlueLoop.Models
             };
         }
 
-        /// <summary>The hull's sections (box units), swelling with the Captain's level.</summary>
-        static Sec[] HullSecs(double k) => new[]
+        // ---- The hull (the made model) ----
+
+        /// <summary>The baked hull's bytes (Unity: Resources/Models/CaptainShip; the tests: the file).</summary>
+        public static Func<byte[]> HullSource;
+
+        /// <summary>The hull's axis (box units, up): it swells about this with the Captain's level.</summary>
+        public const double ZC = 5.1;
+
+        class HullData
         {
-            new Sec(1.5, 3.4 * k, 2.6 * k, b: 2.4 * k, z: 5, p: 3.4),
-            new Sec(4, 4.4 * k, 3.2 * k, b: 3 * k, z: 5, p: 3.4),
-            new Sec(13, 4.7 * k, 3.4 * k, b: 3.2 * k, z: 5, p: 3.4),
-            new Sec(25, 4.5 * k, 3.2 * k, b: 3 * k, z: 5, p: 3.2),
-            new Sec(32, 3.7 * k, 2.7 * k, b: 2.6 * k, z: 4.9, p: 3),
-            new Sec(37, 2.1 * k, 1.6 * k, b: 1.8 * k, z: 4.6, p: 2.6),
-            new Sec(40.5, 0.25, 0.25, b: 0.35, z: 4.3, p: 2),
+            public float[] Pos, Nor;
+            public byte[] Mat;
+            public int[] Tris;
+            public double PaintX0, PaintX1, PaintZ0, PaintZ1;
+        }
+
+        static HullData hull;
+
+        static HullData Hull0()
+        {
+            if (hull != null) return hull;
+            var bytes = HullSource?.Invoke() ?? throw new InvalidOperationException("the Captain's ship's hull (Models/CaptainShip.bytes) is not loaded");
+            using (var r = new System.IO.BinaryReader(new System.IO.MemoryStream(bytes)))
+            {
+                if (new string(r.ReadChars(4)) != "BLCS") throw new InvalidOperationException("not the Captain's ship's hull");
+                r.ReadInt32();
+                int nv = r.ReadInt32(), nt = r.ReadInt32();
+                float q = r.ReadSingle();
+                var h = new HullData { PaintX0 = r.ReadSingle(), PaintX1 = r.ReadSingle(), PaintZ0 = r.ReadSingle(), PaintZ1 = r.ReadSingle() };
+                h.Pos = new float[nv * 3];
+                h.Nor = new float[nv * 3];
+                h.Mat = new byte[nv];
+                for (int i = 0; i < nv; i++)
+                {
+                    for (int c = 0; c < 3; c++) h.Pos[i * 3 + c] = r.ReadInt16() / q;
+                    for (int c = 0; c < 3; c++) h.Nor[i * 3 + c] = r.ReadSByte() / 127f;
+                    h.Mat[i] = r.ReadByte();
+                }
+                h.Tris = new int[nt * 3];
+                for (int i = 0; i < nt * 3; i++) h.Tris[i] = nv > 65535 ? (int)r.ReadUInt32() : r.ReadUInt16();
+                hull = h;
+            }
+            return hull;
+        }
+
+        /// <summary>
+        /// The top of the hull at (x, y) (box units, as made: before it swells): the highest of its faces over that point,
+        /// where the crew stand.
+        /// </summary>
+        public static double TopAt(double x, double y)
+        {
+            lock (tops)
+                if (tops.TryGetValue((x, y), out var known)) return known;
+            var h = Hull0();
+            double top = double.NegativeInfinity;
+            var p = h.Pos;
+            for (int t = 0; t < h.Tris.Length; t += 3)
+            {
+                int a = h.Tris[t] * 3, b = h.Tris[t + 1] * 3, c = h.Tris[t + 2] * 3;
+                double ax = p[a], ay = p[a + 1], bx = p[b], by = p[b + 1], cx = p[c], cy = p[c + 1];
+                if (x < Math.Min(ax, Math.Min(bx, cx)) || x > Math.Max(ax, Math.Max(bx, cx)) || y < Math.Min(ay, Math.Min(by, cy)) || y > Math.Max(ay, Math.Max(by, cy))) continue;
+                double d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+                if (Math.Abs(d) < 1e-12) continue;
+                double w0 = ((by - cy) * (x - cx) + (cx - bx) * (y - cy)) / d, w1 = ((cy - ay) * (x - cx) + (ax - cx) * (y - cy)) / d, w2 = 1 - w0 - w1;
+                if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+                top = Math.Max(top, w0 * p[a + 2] + w1 * p[b + 2] + w2 * p[c + 2]);
+            }
+            if (double.IsInfinity(top)) top = ZC;
+            lock (tops) tops[(x, y)] = top;
+            return top;
+        }
+
+        static readonly Dictionary<(double, double), double> tops = new Dictionary<(double, double), double>();
+
+        /// <summary>The hull's half-width at x (box units, as made), at the height of its flanks.</summary>
+        static double HalfWidth(double x)
+        {
+            for (int i = 0; i < Width.Length - 1; i++)
+                if (x <= Width[i + 1].X)
+                {
+                    var t = Math.Max(0, (x - Width[i].X) / (Width[i + 1].X - Width[i].X));
+                    return Width[i].W + (Width[i + 1].W - Width[i].W) * t;
+                }
+            return 0.2;
+        }
+
+        // (Measured off the made hull: the engine block, the long flanks, the porthole's frame, the bow tapering.)
+        static readonly (double X, double W)[] Width =
+        {
+            (-2.6, 4.3), (-0.3, 4.3), (0, 5.55), (3.6, 5.58), (4.2, 4.75), (15.5, 4.75), (16, 5.25), (20.3, 5.25), (20.8, 4.75),
+            (32, 4.75), (33, 4.05), (34, 3.85), (35, 3.77), (36, 3.45), (37, 2.9), (38, 2.4), (39, 1.7), (40, 0.95), (40.5, 0.2),
         };
+
+        // Where things are on the made hull (box units).
+        /// <summary>The foredeck's floor, between its rails; the rails' tops and how far out they run.</summary>
+        const double DeckFloor = 8.07, RailTop = 8.95, RailOut = 3.0;
+        /// <summary>The engine block's three bells: their mouths' centres (across, up), where they open astern, how wide.</summary>
+        static readonly (double Y, double Z)[] Bells = { (9.96, 5.3), (14.08, 5.3), (11.9, 2.5) };
+        const double BellX = -2.6, BellR = 1.7;
+        /// <summary>The bridge's roof.</summary>
+        const double BridgeTop = 9.4;
 
         /// <summary>
         /// Where each part's slot is on the ship (box units: x along, y across, z up), as the hangar marks it [direction: a
@@ -90,279 +187,196 @@ namespace BlueLoop.Models
         /// </summary>
         public static Dictionary<string, V3> SlotSpots(double level)
         {
-            var k = 1 + Math.Max(0, Math.Min(15, level)) * 0.025;
+            var k = SwellOf(level);
+            V3 S(double x, double y, double z) => V(x, 12 + (y - 12) * k, ZC + (z - ZC) * k);
             return new Dictionary<string, V3>
             {
-                ["armour"] = V(9.5, 12 - HullAt(k, 9.5).W - 0.4, HullAt(k, 9.5).Top - 1),
-                ["shield"] = V(21.5, 14.5, HullAt(k, 22).Top + 1.6),
-                ["port"] = V(24, 12 - (HullAt(k, 22).W + 1.4), 6.6),
-                ["starboard"] = V(24, 12 + HullAt(k, 22).W + 1.4, 6.6),
-                ["booster"] = V(3, 12 + 4.6 * k + 1.6, 6),
-                ["warp"] = V(13.2, 12 + HullAt(k, 13.2).W + 0.9, 6),
+                ["armour"] = S(8, 12 - HalfWidth(8) - 0.4, 6.4),
+                ["shield"] = S(12.6, 14, BridgeTop + 1.6),
+                ["port"] = S(24.5, 12 - (HalfWidth(24.5) + 1.3), 7.3),
+                ["starboard"] = S(24.5, 12 + HalfWidth(24.5) + 1.3, 7.3),
+                ["booster"] = S(4, 12 + 5.58 + 1.7, 6),
+                ["warp"] = S(1.8, 12 + 5.58 + 0.9, 7),
             };
         }
 
-        struct HullPoint
-        {
-            public double W, Top, Z, B;
-        }
-
-        /// <summary>The hull's half-width and its top at x (box units), by its sections.</summary>
-        static HullPoint HullAt(double k, double x)
-        {
-            var s = HullSecs(k);
-            for (int i = 0; i < s.Length - 1; i++)
-                if (x <= s[i + 1].X)
-                {
-                    var t = (x - s[i].X) / (s[i + 1].X - s[i].X);
-                    double z0 = s[i].Z.Value, z1 = s[i + 1].Z.Value, b0 = s[i].B.Value, b1 = s[i + 1].B.Value;
-                    double w = s[i].W + (s[i + 1].W - s[i].W) * t, top = z0 + s[i].T + (z1 + s[i + 1].T - z0 - s[i].T) * t;
-                    return new HullPoint { W = w, Top = top, Z = z0 + (z1 - z0) * t, B = b0 + (b1 - b0) * t };
-                }
-            return new HullPoint { W = 0.2, Top = 4.5, Z = 4.3, B = 0.3 };
-        }
+        static double SwellOf(double level) => 1 + Math.Max(0, Math.Min(15, level)) * 0.025;
 
         static bool Fitted(CaptainShipSpec spec, string slot) => spec.Parts != null && spec.Parts.TryGetValue(slot, out var p) && !string.IsNullOrEmpty(p);
 
         /// <summary>
-        /// The Captain's ship, in detail: a battered corvette, lofted and plated, a flat foredeck, a bridge tower with its
-        /// windows lit, a dorsal spine, an engine block of three bells, pipes and vents and hatches down its flanks, a sensor
-        /// array astern (research), a mast; every part fitted built on in its place and its rarity's colour; and, while the
-        /// Captain is still low, the wear of it: scorched and torn plating, a burning gash, the ribs showing.
+        /// The Captain's ship: the made hull, a battered corvette painted after its art (dark slate plating and amber trim,
+        /// its windows and porthole lit, its bells burning), swelling a little with the Captain's level; every part fitted
+        /// built on in its place and its rarity's colour; and, while the Captain is still low, the wear of it: scorched and
+        /// torn plating, a burning gash in the flank, a smoking engine.
         /// </summary>
         public static CaptainShipBuild CaptainShipModel(CaptainShipSpec spec)
         {
+            var h = Hull0();
             var m = new Mesh();
             var lv = Math.Max(0, Math.Min(15, spec.Level));
-            var k = 1 + lv * 0.025;
+            var k = SwellOf(lv);
             var worn = lv < 4;
-            var rnd = Seq(7);
             Rgb Tint(string slot)
             {
                 string r = null;
                 if (spec.Rarity == null || !spec.Rarity.TryGetValue(slot, out r) || r == null) r = "dwarf";
                 return PartTint.TryGetValue(r, out var c) ? c : PartTint["dwarf"];
             }
-            var secs = HullSecs(k);
+            // A point of the box as the hull has swollen: wider and taller about its axis.
+            V3 S(double x, double y, double z) => V(x, 12 + (y - 12) * k, ZC + (z - ZC) * k);
+            V3 SB(double x, double y, double z) { var p = S(x, y, z); return B(p.X, p.Y, p.Z); }
             var smoke = new List<V3>();
             var engines = new List<V3>();
 
-            // The hull, smooth-plated, its keel darker; a band of hazard stripe at the bow.
-            m.Loft(secs, Hull, 0, segs: 36, under: 0.35);
-            m.Band(secs, 33.5, 0.9, 0.12, Stripe, 0);
-            m.Band(secs, 9, 1.2, 0.18, HullDark, 0);
-            m.Band(secs, 21, 1.2, 0.18, HullDark, 0);
-            // The keel: a fin below, and landing skids folded up against the hull.
-            m.Wing(new Chord(24, 10, 12, 5 - 3 * k), new Chord(17, 11, 12, 5 - 3 * k - 3.2), 0.7, HullDark, 0);
-            foreach (var sd in new[] { -1, 1 })
+            // The hull, each corner where the paint is laid over it side on (its colour: the paint's place; Ship.shader).
             {
-                m.Tube(new[] { V(12, 12 + sd * 3.4 * k, 2.6), V(12, 12 + sd * 3.9 * k, 1.2), V(26, 12 + sd * 3.9 * k, 1.4) }, 0.35, 0.35, HullDeep, 4, 8);
-                m.Cyl(V(26, 12 + sd * 3.9 * k, 1.4), V(28.5, 12 + sd * 3.9 * k, 2.2), 0.35, 0.3, HullDeep, 4, 8);
-            }
-
-            // The foredeck: a flat plate where the Captain stands, a rail round its edge.
-            var dk = HullAt(k, 27);
-            var deck = dk.Top + 0.55;
-            m.Box(21, 34, 12 - dk.W * 0.72, 12 + dk.W * 0.72, dk.Top - 0.4, deck, HullDark, 0, 0.35);
-            for (double x = 21.5; x <= 33.5; x += 1.5)
-                foreach (var sd in new[] { -1, 1 }) m.Cyl(V(x, 12 + sd * dk.W * 0.68, deck), V(x, 12 + sd * dk.W * 0.68, deck + 1.1), 0.09, 0.09, HullDeep, 0, 6);
-            foreach (var sd in new[] { -1, 1 }) m.Tube(new[] { V(21.5, 12 + sd * dk.W * 0.68, deck + 1.1), V(33.5, 12 + sd * dk.W * 0.68, deck + 1.1) }, 0.1, 0.1, HullDeep, 0, 6);
-            // (And across its fore end, where the Captain sets his boot.)
-            m.Tube(new[] { V(33.5, 12 - dk.W * 0.68, deck + 1.1), V(33.5, 12 + dk.W * 0.68, deck + 1.1) }, 0.1, 0.1, HullDeep, 0, 6);
-            foreach (var y in new[] { -1, 1 }) m.Cyl(V(33.5, 12 + y * dk.W * 0.25, deck), V(33.5, 12 + y * dk.W * 0.25, deck + 1.1), 0.09, 0.09, HullDeep, 0, 6);
-            // A hatch and a bollard on it.
-            m.Cyl(V(23.4, 12 - 1.6, deck), V(23.4, 12 - 1.6, deck + 0.25), 1, 1, Hull, 0, 18);
-            m.Ring(23.4, 12 - 1.6, deck + 0.27, 0.8, 0.1, 0, HullDeep, 0);
-            m.Cyl(V(32.4, 12 + 1.4, deck), V(32.4, 12 + 1.4, deck + 0.8), 0.35, 0.3, HullDeep, 0, 10);
-
-            // The dorsal spine, from the engines to the bridge, and the bridge tower on it.
-            m.Spine(secs, 3, 19, 1, 0.8, HullDark, 5);
-            var bz = HullAt(k, 14).Top - 0.2;
-            var bridge = new[]
-            {
-                new Sec(9, 2.2 * k, 0.4, b: 0.2, z: bz, p: 3),
-                new Sec(11, 2.9 * k, 2.6, b: 0.2, z: bz, p: 3),
-                new Sec(17, 2.6 * k, 2.4, b: 0.2, z: bz, p: 3),
-                new Sec(19.5, 1.7 * k, 1.1, b: 0.2, z: bz, p: 2.6),
-                new Sec(20.5, 0, 0, z: bz),
-            };
-            m.Loft(bridge, Hull, 0, segs: 24, under: 0.2);
-            // Its windows: a band round the front, dark glass, lit within.
-            m.Loft(
-                new[]
+                var o = m.Out;
+                o.Capacity = h.Tris.Length * Ship3d.ShipStride + 60000;
+                double pw = h.PaintX1 - h.PaintX0, ph = h.PaintZ1 - h.PaintZ0;
+                foreach (var i in h.Tris)
                 {
-                    new Sec(17.2, 2.65 * k, 0.7, b: 0.1, z: bz + 1.4, p: 3),
-                    new Sec(19.6, 1.75 * k, 0.45, b: 0.1, z: bz + 0.8, p: 2.6),
-                    new Sec(20.3, 0, 0, z: bz + 0.6),
-                },
-                Canopy,
-                1,
-                segs: 20);
-            for (int i = 0; i < 5; i++) foreach (var sd in new[] { -1, 1 }) m.Ball(12 + i * 1.2, 12 + sd * 2.78 * k, bz + 1.5, 0.22, Window, 2, 6, 4);
-            // The mast: a lattice of rods, a lamp at its top, a whip antenna, a small dish.
-            m.Cyl(V(13.5, 12, bz + 2.6), V(13.5, 12, bz + 7.5), 0.18, 0.12, HullDeep, 0, 8);
-            m.Cyl(V(13.5, 12, bz + 4.4), V(12.2, 12, bz + 4.8), 0.1, 0.1, HullDeep, 0, 6);
-            m.Cyl(V(13.5, 12, bz + 5.8), V(15, 12, bz + 6.2), 0.08, 0.08, HullDeep, 0, 6);
-            m.Ball(13.5, 12, bz + 7.6, 0.3, LampAmber, 2, 8, 5);
-            m.Cyl(V(15.5, 12.8, bz + 2.5), V(16.4, 13.2, bz + 9), 0.05, 0.03, HullDeep, 0, 5);
-            m.Orb(12.2, 12, bz + 4.7, 0.7, 0.7, 0.2, Hull, 0, true, 12, 4);
-            // Windows down the hull's sides, and running lights.
-            m.Windows(secs, 6, 31, 12, 0.35, 0.22, Window);
-            m.Ball(39.6, 12, 4.6, 0.25, LampCyan, 2, 8, 5);
-            foreach (var sd in new[] { -1, 1 }) m.Ball(30, 12 + sd * (HullAt(k, 30).W + 0.1), 5, 0.22, sd < 0 ? LampAmber : LampCyan, 2, 8, 5);
-
-            // The flanks: pipes run along each, vents and hatches and plates set into it.
-            foreach (var sd in new[] { -1, 1 })
-            {
-                var pipe = new List<V3>();
-                for (double x = 4; x <= 31; x += 3) pipe.Add(V(x, 12 + sd * (HullAt(k, x).W + 0.25), 4.1 + 0.15 * Math.Sin(x)));
-                m.Tube(pipe, 0.22, 0.22, HullDeep, 4, 8);
-                var pipe2 = new List<V3>();
-                for (double x = 6; x <= 26; x += 4) pipe2.Add(V(x, 12 + sd * (HullAt(k, x).W + 0.15), 3.2));
-                m.Tube(pipe2, 0.14, 0.14, Rust, 4, 6);
-                for (int i = 0; i < 16; i++)
-                {
-                    double x = 5 + rnd() * 27, w = 0.6 + rnd() * 1.6, h = 0.4 + rnd() * 0.9, z = 4.6 + rnd() * 1.8;
-                    var y = 12 + sd * (HullAt(k, x + w / 2).W - 0.05);
-                    m.Box(x, x + w, sd < 0 ? y - 0.25 : y, sd < 0 ? y : y + 0.25, z, z + h, rnd() < 0.3 ? HullDeep : HullDark, 0, 0.06);
-                }
-                // Vents: a row of slats.
-                for (int i = 0; i < 5; i++)
-                {
-                    double x = 7 + i * 0.7, y = 12 + sd * (HullAt(k, x).W + 0.02);
-                    m.Box(x, x + 0.4, sd < 0 ? y - 0.15 : y, sd < 0 ? y : y + 0.15, 6.2, 7.2, HullDeep, 0);
+                    double x = h.Pos[i * 3], y = h.Pos[i * 3 + 1], z = h.Pos[i * 3 + 2];
+                    var p = SB(x, y, z);
+                    // (Its normal as the hull swells: leaning less across and up.)
+                    var n = Norm(V(h.Nor[i * 3] * k, h.Nor[i * 3 + 2], h.Nor[i * 3 + 1]));
+                    o.Add((float)p.X);
+                    o.Add((float)p.Y);
+                    o.Add((float)p.Z);
+                    o.Add((float)n.X);
+                    o.Add((float)n.Y);
+                    o.Add((float)n.Z);
+                    o.Add((float)((x - h.PaintX0) / pw));
+                    o.Add((float)((z - h.PaintZ0) / ph));
+                    o.Add(0);
+                    o.Add(h.Mat[i]);
                 }
             }
-            // Greebles on the back: boxes and caps between the bridge and the engines.
-            for (int i = 0; i < 14; i++)
-            {
-                double x = 3 + rnd() * 6, y = 12 + (rnd() - 0.5) * 5, top = HullAt(k, x).Top - 0.2, s = 0.4 + rnd() * 0.8;
-                if (rnd() < 0.5) m.Box(x, x + s, y, y + s * 0.8, top, top + 0.3 + rnd() * 0.6, rnd() < 0.5 ? HullDark : Hull, 0, 0.05);
-                else m.Cyl(V(x, y, top), V(x, y, top + 0.4 + rnd() * 0.5), s * 0.4, s * 0.35, HullDeep, 0, 10);
-            }
 
-            // The engine block: a housing astern, three bells, burning; vanes between them.
-            m.Rbox(1.8, 12, 5, 2.4, 4.6 * k, 3.3 * k, HullDark, 0, 4, 4, 32, 16);
-            foreach (var (dy, dz) in new[] { (-2.6, 0.6), (2.6, 0.6), (0.0, -1.6) })
-            {
-                double y = 12 + dy * k, z = 5 + dz * k;
-                m.Cyl(V(0, y, z), V(-2.6, y, z), 1.25 * k, 1.75 * k, HullDeep, 4, 24);
-                m.Ring(-2.55, y, z, 1.7 * k, 0.16, Math.PI / 2, HullDark, 0);
-                m.Ring(-1, y, z, 1.45 * k, 0.12, Math.PI / 2, Rust, 4);
-                m.Orb(-2.2, y, z - 1.4 * k, 0.35, 1.4 * k, 1.4 * k, worn && dy > 0 ? Ember : Engine, 2, false, 20, 10);
-                engines.Add(B(-2.6, y, z));
-            }
-            foreach (var sd in new[] { -1, 1 }) m.Wing(new Chord(4, 0, 12 + sd * 4.4 * k, 5), new Chord(2, -0.8, 12 + sd * 6.6 * k, 5.6), 0.4, HullDark, 0);
-
-            // The sensor array astern (research): a dish on a turret, its feed horn, a holo emitter ring lit beside it.
-            double ax = 5.5, az = HullAt(k, 5.5).Top - 0.2;
-            m.Cyl(V(ax, 12, az), V(ax, 12, az + 1.3), 0.9, 0.7, HullDark, 0, 16);
             m.With(
-                p =>
-                {
-                    // (The dish tipped back to the sky, round its centre.)
-                    var c = B(ax, 12, az + 2.2);
-                    double a = 0.55, cs = Math.Cos(a), sn = Math.Sin(a);
-                    double x = p.X - c.X, y = p.Y - c.Y;
-                    return V(c.X + x * cs - y * sn, c.Y + x * sn + y * cs, p.Z);
-                },
+                p => { var b = V(p.X * 40 + 20, p.Z * 40 + 12, p.Y * 40); var s = S(b.X, b.Y, b.Z); return B(s.X, s.Y, s.Z); },
                 () =>
                 {
-                    m.Orb(ax, 12, az + 1.7, 2.4, 2.4, 0.55, Hull, 0, false, 28, 10);
-                    m.Ring(ax, 12, az + 2.2, 2.35, 0.12, 0, HullDark, 0);
-                    foreach (var a in new[] { 0, 2.1, 4.2 }) m.Cyl(V(ax + Math.Cos(a) * 2.2, 12 + Math.Sin(a) * 2.2, az + 2.2), V(ax, 12, az + 4.2), 0.06, 0.06, HullDeep, 0, 5);
-                    m.Ball(ax, 12, az + 4.3, 0.32, LampCyan, 2, 10, 6);
-                });
-            m.Cyl(V(9.5, 12 - 2.4, HullAt(k, 9.5).Top - 0.2), V(9.5, 12 - 2.4, HullAt(k, 9.5).Top + 0.6), 0.7, 0.55, HullDark, 0, 16);
-            m.Ring(9.5, 12 - 2.4, HullAt(k, 9.5).Top + 0.65, 0.5, 0.1, 0, LampCyan, 2);
-
-            // Worn: scorched and torn plating, a burning gash in the flank (smoking), the ribs showing at the bow.
-            if (worn)
-            {
-                var w = HullAt(k, 16).W;
-                m.Rbox(16.2, 12 + w - 0.02, 4.9, 2.6, 0.12, 1.9, Scorch, 4, 2.4, 2.4, 20, 10);
-                m.Orb(16.2, 12 + w + 0.1, 4.4, 1.4, 0.2, 0.7, Ember, 2, false, 14, 6);
-                smoke.Add(B(16.2, 12 + w + 0.4, 5));
-                m.Rbox(30.8, 12 + HullAt(k, 31).W - 0.06, 6, 2, 0.1, 1.1, Scorch, 4, 2.4, 2.4, 18, 8);
-                m.Wing(new Chord(25, 22, 12 - HullAt(k, 23).W, 6), new Chord(24.6, 22.5, 12 - HullAt(k, 23).W - 1.6, 7.2), 0.12, Rust, 4);
-                m.Rbox(7.5, 12 - HullAt(k, 7).W + 0.02, 4.8, 1.6, 0.1, 1.3, Scorch, 4, 2.4, 2.4, 16, 8);
-                smoke.Add(B(-1.5, 12 + 2.6 * k, 5.6));
-            }
-
-            // The parts fitted, each in its place and its rarity's colour.
-            if (Fitted(spec, "armour"))
-            {
-                var c = Tint("armour");
-                foreach (var sd in new[] { -1, 1 })
-                    foreach (var (x0, x1) in new[] { (6.0, 11.0), (12.0, 17.0), (18.0, 23.0), (24.0, 28.0) })
+                    // The bells burning in their throats (the right one sputtering embers while the ship is a wreck).
+                    foreach (var (y, z) in Bells)
                     {
-                        var y = 12 + sd * (HullAt(k, (x0 + x1) / 2).W - 0.05);
-                        m.Rbox((x0 + x1) / 2, y, 4.9, (x1 - x0) / 2 - 0.1, 0.32, 2.3, c, 0, 6, 5, 20, 10);
-                        foreach (var xr in new[] { x0 + 0.7, x1 - 0.7 }) foreach (var zr in new[] { 3, 6.8 }) m.Ball(xr, y + sd * 0.3, zr, 0.16, HullDeep, 0, 6, 4);
+                        m.Orb(BellX + 0.7, y, z - 1.0, 0.3, 1.0, 1.0, worn && y > 12 && z > 4 ? Ember : Engine, 2, false, 20, 10);
+                        engines.Add(SB(BellX, y, z));
                     }
-            }
-            if (Fitted(spec, "shield"))
+
+                    // Worn: scorched and torn plating, a burning gash in the starboard flank (smoking), a smoking engine.
+                    if (worn)
+                    {
+                        // (Low on the flanks, under the windows.)
+                        var w = HalfWidth(26.5);
+                        m.Rbox(26.5, 12 + w + 0.02, 4.5, 1.2, 0.06, 0.28, Scorch, 4, 2.4, 2.4, 20, 10);
+                        m.Orb(26.5, 12 + w + 0.06, 4.4, 0.85, 0.1, 0.1, Ember, 2, false, 14, 6);
+                        smoke.Add(SB(26.5, 12 + w + 0.4, 4.8));
+                        m.Rbox(30.6, 12 + HalfWidth(30.6) + 0.02, 4.6, 0.8, 0.06, 0.22, Scorch, 4, 2.4, 2.4, 18, 8);
+                        m.Wing(new Chord(13.6, 11.2, 12 - HalfWidth(12.5), 6.4), new Chord(13.2, 11.6, 12 - HalfWidth(12.5) - 1.6, 7.6), 0.12, Rust, 4);
+                        m.Rbox(7.5, 12 - HalfWidth(7.5) - 0.02, 4.4, 1.1, 0.06, 0.3, Scorch, 4, 2.4, 2.4, 16, 8);
+                        smoke.Add(SB(BellX + 1, Bells[1].Y, Bells[1].Z + 1));
+                    }
+
+                    // The parts fitted, each in its place and its rarity's colour.
+                    if (Fitted(spec, "armour"))
+                    {
+                        // (Plates down both flanks, clear of the porthole and the windows above them.)
+                        var c = Tint("armour");
+                        foreach (var sd in new[] { -1, 1 })
+                            foreach (var (x0, x1) in new[] { (5.0, 10.0), (10.5, 15.5), (21.0, 26.0), (26.5, 31.5) })
+                            {
+                                var y = 12 + sd * (HalfWidth((x0 + x1) / 2) - 0.05);
+                                m.Rbox((x0 + x1) / 2, y, 4.9, (x1 - x0) / 2 - 0.1, 0.32, 1.6, c, 0, 6, 5, 20, 10);
+                                foreach (var xr in new[] { x0 + 0.7, x1 - 0.7 }) foreach (var zr in new[] { 3.6, 6.2 }) m.Ball(xr, y + sd * 0.3, zr, 0.16, Slate, 0, 6, 4);
+                            }
+                    }
+                    if (Fitted(spec, "shield"))
+                    {
+                        // (A dome on the bridge's roof, aft of the mast.)
+                        var c = Tint("shield");
+                        const double x = 12.6, y = 14;
+                        var z = BridgeTop - 0.1;
+                        m.Cyl(V(x, y, z - 0.4), V(x, y, z + 0.5), 1.1, 1, HullDark, 0, 16);
+                        m.Orb(x, y, z + 0.5, 1.2, 1.2, 1, C(0.7, 0.85, 1), 1, true, 18, 8);
+                        m.Ring(x, y, z + 0.55, 1.25, 0.14, 0, c, 0);
+                    }
+                    foreach (var (slot, sd) in new[] { ("port", -1), ("starboard", 1) })
+                    {
+                        if (!Fitted(spec, slot)) continue;
+                        // (A turret on a sponson off the flank, under the deck's rail, its barrels laid forward.)
+                        var c = Tint(slot);
+                        var hw = HalfWidth(24.5);
+                        var y = 12 + sd * (hw + 1.3);
+                        m.Box(22, 27, sd < 0 ? y - 0.8 : 12 + hw - 0.3, sd < 0 ? 12 - hw + 0.3 : y + 0.8, 5.7, 6.6, HullDark, 0, 0.2);
+                        m.Cyl(V(24.5, y, 6.6), V(24.5, y, 7.1), 1.1, 1, Slate, 0, 14);
+                        m.Ball(24.5, y, 7.3, 1.05, c, 0, 14, 8);
+                        foreach (var dy in new[] { -0.4, 0.4 }) m.Cyl(V(25.1, y + dy, 7.4), V(31, y + dy, 7.6), 0.2, 0.16, c, 0, 10);
+                    }
+                    if (Fitted(spec, "booster"))
+                    {
+                        // (Pods either side of the engine block, on struts, burning astern.)
+                        var c = Tint("booster");
+                        foreach (var sd in new[] { -1, 1 })
+                        {
+                            var y = 12 + sd * (5.58 + 1.7);
+                            m.Loft(new[] { new Sec(-1, 1, 1, y: y, z: 5), new Sec(1, 1.3, 1.3, y: y, z: 5), new Sec(9, 1.2, 1.2, y: y, z: 5), new Sec(11.5, 0, 0, y: y, z: 5) }, c, 0, segs: 18);
+                            foreach (var x in new[] { 2.0, 7.0 }) m.Cyl(V(x, 12 + sd * (HalfWidth(x) - 0.2), 5), V(x, y, 5), 0.3, 0.3, Slate, 0, 8);
+                            m.Orb(-1.3, y, 4.1, 0.25, 0.9, 0.9, Engine, 2, false, 14, 8);
+                            engines.Add(SB(-1.4, y, 5));
+                        }
+                    }
+                    if (Fitted(spec, "warp"))
+                    {
+                        // (Two coils round the engine block, as broad as it and a little taller.)
+                        var c = Tint("warp");
+                        foreach (var x in new[] { 0.6, 3.0 })
+                            m.With(
+                                p => { var u = (p.Y * 40 - ZC) * 0.66 + ZC; return V(p.X, u / 40, p.Z); },
+                                () =>
+                                {
+                                    m.Ring(x, 12, ZC, 5.58 + 0.9, 0.3, Math.PI / 2, c, 0);
+                                    m.Ring(x, 12, ZC, 5.58 + 0.9, 0.12, Math.PI / 2, LampCyan, 2);
+                                });
+                    }
+                });
+
+            var deck = ZC + (DeckFloor - ZC) * k;
+            return new CaptainShipBuild
             {
-                var c = Tint("shield");
-                var z = HullAt(k, 22).Top + 0.1;
-                m.Cyl(V(21.5, 12 + 2.5, z - 0.4), V(21.5, 12 + 2.5, z + 0.5), 1.1, 1, HullDark, 0, 16);
-                m.Orb(21.5, 12 + 2.5, z + 0.5, 1.2, 1.2, 1, C(0.7, 0.85, 1), 1, true, 18, 8);
-                m.Ring(21.5, 12 + 2.5, z + 0.55, 1.25, 0.14, 0, c, 0);
-            }
-            foreach (var (slot, sd) in new[] { ("port", -1), ("starboard", 1) })
-            {
-                if (!Fitted(spec, slot)) continue;
-                var c = Tint(slot);
-                var y = 12 + sd * (HullAt(k, 22).W + 1.4);
-                m.Box(19.5, 24.5, sd < 0 ? y : y - 1.6, sd < 0 ? y + 1.6 : y, 4.2, 5.2, HullDark, 0, 0.2);
-                m.Cyl(V(22, y, 5.2), V(22, y, 6.2), 1.1, 1, HullDeep, 0, 14);
-                m.Ball(22, y, 6.4, 1.1, c, 0, 14, 8);
-                foreach (var dy in new[] { -0.4, 0.4 }) m.Cyl(V(22.6, y + dy, 6.5), V(28.5, y + dy, 6.7), 0.2, 0.16, c, 0, 10);
-            }
-            if (Fitted(spec, "booster"))
-            {
-                var c = Tint("booster");
-                foreach (var sd in new[] { -1, 1 })
-                {
-                    var y = 12 + sd * (4.6 * k + 1.6);
-                    m.Loft(new[] { new Sec(-1, 1, 1, y: y, z: 5), new Sec(1, 1.3, 1.3, y: y, z: 5), new Sec(9, 1.2, 1.2, y: y, z: 5), new Sec(11.5, 0, 0, y: y, z: 5) }, c, 0, segs: 18);
-                    m.Cyl(V(4, 12 + sd * 4.4 * k, 5), V(4, y, 5), 0.3, 0.3, HullDeep, 0, 8);
-                    m.Orb(-1.3, y, 4.1, 0.25, 0.9, 0.9, Engine, 2, false, 14, 8);
-                    engines.Add(B(-1.4, y, 5));
-                }
-            }
-            if (Fitted(spec, "warp"))
-            {
-                var c = Tint("warp");
-                foreach (var x in new[] { 12, 14.5 })
-                {
-                    m.Ring(x, 12, 5, HullAt(k, x).W + 0.9, 0.3, Math.PI / 2, c, 0);
-                    m.Ring(x, 12, 5, HullAt(k, x).W + 0.9, 0.12, Math.PI / 2, LampCyan, 2);
-                }
-            }
-            return new CaptainShipBuild { Mesh = m.ToArray(), Smoke = smoke, Engines = engines, Deck = deck, Bridge = bz + 2.6, RailY = 12 + dk.W * 0.68, RailZ = deck + 1.2, Dish = HullAt(k, 8.7).Top - 0.1 };
+                Mesh = m.ToArray(),
+                Smoke = smoke,
+                Engines = engines,
+                Deck = deck,
+                Bridge = ZC + (BridgeTop - ZC) * k,
+                RailY = 12 + RailOut * k,
+                RailZ = ZC + (RailTop - ZC) * k + 0.05,
+                Captain = V(33.4, 12, deck),
+                Swell = k,
+            };
         }
 
         static readonly Dictionary<string, ShipModel> mapModels = new Dictionary<string, ShipModel>();
 
         /// <summary>
-        /// The ship with the Captain standing on its foredeck, as the menu shows him (base3d.ts: there his coat's tails stream
-        /// in the wind; here they are still): at the rail, facing ahead and a little out, his height 0.7 of the menu ship's 4.2.
+        /// The ship with the Captain standing on its foredeck, as the menu shows him (CampaignBackdrop: there his coat's
+        /// tails stream in the wind; here they are still): at the rail, facing ahead and a little out, his height 0.7 of
+        /// the menu ship's 4.2.
         /// </summary>
-        static float[] WithCaptain(float[] ship, double deck) => Placed(ship, new[] { CaptainModels.CaptainModel(), CaptainModels.StreamerModel() }, B(32, 12, deck), B(20, 12, 0), 0.7 / 4.2, 1.3);
+        static float[] WithCaptain(float[] ship, V3 at) => Placed(ship, new[] { CaptainModels.CaptainModel(), CaptainModels.StreamerModel() }, B(at.X, at.Y, at.Z), B(20, 12, 0), 0.7 / 4.2, 1.3);
 
         /// <summary>
         /// The companions aboard [direction: the map's ship shows the friends on it too, both ships identical]: each where the
         /// menu's ship has them (CompanionModels.Places), as it stands, sits or flies there.
         /// </summary>
-        static float[] WithCrew(float[] ship, IList<string> crew, double railY, double railZ, double dish)
+        static float[] WithCrew(float[] ship, IList<string> crew, CaptainShipBuild build)
         {
             var @out = ship;
             foreach (var id in crew)
             {
                 if (id == null || !CompanionModels.Places.TryGetValue(id, out var pl)) continue;
-                var at = pl.On == "rail" ? B(pl.X, railY, railZ) : pl.On == "dish" ? B(pl.X, pl.Y, dish) : B(pl.X, pl.Y, pl.Z);
-                @out = Placed(@out, new[] { CompanionModels.CompanionModel(id) }, at, B(pl.Anchor.X, pl.Anchor.Y, pl.Anchor.Z), pl.Size / 4.2, pl.Turn);
+                var spot = pl.On == "air" ? V(pl.X, pl.Y, pl.Z) : build.CrewAt(pl);
+                @out = Placed(@out, new[] { CompanionModels.CompanionModel(id) }, B(spot.X, spot.Y, spot.Z), B(pl.Anchor.X, pl.Anchor.Y, pl.Anchor.Z), pl.Size / 4.2, pl.Turn);
             }
             return @out;
         }
@@ -417,7 +431,7 @@ namespace BlueLoop.Models
                     var s = CaptainShipModel(spec);
                     m = new ShipModel
                     {
-                        Mesh = WithCrew(WithCaptain(s.Mesh, s.Deck), spec.Crew ?? new List<string>(), s.RailY, s.RailZ, s.Dish),
+                        Mesh = WithCrew(WithCaptain(s.Mesh, s.Captain), spec.Crew ?? new List<string>(), s),
                         Engines = s.Engines,
                         Glow = Engine,
                         Suns = new List<CarriedSun>(),

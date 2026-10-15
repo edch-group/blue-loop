@@ -4,12 +4,24 @@ using UnityEngine;
 
 /// <summary>
 /// The game's 3D models (BlueLoop.Models, ported from the web's ship3d.ts and its kin) as Unity meshes: each vertex's
-/// position, normal and colour as they are, its material in uv.x, drawn by the ship shader (Resources/Shaders/Ship).
+/// position, normal and colour as they are, its material in uv.x, drawn by the ship shader (Resources/Shaders/Ship). (The
+/// Captain's ship's painted hull, materials 8 and 9, carries where its paint lies in its colour's red and green.)
 /// The models are laid out +x forward, +y up, +z to starboard, 1 long.
 /// </summary>
 public static class ModelMesh
 {
     static readonly Dictionary<string, Mesh> made = new Dictionary<string, Mesh>();
+
+    /// <summary>
+    /// The Captain's ship's made hull and its paint (scripts/bake-captain-ship.py): the hull's bytes for its model, the
+    /// paint for the ship shader's painted metal (every ship drawn by it reads the one paint).
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    static void CaptainShipHull()
+    {
+        BlueLoop.Models.CaptainShip.HullSource = () => Resources.Load<TextAsset>("Models/CaptainShip").bytes;
+        Shader.SetGlobalTexture("_CaptainPaint", Resources.Load<Texture2D>("Models/CaptainShipPaint"));
+    }
 
     /// <summary>A model's vertex array (stride 10) as a mesh, made once under its name.</summary>
     public static Mesh Of(string name, System.Func<float[]> build)
