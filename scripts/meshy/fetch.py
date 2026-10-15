@@ -17,7 +17,7 @@ import urllib.request
 API = 'https://api.meshy.ai/openapi'
 # Every kind of task that makes a model, newest first.
 KINDS = ['v2/text-to-3d', 'v1/text-to-3d', 'v1/image-to-3d', 'v2/image-to-3d', 'v1/multi-image-to-3d', 'v1/retexture', 'v1/remesh',
-         'v1/text-to-texture', 'v1/texture', 'v1/texturing', 'v1/rigging']
+         'v1/text-to-texture', 'v1/texture', 'v1/texturing', 'v1/rigging', 'v1/animations', 'v2/rigging']
 # (A GitHub release takes files up to 2 GB.)
 LIMIT = 2000 * 1024 * 1024
 
