@@ -645,8 +645,14 @@ public partial class BattleView
         Hud.Fill(choiceView);
         choiceView.SetAsLastSibling();
         // (The overlay: a tap on it, outside what it shows, cancels.)
-        var veil = choiceView.gameObject.AddComponent<Image>();
-        veil.color = step == "choice" ? new Color(246 / 255f, 246 / 255f, 244 / 255f, 0.8f) : new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.45f);
+        choiceView.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0);
+        // (.overlay-inspect for a Command's options, .overlay-soft to recover: the wash over the screen blurred 6.)
+        var veil = Hud.Rect(choiceView, "Veil");
+        Hud.Fill(veil);
+        var vi = veil.gameObject.AddComponent<Image>();
+        vi.color = step == "choice" ? new Color(246 / 255f, 246 / 255f, 244 / 255f, 0.8f) : new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.45f);
+        vi.raycastTarget = false;
+        BackdropBlur.Blur(choiceView);
         var vb = choiceView.gameObject.AddComponent<Button>();
         vb.transition = Selectable.Transition.None;
         vb.onClick.AddListener(() => Act("cancel", null));
@@ -671,7 +677,8 @@ public partial class BattleView
         float most = 0.94f * l.H;
         float bodyH = Mathf.Min(pv * 2 + gridH, most - 2 - titleH - cancelH);
         float h = 2 + titleH + bodyH + cancelH;
-        var modal = Hud.Box(choiceView, "Modal", Color.white, 18);
+        // (Rising in with its shadows: .modal.)
+        var modal = Hud.Box(RiseIn.Modal(choiceView), "Modal", Color.white, 18);
         Hud.Place(modal.rectTransform, (l.W - w) / 2, (l.H - h) / 2, w, h);
         Hud.Shadow(modal, 18, new Hud.Drop(Hud.Rgba(120, 124, 134, 0.08f), 0, 0, 1), new Hud.Drop(Hud.Rgba(80, 80, 100, 0.18f), 30, 80), new Hud.Drop(Hud.Rgba(80, 80, 100, 0.08f), 6, 18));
         modal.raycastTarget = true;

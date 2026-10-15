@@ -315,7 +315,7 @@ public partial class CampaignView
 
     const float Z = WebLook.Zoom;
 
-    /// <summary>The page veiled (.overlay): a pale wash over the map (the web blurs it too; soft, a little lighter).</summary>
+    /// <summary>The page veiled (.overlay): a pale wash over the screen blurred 6 (backdrop-filter: blur(6px)); soft (.overlay-soft), a little lighter.</summary>
     RectTransform Veil(Transform parent, bool soft = false)
     {
         var v = Hud.Rect(parent, "Veil");
@@ -326,9 +326,9 @@ public partial class CampaignView
         wash.offsetMin = new Vector2(-4000, -4000);
         wash.offsetMax = new Vector2(4000, 4000);
         var i = wash.gameObject.AddComponent<Image>();
-        // (No blur here: more of the wash in its place, as much as the web's wash and blur together leave of the map's
-        // lines (measured: about a fifth of them showing through).)
-        i.color = soft ? new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.82f) : new Color(240 / 255f, 240 / 255f, 238 / 255f, 0.85f);
+        // (rgba(240, 240, 238, 0.55); .overlay-soft rgba(244, 244, 242, 0.45).)
+        i.color = soft ? new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.45f) : new Color(240 / 255f, 240 / 255f, 238 / 255f, 0.55f);
+        BackdropBlur.Blur(v);
         return v;
     }
 
@@ -345,7 +345,8 @@ public partial class CampaignView
         if (close != null) v.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
         var pad = Pad;
         width = Mathf.Min(width, 0.94f * PW, PW - pad.y - pad.w);
-        var card = WebLook.Rounded(v, "Card", Color.white, 18 * Z);
+        // (.modal: rising in with its shadow.)
+        var card = WebLook.Rounded(RiseIn.Modal(v, Z), "Card", Color.white, 18 * Z);
         card.raycastTarget = true;
         card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
         var cr = card.rectTransform;

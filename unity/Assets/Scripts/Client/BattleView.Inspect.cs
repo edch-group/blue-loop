@@ -44,54 +44,13 @@ public partial class BattleView
         ShowZoom(v.DefId, v.Uid);
     }
 
-    void ShowZoom(string defId, string uid) => StartCoroutine(ShowInspector(defId, uid));
-
-    Texture2D shotTex;
-    RenderTexture blurTex;
-
-    /// <summary>
-    /// The screen as it stands, blurred (.overlay's backdrop-filter: blur(6px)): taken at the frame's end, then drawn
-    /// down small and back up, smoothly, twice.
-    /// </summary>
-    System.Collections.IEnumerator Blurred(System.Action<Texture> done)
-    {
-        yield return new WaitForEndOfFrame();
-        if (shotTex != null) Destroy(shotTex);
-        shotTex = ScreenCapture.CaptureScreenshotAsTexture();
-        // (6 CSS px of blur: about a twelfth of a CSS px's worth per texel at the smallest.)
-        float k = Css.PixelRatio * Css.Zoom * 6;
-        int w = Mathf.Max(8, Mathf.RoundToInt(Screen.width / k)), h = Mathf.Max(8, Mathf.RoundToInt(Screen.height / k));
-        var a = RenderTexture.GetTemporary(w * 2, h * 2, 0);
-        var b = RenderTexture.GetTemporary(w, h, 0);
-        a.filterMode = b.filterMode = FilterMode.Bilinear;
-        Graphics.Blit(shotTex, a);
-        Graphics.Blit(a, b);
-        if (blurTex == null || blurTex.width != w * 2 || blurTex.height != h * 2)
-        {
-            if (blurTex != null) blurTex.Release();
-            blurTex = new RenderTexture(w * 2, h * 2, 0) { filterMode = FilterMode.Bilinear };
-        }
-        Graphics.Blit(b, blurTex);
-        RenderTexture.ReleaseTemporary(a);
-        RenderTexture.ReleaseTemporary(b);
-        done(blurTex);
-    }
-
     /// <summary>
     /// The inspector (app.ts sheet 'card': .overlay.overlay-inspect &gt; .inspector.sheet): over the blurred, veiled
     /// screen, the card at --pw (min(280px, 56vh)) and beside it, as wide, what it carries explained; under them PLAY
     /// (a card in your hand: lit when it can be played now) and CLOSE, each at least 140 wide, 10 apart. A tap outside
     /// closes it.
     /// </summary>
-    System.Collections.IEnumerator ShowInspector(string defId, string uid)
-    {
-        Texture back = null;
-        yield return Blurred(t => back = t);
-        inspectBack = back;
-        BuildInspector(defId, uid, 0);
-    }
-
-    Texture inspectBack;
+    void ShowZoom(string defId, string uid) => BuildInspector(defId, uid, 0);
 
     /// <summary>
     /// A card with nothing to do now, tapped (app.ts renderCard's data-act="inspect"): read large in the inspector (a
@@ -107,13 +66,12 @@ public partial class BattleView
     }
 
     /// <summary>
-    /// The inspector drawn over the blurred screen taken (again, a tab chosen: in place). A card in play with Fusion
+    /// The inspector drawn over the screen blurred (again, a tab chosen: in place). A card in play with Fusion
     /// cards on it gets tabs along its top (app.ts inspectorCard, .insp-tabs: the card itself, then each fused card in
     /// purple), to read each one; a fused card's tab shows it as printed, with its own explanations.
     /// </summary>
     void BuildInspector(string hostDefId, string uid, int tab)
     {
-        var back = inspectBack;
         foreach (Transform c in inspector) Mats.Kill(c.gameObject);
         inspector.SetAsLastSibling();
         inspector.gameObject.SetActive(true);
@@ -123,16 +81,13 @@ public partial class BattleView
         btn.transition = Selectable.Transition.None;
         btn.onClick.RemoveAllListeners();
         btn.onClick.AddListener(() => inspector.gameObject.SetActive(false));
-        var bg = Hud.Rect(inspector, "Blur");
-        Hud.Fill(bg);
-        var bgi = bg.gameObject.AddComponent<RawImage>();
-        bgi.texture = back;
-        bgi.raycastTarget = false;
         var wash = Hud.Rect(inspector, "Veil");
         Hud.Fill(wash);
         var wi = wash.gameObject.AddComponent<Image>();
         wi.color = new Color(246 / 255f, 246 / 255f, 244 / 255f, 0.8f);
         wi.raycastTarget = false;
+        // (.overlay: the screen behind blurred 6, under the wash.)
+        BackdropBlur.Blur(inspector);
         var l = BoardLayout.Current;
         float pw = Mathf.Min(280, 56 * l.Vh), ch = pw * 1.4f;
         var sheetR = Hud.Rect(inspector, "Inspector");
@@ -351,7 +306,7 @@ public partial class BattleView
         void Update()
         {
             float k = Mathf.Clamp01((Time.time - t0) / 0.2f), e = 1 - (1 - k) * (1 - k);
-            r.anchoredPosition = home + new Vector2(0, -8 * (1 - e));
+            r.anchoredPosition = home + new Vector2(0, -10 * (1 - e));
             if (g != null) { var c = g.color; c.a = e; g.color = c; }
             if (k >= 1) Destroy(this);
         }

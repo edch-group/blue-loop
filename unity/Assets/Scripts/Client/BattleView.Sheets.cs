@@ -25,7 +25,6 @@ public partial class BattleView
     /// <summary>The field chip, and which global card it shows.</summary>
     RectTransform fieldChip;
     string fieldShown;
-    int sheetToken;
 
     // ---- Every frame: the pieces of the HUD this file adds, made again when the HUD is laid out again ----
 
@@ -72,29 +71,19 @@ public partial class BattleView
     }
 
     /// <summary>
-    /// A sheet over the screen blurred and veiled (.overlay: backdrop-filter blur(6px), its wash `wash`): the screen
-    /// taken first, then the sheet built over it by `build`. A tap on the veil closes it.
+    /// A sheet over the screen blurred and veiled (.overlay: backdrop-filter blur(6px), its wash `wash`): the sheet
+    /// built over it by `build`. A tap on the veil closes it.
     /// </summary>
     void OverSheet(string name, Color wash, System.Action<RectTransform> build)
     {
         CloseSheet();
-        int token = ++sheetToken;
-        StartCoroutine(Blurred(back =>
-        {
-            // (Another sheet opened meanwhile (the settings): it stays.)
-            if (token != sheetToken || sheet != null) return;
-            var root = CssSheet(name);
-            sheet = root;
-            var bg = Hud.Rect(root, "Blur");
-            Hud.Fill(bg);
-            var bgi = bg.gameObject.AddComponent<RawImage>();
-            bgi.texture = back;
-            bgi.raycastTarget = false;
-            var veil = MenuKit.Hit(root, "Veil", CloseSheet, false);
-            Hud.Fill((RectTransform)veil.transform);
-            veil.GetComponent<Image>().color = wash;
-            build(root);
-        }));
+        var root = CssSheet(name);
+        sheet = root;
+        var veil = MenuKit.Hit(root, "Veil", CloseSheet, false);
+        Hud.Fill((RectTransform)veil.transform);
+        veil.GetComponent<Image>().color = wash;
+        BackdropBlur.Blur(root);
+        build(root);
     }
 
     // ---- The game log (app.ts sheet 'log': .log-pop under the log button; logview.ts logRows) ----
@@ -135,7 +124,7 @@ public partial class BattleView
         // (Scrolled to the newest, as the web's after each render.)
         var scroll = content.parent.GetComponent<ScrollRect>();
         scroll.verticalNormalizedPosition = 0;
-        RiseIn.On(pop.rectTransform, Time.time, 0, 0.18f, 8 / WebLook.Zoom, true);
+        RiseIn.On(pop.rectTransform, Time.time, 0, 0.18f, 10 / WebLook.Zoom, true);
     }
 
     static Regex logNames;
@@ -361,7 +350,8 @@ public partial class BattleView
         float padV = Css.Clamp(10, 3 * l.Vh, 22), padX = Css.Clamp(14, 3 * l.Vw, 28);
         float w = Mathf.Clamp(want + 2 * padX + 2, Mathf.Min(380, 92 * l.Vw), Mathf.Min(900, 94 * l.Vw)), inner = w - 2 - 2 * padX;
         float titleH = 14 + MenuKit.LineH(11.2f) + 10, closeH = 1 + 11 + MenuKit.LineH(8.96f) + 11;
-        var card = Hud.Box(root, "Modal", Color.white, 18);
+        // (Rising in with its shadows.)
+        var card = Hud.Box(RiseIn.Modal(root), "Modal", Color.white, 18);
         card.raycastTarget = true;
         card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
         Hud.Shadow(card, 18, new Hud.Drop(Hud.Rgba(120, 124, 134, 0.08f), 0, 0, 1), new Hud.Drop(Hud.Rgba(80, 80, 100, 0.18f), 30, 80), new Hud.Drop(Hud.Rgba(80, 80, 100, 0.08f), 6, 18));
@@ -377,7 +367,6 @@ public partial class BattleView
         holder.SetParent(content, false);
         Hud.Place(holder, padX, padV, inner, contentH);
         ModalCancel(card.transform, 1, 1 + titleH + bodyH, w - 2, closeH);
-        RiseIn.On(card.rectTransform, Time.time, 0, 0.22f, 8 / WebLook.Zoom, true);
     }
 
     /// <summary>.bar-title: 11.2 px capitals spaced 0.28em, padded 14 44 10, a 44-wide hairline fading out either side at its foot.</summary>
@@ -742,7 +731,7 @@ public partial class BattleView
         float wrapH = 34 + 8 + cardH;
         float cx = l.PadL + (l.W - l.PadL - l.PadR) / 2, cyy = l.PadT + (l.H - l.PadT - l.PadB) / 2;
         Hud.Place(wrap, cx - w / 2, cyy - wrapH / 2, w, wrapH);
-        if (rise) RiseIn.On(wrap, Time.time, 0, 0.25f, 8 / WebLook.Zoom, true);
+        if (rise) RiseIn.On(wrap, Time.time, 0, 0.25f, 10 / WebLook.Zoom, true);
     }
 
     string TabName(PlayerState o) => o.Id == you ? "YOU" : o.Name.ToUpperInvariant();

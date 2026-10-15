@@ -309,8 +309,8 @@ public static class Hud
 
     /// <summary>
     /// A sheet (app.ts sheetFrame with settings.ts settingsPanel), laid out in the web's CSS pixels whatever the scale
-    /// of `parent`: over a veil of the page, a white card (.modal: min(380px, 92vw) across, corners 18, a faint ring
-    /// and two soft shadows), its title (.bar-title: 11.2, spaced 0.28em, padded 14 44 10, a 44-wide hairline fading
+    /// of `parent`: over the page blurred and veiled (.overlay-soft), a white card (.modal: min(380px, 92vw) across,
+    /// corners 18, a faint ring and two soft shadows; rising in), its title (.bar-title: 11.2, spaced 0.28em, padded 14 44 10, a 44-wide hairline fading
     /// out either side at its foot), then its rows' list (.set-list: 72% white, corners 16, padded 4, 2 between, a ring
     /// and a soft shadow) padded clamp(10px, 3vh, 22px) by clamp(14px, 3vw, 28px); each row (.set-row) at least
     /// clamp(36px, 7vh, 46px) tall with a hairline above all but the first, its name (10.56, spaced 0.22em; bold when
@@ -328,8 +328,10 @@ public static class Hud
         css.sizeDelta = new Vector2(W, H);
         var veil = Rect(css, "Veil");
         Fill(veil);
+        // (.overlay.overlay-soft: rgba(244, 244, 242, 0.45) over the page blurred 6.)
         var v = veil.gameObject.AddComponent<Image>();
-        v.color = new Color(0.95f, 0.95f, 0.94f, 0.8f);
+        v.color = Rgba(244, 244, 242, 0.45f);
+        BackdropBlur.Blur(css);
         veil.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
         float w = Mathf.Min(380, 0.92f * W);
         float pv = MenuKit.Clamp(10, 3 * MenuKit.Vh, 22), ph = MenuKit.Clamp(14, 3 * MenuKit.Vw, 28);
@@ -339,7 +341,7 @@ public static class Hud
         float listH = 8 + 2 * (rows.Length - 1);
         foreach (var rh in heights) listH += rh;
         float titleH = 14 + MenuKit.LineH(11.2f) + 10, h = 1 + titleH + pv + listH + pv + 1;
-        var card = Box(veil, "Card", Color.white, 18);
+        var card = Box(RiseIn.Modal(veil), "Card", Color.white, 18);
         Place(card.rectTransform, (W - w) / 2, (H - h) / 2, w, h);
         Shadow(card, 18, new Drop(Rgba(120, 124, 134, 0.08f), 0, 0, 1), new Drop(Rgba(80, 80, 100, 0.18f), 30, 80), new Drop(Rgba(80, 80, 100, 0.08f), 6, 18));
         card.raycastTarget = true;

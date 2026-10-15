@@ -589,17 +589,17 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
 
     /// <summary>
     /// The page veiled and a modal over it (.overlay.overlay-soft &gt; .modal.db-confirm): white, corners 18, softly
-    /// shadowed, swallowing taps (only its buttons close it). Laid out from its top-left; Finish sizes and centres it.
-    /// (The web's soft overlay blurs the page under it as well; with no blur here, the veil is a little thicker, as
-    /// over the profile.)
+    /// shadowed, swallowing taps (only its buttons close it), rising in. Laid out from its top-left; Finish sizes and
+    /// centres it. (.overlay-soft: rgba(244, 244, 242, 0.45) over the page blurred 6.)
     /// </summary>
     RectTransform Modal()
     {
         var veil = Hud.Rect(root, "Veil");
         Hud.Fill(veil);
-        veil.gameObject.AddComponent<Image>().color = new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.8f);
+        veil.gameObject.AddComponent<Image>().color = new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.45f);
+        BackdropBlur.Blur(veil);
         veil.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
-        var card = Hud.Box(veil, "Card", Color.white, 18);
+        var card = Hud.Box(RiseIn.Modal(veil), "Card", Color.white, 18);
         Hud.Shadow(card, 18, new Hud.Drop(Hud.Rgba(120, 124, 134, 0.08f), 0, 0, 1), new Hud.Drop(Hud.Rgba(80, 80, 100, 0.18f), 30, 80), new Hud.Drop(Hud.Rgba(80, 80, 100, 0.08f), 6, 18));
         card.raycastTarget = true;
         card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
@@ -1975,7 +1975,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     }
 
     /// <summary>
-    /// A card read large (app.ts renderZoom, .zoom-view): over the veiled page, the card (--pw: min(340px, 62% of the
+    /// A card read large (app.ts renderZoom, .zoom-view): over the page blurred and veiled, the card (--pw: min(340px, 62% of the
     /// page's height, 80vw)) and beside it, 16 off, what it carries explained (.kw-list: at most 260 across, as tall
     /// as the card); under them, 10 down, "tap anywhere to close" (12.8, muted); all in the page's middle.
     /// </summary>
@@ -1983,7 +1983,9 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     {
         var veil = Hud.Rect(parent, "Zoom");
         Hud.Fill(veil);
-        veil.gameObject.AddComponent<Image>().color = new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.8f);
+        // (.overlay-soft: rgba(244, 244, 242, 0.45) over the page blurred 6.)
+        veil.gameObject.AddComponent<Image>().color = new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.45f);
+        BackdropBlur.Blur(veil);
         veil.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
         float cw = Mathf.Min(340, 0.62f * K.H, 0.8f * K.W), ch = cw * 1.4f;
         var rows = Explain(zoomed);

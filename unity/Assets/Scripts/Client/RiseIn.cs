@@ -31,6 +31,19 @@ public class RiseIn : MonoBehaviour
         x.Apply();
     }
 
+    /// <summary>
+    /// A modal coming in (styles.css .modal: animation rise 0.22s ease-out, from 10px low and unseen): a layer over all
+    /// of `parent` for the modal's card, so it and its shadows (siblings beside it) rise and fade in together.
+    /// `unit`: the layer's units to a CSS pixel (WebLook.Zoom on the campaign's zoomed pages, else 1).
+    /// </summary>
+    public static RectTransform Modal(Transform parent, float unit = 1)
+    {
+        var r = Hud.Rect(parent, "Rise");
+        Hud.Fill(r);
+        On(r, Time.time, 0, 0.22f, 10 * unit / WebLook.Zoom, true);
+        return r;
+    }
+
     void Update() => Apply();
 
     void Apply()

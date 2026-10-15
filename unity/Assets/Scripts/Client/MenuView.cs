@@ -1537,15 +1537,17 @@ public class MenuView : MonoBehaviour
         var view = Hud.Rect(page, "Profile");
         sheet = view;
         Hud.Fill(view);
-        // (The web's soft overlay blurs the page under it as well; with no blur here, the veil is a little thicker.)
-        view.gameObject.AddComponent<Image>().color = new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.8f);
+        // (.overlay-soft: rgba(244, 244, 242, 0.45) over the page blurred 6.)
+        view.gameObject.AddComponent<Image>().color = new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.45f);
+        BackdropBlur.Blur(view);
         System.Action shut = () => { profileOpen = false; Mats.Kill(view.gameObject); if (sheet == view) sheet = null; };
         view.gameObject.AddComponent<Button>().onClick.AddListener(() => shut());
         float padL = Mathf.Max(12, K.SaL), padR = Mathf.Max(12, K.SaR), padT = Mathf.Max(6, K.SaT), padB = Mathf.Max(6, K.SaB);
         float w = Mathf.Min(560, K.W - padL - padR - 24);
         float pv = K.Clamp(12, 3 * K.Vh, 20), ph = K.Clamp(14, 2.4f * K.Vw, 22), gap = K.Clamp(8, 2.4f * K.Vh, 14);
         float inner = w - 2 * ph - 2;
-        var card = Hud.Box(view, "Card", Color.white, 18);
+        // (.modal: rising in with its shadows.)
+        var card = Hud.Box(RiseIn.Modal(view), "Card", Color.white, 18);
         Hud.Shadow(card, 18, new Hud.Drop(Hud.Rgba(120, 124, 134, 0.08f), 0, 0, 1), new Hud.Drop(Hud.Rgba(80, 80, 100, 0.18f), 30, 80), new Hud.Drop(Hud.Rgba(80, 80, 100, 0.08f), 6, 18));
         card.raycastTarget = true;
         // (The card itself swallows taps, so only the veil closes.)
