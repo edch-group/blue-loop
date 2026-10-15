@@ -187,8 +187,9 @@ public partial class BattleView
                 {
                     if (!before.TryGetValue(p.Id, out var a) || !after.TryGetValue(p.Id, out var b)) continue;
                     if (a.Heat == b.Heat && a.Shields == b.Shields && a.Eliminated == b.Eliminated) continue;
-                    board.HoldSun(p.Id, next, WithSun(p, b), holdAll);
+                    board.HoldSun(p.Id, next, WithSun(p, new SunAt { Heat = b.Heat, Shields = b.Shields, Eliminated = false }), holdAll);
                     board.Resync();
+                    if (b.Eliminated && !a.Eliminated) SupernovaAt(next, p.Id, 0);
                     var r = SunRect(p.Id);
                     int dHeat = b.Heat - a.Heat, dShield = b.Shields - a.Shields;
                     if (r != null && dHeat != 0) FloatNumber(r.Value, dHeat > 0 ? $"+{dHeat}" : $"−{-dHeat}", dHeat > 0 ? "hot" : "cool", 0);

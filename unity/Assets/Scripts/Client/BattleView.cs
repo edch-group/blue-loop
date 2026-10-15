@@ -405,6 +405,8 @@ public partial class BattleView : MonoBehaviour
         // A sun struck, cooled or shielded: heat taken (yours, by them: hurt; theirs: strike), cooling, shields lost or raised.
         // Where heat is loosed from: the card played (still where it was), or the striking sun.
         var origin = (a.CardUid != null ? Board.WorldOf(a.CardUid) : null) ?? Board.SunOf(source.Id)?.transform.position ?? Vector3.zero;
+        // (When each sun's blow lands: a supernova goes off then.)
+        var hitAt = new Dictionary<string, float>();
         void Hit(PlayerState p, float at, bool byEnemy)
         {
             var w = Was(p);
@@ -444,6 +446,7 @@ public partial class BattleView : MonoBehaviour
                 else sunView.Pulse(dHeat >= 0, a.Type == "attack" ? 0.15f : at);
             }
             if (!flown) StartCoroutine(After(at, Land));
+            if (!hitAt.ContainsKey(p.Id)) hitAt[p.Id] = flown ? Mathf.Max(0, at - 0.4f) + 0.62f : at;
             // (Until then, the sun keeps showing its old heat and shields.)
             if (dHeat != 0 || p.Shields != w.Shields || p.Eliminated != w.Eliminated) Board?.HoldSun(p.Id, prev, w, flown ? Mathf.Max(0, at - 0.4f) + 0.62f : at);
             if (dHeat > 0)
@@ -512,7 +515,10 @@ public partial class BattleView : MonoBehaviour
         var mine = next.Players.First(p => p.Id == you);
         int drawn = mine.Hand.Count(c => !Was(mine).Hand.Any(x => x.Uid == c.Uid));
         for (int i = 0; i < drawn; i++) Sound.Play("draw", 0.35f + i * 0.12f);
-        if (next.WinnerId != null && prev.WinnerId == null) Sound.Play("supernova", 0.4f);
+        // Supernovas not shown by a dawn replay go off as the blow that caused them lands.
+        if (!replaying)
+            foreach (var p in next.Players)
+                if (p.Eliminated && !Was(p).Eliminated) SupernovaAt(next, p.Id, hitAt.TryGetValue(p.Id, out var h) ? h : 0.6f);
         // (Your deck run out: its pile rocks.)
         if (mine.Deck.Count == 0 && Was(mine).Deck.Count > 0) Board?.ShuffleDeck();
     }
@@ -1293,11 +1299,27 @@ public partial class BattleView : MonoBehaviour
     }
 
 
+    float resultAt;
+
+    /// <summary>
+    /// app.ts holdResult: the game just ended: its result held back until its last moves have played out (a day's
+    /// banners and effects as dayTimeline lays them out, or 0.9 s), and 1.8 s more.
+    /// </summary>
+    void HoldResult(GameState next, EngineAction a)
+    {
+        var pulses = (next.TurnPulses ?? new List<TurnPulse>()).Where(p => p.Kind != "start" && p.Together != true).ToList();
+        float waves = pulses.Count(IsWave) * WaveExtra;
+        float wait = (a.Type == "endTurn" ? (pulses.Count > 0 ? 2 * (BannerShown + 0.15f) + pulses.Count * PulseStep * SpeedK + waves + 0.7f : 0) : 0.9f) + 1.8f;
+        resultAt = Time.time + wait;
+        StartCoroutine(After(wait + 0.02f, () => { if (state != null && state.WinnerId != null) Refresh(); }));
+    }
+
     void GameOver()
     {
         foreach (Transform c in overPanel) Mats.Kill(c.gameObject);
         overPanel.gameObject.SetActive(false);
-        bool over = state.WinnerId != null && !Autoplay;
+        // (The result waits until the game's last moves have played out on the table: app.ts resultAt.)
+        bool over = state.WinnerId != null && !Autoplay && Time.time >= resultAt;
         // (body:has(.game-result) .dock: the hand put away while the result shows.)
         Board.ShowHand(!over);
         if (!over) { ClearResult(); return; }

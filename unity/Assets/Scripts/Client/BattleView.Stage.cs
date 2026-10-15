@@ -61,6 +61,7 @@ public partial class BattleView
             if (stage != null && stage.Own) stage = null;
             state = next;
             StarSpin.Burst();
+            if (next.WinnerId != null && prev.WinnerId == null && Application.isPlaying && !Autoplay) HoldResult(next, a);
             // A day's start replays its effects one by one (app.ts replayPulses), on the day's timeline (dayTimeline).
             var day = turnPassed && Application.isPlaying && !Autoplay ? DayTimeline(next, actor) : ((float?)null, (float?)0f, 0f, new List<float>());
             replaying = Application.isPlaying && !Autoplay && Replays(next, a);
