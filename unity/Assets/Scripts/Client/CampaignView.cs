@@ -464,9 +464,16 @@ public partial class CampaignView : MonoBehaviour
     Vector3 dragFrom;
     bool dragging;
 
+    // The land's own clock (nebula3d.ts's time): from nothing each time the map is shown, as the web's page is drawn
+    // afresh, and only while it is.
+    float landClock;
+    void OnEnable() => landClock = 0;
+
     void Update()
     {
         float now = Clock;
+        landClock += Mathf.Min(0.1f, Time.deltaTime);
+        if (groundMat != null) groundMat.SetFloat("_T", landClock);
         // The land breaks away toward the collapse, a column at a time.
         if (goneNow != goneTarget)
         {

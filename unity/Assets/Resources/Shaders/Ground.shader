@@ -14,6 +14,7 @@ Shader "BlueLoop/Ground"
         _Gone ("Gone", Float) = -50
         _Crack ("Crack", Float) = -50
         _Galaxy ("Galaxy", Float) = 0
+        _T ("The map's own clock (seconds since it was opened)", Float) = 0
         _G ("World per unit", Float) = 1
         _Soft ("Soft (the campaign menu's land)", Float) = 0
         _SoftBelow ("Soft below (the first map, where the menu broke it)", Float) = -1000000000
@@ -25,7 +26,7 @@ Shader "BlueLoop/Ground"
         CGINCLUDE
             #include "UnityCG.cginc"
             fixed4 _Paper;
-            float _Gone, _Crack, _Galaxy, _G, _Soft, _SoftBelow;
+            float _Gone, _Crack, _Galaxy, _G, _Soft, _SoftBelow, _T;
             struct appdata
             {
                 float4 vertex : POSITION;
@@ -128,7 +129,8 @@ Shader "BlueLoop/Ground"
                 float hills = smoothstep(-0.2, 0.08, rest);
                 float splash = smoothstep(0.5, 0.7, fbm(q + 13.0)) * hills;
                 c = lerp(c, c * float3(0.52, 0.72, 0.88) * 1.06, splash * 0.85);
-                float time = _Time.y;
+                // (The web's uTime: from nothing each time the map is opened, as its well's turning is measured from it.)
+                float time = _T;
                 float2 mp = w.xz;
                 if (_Galaxy > 0.5 && _Galaxy < 1.5)
                 {
