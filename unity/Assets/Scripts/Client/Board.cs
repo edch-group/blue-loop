@@ -517,6 +517,7 @@ public class Board : MonoBehaviour
         myHandN.text = me.Hand.Count.ToString();
         SetName(rivalLabel, rival.Name, false);
         SetName(myLabel, me.Name, true);
+        StarSpin.Heat(me.Heat >= 0 ? me.Heat / (float)Game.SupernovaThreshold(me) : -me.Heat / (float)Balance.MinHeat);
         var active = Game.ActivePlayer(s);
         bool mineNow = active == me;
         // (Whose turn: the one lit dark, the other pale; the day's part lit, its dot in the phase's colour and glowing.)
@@ -743,11 +744,20 @@ public class Board : MonoBehaviour
 public class StarSpin : MonoBehaviour
 {
     public Transform Outer, Inner;
-    float angle;
+    float angle, tint, tintTarget;
     readonly System.Collections.Generic.List<float> bursts = new System.Collections.Generic.List<float>();
     static StarSpin current;
 
     void Awake() => current = this;
+
+    /// <summary>
+    /// Your sun's heat, as backdrop.ts setHeat: -1 as cold as a sun can be, 0 neutral, 1 on the edge of supernova. The
+    /// petals take a light wash of red (or icy blue), eased toward it.
+    /// </summary>
+    public static void Heat(float t)
+    {
+        if (current != null) current.tintTarget = Mathf.Clamp(t, -1, 1);
+    }
 
     /// <summary>A move was made: spin faster for a moment (at most three at once).</summary>
     public static void Burst()
@@ -772,6 +782,15 @@ public class StarSpin : MonoBehaviour
             extra += 30 * (0.5f - Mathf.Cos(Mathf.PI * Mathf.Max(0, t)) / 2);
         }
         float a = angle + extra;
+        // (applyTint: deep red when hot, icy blue when cold, the petals mixed a third of the way toward it.)
+        if (Mathf.Abs(tint - tintTarget) > 0.002f)
+        {
+            tint += (tintTarget - tint) * Mathf.Min(1, Time.deltaTime * 1.5f);
+            var b = tint >= 0 ? new Color(226 / 255f, 84 / 255f, 66 / 255f) : new Color(74 / 255f, 142 / 255f, 226 / 255f);
+            var c = Color.Lerp(Color.white, b, Mathf.Abs(tint) * 0.35f);
+            foreach (var t in new[] { Outer, Inner })
+                if (t != null) t.GetComponentInChildren<MeshRenderer>().sharedMaterial.color = c;
+        }
         // (Clockwise as the page sees it, from above the board.)
         if (Outer != null) Outer.localRotation = Quaternion.Euler(0, a, 0);
         if (Inner != null) Inner.localRotation = Quaternion.Euler(0, -a * 0.6f, 0);
