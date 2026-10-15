@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using BlueLoop.Engine;
+using Newtonsoft.Json.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -54,9 +55,28 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     int pageAt;
     /// <summary>How big the pool's cards are ("sm", "md", "lg"), and the game mode the list shows: both remembered on this device.</summary>
     string grid, gm;
-    /// <summary>A panel over the list: "import" a deck code, or "share" one (panelDeck).</summary>
-    string panel, panelDeck, codeText = "";
+    /// <summary>A panel over the list: "import" a deck code, or "share" one (panelDeck); what's typed in it (a code, a note).</summary>
+    string panel, panelDeck, codeText = "", noteText = "";
     RectTransform poolArea, pagerArea;
+
+    /// <summary>A deck shared with the community (account.ts CommunityDeck).</summary>
+    class CommunityDeck
+    {
+        public string Id, Name, Author, Note;
+        public List<string> Cards = new List<string>();
+        public int Saves;
+        public bool Mine;
+    }
+
+    /// <summary>
+    /// The community page, open or not (builder.ts community): how it's sorted ("popular", "new", "mine"), what it's
+    /// searching for (and what's typed in its box), the decks it has (null: still loading), or why it has none.
+    /// </summary>
+    bool community;
+    string csort = "popular", cq = "", cqText = "", cerror;
+    List<CommunityDeck> cdecks;
+    /// <summary>The shared deck the deck being edited was opened from (its save counts towards the deck).</summary>
+    string fromCommunity;
 
     public static BuilderView Make(RectTransform parent, MenuView menu, Decks.Saved editing = null)
     {
@@ -125,6 +145,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         // (Cards show as they play in the deck's mode.)
         Modes.SetRulesMode(editing != null ? Modes.ModeOf(editing) : "lost");
         if (editing != null) Editor();
+        else if (community) Community();
         else List();
         layer = K.RefLayer(root);
         if (editing != null) Dialogs();
@@ -139,17 +160,22 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
 
     void List()
     {
-        // The header (builder.ts's setup-top): back, DECKS, and import on the right where the chip would be (.btn-small
-        // with its mark, 30 tall). (Its gap to the list, clamp(6px, 2vh, 14px), and no foot: the list runs to the
-        // screen's foot and scrolls.)
+        // The header (builder.ts's setup-top): back, DECKS, and community and import on the right (.db-head-actions:
+        // .btn-small with its mark (14 across, 6 before its word), 30 tall, 8 apart). (Its gap to the list,
+        // clamp(6px, 2vh, 14px), and no foot: the list runs to the screen's foot and scrolls.)
         float left = K.PadL, right = K.W - K.PadR, top = K.PadT;
-        MenuView.BackButton(root, () => menu.Show("hub"), left, top + 13);
-        float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = hf * 1.16f;
-        K.Words(root, "DECKS", left, top + (52 - hh) / 2, right - left, hh, hf, Hud.Rgba(85, 90, 99), true, 500, 0.3f);
-        float iw = K.BtnW("import", K.Kind.Small) + 23;
-        var imp = K.Btn(root, "import", () => { panel = "import"; codeText = ""; Draw(); }, right - iw, top + 11, K.Kind.Small, iw, 30);
-        imp.GetComponentInChildren<TextMeshProUGUI>().margin = new Vector4(23, 0, 0, 0);
-        Icon(imp.transform, "db-upload", new Vector2(0, 0.5f), new Vector2(17, 0), 15, Look.Ink);
+        Header("DECKS", () => menu.Show("hub"));
+        float iw = HeadButton("import", "db-upload", right, () => { panel = "import"; codeText = ""; Draw(); });
+        // (The community is the server's: with none, a word that it's offline.)
+        HeadButton("community", "db-people", right - iw - 8, () =>
+        {
+            if (!Net.Available) { menu.Toast("Offline."); return; }
+            community = true;
+            csort = "popular";
+            cq = cqText = "";
+            LoadCommunity();
+            Draw();
+        });
 
         // One column, top to bottom (.db-list: at most 980 across, its parts 8 apart): the mode, your decks (a new one
         // first), the starters.
@@ -163,13 +189,32 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         Lay(content, lx, listW, mine, starters);
     }
 
+    /// <summary>A page's header (builder.ts header, .setup-top 52 tall): ‹ back, and its title (.menu-heading) in the middle.</summary>
+    void Header(string title, System.Action back)
+    {
+        float left = K.PadL, right = K.W - K.PadR, top = K.PadT;
+        MenuView.BackButton(root, back, left, top + 13);
+        float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = hf * 1.16f;
+        K.Words(root, title, left, top + (52 - hh) / 2, right - left, hh, hf, Hud.Rgba(85, 90, 99), true, 500, 0.3f);
+    }
+
+    /// <summary>A header's button with its mark (.db-head-actions .btn-small: the mark 14 across, 11 in, 6 before its word), its right edge at `right`; returns its width.</summary>
+    float HeadButton(string text, string icon, float right, System.Action act)
+    {
+        float w = K.BtnW(text, K.Kind.Small) + 20;
+        var b = K.Btn(root, text, act, right - w, K.PadT + 11, K.Kind.Small, w, 30);
+        b.GetComponentInChildren<TextMeshProUGUI>().margin = new Vector4(20, 0, 0, 0);
+        Icon(b.transform, icon, new Vector2(0, 0.5f), new Vector2(18, 0), 14, Look.Ink);
+        return w;
+    }
+
     /// <summary>The list's column laid out from its top (into `content`; null only measures it); returns its height.</summary>
     float Lay(RectTransform content, float lx, float listW, List<Decks.Saved> mine, List<Decks.Saved> starters)
     {
         // (.db-modes: min(520px, the list) across, 70% white, corners 16, padded 4, 4 between; each mode padded 10 by
-        // 14, corners 12, the picked one white and lifted: its picture 72 tall (grey, the other), its name 12.48
-        // spaced 0.24em, its line Exo 2 10.88.)
-        float mw = Mathf.Min(520, listW), mh = 4 + 10 + 72 + 6 + 15 + 2 + 13 + 10 + 4;
+        // 14, corners 12, the picked one white and lifted: its picture 72 tall and 6 over (grey, the other), then 2
+        // apart its name 12.48 spaced 0.24em (16 tall) and its line Exo 2 10.88 (13 tall).)
+        float mw = Mathf.Min(520, listW), mh = 4 + 10 + 72 + 6 + 2 + 16 + 2 + 13 + 10 + 4;
         if (content != null)
         {
             var modes = Hud.Box(content, "Modes", new Color(1, 1, 1, 0.7f), 16);
@@ -204,8 +249,8 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
                 // (Cover: its picture cut to the box's shape about its middle.)
                 float want = (each - 28) / 72f, have = 464f / 144f;
                 ai.uvRect = want > have ? new Rect(0, (1 - have / want) / 2, 1, have / want) : new Rect((1 - want / have) / 2, 0, want / have, 1);
-                K.Words(bg.transform, Modes.GameModes[m].Name.ToUpperInvariant(), 14, 88, each - 28, 15, 12.48f, on ? Look.Ink : Look.InkSoft, true, 400, 0.24f);
-                K.Words(bg.transform, Modes.GameModes[m].Blurb, 14, 105, each - 28, 13, 10.88f, Look.InkFaint, false, 400);
+                K.Words(bg.transform, Modes.GameModes[m].Name.ToUpperInvariant(), 14, 90, each - 28, 16, 12.48f, on ? Look.Ink : Look.InkSoft, true, 400, 0.24f);
+                K.Words(bg.transform, Modes.GameModes[m].Blurb, 14, 108, each - 28, 13, 10.88f, Look.InkFaint, false, 400);
             }
         }
         float y = mh + 8;
@@ -223,7 +268,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     static float Group(RectTransform content, float lx, float listW, float y, string name, string note)
     {
         y += K.Clamp(22, 6 * K.Vh, 48);
-        float f = K.Big ? 8.96f : 8, h = note.Length > 0 ? 13 : K.LineH(f);
+        float f = K.Big ? 8.96f : 8, h = note.Length > 0 ? 13 : f * 1.25f;
         if (content != null)
         {
             float nw = K.TextW(name, f, 400, 0.3f), tw = note.Length > 0 ? K.TextW(note, 11.2f, 400, 0, false) : 0, gap = note.Length > 0 ? 8 : 0;
@@ -236,8 +281,9 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
 
     /// <summary>
     /// A grid of deck boxes (.db-boxes: --bw across, as many as fit, centred; clamp(12px, 3.5vh, 22px) by clamp(16px,
-    /// 2.6vw, 28px) apart, padded 14 16 16 10), yours led by a new one, each its buttons (30 across, 5 apart) 6 under
-    /// it; returns where it ends (8 under it).
+    /// 2.6vw, 28px) apart, padded 14 16 16 10), yours led by a new one, each its buttons (30 across, 5 apart, wrapping
+    /// onto a row of their own past the box and its side) 6 under it; a row as tall as its tallest; returns where it
+    /// ends (8 under it).
     /// </summary>
     float Boxes(RectTransform content, float lx, float listW, float y, List<Decks.Saved> decks, bool own)
     {
@@ -245,16 +291,19 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         float bw = ListBw, depth = bw * 0.08f, bh = bw / 0.72f, colGap = K.Clamp(16, 2.6f * K.Vw, 28), rowGap = K.Clamp(12, 3.5f * K.Vh, 22);
         float avail = listW - 26;
         int cols = Mathf.Max(1, Mathf.Min(n, Mathf.FloorToInt((avail + colGap) / (bw + colGap))));
-        float rowH = own && decks.Count == 0 ? depth + bh : depth + bh + 6 + 30;
-        float top = y + 14;
+        // (Each box's buttons: copy, and for your own share and delete too; the new deck's tile has none.)
+        int Buttons(int i) => own && i == 0 ? 0 : own ? 3 : 1;
         int rows = (n + cols - 1) / cols;
-        if (content != null)
-            for (int i = 0; i < n; i++)
+        var rowH = new float[rows];
+        for (int i = 0; i < n; i++) rowH[i / cols] = Mathf.Max(rowH[i / cols], depth + bh + ActionsH(Buttons(i), bw));
+        float at = y + 14;
+        for (int row = 0; row < rows; row++)
+        {
+            for (int col = 0; col < cols && row * cols + col < n && content != null; col++)
             {
-                int row = i / cols, col = i % cols;
+                int i = row * cols + col;
                 float x = lx + 10 + (avail - (cols * bw + (cols - 1) * colGap)) / 2 + col * (bw + colGap);
-                float at = top + row * (rowH + rowGap) + depth;
-                if (own && i == 0) { NewTile(content, x, at, bw); continue; }
+                if (own && i == 0) { NewTile(content, x, at + depth, bw); continue; }
                 var d = decks[i - (own ? 1 : 0)];
                 var buttons = new List<(string icon, string name, System.Action act, bool danger)>
                 {
@@ -262,13 +311,33 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
                 };
                 if (own)
                 {
-                    buttons.Add(("db-share", "share", () => { panel = "share"; panelDeck = d.Id; Draw(); }, false));
+                    buttons.Add(("db-share", "share", () => { panel = "share"; panelDeck = d.Id; noteText = ""; Draw(); }, false));
                     buttons.Add(("db-delete", "delete", () => { Decks.Delete(d.Id); Draw(); }, true));
                 }
                 // (Open it by tapping the box: a starter to look through, your own to edit.)
-                DeckBox(content, x, at, bw, d, () => { Open(d, own ? d.Id : null, d.Name); Draw(); }, buttons);
+                DeckBox(content, x, at + depth, bw, d, () => { Open(d, own ? d.Id : null, d.Name); Draw(); }, buttons, own ? WishTag(d.Cards) : null);
             }
-        return top + rows * rowH + (rows - 1) * rowGap + 16 + 8;
+            at += rowH[row] + (row < rows - 1 ? rowGap : 0);
+        }
+        return at + 16 + 8;
+    }
+
+    /// <summary>How many of a box's round buttons fit on a row (.db-deck-actions: as wide as the box and its side).</summary>
+    static int ActionsPerRow(float bw) => Mathf.Max(1, Mathf.FloorToInt((bw * 1.08f + 5) / 35));
+
+    /// <summary>The room a box's `n` buttons take under it (6 down, rows of 30, 5 apart); none with none.</summary>
+    static float ActionsH(int n, float bw)
+    {
+        if (n == 0) return 0;
+        int per = ActionsPerRow(bw), rows = (n + per - 1) / per;
+        return 6 + rows * 30 + (rows - 1) * 5;
+    }
+
+    /// <summary>A deck of your own that still needs cards you don't own: how many (else nothing).</summary>
+    static string WishTag(List<string> cards)
+    {
+        int n = MissingCopies(cards).Sum(m => m.n);
+        return n > 0 ? $"{n} to collect" : null;
     }
 
     /// <summary>The new deck's tile (.db-new-tile): a dashed place for a box, a slate plus (40 across) and its words in it.</summary>
@@ -290,15 +359,18 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
             Open(new Decks.Saved { Name = "New deck", Cards = new List<string>(), Mode = gm }, null, "New deck");
             Draw();
         });
-        float ps = Mathf.Min(40, bw * 0.47f);
+        // (Its plus, 40 across with its 25.6 "+", and its words (9.6, spaced 0.16em, 12 tall) 6 under it: the two
+        // together in the tile's middle.)
+        const float ps = 40;
+        float py = (bh - (ps + 6 + 12)) / 2;
         var plus = Hud.Rect(box.transform, "Plus");
-        Hud.Place(plus, (bw - ps) / 2, bh / 2 - ps * 0.78f, ps, ps);
+        Hud.Place(plus, (bw - ps) / 2, py, ps, ps);
         var pi = plus.gameObject.AddComponent<Image>();
         pi.sprite = Hud.Circle;
         pi.color = Hex("#5d6a8c");
         pi.raycastTarget = false;
-        K.Fill(plus, "+", ps * 0.64f, Color.white, false, 400).margin = new Vector4(0, 0, 0, ps * 0.06f);
-        K.Words(box.transform, "NEW DECK", 0, bh / 2 + ps * 0.37f, bw, 11, 9.6f, Look.InkSoft, true, 400, 0.16f);
+        K.Fill(plus, "+", 25.6f, Color.white, false, 400).margin = new Vector4(0, 0, 0, 2);
+        K.Words(box.transform, "NEW DECK", -10, py + ps + 6, bw + 20, 12, 9.6f, Look.InkSoft, true, 400, 0.16f);
     }
 
     /// <summary>
@@ -306,29 +378,32 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     /// expensive Command card (its race's emblem if it has none), its name and races on the front, cards still to
     /// collect on a tag, its buttons (.deck-icon: round, 30 across, 5 apart) 6 beneath.
     /// </summary>
-    void DeckBox(RectTransform parent, float x, float y, float bw, Decks.Saved d, System.Action open, List<(string icon, string name, System.Action act, bool danger)> buttons)
+    void DeckBox(RectTransform parent, float x, float y, float bw, Decks.Saved d, System.Action open, List<(string icon, string name, System.Action act, bool danger)> buttons, string tagText)
     {
         var cell = DeckBoxMini(parent, x, y, d, false, open, bw, true);
         float bh = bw / 0.72f, depth = bw * 0.08f;
         if (DeckRules.DeckProblems(d.Cards, Modes.ModeOf(d)).Count > 0) cell.gameObject.AddComponent<CanvasGroup>().alpha = 0.7f;
-        // Cards still to collect, on a tag 9% down the front.
-        int missing = MissingCopies(d.Cards).Sum(x2 => x2.n);
-        if (missing > 0)
+        // Its tag (.deck-box-tag: cards still to collect, or how many of a shared deck's you own), 9% down the front:
+        // white, round, 8.96 spaced 0.12em, padded 2 by 8.
+        if (tagText != null)
         {
-            string text = $"{missing} TO COLLECT";
-            float fs = Mathf.Max(7, bw * 0.06f), tw = K.TextW(text, fs, 400, 0.12f) + 16;
-            var tag = Hud.Box(cell, "Tag", Color.white, 7);
-            Hud.Place(tag.rectTransform, (bw - tw) / 2, bh * 0.09f, tw, fs * 1.6f);
-            Hud.Shadow(tag, 7, new Hud.Drop(Hud.Rgba(212, 149, 42, 0.55f), 0, 0, 1), new Hud.Drop(Hud.Rgba(60, 64, 80, 0.18f), 2, 6));
+            string text = tagText.ToUpperInvariant();
+            const float fs = 8.96f;
+            float tw = K.TextW(text, fs, 400, 0.12f) + 16, th = fs * 1.25f + 4;
+            var tag = Hud.Box(cell, "Tag", Color.white, th / 2);
+            Hud.Place(tag.rectTransform, (bw - tw) / 2, bh * 0.09f, tw, th);
+            Hud.Shadow(tag, th / 2, new Hud.Drop(Hud.Rgba(212, 149, 42, 0.55f), 0, 0, 1), new Hud.Drop(Hud.Rgba(60, 64, 80, 0.18f), 2, 6));
             K.Fill(tag.transform, text, fs, Hex("#a8641c"), true, 400, 0.12f);
         }
-        // Its buttons, small and round, beneath (centred under the box and its side).
-        float bx = (bw + depth - (buttons.Count * 30 + (buttons.Count - 1) * 5)) / 2;
+        // Its buttons, small and round, beneath (centred under the box and its side, a row at a time).
+        int per = ActionsPerRow(bw);
         for (int i = 0; i < buttons.Count; i++)
         {
             var (icon, name, act, danger) = buttons[i];
+            int row = i / per, inRow = Mathf.Min(per, buttons.Count - row * per);
+            float bx = (bw + depth - (inRow * 30 + (inRow - 1) * 5)) / 2;
             var b = Hud.Rect(cell, name);
-            Hud.Place(b, bx + i * 35, bh + 6, 30, 30);
+            Hud.Place(b, bx + (i % per) * 35, bh + 6 + row * 35, 30, 30);
             var bi = b.gameObject.AddComponent<Image>();
             bi.sprite = Hud.Circle;
             Hud.Shadow(bi, 15, new Hud.Drop(Hud.Rgba(150, 156, 172, 0.25f), 0, 0, 1), new Hud.Drop(Hud.Rgba(60, 70, 100, 0.1f), 2, 6));
@@ -518,22 +593,114 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
 
     // ---- Panels over the list: import a deck code, or share one ----
 
+    /// <summary>
+    /// The page veiled and a modal over it (.overlay.overlay-soft &gt; .modal.db-confirm): white, corners 18, softly
+    /// shadowed, swallowing taps (only its buttons close it). Laid out from its top-left; Finish sizes and centres it.
+    /// (The web's soft overlay blurs the page under it as well; with no blur here, the veil is a little thicker, as
+    /// over the profile.)
+    /// </summary>
+    RectTransform Modal()
+    {
+        var veil = Hud.Rect(root, "Veil");
+        Hud.Fill(veil);
+        veil.gameObject.AddComponent<Image>().color = new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.8f);
+        veil.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
+        var card = Hud.Box(veil, "Card", Color.white, 18);
+        Hud.Shadow(card, 18, new Hud.Drop(Hud.Rgba(120, 124, 134, 0.08f), 0, 0, 1), new Hud.Drop(Hud.Rgba(80, 80, 100, 0.18f), 30, 80), new Hud.Drop(Hud.Rgba(80, 80, 100, 0.08f), 6, 18));
+        card.raycastTarget = true;
+        card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
+        return card.rectTransform;
+    }
+
+    /// <summary>A modal `w` by `h`, in the middle of the page.</summary>
+    static void Finish(RectTransform card, float w, float h) => Hud.Place(card, (K.W - w) / 2, (K.H - h) / 2, w, h);
+
+    /// <summary>A modal's title (.db-confirm b: 12.8, spaced 0.16em, 16 tall), centred.</summary>
+    static void Title(Transform card, string text, float x, float y, float w)
+    {
+        var t = K.Words(card, text.ToUpperInvariant(), x, y, w, 16, 12.8f, Look.Ink, true, 500, 0.16f);
+        Hud.Ellipsis(t);
+    }
+
+    /// <summary>A paragraph (Exo 2, wrapping) at (x, y), `w` across; returns how tall it is.</summary>
+    static float Para(Transform parent, string text, float x, float y, float w, float size, Color colour, TextAlignmentOptions align)
+    {
+        var t = K.Words(parent, text, x, y, w, size * 1.2f, size, colour, false, 400, 0, align);
+        t.textWrappingMode = TextWrappingModes.Normal;
+        float h = Mathf.Max(size * 1.2f, t.GetPreferredValues(text, w, 0).y);
+        Hud.Place(t.rectTransform, x, y, w, h);
+        return h;
+    }
+
+    /// <summary>
+    /// A modal's buttons (.db-confirm-actions: 8 apart, centred in `w`, 34 tall): .btn (10.56, padded 16), the primary
+    /// small one (.btn-primary.btn-small: 8.96 bold, padded 10), or .btn-danger (a .btn in red).
+    /// </summary>
+    static void Actions(Transform card, float y, float w, params (string text, int kind, System.Action act)[] buttons)
+    {
+        var widths = buttons.Select(b => b.kind == 1 ? K.BtnW(b.text, K.Kind.Primary, 8.96f, 0.14f, 10) : K.BtnW(b.text, K.Kind.Btn, 10.56f)).ToArray();
+        float x = (w - (widths.Sum() + 8 * (buttons.Length - 1))) / 2;
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            var (text, kind, act) = buttons[i];
+            var b = kind == 1
+                ? K.Btn(card, text, act, x, y, K.Kind.Primary, widths[i], 34, 8.96f)
+                : K.Btn(card, text, act, x, y, K.Kind.Btn, widths[i], 34, 10.56f);
+            if (kind == 2) b.GetComponentInChildren<TextMeshProUGUI>().color = Hex("#b23c24");
+            x += widths[i] + 8;
+        }
+    }
+
+    /// <summary>
+    /// A text box of a panel's (.db-panel textarea, .db-code; the community's search): #fbfcfe in a hairline of
+    /// rgba(150, 164, 190, 0.5), corners `radius`, padded 8 by 10; `multiline` its words from the top, wrapping.
+    /// </summary>
+    static TMP_InputField Field(Transform parent, string text, float x, float y, float w, float h, int limit, bool multiline, string placeholder, float size, float radius = 10, float padX = 10, Color? fill = null)
+    {
+        var box = K.Inset(parent, "Input", fill ?? Hex("#fbfcfe"), Hud.Rgba(150, 164, 190, 0.5f), radius);
+        Hud.Place(box.rectTransform, x, y, w, h);
+        box.raycastTarget = true;
+        var area = Hud.Rect(box.transform, "Text Area");
+        Hud.Fill(area);
+        area.offsetMin = new Vector2(1 + padX, multiline ? 9 : 1);
+        area.offsetMax = new Vector2(-1 - padX, multiline ? -9 : -1);
+        area.gameObject.AddComponent<RectMask2D>();
+        var align = multiline ? TextAlignmentOptions.TopLeft : TextAlignmentOptions.Left;
+        var hint = placeholder.Length > 0 ? K.Fill(area, placeholder, size, Look.InkFaint, false, 400, 0, align) : null;
+        var t = K.Fill(area, text, size, Look.Ink, false, 400, 0, align);
+        t.richText = false;
+        if (multiline) t.textWrappingMode = TextWrappingModes.Normal;
+        var input = box.gameObject.AddComponent<TMP_InputField>();
+        input.textViewport = area;
+        input.textComponent = t;
+        if (hint != null) input.placeholder = hint;
+        input.characterLimit = limit;
+        input.richText = false;
+        if (multiline) input.lineType = TMP_InputField.LineType.MultiLineNewline;
+        input.text = text;
+        return input;
+    }
+
+    /// <summary>
+    /// The panel over the deck list (builder.ts renderPanel, .db-panel: 440 across, padded 18 by 22, its parts 10
+    /// apart): importing a deck code, or sharing one of your decks (its code, and the community).
+    /// </summary>
     void Panel()
     {
-        var shared = panel == "share" ? Decks.ById(panelDeck) : null;
-        if (panel == "share" && (shared == null || shared.Preset == true)) { panel = null; return; }
-        var card = Modal(panel == "import" ? 250 : 236);
+        const float w = 440, x = 23, iw = w - 46;
         System.Action shut = () => { panel = null; Draw(); };
         if (panel == "import")
         {
-            ModalText(card, "IMPORT A DECK", "Paste a deck code (it starts with BL1-). The deck joins your decks; any cards you don't own yet show as still to collect.");
-            var input = MakeInput(card, codeText, new Vector2(0, -112), new Vector2(400, 64), 4000, true, "BL1-…");
+            var card = Modal();
+            float y = 19;
+            Title(card, "import a deck", x, y, iw);
+            y += 16 + 10;
+            y += Para(card, "Paste a deck code (it starts with BL1-). The deck joins your decks; any cards you don't own yet show as still to collect.", x, y, iw, 11.84f, Look.InkSoft, TextAlignmentOptions.TopLeft) + 10;
+            // (Three rows of the code's monospace 10.56.)
+            var input = Field(card, codeText, x, y, iw, 54, 4000, true, "BL1-…", 10.56f);
             input.onValueChanged.AddListener(s => codeText = s);
-            var paste = Hud.Pill(card, "Paste", () => { codeText = GUIUtility.systemCopyBuffer ?? ""; Draw(); }, 12);
-            Hud.At((RectTransform)paste.transform, new Vector2(0.5f, 0), new Vector2(-150, 22), new Vector2(110, 40));
-            var cancel = Hud.Pill(card, "Cancel", shut, 12);
-            Hud.At((RectTransform)cancel.transform, new Vector2(0.5f, 0), new Vector2(-24, 22), new Vector2(120, 40));
-            var go = Hud.Pill(card, "Import", () =>
+            y += 54 + 10;
+            Actions(card, y, w, ("cancel", 0, shut), ("import", 1, () =>
             {
                 var got = DecodeDeck(codeText);
                 if (got == null) { menu.Toast("Not a deck code"); return; }
@@ -541,42 +708,250 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
                 panel = null;
                 KeepDeck(got.Value.name, got.Value.cards);
                 Draw();
-            }, 12, Look.Ink, Color.white);
-            Hud.At((RectTransform)go.transform, new Vector2(0.5f, 0), new Vector2(120, 22), new Vector2(120, 40));
+            }));
+            Finish(card, w, y + 34 + 19);
+            return;
         }
+        var d = Decks.ById(panelDeck);
+        if (d == null || d.Preset == true) { panel = null; return; }
+        var why = ShareProblem(d);
+        var c = Modal();
+        float at = 19;
+        Title(c, $"share {d.Name.ToLowerInvariant()}", x, at, iw);
+        at += 16 + 10;
+        at += Para(c, "Its deck code: anyone can paste it into their decks page to get this deck.", x, at, iw, 11.84f, Look.InkSoft, TextAlignmentOptions.TopLeft) + 10;
+        // Its code (.db-code-row: the code read-only, copy 6 after it).
+        var code = EncodeDeck(d.Name, d.Cards);
+        float copyW = K.BtnW("copy", K.Kind.Small);
+        var codeBox = Field(c, code, x, at, iw - 6 - copyW, 30, 4000, false, "", 10.56f);
+        codeBox.readOnly = true;
+        K.Btn(c, "copy", () => GUIUtility.systemCopyBuffer = code, x + iw - copyW, at + 1.5f, K.Kind.Small, copyW, 27);
+        at += 30 + 10 + 6;
+        // Sharing it with the community (.section-label, 6 more above it), or why it can't be.
+        K.Words(c, "SHARE WITH THE COMMUNITY", x, at, iw, 10, 8, Look.InkSoft, true, 400, 0.3f, TextAlignmentOptions.Left);
+        at += 10 + 10;
+        if (why != null) at += Para(c, why, x, at, iw, 11.84f, Look.InkSoft, TextAlignmentOptions.TopLeft) + 10;
         else
         {
-            ModalText(card, $"SHARE {shared.Name.ToUpperInvariant()}", "Its deck code: anyone can paste it into their decks page to get this deck.");
-            var code = EncodeDeck(shared.Name, shared.Cards);
-            var input = MakeInput(card, code, new Vector2(-58, -112), new Vector2(284, 48), 4000, false, "");
-            input.readOnly = true;
-            var copy = Hud.Pill(card, "Copy", () => { GUIUtility.systemCopyBuffer = code; menu.Toast("Copied"); }, 12);
-            Hud.At((RectTransform)copy.transform, new Vector2(0.5f, 1), new Vector2(150, -116), new Vector2(100, 40));
-            var close = Hud.Pill(card, "Close", shut, 12);
-            Hud.At((RectTransform)close.transform, new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(120, 40));
+            var name = string.IsNullOrEmpty(Profile.Me.Name) ? "Commander" : Profile.Me.Name;
+            at += Para(c, $"Anyone can find it on the community page and save a copy, credited to <b>{name}</b>.", x, at, iw, 11.84f, Look.InkSoft, TextAlignmentOptions.TopLeft) + 10;
+            // (A note, two rows of 11.84.)
+            var note = Field(c, noteText, x, at, iw, 46, 160, true, "A note: what it does, how to play it (optional)", 11.84f);
+            note.onValueChanged.AddListener(s => noteText = s);
+            at += 46 + 10;
         }
+        if (why != null) Actions(c, at, w, ("close", 0, shut));
+        else Actions(c, at, w, ("close", 0, shut), ("share", 1, () => Publish(d)));
+        Finish(c, w, at + 34 + 19);
     }
 
-    /// <summary>A small modal (the web's .db-confirm) over a veil: its card, which swallows taps.</summary>
-    Transform Modal(float height)
+    /// <summary>Why a deck can't be shared with the community (null if it can): unfinished, or a starter as it comes.</summary>
+    static string ShareProblem(Decks.Saved d)
     {
-        var veil = Hud.Rect(layer, "Veil");
-        Hud.Fill(veil);
-        veil.gameObject.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.94f, 0.8f);
-        var card = Hud.Glass(veil, "Card", Color.white);
-        Hud.At((RectTransform)card.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(460, height));
-        card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
-        return card.transform;
+        if (d.Preset == true) return "Starter decks can’t be shared.";
+        var why = DeckRules.DeckProblems(d.Cards, Modes.ModeOf(d)).FirstOrDefault();
+        if (why != null) return $"Finish the deck to share it: {why}";
+        var key = CardsKey(d.Cards);
+        if (Decks.Presets.Any(s => CardsKey(s.Cards) == key)) return "This is a starter deck as it comes: change it to make it your own, then share it.";
+        return null;
     }
 
-    static void ModalText(Transform card, string head, string body)
+    /// <summary>Share a deck with the community (the server's: the same cards again update the one already shared).</summary>
+    void Publish(Decks.Saved d)
     {
-        var h = Hud.Label(card, head, 15, Look.Ink, true, 500, 22, TextAlignmentOptions.Top);
-        h.margin = new Vector4(20, 22, 20, 0);
-        var p = Hud.Label(card, body, 15, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
-        p.textWrappingMode = TextWrappingModes.Normal;
-        p.margin = new Vector4(30, 52, 30, 0);
+        var why = ShareProblem(d);
+        if (why != null) { menu.Toast(why); return; }
+        var name = string.IsNullOrEmpty(Profile.Me.Name) ? "Commander" : Profile.Me.Name;
+        Net.Api("decks", "POST", new JObject { ["name"] = d.Name, ["cards"] = new JArray(d.Cards), ["note"] = noteText, ["author"] = name }, r =>
+        {
+            if (this == null) return;
+            if (!r.Ok) { menu.Toast(r.Error); return; }
+            panel = null;
+            if (community) LoadCommunity();
+            Draw();
+        });
     }
+
+    // ---- The community's decks: shared lists to look through and save, credited to who shared them ----
+
+    /// <summary>Fetch the community's decks for the page as it's set (most saved, newest, or yours; matching the search).</summary>
+    void LoadCommunity()
+    {
+        cdecks = null;
+        cerror = null;
+        string sort = csort, q = cq;
+        var path = $"decks?sort={(sort == "new" ? "new" : "popular")}&q={System.Uri.EscapeDataString(q)}{(sort == "mine" ? "&mine=1" : "")}";
+        Net.Api(path, "GET", null, r =>
+        {
+            if (this == null || !community || csort != sort || cq != q) return;
+            cdecks = new List<CommunityDeck>();
+            if (!r.Ok) cerror = r.Error;
+            else if (r.Data["decks"] is JArray list)
+                foreach (var e in list.OfType<JObject>())
+                    cdecks.Add(new CommunityDeck
+                    {
+                        Id = (string)e["id"] ?? "",
+                        Name = (string)e["name"] ?? "",
+                        Author = (string)e["author"] ?? "",
+                        Note = (string)e["note"] ?? "",
+                        Cards = (e["cards"] as JArray)?.Select(x => (string)x).Where(x => x != null).ToList() ?? new List<string>(),
+                        Saves = (int?)e["saves"] ?? 0,
+                        Mine = (bool?)e["mine"] ?? false,
+                    });
+            if (editing == null && panel == null) Draw();
+        });
+    }
+
+    /// <summary>
+    /// The community page (builder.ts renderCommunity): its header, a bar (.db-community-bar, padded 6 16 0 10: the
+    /// sorts as pills 6 apart, the picked one slate; the search (220 across, round) and its button on the right), a
+    /// hint, and the decks as boxes (.db-cboxes: --bw clamp(96px, 28vh, 150px), clamp(28px, 4vw, 44px) by 28 apart),
+    /// each with who shared it and how many saved it, its note, and save (and unshare, your own).
+    /// </summary>
+    void Community()
+    {
+        Header("COMMUNITY DECKS", () => { community = false; Draw(); });
+        float left = K.PadL, right = K.W - K.PadR, top = K.PadT;
+        float bodyTop = top + 52 + K.Clamp(6, 2 * K.Vh, 14), listW = Mathf.Min(980, right - left), lx = (left + right - listW) / 2;
+        var tabs = new[] { ("popular", "most saved"), ("new", "newest"), ("mine", "shared by me") };
+        float tx = lx + 10, by = bodyTop + 6;
+        foreach (var (key, label) in tabs)
+        {
+            float tw = K.BtnW(label, K.Kind.Pill);
+            var b = K.Btn(root, label, () => { csort = key; LoadCommunity(); Draw(); }, tx, by + 2.5f, K.Kind.Pill, tw, 23);
+            if (csort == key)
+            {
+                ((Image)b.targetGraphic).color = Hex("#2f3a52");
+                b.GetComponentInChildren<TextMeshProUGUI>().color = Color.white;
+            }
+            tx += tw + 6;
+        }
+        float sw = K.BtnW("search", K.Kind.Small), sx = lx + listW - 16 - sw;
+        System.Action search = () => { cq = cqText.Trim(); LoadCommunity(); Draw(); };
+        K.Btn(root, "search", search, sx, by + 0.5f, K.Kind.Small, sw, 27);
+        float iw = Mathf.Min(220, 0.5f * K.W);
+        var input = Field(root, cqText, sx - 6 - iw, by, iw, 28, 40, false, "search names and players", 11.84f, 14, 12, Color.white);
+        input.onValueChanged.AddListener(s => cqText = s);
+        input.onSubmit.AddListener(_ => search());
+
+        // (Measured first, to size the scroller: laid out a second time into it.)
+        float end = LayCommunity(null, lx, listW);
+        var content = K.Scroller(root, "List", 0, by + 28, K.W, K.H - by - 28, end);
+        LayCommunity(content, lx, listW);
+    }
+
+    /// <summary>The community page under its bar: the hint (8 under it), then what there is; returns its height.</summary>
+    float LayCommunity(RectTransform content, float lx, float listW)
+    {
+        var parent = content != null ? (Transform)content : root;
+        float y = 8;
+        // (.db-chint: Exo 2 11.2, muted, 8 16 0 10 about it.)
+        var hint = "Save a deck to keep it with your own. Cards you don't own yet show as still to collect: craft them with flux or find them in boosters, and the deck is yours to play.";
+        float hh = Para(parent, hint, lx + 10, y, listW - 26, 11.2f, Look.InkFaint, TextAlignmentOptions.TopLeft);
+        if (content == null) Mats.Kill(parent.GetChild(parent.childCount - 1).gameObject);
+        y += hh;
+        string words = cdecks == null ? "Loading…" : cerror ?? (cdecks.Count > 0 ? null
+            : csort == "mine" ? "You haven’t shared a deck yet. Share one from your decks page."
+            : cq.Length > 0 ? "No shared decks match that." : "No decks shared yet. Be the first: share one from your decks page.");
+        if (words != null)
+        {
+            // (.muted.center-text: 12.8, a paragraph's 1em margin above it.)
+            y += 8 + 12.8f;
+            float ph = content != null ? Para(content, words, lx, y, listW, 12.8f, Look.InkFaint, TextAlignmentOptions.Top) : 16;
+            return y + ph + 12.8f + Mathf.Max(18, K.SaB);
+        }
+        // The decks (.db-boxes.db-cboxes, padded 14 16 16 10).
+        float bw = K.Clamp(96, 28 * K.Vh, 150), depth = bw * 0.08f, bh = bw / 0.72f, colGap = K.Clamp(28, 4 * K.Vw, 44);
+        float avail = listW - 26;
+        int cols = Mathf.Max(1, Mathf.Min(cdecks.Count, Mathf.FloorToInt((avail + colGap) / (bw + colGap))));
+        float at = y + 8 + 14;
+        for (int row = 0; row * cols < cdecks.Count; row++)
+        {
+            float rowH = 0;
+            for (int col = 0; col < cols && row * cols + col < cdecks.Count; col++)
+            {
+                var deck = cdecks[row * cols + col];
+                float x = lx + 10 + (avail - (cols * bw + (cols - 1) * colGap)) / 2 + col * (bw + colGap);
+                rowH = Mathf.Max(rowH, CommunityBox(content, deck, x, at, bw));
+            }
+            at += rowH + 28;
+        }
+        return at - 28 + 16 + Mathf.Max(18, K.SaB);
+    }
+
+    /// <summary>
+    /// A shared deck (.db-cdeck: its parts 6 apart): its box (tagged with how many of its cards you own), who shared
+    /// it and how many saved it (.db-credit: 10.24, 20 more above it), its note (.db-cnote: 9.92), and save (and
+    /// unshare, if it's yours) as pills. Returns its height (`content` null: only measures it).
+    /// </summary>
+    float CommunityBox(RectTransform content, CommunityDeck x, float left, float top, float bw)
+    {
+        float depth = bw * 0.08f, bh = bw / 0.72f, y = depth + bh + 6 + 20;
+        int missing = MissingCopies(x.Cards).Sum(m => m.n);
+        string tag = missing > 0 ? $"{x.Cards.Count - missing}/{x.Cards.Count} owned" : "all owned";
+        if (content != null)
+        {
+            var d = new Decks.Saved { Id = x.Id, Name = x.Name, Cards = x.Cards };
+            DeckBox(content, left, top + depth, bw, d, () =>
+            {
+                fromCommunity = x.Mine ? null : x.Id;
+                Open(new Decks.Saved { Name = x.Name, Cards = x.Cards.ToList(), Mode = GuessMode(x.Cards) }, null, x.Name);
+                Draw();
+            }, new List<(string, string, System.Action, bool)>(), tag);
+            // (Who shared it, bold in ink; ★ and how many saved it.)
+            K.Words(content, $"<b><color={Html(Look.Ink)}>by {x.Author}</color></b>   ★ {x.Saves}", left - 30, top + y, bw + 60, 12.3f, 10.24f, Look.InkSoft, false, 400);
+        }
+        y += 12.3f + 6;
+        if (x.Note.Length > 0)
+        {
+            float nh = content != null ? Para(content, x.Note, left, top + y, bw, 9.92f, Look.InkSoft, TextAlignmentOptions.Top) : MeasureNote(x.Note, bw);
+            y += nh + 6;
+        }
+        if (content != null)
+        {
+            var pills = new List<(string, System.Action)> { ("save", () => SaveShared(x)) };
+            if (x.Mine) pills.Add(("unshare", () => Unshare(x)));
+            float total = pills.Sum(p => K.BtnW(p.Item1, K.Kind.Pill)) + 5 * (pills.Count - 1), px = left + (bw - total) / 2;
+            foreach (var (label, act) in pills)
+            {
+                float pw = K.BtnW(label, K.Kind.Pill);
+                K.Btn(content, label, act, px, top + y, K.Kind.Pill, pw, 23);
+                px += pw + 5;
+            }
+        }
+        return y + 23;
+    }
+
+    /// <summary>How tall a shared deck's note stands (9.92, wrapping in `w`).</summary>
+    float MeasureNote(string note, float w)
+    {
+        float h = Para(root, note, 0, 0, w, 9.92f, Look.InkSoft, TextAlignmentOptions.Top);
+        Mats.Kill(root.GetChild(root.childCount - 1).gameObject);
+        return h;
+    }
+
+    /// <summary>Keep a shared deck among your own (counting the save, once per player), unless you have it already.</summary>
+    void SaveShared(CommunityDeck x)
+    {
+        var key = CardsKey(x.Cards);
+        if (Decks.Custom().Any(d => CardsKey(d.Cards) == key)) { menu.Toast("Already in your decks"); return; }
+        CountSave(x.Id);
+        x.Saves += x.Mine ? 0 : 1;
+        KeepDeck(x.Name, x.Cards);
+        Draw();
+    }
+
+    /// <summary>Count a save of a shared deck (once per player). Never in the way: a failure is dropped.</summary>
+    static void CountSave(string id) => Net.Api("decks/save", "POST", new JObject { ["id"] = id }, _ => { });
+
+    /// <summary>Take a deck you shared down (copies others saved stay theirs).</summary>
+    void Unshare(CommunityDeck x) => Net.Api("decks/remove", "POST", new JObject { ["id"] = x.Id }, r =>
+    {
+        if (this == null) return;
+        if (!r.Ok) { menu.Toast(r.Error); return; }
+        cdecks?.Remove(x);
+        Draw();
+    });
 
     // ---- Deck codes (deckcode.ts): "BL1-" then the deck's name and cards as URL-safe base64 of JSON ----
 
@@ -683,12 +1058,15 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         if (filtersOpen) FiltersPop();
         if (confirmExit)
         {
-            var card = Modal(196);
-            ModalText(card, "LEAVE WITHOUT SAVING?", $"Your changes to {(string.IsNullOrWhiteSpace(editing.Name) ? "this deck" : editing.Name)} will be lost.");
-            var keep = Hud.Pill(card, "Keep editing", () => { confirmExit = false; Draw(); }, 12);
-            Hud.At((RectTransform)keep.transform, new Vector2(0.5f, 0), new Vector2(-84, 24), new Vector2(160, 42));
-            var leave = Hud.Pill(card, "Leave", () => { confirmExit = false; editing = starter = null; Draw(); }, 12, Hex("#fbeeea"), Hex("#b23c24"));
-            Hud.At((RectTransform)leave.transform, new Vector2(0.5f, 0), new Vector2(84, 24), new Vector2(140, 42));
+            // (.db-confirm: min(380px, 92vw) across (a modal's least), padded 18 by 22, its title, words and buttons 10
+            // apart, centred.)
+            float w = Mathf.Min(380, 92 * K.Vw), iw = w - 46;
+            var card = Modal();
+            Title(card, "leave without saving?", 23, 19, iw);
+            float y = 19 + 16 + 10;
+            y += Para(card, $"Your changes to {(string.IsNullOrEmpty(editing.Name) ? "this deck" : editing.Name)} will be lost.", 23, y, iw, 11.84f, Look.InkSoft, TextAlignmentOptions.Top) + 10;
+            Actions(card, y, w, ("keep editing", 0, () => { confirmExit = false; Draw(); }), ("leave", 2, () => { confirmExit = false; editing = starter = null; Draw(); }));
+            Finish(card, w, y + 34 + 19);
         }
     }
 
@@ -1081,7 +1459,11 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
             return;
         }
         if (st != null && d.Name == st.Name) d.Name = Clip($"{st.Name} copy", 24);
+        bool dup = Decks.Custom().Any(x => x.Id != d.Id && CardsKey(x.Cards) == CardsKey(d.Cards));
         Decks.Save(d);
+        // (Opened from a shared deck: its save counts towards it.)
+        if (fromCommunity != null && !dup) CountSave(fromCommunity);
+        fromCommunity = null;
         var shortBy = ToCollect(d.Cards);
         if (shortBy.Length > 0) menu.Toast(shortBy);
         editing = starter = null;
