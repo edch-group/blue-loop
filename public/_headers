@@ -7,3 +7,11 @@
   Cache-Control: no-cache
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+# The Unity game (/play/): its page always fetched fresh, so a new build is found; the build's own files have hashed
+# names, so they never change and can be kept.
+/play/
+  Cache-Control: no-cache
+/play/index.html
+  Cache-Control: no-cache
+/play/Build/*
+  Cache-Control: public, max-age=31536000, immutable
