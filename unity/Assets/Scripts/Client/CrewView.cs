@@ -64,7 +64,10 @@ public class CrewView : MonoBehaviour
             return new Vector4(Mathf.Max((Css.MaxHeight(560) ? 8 : 14) * Z, sa.x), Mathf.Max(18 * Z, sa.y), Mathf.Max(10 * Z, sa.z), Mathf.Max(18 * Z, sa.w));
         }
     }
-    float BodyTop => PagePad.x + 42;
+    // (The header (.crew-top) as tall as back (0.66rem words at 1.25, padded 8 above and below), or with the crew's
+    // tabs, as tall as their bar; everything in it centred on it.)
+    float headH = 30 * Z;
+    float BodyTop => PagePad.x + headH;
     float BodyW => layer.W - PagePad.y - PagePad.w;
     float WhoW => BodyW * 0.4f;
     float TreeW => BodyW - WhoW;
@@ -82,8 +85,9 @@ public class CrewView : MonoBehaviour
         var crew = Meta.CompanionsFound(meta);
         if (tab != null && !crew.Contains(tab)) tab = null;
         scene?.Focus(tab ?? "captain");
+        headH = crew.Count > 0 ? Mathf.Max(30 * Z, 2 * 8 * Z + 0.58f * 16 * Z * 1.25f + 8 * Z) : 30 * Z;
         // The header (.crew-top): back, then undo, clear and the page's own tools, 6 apart.
-        var back = WebLook.UpBack(root, () => menu.Show("campaign"), PagePad.w, PagePad.x);
+        var back = WebLook.UpBack(root, () => menu.Show("campaign"), PagePad.w, PagePad.x + (headH - 42) / 2);
         x = PagePad.w + ((RectTransform)back.transform).sizeDelta.x + 6 * Z;
         if (placed.Count > 0)
         {
@@ -112,12 +116,12 @@ public class CrewView : MonoBehaviour
             var n = WebLook.Words(WebLook.Box(r, "Price", w + 6 * Z + 16, 0, 40, 42), Meta.SkillResetPetals.ToString(), 0.56f * 16 * Z, 0.04f, ink, true, 500, TextAlignmentOptions.Left);
             w += 6 * Z + 16 + n.GetPreferredValues(n.text).x;
         }
-        WebLook.Box(r, x, PagePad.x, w + 12 * Z, 42);
-        t.margin = new Vector4(6 * Z, 0, 0, 0);
+        // (Unpadded: as wide as its words, 6 from the next.)
+        WebLook.Box(r, x, PagePad.x + (headH - 42) / 2, w, 42);
         var hit = r.gameObject.AddComponent<Image>();
         hit.color = new Color(1, 1, 1, 0);
         r.gameObject.AddComponent<Button>().onClick.AddListener(() => act());
-        x += w + 12 * Z + 6 * Z;
+        x += w + 6 * Z;
     }
 
     /// <summary>
@@ -147,7 +151,7 @@ public class CrewView : MonoBehaviour
         bar.pixelsPerUnitMultiplier = 22f / (barH / 2);
         var br = bar.rectTransform;
         br.anchorMin = br.anchorMax = br.pivot = new Vector2(0.5f, 1);
-        br.anchoredPosition = new Vector2(0, -(PagePad.x + 21 - barH / 2));
+        br.anchoredPosition = new Vector2(0, -(PagePad.x + (headH - barH) / 2));
         br.sizeDelta = new Vector2(total, barH);
         WebLook.Shadow(bar, 4 * Z, 12 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.06f), barH / 2, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
         float at = 4 * Z;
@@ -199,22 +203,25 @@ public class CrewView : MonoBehaviour
         var h = WebLook.Words(Hud.Fill(Hud.Rect(root, "Title")), title.ToUpperInvariant(), fs, 0.45f, Look.Ink, true, 400, TextAlignmentOptions.Top);
         h.textWrappingMode = TextWrappingModes.Normal;
         // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
-        float th = h.GetPreferredValues(h.text, W - 0.45f * fs, 0).y;
+        // (Its lines each 1.25 its size, as CSS sets them.)
+        float one = Mathf.Max(1, h.GetPreferredValues("A").y), th = Mathf.Max(1, Mathf.Round(h.GetPreferredValues(h.text, W - 0.45f * fs, 0).y / one)) * fs * 1.25f;
         WebLook.Box(h.rectTransform, X, top, W, th + 4);
         float y = top + th + 6 * Z;
         var count = WebLook.Words(Hud.Fill(Hud.Rect(root, "Points")), points.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
         var small = WebLook.Words(Hud.Fill(Hud.Rect(root, "Level")), level.ToUpperInvariant(), 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
         float cw = count.GetPreferredValues(count.text).x, sw = small.GetPreferredValues(small.text).x;
         float rowW = 28 + 6 * Z + cw + 10 * Z + sw, x0 = X + W / 2 - rowW / 2;
-        XpMark(root, x0, y + 2.5f, 28);
-        WebLook.Box((RectTransform)count.transform, x0 + 28 + 6 * Z, y, cw + 4, 33);
-        WebLook.Box((RectTransform)small.transform, x0 + 28 + 6 * Z + cw + 10 * Z, y + 8, sw + 8, 16);
+        // (.up-xp: a row as tall as the count's line box (1.15rem at 1.25), the mark, count and words centred on it.)
+        float rowH = 1.15f * 16 * Z * 1.25f, smallH = 0.56f * 16 * Z * 1.25f;
+        XpMark(root, x0, y + (rowH - 28) / 2, 28);
+        WebLook.Box((RectTransform)count.transform, x0 + 28 + 6 * Z, y, cw + 4, rowH);
+        WebLook.Box((RectTransform)small.transform, x0 + 28 + 6 * Z + cw + 10 * Z, y + (rowH - smallH) / 2, sw + 8, smallH);
         if (note != null)
         {
             var n = WebLook.Words(Hud.Fill(Hud.Rect(root, "Learns")), note.ToLowerInvariant(), 0.7f * 16 * Z, 0.06f, WebLook.Hex("#7d8496"), false, 400, TextAlignmentOptions.Top);
             n.textWrappingMode = TextWrappingModes.Normal;
             float nw = Mathf.Min(W, 34 * 0.55f * 0.7f * 16 * Z);
-            WebLook.Box(n.rectTransform, X + (W - nw) / 2, y + 33 + 6 * Z, nw, 80);
+            WebLook.Box(n.rectTransform, X + (W - nw) / 2, y + rowH + 6 * Z, nw, 80);
         }
     }
 
