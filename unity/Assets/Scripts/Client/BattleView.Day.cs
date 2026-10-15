@@ -220,7 +220,12 @@ public partial class BattleView
         float end = Mathf.Max(t, lastLand) + 0.2f;
         StartCoroutine(After(end, () =>
         {
-            foreach (var p in next.Players) board.HoldSun(p.Id, next, p, 0);
+            // (A sun whose explosion is still playing stays drawn alive until it has: app.ts show, `!this.dying.has(pid)`.)
+            foreach (var p in next.Players)
+            {
+                float dying = dyingUntil.TryGetValue(p.Id, out var until) ? until - Time.time : 0;
+                board.HoldSun(p.Id, next, dying > 0 ? WithSun(p, new SunAt { Heat = p.Heat, Shields = p.Shields, Eliminated = false }) : p, dying > 0 ? dying : 0);
+            }
             board.Resync();
         }));
         return end;

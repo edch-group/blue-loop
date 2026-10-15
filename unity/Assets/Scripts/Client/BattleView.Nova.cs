@@ -10,11 +10,18 @@ using UnityEngine.UI;
 /// </summary>
 public partial class BattleView
 {
+    /// <summary>
+    /// app.ts dying: until when (Time.time) each sun that went supernova is still drawn alive, its explosion playing out
+    /// (what holds the suns' numbers for a day's replay lets it go no sooner).
+    /// </summary>
+    readonly System.Collections.Generic.Dictionary<string, float> dyingUntil = new System.Collections.Generic.Dictionary<string, float>();
+
     /// <summary>A sun goes supernova `after` seconds from now (as the blow that causes it lands).</summary>
     void SupernovaAt(GameState next, string pid, float after)
     {
         if (!Application.isPlaying || hud == null) return;
         var p = next.Players.Find(x => x.Id == pid);
+        dyingUntil[pid] = Time.time + after + 0.9f;
         // (Drawn alive meanwhile, and for the explosion's 0.9 s.)
         if (p != null) Board?.HoldSun(pid, next, WithSun(p, new SunAt { Heat = p.Heat, Shields = p.Shields, Eliminated = false }), after + 0.9f);
         StartCoroutine(After(after, () =>
