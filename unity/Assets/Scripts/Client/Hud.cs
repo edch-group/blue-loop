@@ -136,6 +136,22 @@ public static class Hud
     /// <summary>A rect placed by its top-left corner in its parent, x right and y down (as the web's boxes are measured).</summary>
     public static RectTransform Place(RectTransform r, float x, float y, float w, float h) => At(r, new Vector2(0, 1), new Vector2(x, -y), new Vector2(w, h));
 
+    /// <summary>
+    /// The web's text-overflow: ellipsis: a line cut short with "…" when it runs out of width, never out of height (TMP
+    /// cuts a line that overflows its box's height too, leaving it blank or a bare "…"): its box given a size more of
+    /// room above and below, on the sides its alignment leaves free, so it stands where it did.
+    /// </summary>
+    public static TMP_Text Ellipsis(TMP_Text t)
+    {
+        Hud.Ellipsis(t);
+        float f = t.fontSize;
+        // (Its vertical alignment, from the alignment's high bits: top 0x100, bottom 0x400.)
+        int v = (int)t.alignment & 0xFF00;
+        var m = t.margin;
+        t.margin = new Vector4(m.x, v == 0x100 ? m.y : m.y - f, m.z, v == 0x400 ? m.w : m.w - f);
+        return t;
+    }
+
     /// <summary>An image given rounded corners of `radius` reference pixels (a pill when it is half its height).</summary>
     public static Image Corner(Image img, float radius)
     {
@@ -400,9 +416,14 @@ public class Shades : MonoBehaviour
 {
     RectTransform[] layers = new RectTransform[0];
     Hud.Drop[] drops = new Hud.Drop[0];
+    float radius;
+    Graphic target;
+    Material[] cut;
 
     public void Init(float radius, Hud.Drop[] given)
     {
+        this.radius = radius;
+        target = GetComponent<Graphic>();
         drops = given;
         layers = new RectTransform[given.Length];
         for (int i = 0; i < given.Length; i++)
@@ -449,6 +470,7 @@ public class Shades : MonoBehaviour
             s.localScale = r.localScale;
             s.localRotation = r.localRotation;
         }
+        Cut(r);
         // (Just before the box, the first listed nearest it; moved only when out of place.)
         int at = r.GetSiblingIndex();
         bool inPlace = true;
@@ -461,6 +483,47 @@ public class Shades : MonoBehaviour
             // (Moved to just before the box: one less when it comes from before it, as the box then shifts down.)
             int ti = r.GetSiblingIndex(), li = layers[i].GetSiblingIndex();
             layers[i].SetSiblingIndex(li < ti ? ti - 1 : ti);
+        }
+    }
+
+    static Shader shadeShader;
+
+    /// <summary>
+    /// CSS paints a box's shadow only outside it: under a box you can see through (its colour, or what holds it, less
+    /// than whole), its shadows are cut away (BlueLoop/UiShade), so it shows what is behind it and not its own shadow.
+    /// </summary>
+    void Cut(RectTransform r)
+    {
+        if (target == null) return;
+        var cr = target.GetComponent<CanvasRenderer>();
+        bool see = cut != null || target.color.a < 0.999f || (cr != null && cr.GetInheritedAlpha() < 0.999f);
+        if (!see) return;
+        var canvas = target.canvas;
+        if (canvas == null) return;
+        if (cut == null)
+        {
+            shadeShader ??= Shader.Find("BlueLoop/UiShade");
+            if (shadeShader == null) return;
+            cut = new Material[layers.Length];
+            for (int i = 0; i < layers.Length; i++)
+            {
+                if (layers[i] == null) continue;
+                cut[i] = new Material(shadeShader);
+                layers[i].GetComponent<Image>().material = cut[i];
+            }
+        }
+        // (The box in its canvas's own space, where the canvas's vertices are.)
+        var corners = new Vector3[4];
+        r.GetWorldCorners(corners);
+        var ct = canvas.transform;
+        Vector2 a = ct.InverseTransformPoint(corners[0]), b = ct.InverseTransformPoint(corners[2]);
+        var box = new Vector4((a.x + b.x) / 2, (a.y + b.y) / 2, Mathf.Abs(b.x - a.x) / 2, Mathf.Abs(b.y - a.y) / 2);
+        float k = r.rect.width > 0 ? Mathf.Abs(b.x - a.x) / r.rect.width : 1;
+        foreach (var m in cut)
+        {
+            if (m == null) continue;
+            m.SetVector("_Box", box);
+            m.SetFloat("_BoxRadius", radius * k);
         }
     }
 
@@ -479,5 +542,9 @@ public class Shades : MonoBehaviour
     void LateUpdate() => Follow();
     void OnEnable() { foreach (var s in layers) if (s != null) s.gameObject.SetActive(true); Follow(); }
     void OnDisable() { foreach (var s in layers) if (s != null) s.gameObject.SetActive(false); }
-    void OnDestroy() { foreach (var s in layers) if (s != null) Mats.Kill(s.gameObject); }
+    void OnDestroy()
+    {
+        foreach (var s in layers) if (s != null) Mats.Kill(s.gameObject);
+        if (cut != null) foreach (var m in cut) if (m != null) Mats.Kill(m);
+    }
 }

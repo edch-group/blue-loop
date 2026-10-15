@@ -55,7 +55,7 @@ public partial class CampaignView
         string name = string.IsNullOrEmpty(Profile.Me.Name) ? "commander" : Profile.Me.Name.ToLowerInvariant();
         float whoX = (1 + 4) * Z + faceD + 8 * Z;
         var who = WebLook.Words(WebLook.Box(chip.transform, "Name", whoX, 0, 120 * Z, 12.4f * Z), name.ToUpperInvariant(), 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
-        who.overflowMode = TextOverflowModes.Ellipsis;
+        Hud.Ellipsis(who);
         float nameW = Mathf.Min(120 * Z, who.GetPreferredValues(who.text).x);
         var lv = WebLook.Words(WebLook.Box(chip.transform, "Level", whoX + nameW + 8 * Z, 0, 80 * Z, 10.4f * Z), $"LEVEL {level.Level}", 0.56f * 16 * Z, 0.14f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
         float whoW = Mathf.Max(whoMin, nameW + 8 * Z + lv.GetPreferredValues(lv.text).x);

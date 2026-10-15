@@ -277,7 +277,7 @@ public static class AccountView
             Hud.Place(row.rectTransform, x, y, w, 48);
             float dw = deleting ? 0 : K.TextW("DELETE ACCOUNT", 9.6f, 400, 0.16f) + 4;
             var em = K.Words(row.transform, a.Email, 12, 8, w - 24 - dw - 12, 19, 16, Look.Ink, true, 500, 0.06f, TextAlignmentOptions.Left);
-            em.overflowMode = TextOverflowModes.Ellipsis;
+            Hud.Ellipsis(em);
             K.Words(row.transform, "Your progress is saved to this account.", 12, 29, w - 24 - dw - 12, 11, 9.92f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
             if (!deleting) K.Link(row.transform, "delete account", () => { deleting = true; confirm = ""; error = ""; reopen(); }, w - 12, 14.5f, fromRight: true);
             y += 48 + gap;

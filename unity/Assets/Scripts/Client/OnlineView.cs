@@ -121,9 +121,9 @@ public class OnlineView : MonoBehaviour, MenuView.IRedraw
         float actW = act(r, right, mid);
         float tf = K.Clamp(9.6f, 2.4f * K.Vh, 12.48f), sf = K.Clamp(8.96f, 2 * K.Vh, 11.2f), tw = right - actW - 12 - 19;
         float th = K.LineH(tf) + 2 + sf * 1.17f;
-        K.Words(r, title.ToUpperInvariant(), 19, mid - th / 2, tw, K.LineH(tf), tf, Look.Ink, true, 500, 0.18f, TextAlignmentOptions.Left).overflowMode = TextOverflowModes.Ellipsis;
+        Hud.Ellipsis(K.Words(r, title.ToUpperInvariant(), 19, mid - th / 2, tw, K.LineH(tf), tf, Look.Ink, true, 500, 0.18f, TextAlignmentOptions.Left));
         var s = K.Words(r, sub, 19, mid - th / 2 + K.LineH(tf) + 2, tw, sf * 1.17f, sf, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
-        s.overflowMode = TextOverflowModes.Ellipsis;
+        Hud.Ellipsis(s);
     }
 
     // ---- In a room ----
@@ -201,7 +201,7 @@ public class OnlineView : MonoBehaviour, MenuView.IRedraw
             pi.raycastTarget = false;
             Hud.Shadow(pi, 7, new Hud.Drop(Hud.Rgba(124, 199, 154, 0.75f), 0, 12));
             pulse.gameObject.AddComponent<Hum>();
-            K.Words(waiting, "WAITING FOR YOUR OPPONENT", 0, wy + 22, seatW, 13, 10.56f, Look.InkSoft, true, 500, 0.16f).overflowMode = TextOverflowModes.Ellipsis;
+            Hud.Ellipsis(K.Words(waiting, "WAITING FOR YOUR OPPONENT", 0, wy + 22, seatW, 13, 10.56f, Look.InkSoft, true, 500, 0.16f));
             K.Words(waiting, "send them the code or the link", 0, wy + 43, seatW, 13, 10.56f, Look.InkFaint, false, 400);
         }
         y += seatH + gap;

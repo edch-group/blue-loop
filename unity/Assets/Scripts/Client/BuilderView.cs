@@ -443,13 +443,13 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         if (big)
         {
             var nm = K.Words(front.transform, d.Name.ToUpperInvariant(), bw * 0.08f, contentBot - raceLH - 2 - nameLH, bw * 0.84f, nameLH, nameF, Color.white, true, 500, 0.14f);
-            nm.overflowMode = TextOverflowModes.Ellipsis;
+            Hud.Ellipsis(nm);
             K.Words(front.transform, RacesLabel(d.Cards).ToUpperInvariant(), bw * 0.04f, contentBot - raceLH, bw * 0.92f, raceLH, raceF, new Color(1, 1, 1, 0.85f), false, 400, 0.2f);
         }
         else
         {
             var nm = K.Words(cell, d.Name.ToUpperInvariant(), -5, bh + 6, bw + 10, MiniLabel * 1.2f, MiniLabel, on ? Look.Ink : Look.InkFaint, true, 400, 0.1f);
-            nm.overflowMode = TextOverflowModes.Ellipsis;
+            Hud.Ellipsis(nm);
         }
         return cell;
     }
@@ -1121,7 +1121,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         int need = missing.Sum(m => m.n);
         var collect = need > 0 ? $"<color=#a8641c>{need} to collect · ⟁{missing.Sum(m => m.n * Progression.CraftCost(m.id))}</color>   " : "";
         var tally = K.Words(side.transform, $"{collect}<b><color={(sizeOk ? ok : bad)}>{d.Cards.Count}/{(d.Cards.Count > Balance.DeckSize ? Balance.MaxDeckSize : Balance.DeckSize)}</color></b> cards · <b><color={(commands == needHeroes ? ok : bad)}>{commands}/{needHeroes}</color></b> {(needHeroes == 1 ? "hero" : "heroes")}", x, y, inner, 12, 10.56f, Look.InkSoft, false, 400);
-        tally.overflowMode = TextOverflowModes.Ellipsis;
+        Hud.Ellipsis(tally);
         y += 12 + 8;
         if (focus != null) y = FocusPanel(side.transform, focus, x, y, inner) + 8;
 
@@ -1181,7 +1181,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         Portrait(art, id, 21);
         float fs = K.Clamp(8.96f, 2 * K.Vh, 11.2f);
         var name = K.Fill(row.transform, c.Name.ToLowerInvariant(), fs, Look.Ink, true, 700, 0.06f, TextAlignmentOptions.Left);
-        name.overflowMode = TextOverflowModes.Ellipsis;
+        Hud.Ellipsis(name);
         name.margin = new Vector4(32, 0, shortBy > 0 ? 82 : 40, 0);
         var count = K.Fill(row.transform, $"×{n}", 8.96f, Look.Ink, true, 700, 0, TextAlignmentOptions.Right);
         count.margin = new Vector4(0, 0, 22, 0);
@@ -1212,7 +1212,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         var t = panelBox.transform;
         float closeW = K.BtnW("close", K.Kind.Pill, 8.96f);
         var head = K.Words(t, def.Name.ToLowerInvariant(), 12, 10, inner - 24 - closeW - 8, 22, 11.52f, Look.Ink, true, 500, 0.1f, TextAlignmentOptions.Left);
-        head.overflowMode = TextOverflowModes.Ellipsis;
+        Hud.Ellipsis(head);
         K.Btn(t, "close", () => { focus = null; Draw(); }, inner - 12 - closeW, 10, K.Kind.Pill, closeW, 22, 8.96f);
         probe.transform.SetParent(t, false);
         Hud.Place(probe.rectTransform, 12, 38, inner - 24, lineH);
@@ -1277,7 +1277,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
             sl.margin = new Vector4(14, 8, 0, 0);
             var vl = Hud.Label(headBox.transform, summary.ToUpperInvariant(), 12, Look.Ink, true, 500, 8, TextAlignmentOptions.BottomLeft);
             vl.margin = new Vector4(14, 0, 34, 10);
-            vl.overflowMode = TextOverflowModes.Ellipsis;
+            Hud.Ellipsis(vl);
             // (Its caret: a chevron turned down, or up while open.)
             var caretAt = Hud.Rect(headBox.transform, "Caret");
             Hud.At(caretAt, new Vector2(1, 0.5f), new Vector2(-12, 0), new Vector2(18, 18));

@@ -445,7 +445,7 @@ public class MenuView : MonoBehaviour
         float nameW = Mathf.Min(w - 2 * ph - (pillW > 0 ? pillW + 10 : 0), K.TextW(shown, nameF, 400, 0.16f) + 2);
         float all = nameW + (pillW > 0 ? 10 + pillW : 0), left = (w - all) / 2;
         var nl = K.Words(r, shown, left, pv, nameW, headH, nameF, Look.Ink, true, 400, 0.16f, TextAlignmentOptions.Left);
-        nl.overflowMode = TextOverflowModes.Ellipsis;
+        Hud.Ellipsis(nl);
         if (mode != null) K.Btn(r, mode, flip, left + nameW + 10, pv + (headH - pillH) / 2, K.Kind.Pill, pillW, pillH, 8, 0.14f);
         else if (tag != null)
         {
@@ -476,7 +476,7 @@ public class MenuView : MonoBehaviour
             System.Action act = deck == null && seat >= 0 ? () => { pickSeat = seat; pickFrom = current; Show("pickdeck"); } : (System.Action)null;
             BuilderView.DeckBoxMini(r, (w - bw) / 2, by, d, true, act, bw);
             var dn = K.Words(r, d.Name.ToUpperInvariant(), (w - (bw + 10)) / 2, by + boxH + 6, bw + 10, nameH, nameSize, Look.Ink, true, 400, 0.1f);
-            dn.overflowMode = TextOverflowModes.Ellipsis;
+            Hud.Ellipsis(dn);
         }
         return r;
     }
@@ -841,7 +841,7 @@ public class MenuView : MonoBehaviour
         float closeW = K.BtnW("close", K.Kind.Pill, 8.96f);
         float whoX = x + av + 12, whoW = inner - av - 12 - 12 - closeW, whoH = nf * 1.16f + 1 + 12.4f;
         var nm = K.Words(body, (string.IsNullOrEmpty(p.Name) ? "Commander" : p.Name).ToUpperInvariant(), whoX, y + (av - whoH) / 2, whoW, nf * 1.16f, nf, Look.Ink, true, 500, 0.16f, TextAlignmentOptions.Left);
-        nm.overflowMode = TextOverflowModes.Ellipsis;
+        Hud.Ellipsis(nm);
         K.Words(body, $"{p.Won} won of {p.Played} played", whoX, y + (av - whoH) / 2 + nf * 1.16f + 1, whoW, 12.4f, 10.56f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
         K.Btn(body, "close", () => shut(), x + inner - closeW, y + (av - 22) / 2, K.Kind.Pill, closeW, 22, 8.96f);
         y += av + gap;
@@ -864,7 +864,7 @@ public class MenuView : MonoBehaviour
             float iw = bwid - 20;
             K.Words(edge.transform, head, 10, 8, iw, 9, 8, Look.InkFaint, false, 400, 0.12f, TextAlignmentOptions.Left);
             var v = K.Words(edge.transform, shown.ToUpperInvariant().Replace("<SIZE=85%>", "<size=85%>").Replace("</SIZE>", "</size>"), 10, 20, iw, bf * 1.2f, bf, ink, true, 500, 0.06f, TextAlignmentOptions.Left);
-            v.overflowMode = TextOverflowModes.Ellipsis;
+            Hud.Ellipsis(v);
             if (bar >= 0)
             {
                 var track = Hud.Box(edge.transform, "Bar", Hud.Rgba(238, 240, 245), 2);
