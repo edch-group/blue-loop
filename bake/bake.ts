@@ -59,7 +59,7 @@ function piece(kind: 'back' | 'flower', width: number): void {
 }
 Object.assign(window, { piece });
 
-/** A menu icon on its own, as the hub draws it (`small`: as the header links do), or the title block. */
+/** A menu icon on its own, as the hub draws it (`small`: as the header links do; options as its corner button colours it), or the title block. */
 function icon(name: string, size: number, small = false): void {
   if (name === 'title-sun') {
     // (The sun alone, with room all round for its glow.)
@@ -72,7 +72,7 @@ function icon(name: string, size: number, small = false): void {
   }
   const svg = HUB_ICONS[name as keyof typeof HUB_ICONS];
   stage.innerHTML = small
-    ? `<span class="hub-link-icon" id="piece" style="display:block;width:${size}px;height:${size}px">${svg}</span>`
+    ? `<span class="hub-link-icon" id="piece" style="display:block;width:${size}px;height:${size}px${name === 'options' ? ';color:#5f8fc4' : ''}">${svg}</span>`
     : `<span class="hub-icon" id="piece" style="display:block;width:${size}px;height:${size}px">${svg}</span>`;
 }
 Object.assign(window, { icon, iconNames: () => Object.keys(HUB_ICONS) });
