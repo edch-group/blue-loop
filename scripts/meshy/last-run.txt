@@ -1,4 +1,4 @@
-== 01a13eaf-79d3-751c-8f15-97454e23d9c6 captain nobake
+== e233e83a-6896-44f0-aa08-1fad7be1e696 captain nobake
 v2/text-to-3d: 0 tasks
 v1/text-to-3d: 404
 v1/image-to-3d: 19 tasks
@@ -30,14 +30,14 @@ v1/rigging: 0 tasks
   2fc18a67-e6e6-43d9-82b8-95e6003bef64 v1/image-to-3d SUCCEEDED created 1791977357715 textured dark_weathered_sword [model_urls, texture_urls]
   ae5fce22-e328-589c-a440-a1279c59fd11 v1/image-to-3d SUCCEEDED created 1791976920909 untextured anime_warrior_character [model_urls]
   59d6b3f4-9e81-5c4c-abbe-acd8f95ed8cd v1/image-to-3d SUCCEEDED created 1791976855520 untextured anime_warrior_cape [model_urls]
-01a13eaf-79d3-751c-8f15-97454e23d9c6: found as v2/text-to-3d
-fetching 01a13eaf-79d3-751c-8f15-97454e23d9c6 (v2/text-to-3d)
-task: {"id": "01a13eaf-79d3-751c-8f15-97454e23d9c6", "mode": "preview", "name": "stylized_dark_veteran_highdetail", "seed": 0, "prompt": "", "texture_prompt": "", "texture_image_url": "\u2026", "status": "SUCCEEDED", "created_at": 1792053051291, "progress": 100, "started_at": 1792053051304, "finished_at": 1792053107926, "task_error": null, "model_urls": ["fbx", "glb", "obj", "stl", "usdz"], "thumbnail_url": "\u2026", "texture_urls": "\u2026", "consumed_credits": 0, "_kind": "v2/text-to-3d"}
-files: model.glb, model.fbx, texture-base_color.png, texture-metallic.png, texture-roughness.png
-  model.glb: 31630 KB
-  model.fbx: 403, left out
-  texture-base_color.png: 16448 KB
-  texture-metallic.png: 2197 KB
-  texture-roughness.png: 3511 KB
-FOLDER=/home/runner/work/_temp/meshy/meshy-01a13eaf-79d3-751c-8f15-97454e23d9c6
-RELEASE=model-captain-01a13eaf
+fetching e233e83a-6896-44f0-aa08-1fad7be1e696 (v1/image-to-3d)
+task: {"id": "e233e83a-6896-44f0-aa08-1fad7be1e696", "type": "image-to-3d", "name": "dark_veteran_base_ultra", "art_style": "", "object_prompt": "", "style_prompt": "", "negative_prompt": "", "texture_prompt": "", "texture_image_url": "\u2026", "text_style_prompt": "", "image_style_url": "\u2026", "status": "SUCCEEDED", "created_at": 1792073886896, "progress": 100, "started_at": 1792073886907, "finished_at": 1792074140564, "expires_at": 1792333340564, "task_error": null, "model_url": "\u2026", "model_urls": ["glb"], "thumbnail_url": "\u2026", "texture_urls": "\u2026", "ultra_mode": true, "geometry_resolution": "4k", "hd_texture": true, "texture_resolution": "8k", "consumed_credits": 0, "_kind": "v1/image-to-3d"}
+files: model.glb, texture-base_color.png, texture-metallic.png, texture-roughness.png, texture-normal.png
+  model.glb: 80879 KB
+  texture-base_color.png: 81738 KB
+  texture-metallic.png: 1067 KB
+  texture-roughness.png: 4696 KB
+  texture-normal.png: 17556 KB
+FOLDER=/home/runner/work/_temp/meshy/meshy-e233e83a-6896-44f0-aa08-1fad7be1e696
+RELEASE=model-captain-e233e83a
+https://github.com/edch-group/blue-loop/releases/tag/model-captain-e233e83a
