@@ -42,27 +42,30 @@ public class ChallengesView : MonoBehaviour, MenuView.IRedraw
         // when they run over it): each its name (9.6, spaced 0.3em; 8 above its tiles) over its tiles (.ch-tile:
         // clamp(64px, 14vh, 92px) across, 10 apart, as many to a line as fit, each line centred; padded 10 6 8, corners
         // 14: its race's emblem (30 across), its number (14.4) and its goal (8, spaced 0.2em), 2 apart).
-        float tw = K.Clamp(64, 14 * K.Vh, 92), th = 10 + 30 + 2 + 17 + 2 + 9 + 8, gap = 10, tierGap = K.Clamp(10, 3 * K.Vh, 24);
+        float nameH = K.LineH(9.6f), numH = K.LineH(14.4f), goalH = K.LineH(8);
+        float tw = K.Clamp(64, 14 * K.Vh, 92), th = 10 + 30 + 2 + numH + 2 + goalH + 8, gap = 10, tierGap = K.Clamp(10, 3 * K.Vh, 24);
         int perLine = Mathf.Max(1, Mathf.FloorToInt((box.width + gap) / (tw + gap)));
         var tiers = all.Select(c => c.Tier).Distinct().ToList();
         float total = 0;
         foreach (var tier in tiers)
         {
             int n = all.Count(c => c.Tier == tier), lines = (n + perLine - 1) / perLine;
-            total += 11 + 8 + lines * th + (lines - 1) * gap;
+            total += nameH + 8 + lines * th + (lines - 1) * gap;
         }
         total += (tiers.Count - 1) * tierGap;
-        // (A little room above and below, so the picked tile's lift and the shadows aren't cut.)
-        const float room = 8;
-        var content = K.Scroller(root, "Tiers", box.x, box.y - room, box.width, box.height + 2 * room, total + 2 * room);
-        float y = room + Mathf.Max(0, (box.height - total) / 2);
+        // (Centred as the web's grid centres them (align-content: center) even when they run over their room: what
+        // runs over above is cut off, out of reach, and only what runs over below scrolls into view. Clipped at the
+        // box's edges, the shadows too.)
+        float off = (box.height - total) / 2;
+        var content = K.Scroller(root, "Tiers", box.x, box.y, box.width, box.height, total + Mathf.Min(0, off));
+        float y = off;
         for (int t = 0; t < tiers.Count; t++)
         {
             var tier = tiers[t];
             var row = all.Where(c => c.Tier == tier).ToList();
             int days = row[0].Days ?? 1;
-            K.Words(content, $"TIER {Roman[Mathf.Clamp(tier - Puzzles.ChallengeFromTier + 1, 0, Roman.Length - 1)]}{(days > 1 ? $" · WIN IN {days}" : "")}", 0, y, box.width, 11, 9.6f, Look.InkFaint, true, 400, 0.3f);
-            y += 11 + 8;
+            K.Words(content, $"TIER {Roman[Mathf.Clamp(tier - Puzzles.ChallengeFromTier + 1, 0, Roman.Length - 1)]}{(days > 1 ? $" · WIN IN {days}" : "")}", -0.15f * 9.6f, y, box.width, nameH, 9.6f, Look.InkFaint, true, 400, 0.3f);
+            y += nameH + 8;
             for (int start = 0; start < row.Count; start += perLine)
             {
                 var line = row.Skip(start).Take(perLine).ToList();
@@ -85,8 +88,8 @@ public class ChallengesView : MonoBehaviour, MenuView.IRedraw
                     var raw = em.gameObject.AddComponent<RawImage>();
                     raw.texture = Resources.Load<Texture2D>($"Icons/faction-f{c.Race + 1}");
                     raw.raycastTarget = false;
-                    K.Words(tr, n.ToString(), 0, 42, tw, 17, 14.4f, Look.Ink, true, 400);
-                    K.Words(tr, Goal(c).ToUpperInvariant(), 0, 61, tw, 9, 8, Look.InkFaint, true, 400, 0.2f);
+                    K.Words(tr, n.ToString(), 0, 42, tw, numH, 14.4f, Look.Ink, true, 400);
+                    K.Words(tr, Goal(c).ToUpperInvariant(), -0.1f * 8, 42 + numH + 2, tw, goalH, 8, Look.InkFaint, true, 400, 0.2f);
                     if (isSolved) K.Words(tr, "✓", tw - 7 - 12, 4, 12, 14, 11.2f, Hud.Rgba(185, 138, 44), false, 600);
                     var id = c.Id;
                     var tb = tile.gameObject.AddComponent<Button>();

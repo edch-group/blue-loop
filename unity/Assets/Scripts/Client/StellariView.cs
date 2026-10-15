@@ -61,9 +61,13 @@ public class StellariView : MonoBehaviour
             return new Vector4(Mathf.Max((Css.MaxHeight(560) ? 8 : 14) * Z, sa.x), Mathf.Max(18 * Z, sa.y), Mathf.Max(10 * Z, sa.z), Mathf.Max(18 * Z, sa.w));
         }
     }
-    /// <summary>The title's size (clamp(1.6rem, 5.4vh, 2.6rem)), and the header's height (the title, 6 (on a short screen 2), the petals).</summary>
+    /// <summary>
+    /// The title's size (clamp(1.6rem, 5.4vh, 2.6rem)), and the header's height: the title's line box (1.25 its size),
+    /// 6 (on a short screen 2), the petals' row (the count's line box, 1.15rem at 1.25).
+    /// </summary>
     float TitleSize => Css.Clamp(1.6f * 16 * Z, 5.4f * layer.H / 100, 2.6f * 16 * Z);
-    float HeadH => TitleSize * 1.17f + (Css.MaxHeight(560) ? 2 : 6) * Z + 1.15f * 16 * Z * 1.15f;
+    float HeadH => TitleSize * 1.25f + (Css.MaxHeight(560) ? 2 : 6) * Z + RowH;
+    const float RowH = 1.15f * 16 * Z * 1.25f;
     float SkyW => Mathf.Min(1100 * Z, layer.W - Pad.y - Pad.w);
     float SkyH => Mathf.Max(100, layer.H - Pad.x - HeadH - Pad.z);
 
@@ -165,8 +169,8 @@ public class StellariView : MonoBehaviour
         var name = WebLook.Words(nav, Shown.title.ToUpperInvariant(), 0.62f * 16 * Z, 0.24f, Color.Lerp(Hex(Shown.colour), Look.Ink, 0.3f));
         name.margin = new Vector4(0, 0, 0.24f * 0.62f * 16 * Z, 0);
         float widest = L.branches.Max(b => name.GetPreferredValues(b.title.ToUpperInvariant()).x);
-        // (max(10, the safe area) up from the foot.)
-        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, Mathf.Max(10 * Z, layer.Insets.z)), new Vector2(widest + 2 * (40 + 14) * Z, 40 * Z));
+        // (max(10, the safe area) up from the sky's foot, itself the page's foot padding up.)
+        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, Pad.z + Mathf.Max(10 * Z, layer.Insets.z)), new Vector2(widest + 2 * (40 + 14) * Z, 40 * Z));
         for (int d = -1; d <= 1; d += 2)
         {
             int step = d;
@@ -218,18 +222,20 @@ public class StellariView : MonoBehaviour
         if (Meta.TreePetalsSpent(meta) > 0) Small(resetArmed ? "confirm reset" : "reset", Reset, resetArmed ? Look.Ink : Look.InkSoft, true);
         // (.up-title-big: SKILLS at clamp(1.6rem, 5.4vh, 2.6rem) across 0.5em, its petals 6 under it (on a short screen
         // 2): the petal, how many, PETALS small.)
-        float ts = TitleSize, W = layer.W, py = pad.x + ts * 1.17f + (Css.MaxHeight(560) ? 2 : 6) * Z;
+        float ts = TitleSize, W = layer.W, py = pad.x + ts * 1.25f + (Css.MaxHeight(560) ? 2 : 6) * Z;
         var title = WebLook.Words(WebLook.Box(root, "Title", 0, pad.x - ts * 0.05f, W, ts * 1.26f), "SKILLS", ts, 0.5f, Look.Ink, true, 400);
         // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
         var count = WebLook.Words(Hud.Fill(Hud.Rect(root, "Petals")), meta.Petals.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
         var unit = WebLook.Words(Hud.Fill(Hud.Rect(root, "Unit")), "PETALS", 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
         float cw = count.GetPreferredValues(count.text).x, uw = unit.GetPreferredValues(unit.text).x;
         float rowW = 28 + 6 * Z + cw + 10 * Z + uw, x0 = W / 2 - rowW / 2;
-        var pi = WebLook.Centred(root, "Petal", x0 + 14, py + 15, 28, 28).gameObject.AddComponent<RawImage>();
+        var pi = WebLook.Centred(root, "Petal", x0 + 14, py + RowH / 2, 28, 28).gameObject.AddComponent<RawImage>();
         pi.texture = Resources.Load<Texture2D>("Icons/purse-petal");
         pi.raycastTarget = false;
-        WebLook.Box((RectTransform)count.transform, x0 + 28 + 6 * Z, py - 2, cw + 4, 33);
-        WebLook.Box((RectTransform)unit.transform, x0 + 28 + 6 * Z + cw + 10 * Z, py + 6, uw + 8, 16);
+        // (The count and PETALS centred on the row, each in its own line box.)
+        float unitH = 0.56f * 16 * Z * 1.25f;
+        WebLook.Box((RectTransform)count.transform, x0 + 28 + 6 * Z, py, cw + 4, RowH);
+        WebLook.Box((RectTransform)unit.transform, x0 + 28 + 6 * Z + cw + 10 * Z, py + (RowH - unitH) / 2, uw + 8, unitH);
     }
 
     // ---- The search: skills whose name or words match lit, the rest dimmed ----
@@ -246,17 +252,17 @@ public class StellariView : MonoBehaviour
         var box = WebLook.Rounded(root, "Search", new Color(1, 1, 1, 0.75f), 999);
         box.sprite = Hud.Rounded;
         box.type = Image.Type.Sliced;
-        box.pixelsPerUnitMultiplier = 22f / 19.5f;
+        box.pixelsPerUnitMultiplier = 22f / (14 * Z);
         box.raycastTarget = true;
         // (At the header's right: its words clamp(90, 14vw, 170) across, 44 more for its lens and padding.)
         float sw = (Css.Clamp(90, 14 * Css.Screen.x / 100, 170) + 44) * Z;
-        WebLook.Box(box.rectTransform, layer.W - Pad.y - sw, Pad.x, sw, 39);
-        WebLook.Shadow(box, 0, 0, Color.clear, 19.5f, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.14f));
-        var lens = WebLook.Centred(box.transform, "Lens", 27, 19.5f, 20, 20).gameObject.AddComponent<RawImage>();
+        WebLook.Box(box.rectTransform, layer.W - Pad.y - sw, Pad.x, sw, 28 * Z);
+        WebLook.Shadow(box, 0, 0, Color.clear, 14 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.14f));
+        var lens = WebLook.Centred(box.transform, "Lens", 19 * Z, 14 * Z, 14 * Z, 14 * Z).gameObject.AddComponent<RawImage>();
         lens.texture = Lens();
         lens.color = Look.InkFaint;
         lens.raycastTarget = false;
-        var area = WebLook.Box(box.transform, "Text", 46, 0, sw - 63, 39);
+        var area = WebLook.Box(box.transform, "Text", 46, 0, sw - 63, 28 * Z);
         area.gameObject.AddComponent<RectMask2D>();
         var hint = WebLook.Words(area, "SEARCH", 0.66f * 16 * Z, 0.14f, Look.InkFaint, true, 500, TextAlignmentOptions.Left);
         var text = WebLook.Words(area, "", 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
@@ -414,7 +420,9 @@ public class StellariView : MonoBehaviour
         // wider the more is learnt; a fine ring of its levels round it; one to take now, a dashed ring turning slowly
         // round it; a capstone larger, a faint ring inside it. Not yet open: grey and faded.)
         var bc = Hex(L.branches.FirstOrDefault(b => b.g == u.Group)?.colour ?? "#8d93a8");
-        var mc = open ? bc : Rgb(0xaab0bf);
+        // (A skill with no points in it yet (none learnt, none placed) is not lit: a grey glimmer, its colour coming with
+        // its first point.)
+        var mc = level > 0 ? bc : Rgb(0xaab0bf);
         float lv = (float)level / Mathf.Max(1, u.Max);
         // (On a short screen a size down: 24, a capstone 32.)
         float size = (tier == 3 ? 40 : 30) * Z * (Css.MaxHeight(560) ? 0.8f : 1);
@@ -432,7 +440,7 @@ public class StellariView : MonoBehaviour
         {
             // (1 wide, 14% in: its box drawn so the ring's circle falls there.)
             float d = size * 0.72f;
-            Picture(n, "Inner", ThinRing(Z * 44 / d), d * 48 / 44, new Color(mc.r, mc.g, mc.b, 0.22f));
+            Picture(n, "Inner", ThinRing(Z * 44 / d), d * 48 / 44, new Color(bc.r, bc.g, bc.b, 0.22f));
         }
         // The mote: its halo spilling out, its light, breathing.
         var mote = Hud.Rect(n, "Mote");
@@ -445,22 +453,23 @@ public class StellariView : MonoBehaviour
         breathe.Phase = nodeLooks.Count % 3 == 0 ? 1.4f : nodeLooks.Count % 3 == 1 ? 2.8f : 0;
         breathe.Faded = open ? 1 : 0.45f;
         breathe.Still = !open;
-        // Its ring: a segment a level (learnt in its colour, placed this visit paler, still to learn faint).
-        float ringD = size * 40 / 44f;
+        // Its ring: a segment a level, out near the disc's edge (92% of it), 3.4 wide (of 48): learnt in its colour (90%
+        // to white), placed this visit paler (55%), still to learn a grey track; not yet open, fainter still.
+        float ringD = size * 0.92f;
         float C = 2 * Mathf.PI * 22, g = u.Max > 1 ? 7 : 0;
         for (int i = 0; i < u.Max; i++)
         {
             var seg = Hud.Rect(n, "Level " + i);
             Hud.At(seg, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(ringD, ringD));
             var img = seg.gameObject.AddComponent<Image>();
-            img.sprite = ThinRing(1.8f);
+            img.sprite = ThinRing(3.4f);
             img.type = Image.Type.Filled;
             img.fillMethod = Image.FillMethod.Radial360;
             img.fillOrigin = (int)Image.Origin360.Top;
             img.fillClockwise = true;
             img.fillAmount = (C / u.Max - g) / C;
             img.rectTransform.localRotation = Quaternion.Euler(0, 0, -(i * 360f / u.Max + g / C * 180));
-            img.color = !open ? new Color(170 / 255f, 176 / 255f, 191 / 255f, 0.25f) : i < had ? Color.Lerp(Color.white, bc, 0.85f) : i < level ? Color.Lerp(Color.white, bc, 0.5f) : new Color(bc.r, bc.g, bc.b, 0.18f);
+            img.color = !open ? new Color(170 / 255f, 176 / 255f, 191 / 255f, 0.2f) : i < had ? Color.Lerp(Color.white, bc, 0.9f) : i < level ? Color.Lerp(Color.white, bc, 0.55f) : new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.32f);
             img.raycastTarget = false;
         }
         // (One to take now: the dashed ring, 8 out (12 round a capstone), turning once in 28 seconds.)
@@ -750,41 +759,69 @@ public class StellariView : MonoBehaviour
         var (skill, race) = aff.Value;
         bool primary = skill == Meta.AffinitySkill["primary"];
         int? other = primary ? meta.Affinity?.Secondary : meta.Affinity?.Primary;
+        // (.aff-pop-wrap: the page washed in its paper at 0.55, the popover in the middle; a tap outside cancels.)
         var veil = Hud.Rect(root, "Affinity");
         Hud.Fill(veil);
         var vi = veil.gameObject.AddComponent<Image>();
-        vi.color = new Color(0.97f, 0.97f, 0.96f, 0.6f);
+        vi.color = new Color(251 / 255f, 251 / 255f, 252 / 255f, 0.55f);
         veil.gameObject.AddComponent<Button>().onClick.AddListener(() => { aff = null; Draw(); });
-        var pop = Hud.Glass(veil, "Pop", Look.GlassStrong);
-        Hud.At((RectTransform)pop.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(560, 330));
-        pop.gameObject.AddComponent<Button>();
         var u = Meta.MetaUpgrade(skill);
-        var h = Hud.Label(pop.transform, $"{u.Name.ToUpperInvariant()}\n<size=70%><color=#737780>{(primary ? "Which race do you favour?" : "And which race besides?")}</color></size>", 22, Look.Ink, true, 500, 20, TextAlignmentOptions.Top);
-        h.margin = new Vector4(0, 24, 0, 0);
+        var why = Meta.BuyUpgradeProblem(meta, skill);
+        bool can = race != null && why == null;
+        // (.aff-race: 84 across, padded 10 6 8, 5 between its emblem (40), its name (0.5rem) and, taken by the other
+        // skill, which (0.58rem); all as tall as the tallest.)
+        bool anyTaken = Modes.CoreRaces.Any(r => other == r);
+        float raceW = 84 * Z, raceH = (10 + 40 + 5 + 0.5f * 16 * 1.25f + (anyTaken ? 5 + 0.58f * 16 * 1.25f : 0) + 8) * Z;
+        float racesW = Modes.CoreRaces.Length * raceW + (Modes.CoreRaces.Length - 1) * 10 * Z;
+        // (.aff-pop: padded 18 20 16, its rows 12 apart: the name (0.8rem), the question (0.82rem, 4 up), the races, the
+        // buttons (34).)
+        float h4 = 0.8f * 16 * Z * 1.25f, pH = 0.82f * 16 * Z * 1.25f, btnH = (0.66f * 16 * 1.25f + 2 * 9 + 2) * Z;
+        float popW = racesW + 2 * 20 * Z, popH = 18 * Z + h4 + 12 * Z - 4 * Z + pH + 12 * Z + raceH + 12 * Z + btnH + 16 * Z;
+        var pop = WebLook.Rounded(veil, "Pop", Color.white, 18 * Z);
+        pop.raycastTarget = true;
+        Hud.At(pop.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(popW, popH));
+        WebLook.Shadow(pop, 14 * Z, 40 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.18f), 18 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
+        pop.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
+        float y = 18 * Z;
+        WebLook.Words(WebLook.Box(pop.transform, "Name", 0, y, popW, h4), u.Name.ToUpperInvariant(), 0.8f * 16 * Z, 0.3f, Look.Ink, true, 500).margin = new Vector4(0.3f * 0.8f * 16 * Z, 0, 0, 0);
+        y += h4 + 12 * Z - 4 * Z;
+        WebLook.Words(WebLook.Box(pop.transform, "Ask", 0, y, popW, pH), primary ? "Which race do you favour?" : "And which race besides?", 0.82f * 16 * Z, 0, Look.InkSoft, false, 400);
+        y += pH + 12 * Z;
         for (int i = 0; i < Modes.CoreRaces.Length; i++)
         {
             int r = Modes.CoreRaces[i];
-            bool taken = other == r;
-            var cell = Hud.Rect(pop.transform, "Race " + r);
-            Hud.At(cell, new Vector2(0.5f, 0.5f), new Vector2(-195 + i * 130, 0), new Vector2(110, 120));
-            var hit = cell.gameObject.AddComponent<Image>();
-            hit.color = race == r ? new Color(0.23f, 0.26f, 0.34f, 0.08f) : new Color(1, 1, 1, 0);
+            bool taken = other == r, on = race == r;
+            var cell = WebLook.Rounded(pop.transform, "Race " + r, on ? Color.white : WebLook.Hex("#f6f7fa"), 14 * Z);
+            cell.raycastTarget = true;
+            WebLook.Box(cell.rectTransform, 20 * Z + i * (raceW + 10 * Z), y, raceW, raceH);
+            var rc = WebLook.Hex(BuilderFactionColour(r));
+            if (on) WebLook.Shadow(cell, 4 * Z, 12 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.12f), 14 * Z, 2 * Z, rc);
+            else WebLook.Shadow(cell, 0, 0, Color.clear, 14 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.08f));
             var b = cell.gameObject.AddComponent<Button>();
+            b.transition = Selectable.Transition.None;
             b.interactable = !taken;
             b.onClick.AddListener(() => { aff = (skill, r); Sound.Play("hover"); Draw(); });
-            var em = Hud.Rect(cell, "Emblem");
-            Hud.At(em, new Vector2(0.5f, 1), new Vector2(0, -6), new Vector2(64, 64));
-            var ei = em.gameObject.AddComponent<RawImage>();
+            if (taken) cell.gameObject.AddComponent<CanvasGroup>().alpha = 0.4f;
+            // Its emblem: the race's mark (32) on a white disc (40) ringed faintly.
+            var disc = WebLook.Rounded(cell.transform, "Emblem", Color.white, 999);
+            WebLook.Box(disc.rectTransform, (raceW - 40 * Z) / 2, 10 * Z, 40 * Z, 40 * Z);
+            WebLook.Shadow(disc, 0, 0, Color.clear, 999, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.12f));
+            var ei = WebLook.Box(disc.transform, "Mark", 4 * Z, 4 * Z, 32 * Z, 32 * Z).gameObject.AddComponent<RawImage>();
             ei.texture = Resources.Load<Texture2D>($"Icons/faction-f{r + 1}");
-            ei.color = taken ? new Color(1, 1, 1, 0.35f) : Color.white;
             ei.raycastTarget = false;
-            var nm = Hud.Label(cell, Races.RaceNames[r].ToLowerInvariant() + (taken ? $"\n<size=70%><color=#b0b5c0>{(primary ? "fellowship" : "kinship")}</color></size>" : ""), 13, race == r ? Look.Ink : Look.InkSoft, true, 500, 6, TextAlignmentOptions.Bottom);
-            nm.margin = new Vector4(0, 0, 0, 4);
+            float ty = 10 * Z + 40 * Z + 5 * Z;
+            WebLook.Words(WebLook.Box(cell.transform, "Name", 0, ty, raceW, 0.5f * 16 * Z * 1.25f), Races.RaceNames[r].ToUpperInvariant(), 0.5f * 16 * Z, 0.16f, Look.Ink, true, 500).raycastTarget = false;
+            if (taken)
+                WebLook.Words(WebLook.Box(cell.transform, "Taken", 0, ty + 0.5f * 16 * Z * 1.25f + 5 * Z, raceW, 0.58f * 16 * Z * 1.25f), primary ? "fellowship" : "kinship", 0.58f * 16 * Z, 0, Look.InkFaint, false, 400).raycastTarget = false;
         }
-        var cancel = Hud.Pill(pop.transform, "cancel", () => { aff = null; Draw(); }, 14);
-        Hud.At((RectTransform)cancel.transform, new Vector2(0.5f, 0), new Vector2(-110, 26), new Vector2(170, 48));
-        var why = Meta.BuyUpgradeProblem(meta, skill);
-        var ok = Hud.Pill(pop.transform, $"confirm · {Meta.PriceOf(u, 0)} petals", () =>
+        y += raceH + 12 * Z;
+        // The buttons (.aff-acts, 10 apart, in the middle): cancel (.btn), and confirm with its price (.btn-primary, the
+        // petal and how many 4 apart after its words); faded to 0.4 until a race is picked.
+        float fs = 0.66f * 16 * Z;
+        var cancel = WebLook.Button(pop.transform, "cancel", () => { aff = null; Draw(); }, false, fs, 0.14f);
+        var ct = cancel.GetComponentInChildren<TextMeshProUGUI>();
+        float cw = ct.GetPreferredValues(ct.text).x + 2 * 16 * Z + 2 * Z;
+        var ok = WebLook.Button(pop.transform, "", () =>
         {
             var m = CampaignView.LoadMeta();
             if (aff?.race == null || Meta.BuyUpgradeProblem(m, skill) != null) { Sound.Play("error"); return; }
@@ -795,10 +832,33 @@ public class StellariView : MonoBehaviour
             aff = null;
             Sound.Play("upgrade");
             Draw();
-        }, 14, race != null && why == null ? Look.Ink : Look.GlassStrong, race != null && why == null ? Color.white : Look.InkFaint);
-        ok.interactable = race != null && why == null;
-        Hud.At((RectTransform)ok.transform, new Vector2(0.5f, 0), new Vector2(110, 26), new Vector2(210, 48));
+        }, true, fs, 0.14f);
+        ok.interactable = can;
+        // (Faded whole, words and all, by the group below; not twice over by the button's own tint.)
+        var okColours = ok.colors;
+        okColours.disabledColor = Color.white;
+        ok.colors = okColours;
+        var okT = ok.GetComponentInChildren<TextMeshProUGUI>();
+        okT.text = "CONFIRM ·";
+        okT.alignment = TextAlignmentOptions.Left;
+        var price = WebLook.Words(ok.transform, Meta.PriceOf(u, 0).ToString(), fs, 0.14f, Look.Ink, true, 700, TextAlignmentOptions.Left);
+        float w1 = okT.GetPreferredValues(okT.text).x + 0.14f * fs, w2 = price.GetPreferredValues(price.text).x + 0.14f * fs;
+        float okW = 2 * 16 * Z + 2 * Z + w1 + 4 * Z + fs + 4 * Z + w2;
+        WebLook.Box(okT.rectTransform, 17 * Z, 0, w1 + 4, btnH);
+        okT.margin = Vector4.zero;
+        var petal = WebLook.Box(ok.transform, "Petal", 17 * Z + w1 + 4 * Z, (btnH - fs) / 2, fs, fs).gameObject.AddComponent<RawImage>();
+        petal.texture = Resources.Load<Texture2D>("Icons/purse-petal");
+        petal.raycastTarget = false;
+        WebLook.Box(price.rectTransform, 17 * Z + w1 + 4 * Z + fs + 4 * Z, 0, w2 + 4, btnH);
+        float bx = (popW - (cw + 10 * Z + okW)) / 2;
+        WebLook.Box((RectTransform)cancel.transform, bx, y, cw, btnH);
+        WebLook.Box((RectTransform)ok.transform, bx + cw + 10 * Z, y, okW, btnH);
+        if (!can) ok.gameObject.AddComponent<CanvasGroup>().alpha = 0.4f;
     }
+
+    /// <summary>A race's colour (factions.ts FACTION_COLOUR).</summary>
+    static string BuilderFactionColour(int r) => r >= 0 && r < FactionColours.Length ? FactionColours[r] : "#8a93a6";
+    static readonly string[] FactionColours = { "#6f9fd8", "#d48a7c", "#c9a95e", "#a08bcb", "#5d5398", "#c7783e", "#8fa6c4", "#d9503a" };
 
     // ---- Sprites: a ring (a level's arc), half an ellipse (a petal's lobe), a dash ----
 

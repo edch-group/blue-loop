@@ -59,7 +59,7 @@ public class Board : MonoBehaviour
     TextMeshPro[] phases;
     readonly MeshRenderer[] phaseDots = new MeshRenderer[3], phaseGlows = new MeshRenderer[3];
     TextMeshPro myLabel, rivalLabel, turnThem, turnYou, roundN, roundUp;
-    readonly List<MeshRenderer> roundTicks = new List<MeshRenderer>();
+    readonly List<MeshRenderer> roundTicks = new List<MeshRenderer>(), roundGlows = new List<MeshRenderer>();
     MeshRenderer roundTrack;
     Vector3 dotScale = Vector3.one;
     MeshRenderer myDeck, rivalDeck, myDiscard, rivalDiscard, myWreck, rivalWreck;
@@ -178,6 +178,7 @@ public class Board : MonoBehaviour
         slotMarks.Clear();
         slotLooks.Clear();
         roundTicks.Clear();
+        roundGlows.Clear();
         decor = new GameObject("Decor").transform;
         decor.SetParent(table, false);
         var table0 = table;
@@ -186,6 +187,62 @@ public class Board : MonoBehaviour
         finally { table = table0; }
         foreach (var kv in suns) PlaceSun(kv.Value, kv.Value.Mine);
         if (tagWas != null) SetTag(tagWas, subWas);
+        PageBack();
+    }
+
+    MeshRenderer page;
+    static Texture2D pageTex;
+
+    /// <summary>
+    /// The page behind the table (styles.css body): a white glow from the top's middle (ellipse 70% × 60%), a grey one
+    /// rising from below (120% × 90% at 50% 110%), over #faf9f6 to the paper at 55% down and #e0dfdb at the foot. Its
+    /// ellipses are shares of the page, so one small picture stretched over it draws it at any size.
+    /// </summary>
+    void PageBack()
+    {
+        if (pageTex == null)
+        {
+            const int n = 128;
+            pageTex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color[n * n];
+            Color top = Rgba(250, 249, 246), paper = Look.Paper, foot = Rgba(224, 223, 219), grey = Rgba(222, 220, 216);
+            for (int j = 0; j < n; j++)
+                for (int i = 0; i < n; i++)
+                {
+                    float x = (i + 0.5f) / n, y = 1 - (j + 0.5f) / n;
+                    var c = y < 0.55f ? Color.Lerp(top, paper, y / 0.55f) : Color.Lerp(paper, foot, (y - 0.55f) / 0.45f);
+                    float g = new Vector2((x - 0.5f) / 1.2f, (y - 1.1f) / 0.9f).magnitude;
+                    c = Color.Lerp(c, grey, Mathf.Clamp01(1 - g / 0.6f));
+                    float w = new Vector2((x - 0.5f) / 0.7f, y / 0.6f).magnitude;
+                    float wa = w < 0.4f ? Mathf.Lerp(1, 0.6f, w / 0.4f) : Mathf.Lerp(0.6f, 0, Mathf.Clamp01((w - 0.4f) / 0.35f));
+                    c = Color.Lerp(c, Color.white, wa);
+                    c.a = 1;
+                    px[j * n + i] = c;
+                }
+            pageTex.SetPixels(px);
+            pageTex.Apply(false);
+        }
+        if (page == null)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Mats.Kill(go.GetComponent<Collider>());
+            go.name = "Page";
+            go.transform.SetParent(Cam.transform, false);
+            page = go.GetComponent<MeshRenderer>();
+            page.sharedMaterial = Mats.Make("Card", Color.white);
+            page.sharedMaterial.mainTexture = pageTex;
+            page.sharedMaterial.SetFloat("_Radius", 0);
+            page.sharedMaterial.renderQueue = 2800;
+        }
+        // (Far behind the table, filling the page as the camera sees it.)
+        var l = L;
+        const float depth = 90;
+        var a = l.Screen(0, 0, depth);
+        var b = l.Screen(l.W, l.H, depth);
+        page.transform.localPosition = (a + b) / 2;
+        page.transform.localRotation = Quaternion.identity;
+        page.transform.localScale = new Vector3(Mathf.Abs(b.x - a.x) * 1.02f, Mathf.Abs(b.y - a.y) * 1.02f, 1);
+        page.sharedMaterial.SetFloat("_Aspect", Mathf.Abs(b.y - a.y) / Mathf.Abs(b.x - a.x));
     }
 
     /// <summary>Whether the table was last drawn for the screen as it is now.</summary>
@@ -203,9 +260,16 @@ public class Board : MonoBehaviour
         lip.transform.localPosition = new Vector3(0, -0.02f, TableZ - l.U(18));
         var plate = Mats.Flat("Plate", table, Mats.Make("Table"), TableW, TableD);
         plate.transform.localPosition = new Vector3(0, 0, TableZ);
-        plate.sharedMaterial.SetFloat("_Aspect", TableD / TableW);
-        plate.sharedMaterial.SetFloat("_Radius", r34 / TableW);
+        plate.sharedMaterial.SetVector("_Size", new Vector4(l.Gw, l.GameH, 0, 0));
+        plate.sharedMaterial.SetFloat("_Corner", 34);
         plate.sharedMaterial.renderQueue = 2910;
+        // The board's floor over it (.board-floor: the play area grown by 48% each side and 38% top and foot, an ellipse
+        // of faint rings and dots round the middle, reaching past the plate's edges).
+        float floorW = 1.96f * (l.Gw - 2 * l.Inset), floorH = 1.76f * l.PlaneH;
+        var rings = Mats.Flat("Board floor", table, Mats.Make("BoardFloor"), l.U(floorW), l.U(floorH), 0.0001f);
+        rings.transform.localPosition = l.At(l.Gw / 2, l.PlaneCy, 0.0001f);
+        rings.sharedMaterial.SetVector("_Size", new Vector4(floorW, floorH, 0, 0));
+        rings.sharedMaterial.renderQueue = 2912;
 
         // Each side's tableau framed: a pale panel round its row, reaching up round its Hero's slot (app.ts frameTableaus).
         float rowW = l.U(6 * l.Tcw + 5 * l.SlotGap), pad = l.U(l.FramePad), up = HeroOff;
@@ -229,11 +293,11 @@ public class Board : MonoBehaviour
         {
             var pivot = new GameObject(ring).transform;
             pivot.SetParent(spin.transform, false);
-            var r = Mats.Flat("Ring", pivot, Mats.Make("Card"), star, star, ring == "outer" ? 0.001f : 0.0012f);
+            // (Baked with the petals' colour white and black, mixed by the colour backdrop.ts gives them: StarSpin.)
+            var r = Mats.Flat("Ring", pivot, Mats.Make("Petals"), star, star, ring == "outer" ? 0.001f : 0.0012f);
             r.sharedMaterial.mainTexture = Resources.Load<Texture2D>("Board/star-" + ring);
-            r.sharedMaterial.SetFloat("_Radius", 0);
-            r.sharedMaterial.SetFloat("_Aspect", 1);
-            r.sharedMaterial.color = Color.white;
+            r.sharedMaterial.SetTexture("_Dark", Resources.Load<Texture2D>("Board/star-" + ring + "-k"));
+            r.sharedMaterial.color = StarSpin.PetalColour;
             r.sharedMaterial.renderQueue = ring == "outer" ? 2920 : 2921;
             if (ring == "outer") spin.Outer = pivot;
             else spin.Inner = pivot;
@@ -324,31 +388,66 @@ public class Board : MonoBehaviour
         float d = l.U(l.Round);
         var shadow = Shape("Round shadow", table, Rgba(90, 90, 110, 0.18f), d, d, d / 2, 2921, 0.0015f, l.U(4), l.U(8));
         shadow.transform.localPosition = new Vector3(0, 0.0015f, -l.U(2));
-        var disc = Shape("Round", table, Rgba(247, 247, 248), d, d, d / 2, 2922, 0.002f);
+        // (Its 1 px white border, and inside it radial-gradient(circle at 40% 35%, #ffffff, #eeeeef).)
+        var disc = Shape("Round", table, Color.white, d, d, d / 2, 2922, 0.002f);
         disc.transform.localPosition = new Vector3(0, 0.002f, 0);
+        float inner = d - l.U(2);
+        var face = Picture("Round face", table, RoundFace(), Color.white, inner, inner, 2923, 0.0021f);
+        face.sharedMaterial.SetFloat("_Radius", 0.5f);
+        face.transform.localPosition = new Vector3(0, 0.0021f, 0);
         float svg = d * 0.963f, r = svg * 0.44f;
-        roundTrack = Shape("Track", table, Rgba(120, 124, 134, 0.14f), 2 * r + svg * 0.09f, 2 * r + svg * 0.09f, r, 2923, 0.0025f, svg * 0.045f, 0.01f, true);
+        roundTrack = Shape("Track", table, Rgba(120, 124, 134, 0.14f), 2 * r + svg * 0.09f, 2 * r + svg * 0.09f, r, 2924, 0.0025f, svg * 0.045f, 0.01f, true);
         roundTrack.transform.localPosition = new Vector3(0, 0.0025f, 0);
         int total = Balance.InstabilityStartsRound - 1;
         for (int i = 0; i < total; i++)
         {
-            // (Each tick an arc of the rim, 4° apart from the next, clockwise from the top.)
-            var go = new GameObject("Tick");
-            go.transform.SetParent(table, false);
-            go.transform.localPosition = new Vector3(0, 0.003f, 0);
-            var mf = go.AddComponent<MeshFilter>();
-            var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = Mats.Make("Soft", Color.white);
-            mr.sharedMaterial.SetFloat("_Size", 0.5f);
-            mr.sharedMaterial.SetFloat("_Soft", 0.0001f);
-            mr.sharedMaterial.renderQueue = 2924;
-            mf.mesh = BoardArt.Arc(r, svg * 0.06f, (i / (float)total) * 360 + 2, ((i + 1) / (float)total) * 360 - 2);
-            roundTicks.Add(mr);
+            // (Each tick an arc of the rim, 4° apart from the next, clockwise from the top; lit, a fine grey edge round
+            // it, its drop-shadow(0 0 1.5px rgba(150, 158, 175, 0.95)) in the ring's own units.)
+            float a0 = (i / (float)total) * 360 + 2, a1 = ((i + 1) / (float)total) * 360 - 2;
+            MeshRenderer Arc(string name, float width, Color c, int queue, float lift)
+            {
+                var go = new GameObject(name);
+                go.transform.SetParent(table, false);
+                go.transform.localPosition = new Vector3(0, lift, 0);
+                var mf = go.AddComponent<MeshFilter>();
+                var mr = go.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = Mats.Make("Soft", c);
+                mr.sharedMaterial.SetFloat("_Size", 0.5f);
+                mr.sharedMaterial.SetFloat("_Soft", 0.0001f);
+                mr.sharedMaterial.renderQueue = queue;
+                mf.mesh = BoardArt.Arc(r, width, a0 - 0.8f * (width - svg * 0.06f) / r * Mathf.Rad2Deg / 2, a1 + 0.8f * (width - svg * 0.06f) / r * Mathf.Rad2Deg / 2);
+                return mr;
+            }
+            roundGlows.Add(Arc("Tick edge", svg * 0.09f, Rgba(150, 158, 175, 0.5f), 2925, 0.0028f));
+            roundTicks.Add(Arc("Tick", svg * 0.06f, Color.white, 2926, 0.003f));
         }
         roundN = Mats.FlatText("Round", table, "I", Px(l.RoundNum), Rgba(91, 95, 103), true, 700, 0);
         roundN.transform.localPosition = new Vector3(0, 0.004f, 0);
         roundUp = Mats.FlatText("Unstable", table, "", Px(l.RoundEm), Rgba(192, 86, 61), true, 500, 10);
         roundUp.transform.localPosition = new Vector3(0, 0.004f, -l.U(l.RoundEm * 1.6f));
+    }
+
+    static Texture2D roundFace;
+
+    /// <summary>The round's disc's face: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef), to its farthest corner.</summary>
+    static Texture2D RoundFace()
+    {
+        if (roundFace != null) return roundFace;
+        const int n = 64;
+        roundFace = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        var px = new Color[n * n];
+        float far = new Vector2(0.6f, 0.65f).magnitude;
+        Color a = Color.white, b = Rgba(0xee, 0xee, 0xef);
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                // (Rows bottom up: the page's 35% down is 65% up.)
+                var p = new Vector2((x + 0.5f) / n - 0.4f, (y + 0.5f) / n - 0.65f);
+                px[y * n + x] = Color.Lerp(a, b, p.magnitude / far);
+            }
+        roundFace.SetPixels(px);
+        roundFace.Apply(false);
+        return roundFace;
     }
 
     /// <summary>A slot's defence: the shield sign and the number, `size` px, centred where it is placed.</summary>
@@ -456,6 +555,8 @@ public class Board : MonoBehaviour
         label.rectTransform.sizeDelta = new Vector2(0.92f, 0.3f);
         label.textWrappingMode = TextWrappingModes.NoWrap;
         label.overflowMode = TextOverflowModes.Truncate;
+        // (Too long for it, the box is as wide as it may be and its words run from its left, cut at its right.)
+        if (label.GetPreferredValues(label.text).x > 0.92f) label.alignment = TextAlignmentOptions.Left;
         label.gameObject.SetActive(!back);
         // (How many, small in its corner.)
         count = Mats.FlatText("Count", go.transform, "", Px(Mathf.Max(11, L.Pw * 0.28f)) / PileScale * 0.86f, Look.InkSoft, true, 700, 0, TextAlignmentOptions.Right);
@@ -491,21 +592,6 @@ public class Board : MonoBehaviour
         return t;
     }
 
-    readonly Dictionary<string, int> lastHealth = new Dictionary<string, int>();
-    readonly Dictionary<string, int> lastHeat = new Dictionary<string, int>();
-
-    /// <summary>A number that rises and fades where something changed: heat on a sun, stability on a card.</summary>
-    void Float(Vector3 at, int delta, bool heat)
-    {
-        if (!Application.isPlaying) return;
-        var t = Mats.FlatText("Float", table, (delta > 0 ? "+" : "") + delta, Px(48), heat ? (delta > 0 ? Look.Heat : Look.Cool) : (delta < 0 ? Look.Heat : Look.Good), true, 700, 0);
-        t.transform.localRotation = Quaternion.LookRotation(Cam.transform.forward, Cam.transform.up);
-        t.transform.localPosition = at + new Vector3(0, 1.2f, 0);
-        t.outlineWidth = 0.2f;
-        t.outlineColor = new Color32(255, 255, 255, 200);
-        t.gameObject.AddComponent<Floater>();
-    }
-
     /// <summary>A sun put where the web's stands at this size, at its size.</summary>
     static void PlaceSun(SunView sun, bool mine)
     {
@@ -515,6 +601,8 @@ public class Board : MonoBehaviour
     /// <summary>Lay the battle out as it stands: every card where it belongs, every sun as hot as it is.</summary>
     public void Sync(GameState s, BattleView ui)
     {
+        synced = s;
+        syncedBy = ui;
         dealing = 0;
         if (!Fits) Relayout();
         var me = s.Players.First(p => p.Id == Viewer);
@@ -530,7 +618,9 @@ public class Board : MonoBehaviour
                 var at = SlotAt(mine, c.Slot ?? 0) + new Vector3(0, 0.03f, 0);
                 v.transform.SetParent(table, false);
                 v.MoveTo(at, Quaternion.identity);
-                InPlay(v, s, p, c);
+                // (Until a blow lands on it, it keeps showing what it was: app.ts holdCardStats.)
+                if (cardHold.TryGetValue(c.Uid, out var held) && Time.time < held.until) InPlay(v, held.s, held.p, held.c);
+                else InPlay(v, s, p, c);
                 ui.Dress(v, p, c, true);
             }
             // (A trap set face down, beside the row.)
@@ -545,16 +635,10 @@ public class Board : MonoBehaviour
                 for (int k = 0; k < 3; k++) v.Badge(new[] { "atk", "stab", "def" }[k], "atk", null);
             }
             var sunView = SunFor(p, mine);
-            sunView.Show(s, p);
+            // (Until the blow lands, a sun keeps showing its old heat and shields: app.ts holdUntil.)
+            if (sunHold.TryGetValue(p.Id, out var sh) && Time.time < sh.until) sunView.Show(sh.s, sh.p);
+            else sunView.Show(s, p);
             sunView.Face(Cam);
-            if (lastHeat.TryGetValue(p.Id, out var was) && was != p.Heat) Float(mine ? MySun : RivalSun, p.Heat - was, true);
-            lastHeat[p.Id] = p.Heat;
-            foreach (var c in p.Tableau)
-            {
-                int hp = c.Health ?? 0;
-                if (lastHealth.TryGetValue(c.Uid, out var had) && had != hp) Float(SlotAt(mine, c.Slot ?? 0), hp - had, false);
-                lastHealth[c.Uid] = hp;
-            }
         }
         Hand(me, ui, seen);
         foreach (var uid in cards.Keys.Where(k => !seen.Contains(k)).ToList())
@@ -575,7 +659,10 @@ public class Board : MonoBehaviour
                     else if (p.Deck.Any(c => c.Uid == uid) || p.Hand.Any(c => c.Uid == uid)) to = suns.TryGetValue(p.Id, out var sv) ? sv.transform.position : (Vector3?)null;
                     if (to != null) break;
                 }
-                if (to != null && gone.Table) gone.GoTo(to.Value + Vector3.up * 0.05f, Mathf.Clamp(k, 0.15f, 1));
+                // (Taken by a blow still on its way: it waits in its slot for it, then dissolves there.)
+                float wait = leaveAt.TryGetValue(uid, out var la) ? Mathf.Max(0, la - Time.time) : 0;
+                if (linger.TryGetValue(uid, out var at) && at > Time.time) gone.Dissolve(at - Time.time);
+                else if (to != null && gone.Table) gone.GoTo(to.Value + Vector3.up * 0.05f, Mathf.Clamp(k, 0.15f, 1), wait);
                 else gone.Die(0.25f);
             }
             cards.Remove(uid);
@@ -598,7 +685,10 @@ public class Board : MonoBehaviour
         myHandN.text = me.Hand.Count.ToString();
         SetName(rivalLabel, rival.Name, false);
         SetName(myLabel, me.Name, true);
-        StarSpin.Heat(me.Heat >= 0 ? me.Heat / (float)Game.SupernovaThreshold(me) : -me.Heat / (float)Balance.MinHeat);
+        // (The petals follow the region's stability (app.ts render): blue while it holds, whitening as it drains, then
+        // redder the more unstable it grows.)
+        int stable = Balance.InstabilityStartsRound - 1, instab = Game.InstabilityHeat(s);
+        StarSpin.Heat(instab > 0 ? Mathf.Min(1, instab / 5f) : -Mathf.Max(0, stable - (s.Round - 1)) / (float)stable);
         var active = Game.ActivePlayer(s);
         bool mineNow = active == me;
         // (Whose turn: the one lit dark, the other pale; the day's part lit, its dot in the phase's colour and glowing.)
@@ -622,7 +712,12 @@ public class Board : MonoBehaviour
         roundN.text = BoardArt.Roman(s.Round);
         roundUp.text = unstable > 0 ? $"+{unstable}" : "";
         roundN.transform.localPosition = new Vector3(0, 0.004f, unstable > 0 ? L.U(3) : 0);
-        for (int i = 0; i < total; i++) roundTicks[i].sharedMaterial.color = new Color(1, 1, 1, unstable > 0 ? 0.35f : i < left ? 1 : 0.5f);
+        // (Lit white, unlit white at half; unstable, all a faint coral.)
+        for (int i = 0; i < total; i++)
+        {
+            roundTicks[i].sharedMaterial.color = unstable > 0 ? Rgba(240, 190, 180, 0.6f) : new Color(1, 1, 1, i < left ? 1 : 0.5f);
+            roundGlows[i].gameObject.SetActive(unstable <= 0 && i < left);
+        }
         roundTrack.sharedMaterial.color = unstable > 0 ? Rgba(201, 138, 134, 0.25f) : Rgba(120, 124, 134, 0.14f);
         foreach (var slot in slotMarks) slot.SetActive(true);
         // (A card picked, waiting for its place: each empty slot of yours open to it.)
@@ -802,6 +897,90 @@ public class Board : MonoBehaviour
     /// <summary>How many cards have been dealt into the hand this sync (each a little after the last).</summary>
     int dealing;
 
+    readonly Dictionary<string, (GameState s, PlayerState p, float until)> sunHold = new Dictionary<string, (GameState, PlayerState, float)>();
+    readonly Dictionary<string, (GameState s, PlayerState p, CardInstance c, float until)> cardHold = new Dictionary<string, (GameState, PlayerState, CardInstance, float)>();
+    GameState synced;
+    BattleView syncedBy;
+    float holdEnds;
+
+    readonly Dictionary<string, float> linger = new Dictionary<string, float>();
+    readonly Dictionary<string, float> leaveAt = new Dictionary<string, float>();
+
+    /// <summary>A card leaving play waits in its slot `seconds` (until the dawn's effects are over), then goes.</summary>
+    public void LeaveAfter(string uid, float seconds) => leaveAt[uid] = Time.time + seconds;
+
+    /// <summary>Shown again as it is (a hold changed).</summary>
+    public void Resync()
+    {
+        if (synced != null && syncedBy != null) Sync(synced, syncedBy);
+    }
+
+    /// <summary>The middle of the table (the Stellari and the round's disc), in world space.</summary>
+    public Vector3 Middle => table.TransformPoint(Vector3.zero);
+
+    /// <summary>Half the round's disc, and half the Stellari's slot, across (world).</summary>
+    public float RoundHalf => L.U(L.Round) / 2 * table.lossyScale.x;
+    public float StarHalf => L.U(L.Star) / 2 * table.lossyScale.x;
+
+    /// <summary>Your deck run out (.fx-shuffle): its pile rocks a little either way, 0.6 s.</summary>
+    public void ShuffleDeck()
+    {
+        if (myDeck == null || !Application.isPlaying) return;
+        var pile = myDeck.transform.parent;
+        if (pile.GetComponent<Rocking>() == null) pile.gameObject.AddComponent<Rocking>();
+    }
+
+    /// <summary>The cards on the table.</summary>
+    public IEnumerable<string> OnTable() => cards.Where(kv => kv.Value != null && kv.Value.Table).Select(kv => kv.Key).ToList();
+
+    /// <summary>A card a blow takes stays in its slot until the blow reaches it, `seconds` from now.</summary>
+    public void Linger(string uid, float seconds) => linger[uid] = Time.time + seconds;
+
+    /// <summary>A sun keeps showing `was` (in the state `before`) for `seconds`, until what strikes it lands.</summary>
+    public void HoldSun(string playerId, GameState before, PlayerState was, float seconds)
+    {
+        if (seconds < 0.15f) { sunHold.Remove(playerId); return; }
+        sunHold[playerId] = (before, was, Time.time + seconds);
+        holdEnds = Mathf.Max(holdEnds, Time.time + seconds);
+    }
+
+    /// <summary>A card in play keeps showing its numbers from `before` for `seconds`, until what strikes it lands.</summary>
+    public void HoldCard(string uid, GameState before, float seconds)
+    {
+        foreach (var p in before.Players)
+            foreach (var c in p.Tableau)
+                if (c.Uid == uid)
+                {
+                    cardHold[uid] = (before, p, c, Time.time + seconds);
+                    holdEnds = Mathf.Max(holdEnds, Time.time + seconds);
+                    return;
+                }
+    }
+
+    void Update()
+    {
+        // (A hold over: shown as it is now.)
+        if (holdEnds > 0 && Time.time >= holdEnds)
+        {
+            holdEnds = 0;
+            sunHold.Clear();
+            cardHold.Clear();
+            if (synced != null && syncedBy != null) Sync(synced, syncedBy);
+        }
+        else if (holdEnds > 0)
+        {
+            bool lapsed = false;
+            foreach (var kv in sunHold) if (Time.time >= kv.Value.until) lapsed = true;
+            foreach (var kv in cardHold) if (Time.time >= kv.Value.until) lapsed = true;
+            if (lapsed && synced != null && syncedBy != null)
+            {
+                foreach (var k in sunHold.Where(kv => Time.time >= kv.Value.until).Select(kv => kv.Key).ToList()) sunHold.Remove(k);
+                foreach (var k in cardHold.Where(kv => Time.time >= kv.Value.until).Select(kv => kv.Key).ToList()) cardHold.Remove(k);
+                Sync(synced, syncedBy);
+            }
+        }
+    }
+
     /// <summary>The sun of a player, as drawn.</summary>
     public SunView SunOf(string playerId) => suns.TryGetValue(playerId, out var s) ? s : null;
 
@@ -853,26 +1032,46 @@ public class Board : MonoBehaviour
 public class StarSpin : MonoBehaviour
 {
     public Transform Outer, Inner;
-    float angle, tint, tintTarget;
+    float angle;
+    // (As backdrop.ts's, one for the page: kept when the board is laid out again.)
+    static float tint, tintTarget;
+    /// <summary>The petals' colour now (backdrop.ts applyTint's rgb), for the Petals shader to mix by.</summary>
+    public static Color PetalColour = Color.white;
     readonly System.Collections.Generic.List<float> bursts = new System.Collections.Generic.List<float>();
     static StarSpin current;
 
     void Awake() => current = this;
 
     /// <summary>
-    /// Your sun's heat, as backdrop.ts setHeat: -1 as cold as a sun can be, 0 neutral, 1 on the edge of supernova. The
-    /// petals take a light wash of red (or icy blue), eased toward it.
+    /// The region's stability, as backdrop.ts setHeat: -1 fully stable (blue), 0 drained, up to 1 the more unstable it
+    /// grows (red). The petals take a light wash of it, eased toward it.
     /// </summary>
-    public static void Heat(float t)
-    {
-        if (current != null) current.tintTarget = Mathf.Clamp(t, -1, 1);
-    }
+    public static void Heat(float t) => tintTarget = Mathf.Clamp(t, -1, 1);
 
     /// <summary>A move was made: spin faster for a moment (at most three at once).</summary>
     public static void Burst()
     {
         if (current == null || current.bursts.Count >= 3) return;
         current.bursts.Add(Time.time);
+        current.burstDeg.Add(30);
+        current.burstTime.Add(1.8f);
+    }
+
+    readonly System.Collections.Generic.List<float> burstDeg = new System.Collections.Generic.List<float>(), burstTime = new System.Collections.Generic.List<float>();
+    readonly System.Collections.Generic.List<(float start, float hold)> rages = new System.Collections.Generic.List<(float, float)>();
+    float rage;
+
+    /// <summary>
+    /// backdrop.ts heatWave: the Stellari looses a heat wave: it whirls round (120 degrees over 0.75 s) and turns red
+    /// (eased in over 0.2 s), holds red while the wave goes out (`hold`), then cools back over 0.4 s.
+    /// </summary>
+    public static void HeatWave(float hold)
+    {
+        if (current == null) return;
+        current.rages.Add((Time.time, hold));
+        current.bursts.Add(Time.time);
+        current.burstDeg.Add(120);
+        current.burstTime.Add(0.75f);
     }
 
     void Update()
@@ -881,24 +1080,44 @@ public class StarSpin : MonoBehaviour
         float extra = 0;
         for (int i = bursts.Count - 1; i >= 0; i--)
         {
-            float t = (Time.time - bursts[i]) / 1.8f;
+            float deg = i < burstDeg.Count ? burstDeg[i] : 30, ms = i < burstTime.Count ? burstTime[i] : 1.8f;
+            float t = (Time.time - bursts[i]) / ms;
             if (t >= 1)
             {
-                angle = (angle + 30) % 1800;
+                angle = (angle + deg) % 1800;
                 bursts.RemoveAt(i);
+                if (i < burstDeg.Count) burstDeg.RemoveAt(i);
+                if (i < burstTime.Count) burstTime.RemoveAt(i);
                 continue;
             }
-            extra += 30 * (0.5f - Mathf.Cos(Mathf.PI * Mathf.Max(0, t)) / 2);
+            extra += deg * (0.5f - Mathf.Cos(Mathf.PI * Mathf.Max(0, t)) / 2);
         }
         float a = angle + extra;
-        // (applyTint: deep red when hot, icy blue when cold, the petals mixed a third of the way toward it.)
+        // (A heat wave's flush of red: in over 0.2 s, held, then out over 0.4 s.)
+        float ease(float x) => 0.5f - Mathf.Cos(Mathf.PI * x) / 2;
+        float r = 0;
+        for (int i = rages.Count - 1; i >= 0; i--)
+        {
+            float t = Time.time - rages[i].start, hold = rages[i].hold;
+            if (t > 0.2f + hold + 0.4f) { rages.RemoveAt(i); continue; }
+            r = Mathf.Max(r, t < 0.2f ? ease(t / 0.2f) : t < 0.2f + hold ? 1 : 1 - ease((t - 0.2f - hold) / 0.4f));
+        }
+        bool tinted = r != rage;
+        rage = r;
+        // (applyTint: deep red when hot, icy blue when cold, and red, strongly, while it looses a heat wave; the petals
+        // mixed a third of the way toward it, or most of the way in a heat wave.)
         if (Mathf.Abs(tint - tintTarget) > 0.002f)
         {
             tint += (tintTarget - tint) * Mathf.Min(1, Time.deltaTime * 1.5f);
+            tinted = true;
+        }
+        if (tinted)
+        {
             var b = tint >= 0 ? new Color(226 / 255f, 84 / 255f, 66 / 255f) : new Color(74 / 255f, 142 / 255f, 226 / 255f);
-            var c = Color.Lerp(Color.white, b, Mathf.Abs(tint) * 0.35f);
+            b = Color.Lerp(b, new Color(222 / 255f, 52 / 255f, 38 / 255f), rage);
+            PetalColour = Color.Lerp(Color.white, b, Mathf.Max(Mathf.Abs(tint) * 0.35f, rage * 0.9f));
             foreach (var t in new[] { Outer, Inner })
-                if (t != null) t.GetComponentInChildren<MeshRenderer>().sharedMaterial.color = c;
+                if (t != null) t.GetComponentInChildren<MeshRenderer>().sharedMaterial.color = PetalColour;
         }
         // (Clockwise as the page sees it, from above the board.)
         if (Outer != null) Outer.localRotation = Quaternion.Euler(0, a, 0);
@@ -922,7 +1141,7 @@ public class PileStack : MonoBehaviour
         if (depth == shown) return;
         shown = depth;
         foreach (Transform c in transform)
-            if (c.name == "Edge" || c.name == "Stack shadow") Mats.Kill(c.gameObject);
+            if (c.name == "Edge" || c.name == "Stack shadow" || c.name == "Top ring") Mats.Kill(c.gameObject);
         if (float.IsNaN(faceZ)) faceZ = Face.transform.localPosition.z;
         // (A pixel in the pile's own units: it is a pile's width across.)
         float px = 1 / Board.L.Pw;
@@ -930,30 +1149,18 @@ public class PileStack : MonoBehaviour
         Face.transform.localPosition = new Vector3(p.x, p.y, faceZ + depth * px);
         if (depth == 0) return;
         float radius = Board.L.Tcw * 0.07f * px;
+        // (The top card's 1 px white ring: 0 0 0 1px #fff.)
+        var ring = Board.Shape("Top ring", transform, Color.white, 1 + 2 * px, 1.4f + 2 * px, radius + px, 2949, 0.0195f, 0.002f, 0.004f);
+        ring.transform.localPosition = new Vector3(0, 0.0195f, faceZ + depth * px);
+        // (Its edges, a pixel apart beneath it: #f4f4f2 the first, then #d9dadf, in turn.)
         for (int i = 1; i <= depth; i++)
         {
-            var e = Board.Shape("Edge", transform, i % 2 == 1 ? Board.Rgba(0xd9, 0xda, 0xdf) : Board.Rgba(0xf4, 0xf4, 0xf2), 1, 1.4f, radius, 2949 - Mathf.Min(i, 40), 0.019f, 0.002f, 0.004f);
+            var e = Board.Shape("Edge", transform, i % 2 == 1 ? Board.Rgba(0xf4, 0xf4, 0xf2) : Board.Rgba(0xd9, 0xda, 0xdf), 1, 1.4f, radius, 2948 - Mathf.Min(i, 40), 0.019f, 0.002f, 0.004f);
             e.transform.localPosition = new Vector3(0, 0.019f, faceZ + (depth - i) * px);
         }
         // (0 depth+3px 8px rgba(80, 84, 100, 0.22), under them all.)
         var sh = Board.Shape("Stack shadow", transform, Board.Rgba(80, 84, 100, 0.22f), 1, 1.4f, radius, 2905, 0.0185f, 8 * px, 10 * px);
         sh.transform.localPosition = new Vector3(0, 0.0185f, faceZ + (depth - depth - 3) * px);
-    }
-}
-
-public class Floater : MonoBehaviour
-{
-    float age;
-    TMPro.TMP_Text text;
-    void Awake() => text = GetComponent<TMPro.TMP_Text>();
-    void Update()
-    {
-        age += Time.deltaTime;
-        transform.localPosition += new Vector3(0, Time.deltaTime * 0.9f, 0);
-        var c = text.color;
-        c.a = Mathf.Clamp01(1.6f - age);
-        text.color = c;
-        if (age > 1.6f) Mats.Kill(gameObject);
     }
 }
 
@@ -1041,34 +1248,46 @@ public static class BoardArt
         return t;
     }
 
-    /// <summary>An empty slot (1 × 1.4 card widths at 160 pixels a width): pale, a white line inside a dashed edge; a trap's edge indigo.</summary>
-    public static Texture2D Slot(bool trap)
+    /// <summary>Texels a CSS pixel of the board, for the slots' and piles' outlines (their 1 px dashes kept sharp).</summary>
+    const float Texel = 2;
+
+    /// <summary>
+    /// A box `w` × `h` CSS px drawn as the web's: corners of `radius`, filled `fill`, an `insetW` px `inset` line just
+    /// inside its edge, a `edgeW` px dashed `edge` (as Chrome dashes a border: dashes and gaps 3 widths long).
+    /// </summary>
+    static Texture2D Outline(string key, float w, float h, float radius, Color fill, Color inset, float insetW, Color edge, float edgeW)
     {
-        string key = trap ? "trap" : "slot";
+        key = $"{key} {w:0.0}x{h:0.0}";
         if (made.TryGetValue(key, out var t)) return t;
-        // (A CSS pixel of the board is 1.84 of these; a pixel on screen about 1.55.)
-        t = Dashed(160, 224, 12.8f, new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.66f), new Color(1, 1, 1, 0.5f), 1.84f,
-            trap ? new Color(75 / 255f, 79 / 255f, 176 / 255f, 0.4f) : new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.35f), 1.5f, 4.6f, 3.1f);
+        const float k = Texel;
+        t = Dashed(Mathf.CeilToInt(w * k), Mathf.CeilToInt(h * k), radius * k, fill, inset, insetW * k, edge, edgeW * k, 3 * edgeW * k, 3 * edgeW * k);
         made[key] = t;
         return t;
+    }
+
+    /// <summary>
+    /// An empty slot at the board's size (styles.css .slot-empty: --tcw × 1.4, corners 8% of it, rgba(250,251,253,0.66),
+    /// a 1 px white line at 0.5 inside a 1 px dashed edge); a trap's edge indigo (.slot-ls).
+    /// </summary>
+    public static Texture2D Slot(bool trap)
+    {
+        float w = BoardLayout.Current.Tcw;
+        return Outline(trap ? "trap" : "slot", w, w * 1.4f, w * 0.08f, new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.66f), new Color(1, 1, 1, 0.5f), 1,
+            trap ? new Color(75 / 255f, 79 / 255f, 176 / 255f, 0.4f) : new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.35f), 1);
     }
 
     /// <summary>A slot open to the card picked (button.slot-choosable): white at 0.7, a 1.5 px coral dashed edge.</summary>
     public static Texture2D SlotChoose()
     {
-        if (made.TryGetValue("choose", out var t)) return t;
-        t = Dashed(160, 224, 12.8f, new Color(1, 1, 1, 0.7f), new Color(1, 1, 1, 0), 0, new Color(208 / 255f, 101 / 255f, 75 / 255f, 0.7f), 1.5f, 4.6f, 3.1f);
-        made["choose"] = t;
-        return t;
+        float w = BoardLayout.Current.Tcw;
+        return Outline("choose", w, w * 1.4f, w * 0.08f, new Color(1, 1, 1, 0.7f), new Color(1, 1, 1, 0), 0, new Color(208 / 255f, 101 / 255f, 75 / 255f, 0.7f), 1.5f);
     }
 
-    /// <summary>An open pile's empty place (a pile's 48 px wide card at 160 pixels a width): pale, a dashed edge.</summary>
+    /// <summary>An open pile's empty place (.tpile-empty: --pw × 1.4, corners 7% of --tcw, rgba(250,251,253,0.6), a 1 px dashed edge).</summary>
     public static Texture2D Pile()
     {
-        if (made.TryGetValue("pile", out var t)) return t;
-        t = Dashed(160, 224, 20.3f, new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.6f), new Color(1, 1, 1, 0), 0, new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.4f), 2.6f, 8f, 5.5f);
-        made["pile"] = t;
-        return t;
+        var l = BoardLayout.Current;
+        return Outline("pile", l.Pw, l.Pw * 1.4f, l.Tcw * 0.07f, new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.6f), new Color(1, 1, 1, 0), 0, new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.4f), 1);
     }
 
     /// <summary>
@@ -1159,5 +1378,33 @@ public static class BoardArt
                 n -= v[i];
             }
         return sb.ToString();
+    }
+}
+
+/// <summary>@keyframes shufflePile (0.6 s, each step eased in and out): turned -6 degrees by 25%, 6 by 75%, and back.</summary>
+public class Rocking : MonoBehaviour
+{
+    float t0;
+    Quaternion home;
+
+    void Start()
+    {
+        t0 = Time.time;
+        home = transform.localRotation;
+    }
+
+    void Update()
+    {
+        float k = (Time.time - t0) / 0.6f;
+        if (k >= 1)
+        {
+            transform.localRotation = home;
+            Destroy(this);
+            return;
+        }
+        float E(float x) => x * x * (3 - 2 * x);
+        float deg = k < 0.25f ? Mathf.Lerp(0, -6, E(k / 0.25f)) : k < 0.75f ? Mathf.Lerp(-6, 6, E((k - 0.25f) / 0.5f)) : Mathf.Lerp(6, 0, E((k - 0.75f) / 0.25f));
+        // (Turned in the table's plane, clockwise as the page sees it.)
+        transform.localRotation = home * Quaternion.Euler(0, deg, 0);
     }
 }

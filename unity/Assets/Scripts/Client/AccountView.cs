@@ -1,3 +1,4 @@
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,7 +15,7 @@ public static class AccountView
     /// <summary>signin, signup, forgot, or name.</summary>
     public static string Mode = "signin";
     static string email = "", password = "", name, error = "", note = "";
-    static bool agreeTerms, agreePrivacy, busy, resetOffered, asked;
+    static bool agreeTerms, agreePrivacy, busy, resetOffered, appleOffered, googleOffered, asked;
     /// <summary>A room to go on into once signed in (an invite link opened before signing in).</summary>
     public static string ThenRoom;
 
@@ -33,16 +34,24 @@ public static class AccountView
         System.Action redraw = () => menu.Show("signin");
         if (!asked && Net.Available)
         {
-            // (What the server offers: a reset email, or not.)
+            // (What the server offers (account.ts serverConfig): a reset email, and Apple's and Google's sign in.)
             asked = true;
-            Account.Config(on => { resetOffered = on; if (Mode == "signin") redraw(); });
+            Net.Api("config", "GET", null, r =>
+            {
+                if (!r.Ok) return;
+                resetOffered = (bool?)r.Data["reset"] ?? false;
+                appleOffered = r.Data["apple"] != null && r.Data["apple"].Type == Newtonsoft.Json.Linq.JTokenType.String;
+                googleOffered = r.Data["google"] != null && r.Data["google"].Type == Newtonsoft.Json.Linq.JTokenType.String;
+                if (Mode == "signin" || Mode == "signup") redraw();
+            });
         }
         // The form (.signin): one column, 14 between its parts, centred across and in the page above its foot's 12vh
         // (scrolling from the top when it is taller than the page); each part its height and how it is drawn at its top.
         var parts = new System.Collections.Generic.List<(float h, System.Action<RectTransform, float> draw)>();
         float fieldW = Mathf.Min(280, 0.8f * Css.Screen.x), cx = K.W / 2;
         parts.Add((MenuView.TitleMeasures(true).H, (p, y) => MenuView.TitleBlock(p, cx, y, true)));
-        float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = hf * 1.16f;
+        // (.menu-heading: clamp(0.9rem, 4vh, 1.3rem), spaced 0.3em, #555a63, on Orbitron's line.)
+        float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = Line(hf);
         System.Action<RectTransform, float, string> heading = (p, y, text) => K.Words(p, text.ToUpperInvariant(), 0, y, K.W, hh, hf, Hud.Rgba(85, 90, 99), true, 500, 0.3f);
         if (Mode == "name")
         {
@@ -50,8 +59,15 @@ public static class AccountView
             if (Account.Current?.Avatar != null) parts.Add((av, (p, y) => MenuView.Avatar(p, cx - av / 2, y, av)));
             parts.Add((hh, (p, y) => heading(p, y, "your name")));
             parts.Add((40, (p, y) => Field(p, name ?? Profile.Me.Name, cx - fieldW / 2, y, fieldW, 40, "your name", false, 18).onValueChanged.AddListener(v => name = v)));
-            parts.Add((32, (p, y) => Primary(p, "continue", y, () =>
+            parts.Add((34, (p, y) => Primary(p, "continue", y, () =>
             {
+                // (A name others would see turned down, as the web's signin-go.)
+                if (Profane(name ?? Profile.Me.Name))
+                {
+                    Sound.Play("error");
+                    menu.Toast("Pick another name");
+                    return;
+                }
                 Profile.SignIn(name ?? Profile.Me.Name);
                 name = null;
                 Done(menu);
@@ -60,6 +76,18 @@ public static class AccountView
         else
         {
             parts.Add((hh, (p, y) => heading(p, y, Mode == "signup" ? "create account" : Mode == "forgot" ? "reset password" : "sign in")));
+            // (Apple and Google where the server offers them (.auth-social: fieldW across, 8 apart), then "or"
+            // between two hairlines (.auth-or). They sign in on the web game's own page, on this same site: its session
+            // is then this game's too, taken up when it is next opened.)
+            if ((Mode == "signin" || Mode == "signup") && (appleOffered || googleOffered))
+            {
+                parts.Add((appleOffered && googleOffered ? 34 + 8 + 34 : 34, (p, y) =>
+                {
+                    if (appleOffered) Sso(p, cx - fieldW / 2, y, fieldW, false);
+                    if (googleOffered) Sso(p, cx - fieldW / 2, appleOffered ? y + 42 : y, fieldW, true);
+                }));
+                parts.Add((Line(8), (p, y) => Or(p, cx - fieldW / 2, y, fieldW)));
+            }
             parts.Add((40, (p, y) => Field(p, email, cx - fieldW / 2, y, fieldW, 40, "email", false, 120).onValueChanged.AddListener(v => email = v)));
             // (What was typed stays through a redraw, as the web's form keeps it: the busy one as it is sent, too.)
             if (Mode != "forgot")
@@ -82,7 +110,7 @@ public static class AccountView
                 parts.Add((th, (p, y) => { probe.transform.SetParent(p, false); Hud.Place(probe.rectTransform, cx - tw / 2, y, tw, th); }));
             }
             var action = Mode == "signup" ? "create account" : Mode == "forgot" ? "send link" : "sign in";
-            parts.Add((32, (p, y) => Primary(p, busy ? "…" : action, y, () => Submit(menu)).interactable = !busy));
+            parts.Add((34, (p, y) => Primary(p, busy ? "…" : action, y, () => Submit(menu)).interactable = !busy));
             // (The web's .auth-alt: its links on a line, 18 apart.)
             var links = new System.Collections.Generic.List<(string, System.Action)>();
             if (Mode == "signin")
@@ -91,11 +119,7 @@ public static class AccountView
                 if (resetOffered) links.Add(("forgot password?", () => { Mode = "forgot"; error = note = ""; redraw(); }));
             }
             else links.Add((Mode == "signup" ? "I have an account: sign in" : "back to sign in", () => { Mode = "signin"; error = note = ""; redraw(); }));
-            parts.Add((19, (p, y) => Links(p, y, links)));
-            // (Apple and Google sign in on the web game's own page, on this same site: its session is then this
-            // game's too, taken up when it is next opened. The web game offers them as buttons; here, a link there.)
-            if (Mode == "signin" && Net.Available)
-                parts.Add((19, (p, y) => Links(p, y, new System.Collections.Generic.List<(string, System.Action)> { ("google or apple? sign in on the web game", () => Application.OpenURL(Net.Base + "/index.html")) })));
+            parts.Add((20, (p, y) => Links(p, y, links)));
         }
         float total = -14;
         foreach (var part in parts) total += part.h + 14;
@@ -180,11 +204,110 @@ public static class AccountView
         else Account.LogIn(sentEmail, sentPassword, done);
     }
 
-    /// <summary>The form's main button (.btn-primary): as wide as its word and padded 16 a side, 32 tall, centred.</summary>
+    /// <summary>The form's main button (.btn-primary): as wide as its word and padded 16 a side, 34 tall (a line of 10.56 padded 9, and its hairline), centred.</summary>
     static Button Primary(RectTransform page, string text, float y, System.Action act)
     {
         float w = K.BtnW(text, K.Kind.Primary);
-        return K.Btn(page, text, act, K.W / 2 - w / 2, y, K.Kind.Primary, w);
+        return K.Btn(page, text, act, K.W / 2 - w / 2, y, K.Kind.Primary, w, 34);
+    }
+
+    /// <summary>
+    /// A line's height as the browser sets a normal line: the font's ascent and descent (Orbitron 1.011 and 0.243 of
+    /// its size, Exo 2 0.999 and 0.201), each rounded to a pixel.
+    /// </summary>
+    static float Line(float size, bool display = true)
+        => display ? Mathf.Round(1.011f * size) + Mathf.Round(0.243f * size) : Mathf.Round(0.999f * size) + Mathf.Round(0.201f * size);
+
+    /// <summary>
+    /// Continue with Apple or Google (.btn.auth-sso): a button `w` across, 34 tall, its mark (Apple's a black dot 14
+    /// across; Google's a bold blue "G", Arial 13) and its words 10 apart, centred.
+    /// </summary>
+    static void Sso(RectTransform page, float x, float y, float w, bool google)
+    {
+        string text = google ? "continue with Google" : "continue with Apple";
+        var b = K.Btn(page, "", () => Application.OpenURL(Net.Base + "/index.html"), x, y, K.Kind.Btn, w, 34);
+        float tw = K.TextW(text.ToUpperInvariant(), 0.66f * K.Rem, 500, 0.14f), left = (w - (14 + 10 + tw)) / 2;
+        if (google) K.Words(b.transform, "G", left, 10, 14, 14, 13, Hud.Rgba(66, 133, 244), false, 700);
+        else
+        {
+            var dot = Hud.Box(b.transform, "Mark", Hud.Rgba(17, 17, 17), 7);
+            Hud.Place(dot.rectTransform, left, 10, 14, 14);
+        }
+        K.Words(b.transform, text.ToUpperInvariant(), left + 24, 10, tw + 2, 14, 0.66f * K.Rem, Look.Ink, true, 500, 0.14f, TextAlignmentOptions.Left);
+    }
+
+    /// <summary>"or" between two hairlines (.auth-or: Orbitron 8 spaced 0.3em, faint; the lines rgba(150, 160, 185, 0.35), 10 from it).</summary>
+    static void Or(RectTransform page, float x, float y, float w)
+    {
+        float tw = K.TextW("OR", 8, 400, 0.3f), side = (w - tw - 20) / 2, h = Line(8);
+        K.Words(page, "OR", x + side + 10, y, tw, h, 8, Look.InkFaint, true, 400, 0.3f, TextAlignmentOptions.Left);
+        for (int i = 0; i < 2; i++)
+        {
+            var line = Hud.Rect(page, "Hairline");
+            Hud.Place(line, i == 0 ? x : x + side + 20 + tw, y + h / 2, side, 1);
+            var li = line.gameObject.AddComponent<Image>();
+            li.color = Hud.Rgba(150, 160, 185, 0.35f);
+            li.raycastTarget = false;
+        }
+    }
+
+    // ---- The profanity filter (engine profanity.ts isProfane), for the name chosen ----
+
+    static readonly string[] BadWords =
+    {
+        "ass", "arse", "asshole", "arsehole", "bastard", "bollock", "bollocks", "boob", "boobs", "cock", "cum", "cunt", "dick", "dickhead", "dyke",
+        "fag", "fags", "fanny", "homo", "hoe", "kike", "nazi", "nonce", "paedo", "pedo", "penis", "piss", "porn", "prick", "rape", "raped", "raping",
+        "sex", "sexy", "slag", "slut", "spic", "chink", "coon", "gook", "paki", "tit", "tits", "titties", "tranny", "vagina", "wank", "wanker", "whore",
+        "retard", "retarded", "bitch", "shit", "fuck", "twat", "pussy", "jizz", "dildo", "nigga", "nigger", "faggot", "rapist", "hitler", "motherfucker",
+    };
+    static readonly string[] Spelled = { "fuck", "shit", "nigga", "faggot", "whore", "retard", "hitler", "bitch", "pussy", "twat", "jizz", "dildo", "wanker", "asshole", "arsehole", "motherf" };
+    static readonly string[] Allowed = { "scunthorpe", "therapist", "therapists", "shitake", "shiitake", "snigger", "sniggers", "sniggered", "sniggering", "cocktail", "cockpit", "peacock", "hancock", "hitchcock", "shuttlecock", "dickens", "essex", "sussex", "middlesex", "assassin", "assault", "classic", "bassist", "pissarro", "arsenal", "titan", "titanic", "title", "pedometer", "torpedo", "spice", "spicy", "cumin", "cumulus", "document", "homogenous", "homage", "hoes" };
+    static readonly string[] Endings = { "", "s", "es", "ed", "er", "ers", "ing", "y", "ies", "head", "face" };
+    static readonly System.Text.RegularExpressions.Regex AllowedRe = new System.Text.RegularExpressions.Regex($"(?<!\\p{{L}})(?:{string.Join("|", Allowed)})(?!\\p{{L}})");
+    static readonly System.Text.RegularExpressions.Regex Worst = new System.Text.RegularExpressions.Regex("^(fuck|shit|cunt|nigg|fagg|wank|bitch|whor|slut|twat)");
+    static readonly System.Text.RegularExpressions.Regex SpelledOut = new System.Text.RegularExpressions.Regex("(?:^|[^\\p{L}])(\\p{L}(?:[^\\p{L}]+\\p{L}(?![\\p{L}])){2,})");
+    static readonly System.Text.RegularExpressions.Regex NotLetters = new System.Text.RegularExpressions.Regex("[^\\p{L}]+");
+    static readonly System.Text.RegularExpressions.Regex Runs = new System.Text.RegularExpressions.Regex("(\\p{L})\\1+");
+
+    /// <summary>
+    /// Whether a name has profanity in it: folded (lower case, accents off, look-alikes read as letters), its words (or
+    /// them squeezed) against the list with common endings, letters spelled out one by one read as a word, and the
+    /// worst run together.
+    /// </summary>
+    public static bool Profane(string text)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (char ch in (text ?? "").ToLowerInvariant().Normalize(System.Text.NormalizationForm.FormKD))
+        {
+            if (ch >= '\u0300' && ch <= '\u036f') continue;
+            switch (ch)
+            {
+                case '0': sb.Append('o'); break;
+                case '1': case '!': case '|': sb.Append('i'); break;
+                case '3': sb.Append('e'); break;
+                case '4': case '@': sb.Append('a'); break;
+                case '5': case '$': sb.Append('s'); break;
+                case '7': case '+': sb.Append('t'); break;
+                default: sb.Append(ch); break;
+            }
+        }
+        string folded = AllowedRe.Replace(sb.ToString(), " ");
+        var words = NotLetters.Split(folded).Where(w => w.Length > 0).ToList();
+        foreach (System.Text.RegularExpressions.Match m in SpelledOut.Matches(folded)) words.Add(NotLetters.Replace(m.Value, ""));
+        if (words.Any(BadWord)) return true;
+        string letters = NotLetters.Replace(folded, "");
+        return new[] { letters, Runs.Replace(letters, "$1") }.Any(l => Spelled.Any(l.Contains));
+    }
+
+    static bool BadWord(string word)
+    {
+        foreach (var w in new[] { word, Runs.Replace(word, "$1") })
+        {
+            foreach (var end in Endings)
+                if (w.EndsWith(end) && System.Array.IndexOf(BadWords, w.Substring(0, w.Length - end.Length)) >= 0) return true;
+            if (Worst.IsMatch(w)) return true;
+        }
+        return false;
     }
 
     /// <summary>Links on a line, centred, 18 apart (the web's .auth-alt).</summary>
@@ -243,7 +366,8 @@ public static class AccountView
         area.offsetMin = new Vector2(pad, 2);
         area.offsetMax = new Vector2(-pad, -2);
         area.gameObject.AddComponent<RectMask2D>();
-        var hint = K.Fill(area, placeholder, size, Hud.Rgba(138, 141, 147), true, 400, em);
+        // (The browser's own placeholder grey, #757575.)
+        var hint = K.Fill(area, placeholder, size, Hud.Rgba(117, 117, 117), true, 400, em);
         var t = K.Fill(area, text ?? "", size, Look.Ink, true, 400, em);
         t.richText = false;
         var input = box.gameObject.AddComponent<TMP_InputField>();
@@ -274,19 +398,21 @@ public static class AccountView
         if (a != null)
         {
             var row = K.Inset(card, "Account", new Color(1, 1, 1, 0.7f), Hud.Rgba(150, 160, 185, 0.25f), 12);
-            Hud.Place(row.rectTransform, x, y, w, 48);
+            // (Its email (Orbitron 16, a line 20 tall) over its words (Exo 2 9.92, 12), 2 apart, padded 8: 50 tall.)
+            Hud.Place(row.rectTransform, x, y, w, 50);
             float dw = deleting ? 0 : K.TextW("DELETE ACCOUNT", 9.6f, 400, 0.16f) + 4;
-            var em = K.Words(row.transform, a.Email, 12, 8, w - 24 - dw - 12, 19, 16, Look.Ink, true, 500, 0.06f, TextAlignmentOptions.Left);
-            em.overflowMode = TextOverflowModes.Ellipsis;
-            K.Words(row.transform, "Your progress is saved to this account.", 12, 29, w - 24 - dw - 12, 11, 9.92f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
-            if (!deleting) K.Link(row.transform, "delete account", () => { deleting = true; confirm = ""; error = ""; reopen(); }, w - 12, 14.5f, fromRight: true);
-            y += 48 + gap;
+            var em = K.Words(row.transform, a.Email, 12, 8, w - 24 - dw - 12, Line(16), 16, Look.Ink, true, 500, 0.06f, TextAlignmentOptions.Left);
+            Hud.Ellipsis(em);
+            K.Words(row.transform, "Your progress is saved to this account.", 12, 8 + Line(16) + 2, w - 24 - dw - 12, Line(9.92f, false), 9.92f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
+            if (!deleting) K.Link(row.transform, "delete account", () => { deleting = true; confirm = ""; error = ""; reopen(); }, w - 12, 25 - (K.LineH(9.6f) + 8) / 2, fromRight: true);
+            y += 50 + gap;
             if (deleting)
             {
-                // (The web's .pv-delete, 8 between its parts: why, the box to confirm in, what went wrong, and its two buttons.)
+                // (The web's .pv-delete, 8 between its parts: why (a <small>: Exo 2 13.33, ink-soft), the box to confirm
+                // in, what went wrong, and its two buttons (.btn, 34 tall).)
                 bool withPassword = a.Password != false;
                 string why = $"This deletes your account and all its progress, for good. {(withPassword ? "Enter your password" : "Type DELETE")} to confirm.";
-                var wt = K.Words(card, why, x, y, w, 30, 10.56f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
+                var wt = K.Words(card, why, x, y, w, 30, 13.33f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
                 wt.textWrappingMode = TextWrappingModes.Normal;
                 float wh = wt.GetPreferredValues(why, w, 0).y;
                 wt.rectTransform.sizeDelta = new Vector2(w, wh);
@@ -301,7 +427,7 @@ public static class AccountView
                     y += 15 + 8;
                 }
                 float cw = K.BtnW("cancel", K.Kind.Btn);
-                K.Btn(card, "cancel", () => { deleting = false; error = ""; reopen(); }, x, y);
+                K.Btn(card, "cancel", () => { deleting = false; error = ""; reopen(); }, x, y, K.Kind.Btn, cw, 34);
                 var go = K.Btn(card, "delete account", () =>
                 {
                     if (busy) return;
@@ -313,22 +439,21 @@ public static class AccountView
                         deleting = false;
                         menu.Show("title");
                     });
-                }, x + cw + 8, y);
+                }, x + cw + 8, y, K.Kind.Btn, 0, 34);
                 go.GetComponentInChildren<TextMeshProUGUI>().color = Hud.Rgba(178, 60, 36);
                 go.interactable = !busy;
-                y += 32 + gap;
+                y += 34 + gap;
             }
         }
-        // The foot: changing your name, and signing out (or, with no account, signing in).
-        float lx = x;
-        lx += K.Link(card, "change name", () => { Mode = "name"; menu.Show("signin"); }, lx, y) + 16;
-        if (a != null)
-            K.Link(card, "sign out", () =>
-            {
-                // Signing out: the account's progress leaves this device with it (it's safe on the server).
-                Account.LogOut(() => menu.Show("title"));
-            }, lx, y);
-        else if (Net.Available) K.Link(card, "sign in", () => { Begin(); menu.Show("signin"); }, lx, y);
-        return y + 19;
+        // The foot (.pv-foot, 16 apart; each link a line of 9.6 padded 4 above and below: 20): changing your name, and
+        // signing out.
+        float lx = x, ly = y + (20 - (K.LineH(9.6f) + 8)) / 2;
+        lx += K.Link(card, "change name", () => { Mode = "name"; menu.Show("signin"); }, lx, ly) + 16;
+        K.Link(card, "sign out", () =>
+        {
+            // Signing out: the account's progress leaves this device with it (it's safe on the server).
+            Account.LogOut(() => menu.Show("title"));
+        }, lx, ly);
+        return y + 20;
     }
 }

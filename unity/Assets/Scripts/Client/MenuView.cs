@@ -47,7 +47,7 @@ public class MenuView : MonoBehaviour
     /// <summary>The campaign's own pages: each lays itself out again as the screen changes (its RefLayer).</summary>
     static bool Legacy(string name) => name == "campaign" || name == "stellari" || name == "captain" || name == "hangar";
 
-    /// <summary>The page's own light: white at the top, settling to paper and a soft grey at the foot.</summary>
+    /// <summary>The page's own light (styles.css body's background), and the Stellari over it (backdrop.ts).</summary>
     void Background()
     {
         backdrop = new GameObject("Backdrop", typeof(RectTransform));
@@ -55,27 +55,14 @@ public class MenuView : MonoBehaviour
         Hud.Fill((RectTransform)backdrop.transform);
         var bg = Hud.Rect(backdrop.transform, "Background");
         Hud.Fill(bg);
-        var img = bg.gameObject.AddComponent<RawImage>();
-        var t = new Texture2D(4, 64, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
-        for (int y = 0; y < 64; y++)
-        {
-            float k = y / 63f;
-            var c = k > 0.45f ? Color.Lerp(Look.Paper, new Color(0.98f, 0.98f, 0.965f), (k - 0.45f) / 0.55f) : Color.Lerp(Look.Back, Look.Paper, k / 0.45f);
-            for (int x = 0; x < 4; x++) t.SetPixel(x, y, c);
-        }
-        t.Apply();
-        img.texture = t;
-        img.raycastTarget = false;
-        // The Stellari behind it all (art.ts petalBackdrop, backdrop.ts): its glow from the top, and its two rings of
-        // petals, turning slowly (one turn in three minutes; the inner ring at 0.6 of it). Framed as the web frames it
-        // (its viewBox 0 -300 1000 900, sliced to cover the page from its top, centred across): see FrameStage.
+        page0 = bg.gameObject.AddComponent<RawImage>();
+        page0.raycastTarget = false;
+        // The Stellari behind it all (art.ts petalBackdrop, backdrop.ts): its two rings of petals, turning slowly (one
+        // turn in three minutes; the inner ring the other way, at 0.6 of it), and its glow from the top laid over them
+        // (the web's third layer, drawn last). Framed as the web frames it (its viewBox 0 -300 1000 900, sliced to cover
+        // the page from its top, centred across): see FrameStage.
         stage = Hud.Rect(backdrop.transform, "Stage");
-        var glow = Hud.Rect(stage, "Glow");
-        var rings = Hud.Rect(glow, "Rings");
-        glow.anchorMin = glow.anchorMax = glow.pivot = new Vector2(0.5f, 1);
-        var gi = glow.gameObject.AddComponent<RawImage>();
-        gi.texture = Pictures.Load("Icons/mandala-glow");
-        gi.raycastTarget = false;
+        var rings = Hud.Rect(stage, "Rings");
         rings.anchorMin = rings.anchorMax = new Vector2(0.5f, 1);
         rings.pivot = new Vector2(0.5f, 0.5f);
         foreach (var layer in new[] { "outer", "inner" })
@@ -89,36 +76,129 @@ public class MenuView : MonoBehaviour
             if (layer == "outer") outerRing = r;
             else innerRing = r;
         }
+        var glow = Hud.Rect(stage, "Glow");
+        glow.anchorMin = glow.anchorMax = glow.pivot = new Vector2(0.5f, 1);
+        var gi = glow.gameObject.AddComponent<RawImage>();
+        gi.texture = GlowTexture();
+        gi.raycastTarget = false;
         FrameStage();
     }
 
     RectTransform stage, outerRing, innerRing;
+    RawImage page0;
+    Vector2 page0Size;
     float ringAngle;
 
     /// <summary>
     /// The Stellari framed to the page (xMidYMin slice of the web's 1000 × 900 view): s the larger of the page's width
     /// over 1000 and its height over 900; the glow the whole view, from the top; the rings (680 of its units across)
-    /// turning on its heart, 470 units down.
+    /// turning on its heart, 470 units down. The page's light drawn afresh for its size.
     /// </summary>
     void FrameStage()
     {
         if (stage == null) return;
+        if (page0 != null && page0Size != new Vector2(K.W, K.H))
+        {
+            page0Size = new Vector2(K.W, K.H);
+            if (page0.texture != null) Destroy(page0.texture);
+            page0.texture = PageLight(K.W, K.H);
+        }
         float s = Mathf.Max(K.W / 1000f, K.H / 900f);
         Hud.Fill(stage);
-        var glow = (RectTransform)stage.GetChild(0);
-        glow.anchoredPosition = Vector2.zero;
-        glow.sizeDelta = new Vector2(1000 * s, 900 * s);
-        var rings = (RectTransform)glow.GetChild(0);
+        var rings = (RectTransform)stage.Find("Rings");
         rings.anchoredPosition = new Vector2(0, -470 * s);
         rings.sizeDelta = new Vector2(680 * s, 680 * s);
+        var glow = (RectTransform)stage.Find("Glow");
+        glow.anchoredPosition = Vector2.zero;
+        glow.sizeDelta = new Vector2(1000 * s, 900 * s);
+    }
+
+    /// <summary>
+    /// The page's light, w by h (styles.css body): a white glow from the top middle (an ellipse 70% by 60% of the page:
+    /// white, 60% at 0.4 of the way, gone at 0.75) over a soft grey from below (an ellipse 120% by 90% about 110% down:
+    /// #dedcd8, gone at 0.6) over #faf9f6 at the top, the paper (#f3f2ee) 55% down, #e0dfdb at the foot.
+    /// </summary>
+    static Texture2D PageLight(float w, float h)
+    {
+        const int N = 128;
+        var t = new Texture2D(N, N, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+        var px = new Color32[N * N];
+        Color top = Hud.Rgba(250, 249, 246), paper = Hud.Rgba(243, 242, 238), foot = Hud.Rgba(224, 223, 219), grey = Hud.Rgba(222, 220, 216);
+        for (int j = 0; j < N; j++)
+        {
+            // (Row 0 the page's foot; each texel taken at its middle.)
+            float y = (1 - (j + 0.5f) / N) * h, k = y / h;
+            Color c = k < 0.55f ? Color.Lerp(top, paper, k / 0.55f) : Color.Lerp(paper, foot, (k - 0.55f) / 0.45f);
+            for (int i = 0; i < N; i++)
+            {
+                float dx = (i + 0.5f) / N * w - w / 2;
+                float t2 = Mathf.Sqrt(Sq(dx / (1.2f * w)) + Sq((y - 1.1f * h) / (0.9f * h)));
+                Color o = Color.Lerp(c, grey, Mathf.Clamp01(1 - t2 / 0.6f));
+                float t1 = Mathf.Sqrt(Sq(dx / (0.7f * w)) + Sq(y / (0.6f * h)));
+                float a1 = t1 < 0.4f ? Mathf.Lerp(1, 0.6f, t1 / 0.4f) : Mathf.Lerp(0.6f, 0, (t1 - 0.4f) / 0.35f);
+                o = Color.Lerp(o, Color.white, Mathf.Clamp01(a1));
+                o.a = 1;
+                px[j * N + i] = o;
+            }
+        }
+        t.SetPixels32(px);
+        t.Apply();
+        return t;
+    }
+
+    static float Sq(float v) => v * v;
+    static Texture2D glowTex;
+
+    /// <summary>
+    /// The Stellari's glow over its petals (art.ts petalBackdrop #glow) across its whole 1000 × 900 view: a circle of 520
+    /// about its heart (500, 170), filled from the top of its box (500, -350) out to 728 (70% of it): white, then
+    /// #fbfaf6 at 80% by 0.4 of the way, to nothing at its end.
+    /// </summary>
+    static Texture2D GlowTexture()
+    {
+        if (glowTex != null) return glowTex;
+        const int W = 500, H = 450;
+        const float U = 1000f / W;
+        var t = new Texture2D(W, H, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+        var px = new Color32[W * H];
+        Color warm = Hud.Rgba(251, 250, 246);
+        for (int j = 0; j < H; j++)
+        {
+            float y = 600 - (j + 0.5f) * U;
+            for (int i = 0; i < W; i++)
+            {
+                float x = (i + 0.5f) * U;
+                float cover = Mathf.Clamp01((520 - Mathf.Sqrt(Sq(x - 500) + Sq(y - 170))) / U + 0.5f);
+                float g = Mathf.Sqrt(Sq(x - 500) + Sq(y + 350)) / 728f;
+                Color c;
+                float a;
+                if (g < 0.4f)
+                {
+                    // (Between the stops in premultiplied colour, as the browser draws it.)
+                    float k = g / 0.4f;
+                    a = Mathf.Lerp(1, 0.8f, k);
+                    c = Color.Lerp(Color.white, warm * 0.8f, k) / a;
+                }
+                else
+                {
+                    a = Mathf.Lerp(0.8f, 0, Mathf.Clamp01((g - 0.4f) / 0.6f));
+                    c = warm;
+                }
+                c.a = a * cover;
+                px[j * W + i] = c;
+            }
+        }
+        t.SetPixels32(px);
+        t.Apply();
+        return glowTex = t;
     }
 
     void TurnRings()
     {
-        // (Clockwise, as the web turns it: two degrees a second.)
+        // (The outer ring clockwise, as the web turns it, two degrees a second; the inner the other way, at 0.6 of it.)
         ringAngle = (ringAngle + 2 * Time.deltaTime) % 1800;
         if (outerRing != null) outerRing.localRotation = Quaternion.Euler(0, 0, -ringAngle);
-        if (innerRing != null) innerRing.localRotation = Quaternion.Euler(0, 0, -ringAngle * 0.6f);
+        if (innerRing != null) innerRing.localRotation = Quaternion.Euler(0, 0, ringAngle * 0.6f);
     }
 
     // ---- The title block (app.ts titleBlock): the pearl sun over BLUE LOOP ----
@@ -135,7 +215,7 @@ public class MenuView : MonoBehaviour
             t.Sun = Mathf.Min(54, 11 * K.Vh);
             t.Font = K.Clamp(1.1f * K.Rem, 5 * K.Vh, 1.8f * K.Rem);
             t.Gap = K.Clamp(6, 2 * K.Vh, 14);
-            t.WordsH = t.Font * 1.16f;
+            t.WordsH = K.LineH(t.Font);
             t.H = t.Sun + t.Gap + t.WordsH;
         }
         else
@@ -143,7 +223,7 @@ public class MenuView : MonoBehaviour
             t.Sun = Mathf.Min(130, 26 * K.Vh);
             t.Font = K.Clamp(1.4f * K.Rem, Mathf.Min(10 * K.Vh, 6.6f * K.Vw), 3.8f * K.Rem);
             t.Gap = 22;
-            t.WordsH = t.Font * 1.16f;
+            t.WordsH = K.LineH(t.Font);
             t.H = t.Sun + 22 + t.WordsH + 6;
         }
         return t;
@@ -274,7 +354,8 @@ public class MenuView : MonoBehaviour
     void Studio()
     {
         // (The web's .studio: 8 across, spaced 0.3em, ink-faint, max(10px, the safe area) off the foot.)
-        K.Words(page, "CORONAL MASS GAMES", 0, K.H - Mathf.Max(10, K.SaB) - 9, K.W, 9, 8, Look.InkFaint, true, 400, 0.3f);
+        // (Centred with the spacing after its last letter, as the browser centres it: half of it to the left.)
+        K.Words(page, "CORONAL MASS GAMES", -0.15f * 8, K.H - Mathf.Max(10, K.SaB) - K.LineH(8), K.W, K.LineH(8), 8, Look.InkFaint, true, 400, 0.3f);
     }
 
     // ---- The hub ----
@@ -288,14 +369,20 @@ public class MenuView : MonoBehaviour
         float linkX = Mathf.Max(18, K.SaL), linkGap = K.Clamp(14, 2.4f * K.Vw, 28);
         foreach (var (icon, name) in links)
         {
-            float nameW = K.TextW(name.ToUpperInvariant(), 10.24f, 700, 0.2f);
+            // (The browser counts the spacing after the last letter too.)
+            float nameW = K.TextW(name.ToUpperInvariant(), 10.24f, 700, 0.2f) + 0.2f * 10.24f;
             float linkW = 2 + 22 + 7 + nameW + 2;
             var b = K.Hit(page, name, null);
             Hud.Place((RectTransform)b.transform, linkX, top + 8, linkW, 30);
             linkX += linkW + linkGap;
             string to = icon;
-            // (The shop needs the server, as online play does.)
-            b.onClick.AddListener(() => { Sound.Play("click"); if (to == "shop" && !Net.Available) Toast("Offline."); else Show(to); });
+            b.onClick.AddListener(() => { Sound.Play("click"); Show(to); });
+            // (The shop needs the server, as online play does: without one it fades to 45% and takes no taps.)
+            if (to == "shop" && !Net.Available)
+            {
+                b.interactable = false;
+                b.gameObject.AddComponent<CanvasGroup>().alpha = 0.45f;
+            }
             Picture(b.transform, $"Icons/{icon}-small", 2, 4, 22, 22);
             K.Words(b.transform, name.ToUpperInvariant(), 31, 0, nameW + 4, 30, 10.24f, Look.Ink, true, 700, 0.2f, TextAlignmentOptions.Left);
         }
@@ -325,15 +412,37 @@ public class MenuView : MonoBehaviour
             var (key, name) = tiles[i];
             bool offline = key == "online" && !Net.Available;
             float x = x0 + i * (ht + gapX);
-            var tile = Hud.Box(page, name, Hud.Rgba(250, 250, 249), 16);
+            // (Offline, the tile, its shadows and all fade to 45% as one: .hub-offline's opacity.)
+            Transform under = page;
+            if (offline)
+            {
+                var col = Hud.Rect(page, "Faded");
+                Hud.Fill(col);
+                var fade = col.gameObject.AddComponent<CanvasGroup>();
+                fade.alpha = 0.45f;
+                under = col;
+            }
+            // (.hub-card: white fading to #f5f5f3 down it, in a white hairline.)
+            var tile = Hud.Box(under, name, Color.white, 16);
             Hud.Place(tile.rectTransform, x, cardY, ht, cardH);
             Hud.Shadow(tile, 16, new Hud.Drop(Hud.Rgba(80, 84, 100, 0.14f), 14, 34), new Hud.Drop(Hud.Rgba(80, 84, 100, 0.08f), 2, 6));
             tile.raycastTarget = true;
+            var shade = Hud.Box(tile.transform, "Fill", Color.white, 15);
+            Hud.Fill(shade.rectTransform);
+            shade.rectTransform.offsetMin = new Vector2(1, 1);
+            shade.rectTransform.offsetMax = new Vector2(-1, -1);
+            shade.raycastTarget = false;
+            shade.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+            var grad = Hud.Rect(shade.transform, "Gradient");
+            Hud.Fill(grad);
+            var gi = grad.gameObject.AddComponent<RawImage>();
+            gi.texture = K.Down(Color.white, Hud.Rgba(245, 245, 243));
+            gi.raycastTarget = false;
             var b = tile.gameObject.AddComponent<Button>();
             var colors = b.colors;
             colors.highlightedColor = new Color(0.99f, 0.99f, 1f);
             colors.pressedColor = new Color(0.95f, 0.96f, 0.98f);
-            colors.disabledColor = new Color(1, 1, 1, 0.45f);
+            colors.disabledColor = Color.white;
             b.colors = colors;
             // (Online play needs the server: without one its tile reads offline, faded.)
             b.interactable = !offline;
@@ -343,13 +452,11 @@ public class MenuView : MonoBehaviour
             // (Two lines when the name is wider than the card's inside.)
             float innerW = ht - 22;
             bool twoLines = K.TextW(shown, nameF, 700, 0.2f) > innerW;
-            float nameH = nameF * 1.11f * (twoLines ? 2 : 1), top2 = (cardH - (iconS + inner + nameH)) / 2;
-            var pic = Picture(tile.transform, $"Icons/{key}", (ht - iconS) / 2, top2, iconS, iconS);
-            if (offline) pic.color = new Color(1, 1, 1, 0.45f);
+            float nameH = K.LineH(nameF) * (twoLines ? 2 : 1), top2 = (cardH - (iconS + inner + nameH)) / 2;
+            Picture(tile.transform, $"Icons/{key}", (ht - iconS) / 2, top2, iconS, iconS);
             var label = K.Words(tile.transform, shown, 11, top2 + iconS + inner, innerW, nameH, nameF, Look.Ink, true, 700, 0.2f);
             label.textWrappingMode = TextWrappingModes.Normal;
             label.lineSpacing = -8;
-            if (offline) label.alpha = 0.45f;
             // (A run or a game against the AI left part way: continue it, a small button 8 under its card.)
             System.Action cont = target == "campaign" && CampaignView.HasSave ? () => App.Instance.Run(CampaignView.Saved())
                 : target == "quickplay" && BattleView.HasSave ? () => App.Instance.Continue() : (System.Action)null;
@@ -440,12 +547,12 @@ public class MenuView : MonoBehaviour
         string shown = name.ToUpperInvariant();
         float nameF = K.Clamp(10.56f, 2.8f * K.Vh, 14.4f);
         float pillW = mode != null ? K.BtnW(mode, K.Kind.Pill, 8, 0.14f, 10) : tag != null ? K.BtnW(tag, K.Kind.Pill, 8.96f, 0.16f, 10) - 2 : 0;
-        float pillH = mode != null ? 17 : tag != null ? K.LineH(8.96f) + 6 : 0;
-        float headH = Mathf.Max(K.LineH(nameF) * 1.04f, pillH);
+        float pillH = mode != null ? K.LineH(8) + 8 : tag != null ? K.LineH(8.96f) + 6 : 0;
+        float headH = Mathf.Max(K.LineH(nameF), pillH);
         float nameW = Mathf.Min(w - 2 * ph - (pillW > 0 ? pillW + 10 : 0), K.TextW(shown, nameF, 400, 0.16f) + 2);
         float all = nameW + (pillW > 0 ? 10 + pillW : 0), left = (w - all) / 2;
         var nl = K.Words(r, shown, left, pv, nameW, headH, nameF, Look.Ink, true, 400, 0.16f, TextAlignmentOptions.Left);
-        nl.overflowMode = TextOverflowModes.Ellipsis;
+        Hud.Ellipsis(nl);
         if (mode != null) K.Btn(r, mode, flip, left + nameW + 10, pv + (headH - pillH) / 2, K.Kind.Pill, pillW, pillH, 8, 0.14f);
         else if (tag != null)
         {
@@ -455,12 +562,12 @@ public class MenuView : MonoBehaviour
             K.Fill(t.transform, tag.ToUpperInvariant(), 8.96f, tagOn ? Color.white : Look.InkFaint, true, 400, 0.16f);
         }
         // Its foot: every deck a tap away (.link-btn .qp-all), or quiet words.
-        float footH = 19, footY = h - pv - footH;
+        float footH = K.LineH(9.6f) + 8, footY = h - pv - footH;
         if (foot != null) K.Words(r, foot, 0, footY, w, footH, 12.8f, Look.InkFaint, false, 400);
         else if (seat >= 0)
         {
             System.Action pick = () => { pickSeat = seat; pickFrom = current; Show("pickdeck"); };
-            float lw = K.TextW("VIEW DECKS", 9.6f, 400, 0.16f) + 4;
+            float lw = K.TextW("VIEW DECKS", 9.6f, 400, 0.16f) + 0.16f * 9.6f + 4;
             K.Link(r, "view decks", pick, (w - lw) / 2, footY);
         }
         // Its middle: the deck, as a box (.qp-decks: --bw * 0.12 above it), centred between head and foot.
@@ -476,7 +583,7 @@ public class MenuView : MonoBehaviour
             System.Action act = deck == null && seat >= 0 ? () => { pickSeat = seat; pickFrom = current; Show("pickdeck"); } : (System.Action)null;
             BuilderView.DeckBoxMini(r, (w - bw) / 2, by, d, true, act, bw);
             var dn = K.Words(r, d.Name.ToUpperInvariant(), (w - (bw + 10)) / 2, by + boxH + 6, bw + 10, nameH, nameSize, Look.Ink, true, 400, 0.1f);
-            dn.overflowMode = TextOverflowModes.Ellipsis;
+            Hud.Ellipsis(dn);
         }
         return r;
     }
@@ -543,7 +650,7 @@ public class MenuView : MonoBehaviour
         float top = Mathf.Max(14, K.SaT);
         // (Back from online play leaves its search too.)
         K.Btn(pane.transform, "‹ back", () => { if (from == "online") Online.Leave(); Show("hub"); }, sa + 18, top, K.Kind.Small, pw - 36);
-        float cardsTop = top + 26 + 14, cardH = (K.H - cardsTop - 1) / 2;
+        float cardsTop = top + K.Measure(K.Kind.Small).h + 14, cardH = (K.H - cardsTop - 1) / 2;
         var split = Hud.Box(pane.transform, "Between", Hud.Rgba(150, 156, 172, 0.25f), 0.5f);
         Hud.Place(split.rectTransform, sa, cardsTop, pw, K.H - cardsTop);
         foreach (var m in new[] { "core", "lost" })
@@ -559,21 +666,32 @@ public class MenuView : MonoBehaviour
             float lineH = 11.2f * 1.3f, blurbW = pw - 32;
             var probe = K.Words(card, gm.Blurb, 16, 0, blurbW, 40, 11.2f, Color.white, false, 400, 0, TextAlignmentOptions.TopLeft);
             probe.textWrappingMode = TextWrappingModes.Normal;
-            float blurbH = Mathf.Max(lineH, probe.GetPreferredValues(gm.Blurb, blurbW, 0).y);
-            float textH = 36 + 16.6f + 3 + blurbH + 14;
+            // (Its lines 1.3 of its size apart, as the web sets them: Exo 2's own are 1.2.)
+            int lines = Mathf.Max(1, Mathf.RoundToInt(probe.GetPreferredValues(gm.Blurb, blurbW, 0).y / (11.2f * 1.2f)));
+            probe.lineSpacing = (1.3f - 1.2f) * 100;
+            float blurbH = lines * lineH;
+            float textH = 36 + K.LineH(14.4f) + 3 + blurbH + 14;
             var shade = Hud.Rect(card, "Shade");
             Hud.Place(shade, 0, cardH - textH, pw, textH);
             var si = shade.gameObject.AddComponent<RawImage>();
             si.texture = K.Down(new Color(12 / 255f, 14 / 255f, 24 / 255f, 0), new Color(12 / 255f, 14 / 255f, 24 / 255f, 0.82f));
             si.raycastTarget = false;
             shade.SetAsLastSibling();
-            K.Words(card, gm.Name.ToUpperInvariant(), 16, cardH - textH + 36, blurbW, 16.6f, 14.4f, on ? Color.white : new Color(1, 1, 1, 0.6f), true, 500, 0.16f, TextAlignmentOptions.Left);
+            K.Words(card, gm.Name.ToUpperInvariant(), 16, cardH - textH + 36, blurbW, K.LineH(14.4f), 14.4f, on ? Color.white : new Color(1, 1, 1, 0.6f), true, 500, 0.16f, TextAlignmentOptions.Left);
             Hud.Place(probe.rectTransform, 16, cardH - 14 - blurbH, blurbW, blurbH);
             probe.color = new Color(1, 1, 1, on ? 0.85f : 0.5f);
             probe.transform.SetAsLastSibling();
             if (on)
             {
-                // (Its white edge on the left, and a faint ring.)
+                // (Its white edge on the left, and a faint ring: inset 0 0 0 1px rgba(255, 255, 255, 0.35).)
+                foreach (var (rx, ry, rw, rh) in new[] { (0f, 0f, pw, 1f), (0f, cardH - 1, pw, 1f), (0f, 1f, 1f, cardH - 2), (pw - 1, 1f, 1f, cardH - 2) })
+                {
+                    var side = Hud.Rect(card, "Ring");
+                    Hud.Place(side, rx, ry, rw, rh);
+                    var si2 = side.gameObject.AddComponent<Image>();
+                    si2.color = new Color(1, 1, 1, 0.35f);
+                    si2.raycastTarget = false;
+                }
                 var edge = Hud.Rect(card, "Edge");
                 Hud.Place(edge, 0, 0, 3, cardH);
                 edge.gameObject.AddComponent<Image>().color = Color.white;
@@ -634,7 +752,8 @@ public class MenuView : MonoBehaviour
 
     /// <summary>
     /// A round-ended white button (.hub-options): 46 by 40, white at 92%, its soft shadow (0 4 14), its mark in the
-    /// middle (the options' 20 across; a corner icon's picture, baked with its own margin, 34).
+    /// middle: the options' 20 across in the button's #5f8fc4; the fullscreen mark (.log-icon, in ink) its picture
+    /// baked with its own margin, 40.
     /// </summary>
     Button RoundButton(Transform parent, float x, float y, string icon, System.Action act)
     {
@@ -644,7 +763,8 @@ public class MenuView : MonoBehaviour
         b.raycastTarget = true;
         var button = b.gameObject.AddComponent<Button>();
         button.onClick.AddListener(() => { Sound.Play("click"); act(); });
-        float s = icon.Contains("hud-") ? 34 : 20;
+        // (The fullscreen mark is .log-icon's, 20 across here: its baked picture holds it at half its width.)
+        float s = icon.Contains("hud-") ? 40 : 20;
         Picture(b.transform, icon, (46 - s) / 2, (40 - s) / 2, s, s);
         return button;
     }
@@ -740,7 +860,7 @@ public class MenuView : MonoBehaviour
         f.Right = K.W - K.PadR;
         f.Top = K.PadT;
         if (!pane) BackButton(parent, back, f.Left, f.Top + 13);
-        float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = hf * 1.16f;
+        float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = K.LineH(hf);
         K.Words(parent, title.ToUpperInvariant(), f.Left, f.Top + (52 - hh) / 2, f.Right - f.Left, hh, hf, Hud.Rgba(85, 90, 99), true, 500, 0.3f);
         if (chip) Chip(parent, f.Right, f.Top + 6);
         float gap = K.Clamp(8, 3 * K.Vh, 22);
@@ -769,25 +889,51 @@ public class MenuView : MonoBehaviour
     public Frame2 SetupTop(Transform parent, string title, System.Action back, bool pane = false, float foot = 0) => Setup(parent, title, back, pane, foot);
 
     RectTransform toast;
-    float toastUntil;
+    CanvasGroup toastFade;
+    float toastBorn;
 
     /// <summary>
     /// A word at the top of the screen for a few seconds (the web's .toast): white at 86%, corners 12, padded 7 by 16,
-    /// Exo 2 11.84 ink-soft, at most min(440px, 100vw - 32px) across; calc(--pad-t + 8px) down.
+    /// Exo 2 11.84 ink-soft, its lines 1.35 apart, centred, at most min(440px, 100vw - 32px) across; calc(--pad-t + 8px)
+    /// down. It drops in from 10 above as it shows (0.22 s), and after 2.6 s rises and fades away (0.3 s).
     /// </summary>
     public void Toast(string text)
     {
         if (toast != null) Mats.Kill(toast.gameObject);
-        var box = Hud.Box(canvas.transform, "Toast", new Color(1, 1, 1, 0.86f), 12);
+        toast = Hud.Rect(canvas.transform, "Toast");
+        Hud.Fill(toast);
+        toastFade = toast.gameObject.AddComponent<CanvasGroup>();
+        toastFade.blocksRaycasts = false;
+        var box = Hud.Box(toast, "Slip", new Color(1, 1, 1, 0.86f), 12);
         Hud.Shadow(box, 12, new Hud.Drop(Hud.Rgba(58, 66, 86, 0.08f), 0, 0, 1), new Hud.Drop(Hud.Rgba(40, 46, 70, 0.12f), 8, 22));
-        toast = box.rectTransform;
         float max = Mathf.Min(440, K.W - 32) - 32;
-        var words = K.Fill(toast, text, 11.84f, Look.InkSoft, false, 400);
+        var words = K.Fill(box.transform, text, 11.84f, Look.InkSoft, false, 400);
         words.textWrappingMode = TextWrappingModes.Normal;
+        words.lineSpacing = (1.35f - 1.2f) * 100;
         var size = words.GetPreferredValues(text, max, 0);
-        float w = Mathf.Min(max, size.x + 2) + 32, h = size.y + 14;
-        Hud.Place(toast, (K.W - w) / 2, Mathf.Max(6, K.SaT) + 8, w, h);
-        toastUntil = Time.realtimeSinceStartup + 3.6f;
+        int lines = Mathf.Max(1, Mathf.RoundToInt(size.y / (11.84f * 1.35f)));
+        float w = Mathf.Min(max, size.x + 2) + 32, h = lines * 11.84f * 1.35f + 14;
+        Hud.Place(box.rectTransform, (K.W - w) / 2, Mathf.Max(6, K.SaT) + 8, w, h);
+        toastBorn = Time.realtimeSinceStartup;
+        AnimateToast();
+    }
+
+    /// <summary>The toast's way in (toastIn, ease-out) and, after its time, out (.toast-out, ease).</summary>
+    void AnimateToast()
+    {
+        float t = Time.realtimeSinceStartup - toastBorn, k;
+        if (t < 2.6f)
+        {
+            float u = Mathf.Clamp01(t / 0.22f);
+            k = 1 - (1 - u) * (1 - u) * (1 - u);
+        }
+        else
+        {
+            float u = Mathf.Clamp01((t - 2.6f) / 0.3f);
+            k = 1 - u * u * (3 - 2 * u);
+        }
+        toastFade.alpha = k;
+        toast.anchoredPosition = new Vector2(0, 10 * (1 - k));
     }
 
     void Update()
@@ -796,13 +942,17 @@ public class MenuView : MonoBehaviour
         if (Css.Size != laidSize || Css.SafeInsets != laidInsets) Relayout();
         // (The settings' flower: a turn in 90 seconds.)
         if (flower != null) flower.localRotation = Quaternion.Euler(0, 0, -(Time.time * 4) % 360);
-        if (toast != null && Time.realtimeSinceStartup > toastUntil)
+        if (toast != null && Time.realtimeSinceStartup > toastBorn + 2.9f)
         {
             Mats.Kill(toast.gameObject);
             toast = null;
         }
-        // (Over a page drawn after it.)
-        else if (toast != null && toast.GetSiblingIndex() != toast.parent.childCount - 1) toast.SetAsLastSibling();
+        else if (toast != null)
+        {
+            AnimateToast();
+            // (Over a page drawn after it.)
+            if (toast.GetSiblingIndex() != toast.parent.childCount - 1) toast.SetAsLastSibling();
+        }
     }
 
     /// <summary>
@@ -839,16 +989,16 @@ public class MenuView : MonoBehaviour
         float av = K.Clamp(34, 10 * K.Vh, 46), nf = K.Clamp(12.8f, 3 * K.Vh, 16);
         Avatar(body, x, y, av);
         float closeW = K.BtnW("close", K.Kind.Pill, 8.96f);
-        float whoX = x + av + 12, whoW = inner - av - 12 - 12 - closeW, whoH = nf * 1.16f + 1 + 12.4f;
-        var nm = K.Words(body, (string.IsNullOrEmpty(p.Name) ? "Commander" : p.Name).ToUpperInvariant(), whoX, y + (av - whoH) / 2, whoW, nf * 1.16f, nf, Look.Ink, true, 500, 0.16f, TextAlignmentOptions.Left);
-        nm.overflowMode = TextOverflowModes.Ellipsis;
-        K.Words(body, $"{p.Won} won of {p.Played} played", whoX, y + (av - whoH) / 2 + nf * 1.16f + 1, whoW, 12.4f, 10.56f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
-        K.Btn(body, "close", () => shut(), x + inner - closeW, y + (av - 22) / 2, K.Kind.Pill, closeW, 22, 8.96f);
+        float whoX = x + av + 12, whoW = inner - av - 12 - 12 - closeW, whoH = K.LineH(nf) + 1 + K.LineH(10.56f, false);
+        var nm = K.Words(body, (string.IsNullOrEmpty(p.Name) ? "Commander" : p.Name).ToUpperInvariant(), whoX, y + (av - whoH) / 2, whoW, K.LineH(nf), nf, Look.Ink, true, 500, 0.16f, TextAlignmentOptions.Left);
+        Hud.Ellipsis(nm);
+        K.Words(body, $"{p.Won} won of {p.Played} played", whoX, y + (av - whoH) / 2 + K.LineH(nf) + 1, whoW, K.LineH(10.56f, false), 10.56f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
+        K.Btn(body, "close", () => shut(), x + inner - closeW, y + (av - 23) / 2, K.Kind.Pill, closeW, 23, 8.96f);
         y += av + gap;
         // Level (and its experience), stardust, flux and rank (.pv-grid: four boxes 8 apart, #f7f8fb, corners 12, an
         // inset hairline; padded 8 by 10; its name Exo 2 8 spaced 0.12em, its value clamp(11.2px, 2.6vh, 14.4px)).
         int need = Progression.XpToNext(p.Level);
-        float bf = K.Clamp(11.2f, 2.6f * K.Vh, 14.4f), bwid = (inner - 24) / 4, bh = 8 + 9 + 3 + bf * 1.2f + 3 + 4 + 3 + 9 + 8;
+        float bf = K.Clamp(11.2f, 2.6f * K.Vh, 14.4f), bwid = (inner - 24) / 4, bh = 8 + 10 + 3 + bf * 1.2f + 3 + 4 + 3 + 10 + 8;
         var boxes = new[]
         {
             ("LEVEL", p.Level.ToString(), Look.Ink, $"{p.Xp} / {need} XP", (float)p.Xp / Mathf.Max(1, need)),
@@ -862,13 +1012,13 @@ public class MenuView : MonoBehaviour
             var edge = K.Inset(body, head, Hud.Rgba(247, 248, 251), Hud.Rgba(236, 238, 243), 12);
             Hud.Place(edge.rectTransform, x + i * (bwid + 8), y, bwid, bh);
             float iw = bwid - 20;
-            K.Words(edge.transform, head, 10, 8, iw, 9, 8, Look.InkFaint, false, 400, 0.12f, TextAlignmentOptions.Left);
-            var v = K.Words(edge.transform, shown.ToUpperInvariant().Replace("<SIZE=85%>", "<size=85%>").Replace("</SIZE>", "</size>"), 10, 20, iw, bf * 1.2f, bf, ink, true, 500, 0.06f, TextAlignmentOptions.Left);
-            v.overflowMode = TextOverflowModes.Ellipsis;
+            K.Words(edge.transform, head, 10, 8, iw, 10, 8, Look.InkFaint, false, 400, 0.12f, TextAlignmentOptions.Left);
+            var v = K.Words(edge.transform, shown.ToUpperInvariant().Replace("<SIZE=85%>", "<size=85%>").Replace("</SIZE>", "</size>"), 10, 21, iw, bf * 1.2f, bf, ink, true, 500, 0.06f, TextAlignmentOptions.Left);
+            Hud.Ellipsis(v);
             if (bar >= 0)
             {
                 var track = Hud.Box(edge.transform, "Bar", Hud.Rgba(238, 240, 245), 2);
-                Hud.Place(track.rectTransform, 10, 23 + bf * 1.2f, iw, 4);
+                Hud.Place(track.rectTransform, 10, 24 + bf * 1.2f, iw, 4);
                 // (Its fill: the web's blue to violet.)
                 var fill = Hud.Rect(track.transform, "Fill");
                 Hud.Place(fill, 0, 0, iw * Mathf.Clamp01(bar), 4);
@@ -876,7 +1026,7 @@ public class MenuView : MonoBehaviour
                 fi.texture = Across(Hud.Rgba(159, 180, 255), Hud.Rgba(201, 164, 255));
                 fi.raycastTarget = false;
             }
-            if (foot.Length > 0) K.Words(edge.transform, foot, 10, 30 + bf * 1.2f, iw, 9, 8, Look.InkFaint, false, 400, 0.12f, TextAlignmentOptions.Left);
+            if (foot.Length > 0) K.Words(edge.transform, foot, 10, 31 + bf * 1.2f, iw, 10, 8, Look.InkFaint, false, 400, 0.12f, TextAlignmentOptions.Left);
         }
         y += bh + gap;
         // Your account (and deleting it), then changing your name and signing out: AccountView.ProfileRows.
@@ -926,7 +1076,8 @@ public class MenuView : MonoBehaviour
     void SettingsPanel(Transform parent, Frame2 f, Hud.Row[] rows)
     {
         float w = Mathf.Min(380, f.Right - f.Left), minRow = K.Clamp(36, 7 * K.Vh, 46), foot = K.Clamp(80, 18 * K.Vh, 130);
-        var heights = rows.Select(r => Mathf.Max(minRow, r.Label.Contains("\n") ? 12 + 3 + 12 + 4 : 0)).ToArray();
+        // (A label of two lines: its name, 3, the line under it: 14 + 3 + 13.)
+        var heights = rows.Select(r => Mathf.Max(minRow, r.Label.Contains("\n") ? K.LineH(10.56f) + 3 + K.LineH(10.56f, false) : 0)).ToArray();
         float listH = 8 + heights.Sum() + (rows.Length - 1) * 2, h = 14 + listH + foot;
         float x = (f.Left + f.Right - w) / 2, y = f.BodyTop + (f.BodyH - h) / 2;
         var panel = Hud.Box(parent, "Settings", new Color(1, 1, 1, 0.55f), 22);
@@ -936,7 +1087,8 @@ public class MenuView : MonoBehaviour
         // The flower, turning (one turn in 90 seconds), under the list.
         float fs = K.Clamp(150, 34 * K.Vh, 240);
         var fl = Hud.Rect(panel.transform, "Flower");
-        Hud.At(fl, new Vector2(0.5f, 0), Vector2.zero, new Vector2(fs, fs));
+        // (Its picture baked with a margin of 6% each side for its shadows.)
+        Hud.At(fl, new Vector2(0.5f, 0), Vector2.zero, new Vector2(fs * 1.12f, fs * 1.12f));
         fl.pivot = new Vector2(0.5f, 0.5f);
         var fi = fl.gameObject.AddComponent<RawImage>();
         fi.texture = Resources.Load<Texture2D>("Icons/settings-flower");
@@ -976,20 +1128,21 @@ public class MenuView : MonoBehaviour
                 li.raycastTarget = false;
             }
             var parts = row.Label.Split('\n');
-            float labelH = parts.Length > 1 ? 27 : 12;
-            var l = K.Words(r.transform, parts[0].ToUpperInvariant(), 16, (rowH - labelH) / 2, rowW - 100, 12, 10.56f, Look.Ink, true, 400, 0.22f, TextAlignmentOptions.Left);
+            float nameH = K.LineH(10.56f), subH = K.LineH(10.56f, false), labelH = parts.Length > 1 ? nameH + 3 + subH : nameH;
+            var l = K.Words(r.transform, parts[0].ToUpperInvariant(), 16, (rowH - labelH) / 2, rowW - 100, nameH, 10.56f, Look.Ink, true, 400, 0.22f, TextAlignmentOptions.Left);
             l.alpha = fade;
             if (parts.Length > 1)
             {
-                var sub = K.Words(r.transform, parts[1], 16, (rowH - labelH) / 2 + 15, rowW - 100, 12, 10.56f, Look.InkFaint, false, 400, 0.02f, TextAlignmentOptions.Left);
+                var sub = K.Words(r.transform, parts[1], 16, (rowH - labelH) / 2 + nameH + 3, rowW - 100, subH, 10.56f, Look.InkFaint, false, 400, 0.02f, TextAlignmentOptions.Left);
                 sub.alpha = fade;
             }
             if (row.Value != null)
             {
                 string v = row.Value.ToUpperInvariant();
-                float vw = Mathf.Max(44, K.TextW(v, 9.6f, 500, 0.16f) + 20);
-                var pill = Hud.Box(r.transform, "Value", Hud.Rgba(240, 242, 246), 9.5f);
-                Hud.Place(pill.rectTransform, rowW - 12 - vw, (rowH - 19) / 2, vw, 19);
+                // (.opt-value: at least 44 across, padded 4 by 10; its spacing after the last letter counted.)
+                float vw = Mathf.Max(44, K.TextW(v, 9.6f, 500, 0.16f) + 0.16f * 9.6f + 20), vh = K.LineH(9.6f) + 8;
+                var pill = Hud.Box(r.transform, "Value", Hud.Rgba(240, 242, 246), vh / 2);
+                Hud.Place(pill.rectTransform, rowW - 12 - vw, (rowH - vh) / 2, vw, vh);
                 pill.color = new Color(pill.color.r, pill.color.g, pill.color.b, fade);
                 var vl = K.Fill(pill.transform, v, 9.6f, Look.InkSoft, true, 500, 0.16f);
                 vl.alpha = fade;

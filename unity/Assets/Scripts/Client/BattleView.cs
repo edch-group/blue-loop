@@ -391,6 +391,9 @@ public partial class BattleView : MonoBehaviour
 
     // ---- What a move sounds like (app.ts: the same sounds for the same changes) ----
 
+    /// <summary>This move's dawn is being replayed effect by effect.</summary>
+    bool replaying;
+
     void Hear(GameState prev, GameState next, EngineAction a)
     {
         if (!Application.isPlaying) return;
@@ -402,11 +405,30 @@ public partial class BattleView : MonoBehaviour
         // A sun struck, cooled or shielded: heat taken (yours, by them: hurt; theirs: strike), cooling, shields lost or raised.
         // Where heat is loosed from: the card played (still where it was), or the striking sun.
         var origin = (a.CardUid != null ? Board.WorldOf(a.CardUid) : null) ?? Board.SunOf(source.Id)?.transform.position ?? Vector3.zero;
+        // (When each sun's blow lands: a supernova goes off then.)
+        var hitAt = new Dictionary<string, float>();
         void Hit(PlayerState p, float at, bool byEnemy)
         {
             var w = Was(p);
             int dHeat = p.Heat - w.Heat;
             var sunView = Board.SunOf(p.Id);
+            int lost = byEnemy ? Mathf.Max(0, w.Shields - p.Shields) : 0;
+            int gained = Mathf.Max(0, p.Shields - w.Shields);
+            // As it lands: heat taken (red, rising) or cooled (blue) over the sun, shields lost or raised beside it;
+            // your own edges burning if it was you a rival struck.
+            var who = p.Id;
+            void Land()
+            {
+                var r = SunRect(who);
+                if (r != null)
+                {
+                    if (dHeat != 0) FloatNumber(r.Value, dHeat > 0 ? $"+{dHeat}" : $"−{-dHeat}", dHeat > 0 ? "hot" : "cool", 0);
+                    if (lost > 0) FloatNumber(r.Value, $"⬡−{lost}", "block", dHeat != 0 ? 1 : 0);
+                    else if (gained > 0) FloatNumber(r.Value, $"⬡+{gained}", "block", dHeat != 0 ? 1 : 0);
+                }
+                if (dHeat > 0 && who == you && byEnemy) HurtFlash();
+            }
+            bool flown = false;
             if (sunView != null && (dHeat != 0 || p.Shields != w.Shields))
             {
                 if (byEnemy && a.Type != "attack" && dHeat > 0)
@@ -414,13 +436,19 @@ public partial class BattleView : MonoBehaviour
                     // (Heat flies from the card played, or the striking sun, to the sun it strikes: fx.ts projectile.)
                     var fromRect = (a.CardUid != null ? CardRect(a.CardUid) : null) ?? SunRect(source.Id);
                     var pid = p.Id;
-                    if (fromRect != null) StartCoroutine(Projectile(fromRect.Value, () => SunRect(pid) ?? fromRect.Value, Hot, Mathf.Max(0, at - 0.4f), 34, 0.62f, () => sunView.Pulse(true)));
+                    if (fromRect != null)
+                    {
+                        flown = true;
+                        StartCoroutine(Projectile(fromRect.Value, () => SunRect(pid) ?? fromRect.Value, Hot, Mathf.Max(0, at - 0.4f), 34, 0.62f, () => { sunView.Pulse(true); Land(); }));
+                    }
                     else sunView.Pulse(true, at);
                 }
                 else sunView.Pulse(dHeat >= 0, a.Type == "attack" ? 0.15f : at);
             }
-            int lost = byEnemy ? Mathf.Max(0, w.Shields - p.Shields) : 0;
-            int gained = Mathf.Max(0, p.Shields - w.Shields);
+            if (!flown) StartCoroutine(After(at, Land));
+            if (!hitAt.ContainsKey(p.Id)) hitAt[p.Id] = flown ? Mathf.Max(0, at - 0.4f) + 0.62f : at;
+            // (Until then, the sun keeps showing its old heat and shields.)
+            if (dHeat != 0 || p.Shields != w.Shields || p.Eliminated != w.Eliminated) Board?.HoldSun(p.Id, prev, w, flown ? Mathf.Max(0, at - 0.4f) + 0.62f : at);
             if (dHeat > 0)
             {
                 if (p.Id == you && byEnemy) Sound.Play("hurt", dHeat);
@@ -432,7 +460,8 @@ public partial class BattleView : MonoBehaviour
             else if (gained > 0 && dHeat == 0) Sound.Play("shield", at);
         }
         int volley = 0;
-        foreach (var p in next.Players)
+        // (A day's start that replays its effects one by one shows its hits itself.)
+        foreach (var p in replaying ? new List<PlayerState>() : next.Players)
         {
             if (p.Id == source.Id) continue;
             var w = Was(p);
@@ -444,7 +473,7 @@ public partial class BattleView : MonoBehaviour
         if (volley > 0) Sound.Play("launch", delay);
         var me = next.Players.First(p => p.Id == source.Id);
         var meWas = Was(me);
-        if (me.Heat != meWas.Heat || me.Shields > meWas.Shields)
+        if (!replaying && (me.Heat != meWas.Heat || me.Shields > meWas.Shields))
         {
             Hit(me, delay, false);
             if (me.Heat < meWas.Heat) Sound.Play("thermo", delay);
@@ -465,13 +494,19 @@ public partial class BattleView : MonoBehaviour
                 if (Game.ActivePlayer(next).Id == you) Sound.Play("turn", 0.6f);
                 break;
             case "attack":
-                Sound.Play("swing");
-                // The attacker lunges at what it strikes; a card struck shudders.
-                var target = a.TargetUid != null ? Board.WorldOf(a.TargetUid) : Board.SunOf(next.Players.FirstOrDefault(p => p.Id != actor.Id)?.Id ?? "")?.transform.position;
-                if (target != null) Board.View(a.AttackerUid)?.Lunge(target.Value);
+                // (The attacker struck already, and the blow lands now: app.ts lunge.) A card struck shudders and flares.
+                bool struck = struckBy == a.AttackerUid;
+                struckBy = null;
+                if (!struck)
+                {
+                    Sound.Play("swing");
+                    var target = a.TargetUid != null ? Board.WorldOf(a.TargetUid) : Board.SunOf(next.Players.FirstOrDefault(p => p.Id != actor.Id)?.Id ?? "")?.transform.position;
+                    if (target != null) Board.View(a.AttackerUid)?.Lunge(target.Value);
+                }
                 if (a.TargetUid != null)
                 {
-                    Board.View(a.TargetUid)?.Shake(0.15f);
+                    Board.View(a.TargetUid)?.Shake(struck ? 0 : 0.15f);
+                    Board.View(a.TargetUid)?.Flash(true, struck ? 0 : 0.15f, 0.42f, 0.9f);
                     CardBlow(prev, next, a.TargetUid);
                 }
                 break;
@@ -480,7 +515,12 @@ public partial class BattleView : MonoBehaviour
         var mine = next.Players.First(p => p.Id == you);
         int drawn = mine.Hand.Count(c => !Was(mine).Hand.Any(x => x.Uid == c.Uid));
         for (int i = 0; i < drawn; i++) Sound.Play("draw", 0.35f + i * 0.12f);
-        if (next.WinnerId != null && prev.WinnerId == null) Sound.Play("supernova", 0.4f);
+        // Supernovas not shown by a dawn replay go off as the blow that caused them lands.
+        if (!replaying)
+            foreach (var p in next.Players)
+                if (p.Eliminated && !Was(p).Eliminated) SupernovaAt(next, p.Id, hitAt.TryGetValue(p.Id, out var h) ? h : 0.6f);
+        // (Your deck run out: its pile rocks.)
+        if (mine.Deck.Count == 0 && Was(mine).Deck.Count > 0) Board?.ShuffleDeck();
     }
 
     /// <summary>A Hero's line as it lands: a caption over its card on the board.</summary>
@@ -858,10 +898,13 @@ public partial class BattleView : MonoBehaviour
         return img;
     }
 
+    /// <summary>The .btn-primary's face, white shading to #eeeff1.</summary>
+    static Texture2D buttonShade;
+
     /// <summary>
-    /// The web's .btn-primary (End Day, a result's way on): white, a white hairline inside a faint ring, corners of
-    /// `radius`, a soft shadow; its words bold spaced capitals. Disabled, the whole of it fades to 0.4. (In the units of
-    /// the canvas it is on: `ring` the ring's width.)
+    /// The web's .btn-primary (End Day, a result's way on): white shading to #eeeff1, a white hairline inside a faint
+    /// ring, corners of `radius`, a soft shadow; its words bold spaced capitals. Disabled, the whole of it fades to 0.4.
+    /// (In the units of the canvas it is on: `ring` the ring's width.)
     /// </summary>
     static Button WhiteButton(Transform parent, string text, System.Action onClick, float size, float radius = 14.5f, float ring = 1.5f)
     {
@@ -890,6 +933,13 @@ public partial class BattleView : MonoBehaviour
         fi.raycastTarget = false;
         Corners(fi, radius - ring * 0.67f);
         fi.color = Color.white;
+        // (Its face shading down, linear-gradient(180deg, #ffffff, #eeeff1), within its rounded corners.)
+        face.gameObject.AddComponent<Mask>().showMaskGraphic = true;
+        var shade = Hud.Rect(face, "Shade");
+        Hud.Fill(shade);
+        var si = shade.gameObject.AddComponent<RawImage>();
+        si.texture = buttonShade != null ? buttonShade : (buttonShade = MenuKit.Down(Color.white, Hud.Rgba(0xee, 0xef, 0xf1)));
+        si.raycastTarget = false;
         img.color = Color.white;
         var b = img.gameObject.AddComponent<Button>();
         b.transition = Selectable.Transition.None;
@@ -1019,18 +1069,9 @@ public partial class BattleView : MonoBehaviour
         float pw = widths.Sum() + 2 * 2 + 2 * 3;
         float inX = l.PadL + (l.Phone ? 8 : 16), inY = l.PadB + (l.Phone ? 8 : 16);
         var pace = Hud.Box(chrome, "Pace", new Color(1, 1, 1, 0.92f), (bh + 6) / 2);
-        Hud.Shadow(pace, (bh + 6) / 2, new Hud.Drop(Hud.Rgba(70, 76, 100, 0.14f), 4, 14));
+        // (Its 1 px ring and its shadow both outside it: a ring drawn as its child had lain over it, greying it.)
+        Hud.Shadow(pace, (bh + 6) / 2, new Hud.Drop(Hud.Rgba(120, 126, 150, 0.22f), 0, 0, 1), new Hud.Drop(Hud.Rgba(70, 76, 100, 0.14f), 4, 14));
         Hud.At((RectTransform)pace.transform, new Vector2(0, 0), new Vector2(inX, inY), new Vector2(pw, bh + 6));
-        var edge = Hud.Rect(pace.transform, "Ring");
-        Hud.Fill(edge);
-        edge.offsetMin = new Vector2(-1, -1);
-        edge.offsetMax = new Vector2(1, 1);
-        edge.SetAsFirstSibling();
-        var ei = edge.gameObject.AddComponent<Image>();
-        ei.sprite = Hud.Rounded;
-        ei.type = Image.Type.Sliced;
-        ei.color = new Color(120 / 255f, 126 / 255f, 150 / 255f, 0.22f);
-        Corners(ei, (bh + 8) / 2);
         paceOn = new Image[3];
         float x = 3;
         for (int i = 0; i < 3; i++)
@@ -1259,11 +1300,27 @@ public partial class BattleView : MonoBehaviour
     }
 
 
+    float resultAt;
+
+    /// <summary>
+    /// app.ts holdResult: the game just ended: its result held back until its last moves have played out (a day's
+    /// banners and effects as dayTimeline lays them out, or 0.9 s), and 1.8 s more.
+    /// </summary>
+    void HoldResult(GameState next, EngineAction a)
+    {
+        var pulses = (next.TurnPulses ?? new List<TurnPulse>()).Where(p => p.Kind != "start" && p.Together != true).ToList();
+        float waves = pulses.Count(IsWave) * WaveExtra;
+        float wait = (a.Type == "endTurn" ? (pulses.Count > 0 ? 2 * (BannerShown + 0.15f) + pulses.Count * PulseStep * SpeedK + waves + 0.7f : 0) : 0.9f) + 1.8f;
+        resultAt = Time.time + wait;
+        StartCoroutine(After(wait + 0.02f, () => { if (state != null && state.WinnerId != null) Refresh(); }));
+    }
+
     void GameOver()
     {
         foreach (Transform c in overPanel) Mats.Kill(c.gameObject);
         overPanel.gameObject.SetActive(false);
-        bool over = state.WinnerId != null && !Autoplay;
+        // (The result waits until the game's last moves have played out on the table: app.ts resultAt.)
+        bool over = state.WinnerId != null && !Autoplay && Time.time >= resultAt;
         // (body:has(.game-result) .dock: the hand put away while the result shows.)
         Board.ShowHand(!over);
         if (!over) { ClearResult(); return; }

@@ -59,7 +59,7 @@ function piece(kind: 'back' | 'flower', width: number): void {
 }
 Object.assign(window, { piece });
 
-/** A menu icon on its own, as the hub draws it (`small`: as the header links do), or the title block. */
+/** A menu icon on its own, as the hub draws it (`small`: as the header links do; options as its corner button colours it), or the title block. */
 function icon(name: string, size: number, small = false): void {
   if (name === 'title-sun') {
     // (The sun alone, with room all round for its glow.)
@@ -72,7 +72,7 @@ function icon(name: string, size: number, small = false): void {
   }
   const svg = HUB_ICONS[name as keyof typeof HUB_ICONS];
   stage.innerHTML = small
-    ? `<span class="hub-link-icon" id="piece" style="display:block;width:${size}px;height:${size}px">${svg}</span>`
+    ? `<span class="hub-link-icon" id="piece" style="display:block;width:${size}px;height:${size}px${name === 'options' ? ';color:#5f8fc4' : ''}">${svg}</span>`
     : `<span class="hub-icon" id="piece" style="display:block;width:${size}px;height:${size}px">${svg}</span>`;
 }
 Object.assign(window, { icon, iconNames: () => Object.keys(HUB_ICONS) });
@@ -249,12 +249,19 @@ Object.assign(window, { loot });
 // ---- The shop's booster packs and the deck builder's marks (app.ts packFace, builder.ts), for scripts/bake-menus.mjs ----
 import { PROGRESSION, RACE_NAMES } from '../src/engine';
 import { modeArt } from '../src/ui/glyphs';
-/** A booster pack as the shop's row shows it: the foil wrapper, turned a little, its shadow under it (its sheen still). */
-function pack(kind: string, width: number): void {
+/**
+ * A booster pack as the shop's row shows it: the foil wrapper, turned a little, its shadow under it (its sheen still).
+ * `part` 'open' or 'tear': as a bought one is torn open (.pack-ripped), facing straight on, its body (no strip) or its
+ * tear strip alone; 'off': too dear to buy (.pack-slot[disabled] .pack: greyed and faded, its shadow gone).
+ */
+function pack(kind: string, width: number, part = ''): void {
   const k = kind === 'general' ? 'general' : Number(kind);
   const name = k === 'general' ? 'general' : RACE_NAMES[k].toLowerCase();
   const emblem = k === 'general' ? `<span class="pack-icon">${HUB_ICONS.pack}</span>` : factionAvatar(`f${k + 1}`, 'pack-emblem');
-  stage.innerHTML = `<span class="pack-slot" id="piece" style="display:inline-block;padding:24px 34px 40px 24px"><span class="pack pack-${k}" style="width:${width}px"><span class="pack-tear"></span><span class="pack-body"><span class="pack-brand">blue loop</span>${emblem}<span class="pack-name">${name}</span><span class="pack-count">${PROGRESSION.boosterSize} cards</span></span><span class="pack-shine" style="animation:none;background-position:150% 0"></span></span></span>`;
+  const flat = part === 'off' ? 'filter:saturate(0.4) opacity(0.6);' : part ? 'transform:none;' : '';
+  const hideTear = part === 'open' ? ' style="visibility:hidden"' : '';
+  const hideBody = part === 'tear' ? ' style="visibility:hidden"' : '';
+  stage.innerHTML = `<span class="pack-slot" id="piece" style="display:inline-block;padding:24px 34px 40px 24px"><span class="pack pack-${k}" style="width:${width}px;${flat}"><span class="pack-tear"${hideTear}></span><span class="pack-body"${hideBody}><span class="pack-brand">blue loop</span>${emblem}<span class="pack-name">${name}</span><span class="pack-count">${PROGRESSION.boosterSize} cards</span></span><span class="pack-shine" style="animation:none;background-position:150% 0;${part === 'tear' ? 'visibility:hidden' : ''}"></span></span></span>`;
 }
 /** A game mode's picture as the deck list's switch shows it (`off`: greyed, as when the other is picked). */
 function modePic(m: 'core' | 'lost', width: number, off: boolean): void {
@@ -265,6 +272,7 @@ const DB_ICONS: Record<string, string> = {
   copy: '<svg viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.6"/><path d="M10.5 3.5V3a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>',
   share: '<svg viewBox="0 0 16 16"><circle cx="12" cy="3.5" r="1.8"/><circle cx="4" cy="8" r="1.8"/><circle cx="12" cy="12.5" r="1.8"/><path d="M5.6 7.1l4.8-2.7M5.6 8.9l4.8 2.7"/></svg>',
   delete: '<svg viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5a1 1 0 0 0 1 .9h3.6a1 1 0 0 0 1-.9l.7-8.5M7 7v4.5M9 7v4.5"/></svg>',
+  people: '<svg viewBox="0 0 16 16"><circle cx="6" cy="5.5" r="2.3"/><path d="M1.8 13.5c.4-2.4 2.1-3.8 4.2-3.8s3.8 1.4 4.2 3.8"/><circle cx="11.2" cy="6.2" r="1.8"/><path d="M11 9.8c1.7.1 3 1.3 3.3 3.2"/></svg>',
   upload: '<svg viewBox="0 0 16 16"><path d="M8 10.5V2.5M4.8 5.5 8 2.3l3.2 3.2M2.5 10.5v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2"/></svg>',
   filter: '<svg viewBox="0 0 16 16"><path d="M2.5 3.5h11L9.2 8.6v4.2l-2.4-1.3V8.6z"/></svg>',
   'grid-sm': `<svg viewBox="0 0 14 14" class="fill">${[0, 5, 10].flatMap((y) => [0, 5, 10].map((x) => `<rect x="${x}" y="${y}" width="4" height="4" rx="1"/>`)).join('')}</svg>`,

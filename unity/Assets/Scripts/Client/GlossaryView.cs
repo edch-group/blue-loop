@@ -72,7 +72,7 @@ public class GlossaryView : MonoBehaviour, MenuView.IRedraw
             b.onClick.AddListener(() => { Sound.Play("click"); tab = id; Draw(); });
             var l = K.Fill(r, s.name.ToUpperInvariant(), 10.24f, on ? Look.Ink : Look.InkSoft, true, 400, 0.22f, TextAlignmentOptions.Left);
             l.margin = new Vector4(14, 0, 4, 0);
-            l.overflowMode = TextOverflowModes.Ellipsis;
+            Hud.Ellipsis(l);
         }
         // The section's page, scrolling inside its rounded panel (.gl-page: 60% white, corners 22, a faint ring and a
         // wide shadow, padded clamp(14px, 3vh, 26px)). The pages are the web game's own, baked whole at its width: drawn

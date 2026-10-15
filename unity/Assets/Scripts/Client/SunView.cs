@@ -136,9 +136,18 @@ public class SunView : MonoBehaviour
             r.sharedMaterial.SetFloat("_Soft", Mathf.Max(0.0005f, 0.6f / bw));
         }
         float px = left + w / 2;
-        // (Its shadow, 0 2px 8px: a softer, larger box a little down.)
-        Box(pillShadow, px, mid + 2, w + 8, h + 8, 0.0015f);
-        pillShadow.sharedMaterial.SetFloat("_Soft", 4f / (w + 8));
+        // (Its shadow, 0 2px 8px: the pill's own box 2 px down, its edge blurred 8 px (σ 4 px) either way, on a quad
+        // grown 8 px all round to hold the blur.)
+        {
+            float grow = Mathf.Max((w + 16) / w, (h + 16) / h), qw = w * grow, qh = h * grow;
+            pillShadow.transform.localPosition = At(px, mid + 2) + new Vector3(0, 0.0015f, 0);
+            pillShadow.transform.localScale = new Vector3(qw * u, qh * u, 1);
+            var m = pillShadow.sharedMaterial;
+            m.SetFloat("_Aspect", qh / qw);
+            m.SetFloat("_Size", 0.5f / grow);
+            m.SetFloat("_Radius", h / 2 / qw);
+            m.SetFloat("_Soft", 7f / qw);
+        }
         Box(pillEdge, px, mid, w, h, 0.0016f);
         Box(pill, px, mid, w - 4, h - 4, 0.0017f);
         planet.transform.localPosition = At(px, mid) + new Vector3(0, 0.0018f, 0);
@@ -406,6 +415,21 @@ public class SunView : MonoBehaviour
     static void Upload(Texture2D tex, Color32[] px, Color32[] flip, int size)
     {
         for (int y = 0; y < size; y++) System.Array.Copy(px, y * size, flip, (size - 1 - y) * size, size);
+        // (A clear pixel takes its drawn neighbour's colour: the texture is filtered between its pixels, and a clear
+        // black one beside a fine white ring (the heat track) greyed its edges into a dark, broken line round the sun.)
+        for (int i = 0; i < flip.Length; i++)
+        {
+            if (flip[i].a != 0) continue;
+            int x = i % size;
+            Color32 n = default;
+            if (x > 0 && px[Src(i - 1)].a != 0) n = px[Src(i - 1)];
+            else if (x < size - 1 && px[Src(i + 1)].a != 0) n = px[Src(i + 1)];
+            else if (i >= size && px[Src(i - size)].a != 0) n = px[Src(i - size)];
+            else if (i + size < flip.Length && px[Src(i + size)].a != 0) n = px[Src(i + size)];
+            else continue;
+            flip[i] = new Color32(n.r, n.g, n.b, 0);
+        }
+        int Src(int j) => (size - 1 - j / size) * size + j % size;
         tex.SetPixels32(flip);
         tex.Apply(false);
     }
