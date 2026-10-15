@@ -963,7 +963,7 @@ public class CrewView : MonoBehaviour
         if (Meta.CaptainBuyProblem(meta, buy) != null) { Sound.Play("error"); return; }
         history.Add(c);
         placed.Add(arg);
-        Sound.Play(arg == "gate" ? "upgrade" : "charge-" + Mathf.Clamp(placed.Count - 1, 0, 3));
+        Sound.Play(arg == "gate" ? "upgrade" : "charge-" + Mathf.Clamp(placed.Count - 1, 0, 6));
         CampaignView.SaveMeta(Meta.BuyCaptain(meta, buy));
         resetArmed = false;
         Draw();
@@ -979,7 +979,7 @@ public class CrewView : MonoBehaviour
         compHistory.Add(Clone(c));
         placed.Add(arg);
         CampaignView.SaveMeta(Meta.BuyCompanion(meta, tab, arg));
-        Sound.Play(arg == "gate" ? "upgrade" : "charge-" + Mathf.Clamp(placed.Count - 1, 0, 3));
+        Sound.Play(arg == "gate" ? "upgrade" : "charge-" + Mathf.Clamp(placed.Count - 1, 0, 6));
         Draw();
     }
 
