@@ -183,6 +183,7 @@ public partial class Board : MonoBehaviour
         if (decor != null) Mats.Kill(decor.gameObject);
         slotMarks.Clear();
         slotLooks.Clear();
+        slotDressed.Clear();
         slotWords.Clear();
         roundTicks.Clear();
         roundGlows.Clear();
@@ -458,12 +459,12 @@ public partial class Board : MonoBehaviour
     }
 
     /// <summary>A slot's defence: the shield sign and the number, `size` px, centred where it is placed.</summary>
-    static void Defence(Transform parent, string text, Vector3 at, Color c, float size)
+    static void Defence(Transform parent, string text, Vector3 at, Color c, float size, int weight = 400)
     {
         // (Measured at a card 87 px wide: as many card widths at this size.)
         float k = 87f / L.Tcw;
         var mark = Picture("Shield", parent, Resources.Load<Texture2D>("Icons/bt-shield"), c, size * 0.00823f * k, size * 0.00862f * k, 2935, 0.002f);
-        var t = Mats.FlatText("Defence", parent, text, size * 0.1149f * k, c, true, 400, 8, TextAlignmentOptions.Left);
+        var t = Mats.FlatText("Defence", parent, text, size * 0.1149f * k, c, true, weight, 8, TextAlignmentOptions.Left);
         t.rectTransform.sizeDelta = new Vector2(1, 0.3f);
         // (The sign's advance, then the number; the pair centred.)
         float adv = size * 0.0101f * k, w = adv + t.GetPreferredValues(text).x;
@@ -479,42 +480,125 @@ public partial class Board : MonoBehaviour
         go.transform.localPosition = at;
         var plain = new GameObject("Plain").transform;
         plain.SetParent(go.transform, false);
-        // (styles.css .slot-empty: pale, a white line inside a dashed edge, corners of 8% of its width.)
-        Picture("Outline", plain, BoardArt.Slot(false), Color.white, 1, 1.4f, 2925, 0.0005f);
-        var ink = Rgba(120, 128, 150, 0.55f);
-        int def = Game.SlotDefence(s);
-        float size = Mathf.Max(9, L.Tcw * 0.14f);
-        if (s < 0)
-        {
-            // (The Hero's slot: its defence, and "hero" small under it.)
-            Defence(plain, def.ToString(), new Vector3(0, 0, 0.059f), ink, size);
-            var hero = Mats.FlatText("Hero", plain, "HERO", Px(Mathf.Max(6, L.Tcw * 0.075f)), new Color(ink.r, ink.g, ink.b, ink.a * 0.8f), true, 400, 20);
-            hero.transform.localPosition = new Vector3(0, 0.002f, -0.102f);
-        }
-        else Defence(plain, def.ToString(), Vector3.zero, ink, size);
-        {
-            // A place to put the card picked, or to move a card to (button.slot-choosable): a coral dashed edge on
-            // white, a faint coral glow, its defence and "here" (or "move here") under it in coral.
-            var choose = new GameObject("Choosable").transform;
-            choose.SetParent(go.transform, false);
-            float k = 1f / L.Tcw;
-            Shape("Glow", choose, Rgba(208, 101, 75, 0.25f), 1, 1.4f, 0.08f, 2920, 0.0003f, 10 * k, 14 * k, true);
-            Picture("Outline", choose, BoardArt.SlotChoose(), Color.white, 1, 1.4f, 2925, 0.0005f);
-            var coral = Rgba(192, 86, 61);
-            float hereSize = Mathf.Max(7, L.Tcw * 0.08f), defH = size * 1.2f, hereH = hereSize * 1.2f;
-            // (The two lines centred together, 2 px apart.)
-            float top = (defH + 2 + hereH) / 2;
-            Defence(choose, def.ToString(), new Vector3(0, 0, (top - defH / 2) * k), coral, size);
-            var here = Mats.FlatText("Here", choose, "HERE", Px(hereSize), coral, true, 400, 20);
-            here.transform.localPosition = new Vector3(0, 0.002f, -(top - hereH / 2) * k);
-            choose.gameObject.SetActive(false);
-            slotLooks[mine ? s : 100 + s] = (plain.gameObject, choose.gameObject);
-            slotWords[mine ? s : 100 + s] = here;
-        }
+        var choose = new GameObject("Choosable").transform;
+        choose.SetParent(go.transform, false);
+        choose.gameObject.SetActive(false);
+        int key = mine ? s : 100 + s;
+        slotLooks[key] = (plain.gameObject, choose.gameObject);
+        DressSlot(key, s, new SlotLook { Def = Game.SlotDefence(s) });
         var col = go.AddComponent<BoxCollider>();
         col.size = new Vector3(1, 0.05f, 1.4f);
         go.AddComponent<SlotTag>().Set(mine, s);
         slotMarks.Add(go);
+    }
+
+    /// <summary>
+    /// How an empty slot stands (app.ts renderTableau): its defence as it is now (a campaign ship's room's walls added,
+    /// the wear of the card that stood there taken off), worn, wrecked shut, a hero's slot with its hero wounded, the
+    /// room's guns and module's boons (Rooms: "kind:n", in order), its side out of the game.
+    /// </summary>
+    struct SlotLook
+    {
+        public int Def;
+        public bool Worn, Wrecked, Wounded, Dead;
+        public string Rooms;
+    }
+
+    readonly Dictionary<int, SlotLook> slotDressed = new Dictionary<int, SlotLook>();
+
+    /// <summary>
+    /// A slot drawn as it stands (when that changes): plain (styles.css .slot-empty: pale, a white line inside a dashed
+    /// edge, corners of 8% of its width, its defence in the middle; a Hero's, "hero" small under it), and open to what is
+    /// being chosen (button.slot-choosable: a coral dashed edge on white, a faint coral glow, its defence and "here" or
+    /// "move here" under it in coral).
+    /// </summary>
+    void DressSlot(int key, int s, SlotLook look)
+    {
+        if (slotDressed.TryGetValue(key, out var had) && had.Equals(look)) return;
+        slotDressed[key] = look;
+        var (plainGo, chooseGo) = slotLooks[key];
+        Transform plain = plainGo.transform, choose = chooseGo.transform;
+        foreach (Transform c in plain) Mats.Kill(c.gameObject);
+        foreach (Transform c in choose) Mats.Kill(c.gameObject);
+        plain.DetachChildren();
+        choose.DetachChildren();
+        Picture("Outline", plain, look.Wrecked ? BoardArt.SlotWrecked() : look.Wounded ? BoardArt.SlotWounded() : BoardArt.Slot(false), Color.white, 1, 1.4f, 2925, 0.0005f);
+        // (Worn: .slot-worn .slot-def, #c0563d and bolder.)
+        var coral = Rgba(192, 86, 61);
+        var ink = look.Worn ? coral : Rgba(120, 128, 150, 0.55f);
+        int weight = look.Worn ? 600 : 400;
+        string def = look.Def.ToString();
+        float size = Mathf.Max(9, L.Tcw * 0.14f), k = 1f / L.Tcw;
+        if (look.Wrecked)
+        {
+            // (.slot-wrecked small: no defence, "wrecked" in #b5503a, 0.45rem, spaced 0.18em.)
+            var w = Mats.FlatText("Wrecked", plain, "WRECKED", Px(7.2f), Rgba(181, 80, 58), true, 400, 18);
+            w.transform.localPosition = new Vector3(0, 0.002f, 0);
+        }
+        else if (s < 0)
+        {
+            // (The Hero's slot: its defence, and "hero" small under it; its hero wounded (.slot-wounded, #e88a80): a
+            // cross in its place, and "wounded".)
+            var col = look.Wounded ? Rgba(232, 138, 128) : ink;
+            if (look.Wounded)
+            {
+                var cross = Mats.FlatText("Cross", plain, "✚", Px(size), col, true, 400, 8);
+                cross.transform.localPosition = new Vector3(0, 0.002f, 0.059f);
+            }
+            else Defence(plain, def, new Vector3(0, 0, 0.059f), ink, size, weight);
+            var hero = Mats.FlatText("Hero", plain, look.Wounded ? "WOUNDED" : "HERO", Px(Mathf.Max(6, L.Tcw * 0.075f)), new Color(col.r, col.g, col.b, col.a * 0.8f), true, 400, 20);
+            hero.transform.localPosition = new Vector3(0, 0.002f, -0.102f);
+        }
+        else Defence(plain, def, Vector3.zero, ink, size, weight);
+        if (!look.Wrecked && look.Rooms != null) RoomRow(plain, look.Rooms);
+        if (!look.Wrecked)
+        {
+            Shape("Glow", choose, Rgba(208, 101, 75, 0.25f), 1, 1.4f, 0.08f, 2920, 0.0003f, 10 * k, 14 * k, true);
+            Picture("Outline", choose, BoardArt.SlotChoose(), Color.white, 1, 1.4f, 2925, 0.0005f);
+            float hereSize = Mathf.Max(7, L.Tcw * 0.08f), defH = size * 1.2f, hereH = hereSize * 1.2f;
+            // (The two lines centred together, 2 px apart.)
+            float top = (defH + 2 + hereH) / 2;
+            Defence(choose, def, new Vector3(0, 0, (top - defH / 2) * k), coral, size, weight);
+            var here = Mats.FlatText("Here", choose, "HERE", Px(hereSize), coral, true, 400, 20);
+            here.transform.localPosition = new Vector3(0, 0.002f, -(top - hereH / 2) * k);
+            slotWords[key] = here;
+            if (look.Rooms != null) RoomRow(choose, look.Rooms);
+        }
+        else slotWords.Remove(key);
+        // (.tableau-dead: all of it at 0.45.)
+        if (look.Dead)
+            foreach (var r in plainGo.GetComponentsInChildren<Renderer>(true).Concat(chooseGo.GetComponentsInChildren<Renderer>(true)))
+            {
+                if (r.GetComponent<TextMeshPro>() is TextMeshPro t) { t.alpha *= 0.45f; continue; }
+                var c = r.sharedMaterial.color;
+                c.a *= 0.45f;
+                r.sharedMaterial.color = c;
+            }
+    }
+
+    /// <summary>
+    /// A ship's room on an empty slot (.slot-room: its foot 8% up from the slot's, the marks in a row, centred, 3 px
+    /// apart): each a .boon-mark (0.18 of a card across, baked with 4 px round it at --tcw 200: 36 px of 44), its amount
+    /// small at its foot, 3 px out (0.07 card widths, display, ink).
+    /// </summary>
+    void RoomRow(Transform parent, string rooms)
+    {
+        var items = rooms.Split(',').Select(x => x.Split(':')).ToList();
+        float px = 1f / L.Tcw, bd = 0.18f, gap = 3 * px, img = bd * 44 / 36;
+        float total = items.Count * bd + (items.Count - 1) * gap, cz = 0.7f - (1.4f * 0.92f - bd / 2);
+        for (int i = 0; i < items.Count; i++)
+        {
+            float cx = -total / 2 + bd / 2 + i * (bd + gap);
+            var pic = Picture($"Room {items[i][0]}", parent, Resources.Load<Texture2D>($"Icons/boon/{items[i][0]}"), Color.white, img, img, 2936, 0.002f);
+            pic.transform.localPosition = new Vector3(cx, 0.002f, cz);
+            int n = int.Parse(items[i][1]);
+            if (n <= 0) continue;
+            float size = 0.07f * L.Tcw;
+            var count = Mats.FlatText("Amount", parent, n.ToString(), Px(size), Look.Ink, true, 400, 0, TextAlignmentOptions.Right);
+            count.rectTransform.sizeDelta = new Vector2(1, size * 1.25f * px);
+            count.rectTransform.pivot = new Vector2(1, 0.5f);
+            count.transform.localPosition = new Vector3(cx + bd / 2 + 3 * px, 0.004f, cz - bd / 2 - 3 * px + size * 1.25f * px / 2);
+        }
     }
 
     /// <summary>
@@ -626,6 +710,31 @@ public partial class Board : MonoBehaviour
         return t;
     }
 
+    readonly Dictionary<string, SunRing> sunRings = new Dictionary<string, SunRing>();
+
+    /// <summary>
+    /// A sun that can be chosen (.vitals-choosable .vit::after): a plain red ring round the sun itself, like a card you
+    /// can choose, drawn flat over it (its shaders untouched); none, put away.
+    /// </summary>
+    void SunRing(string playerId, bool mine, bool on)
+    {
+        sunRings.TryGetValue(playerId, out var ring);
+        if (!on)
+        {
+            if (ring != null && ring.Go.activeSelf) ring.Go.SetActive(false);
+            return;
+        }
+        float vs = L.Vs;
+        if (ring == null || ring.Go == null || Mathf.Abs(ring.Vs - vs) > 0.01f)
+        {
+            if (ring?.Go != null) Mats.Kill(ring.Go);
+            ring = new SunRing(table, vs);
+            sunRings[playerId] = ring;
+        }
+        ring.Go.transform.localPosition = L.At(L.WrapLeft + 0.58f * vs, (mine ? L.MyRowCy : L.RivalRowCy) - 0.08f * vs) + new Vector3(0, 0.004f, 0);
+        if (!ring.Go.activeSelf) { ring.Go.SetActive(true); ring.Since = Time.time; }
+    }
+
     /// <summary>A sun put where the web's stands at this size, at its size.</summary>
     static void PlaceSun(SunView sun, bool mine)
     {
@@ -660,10 +769,13 @@ public partial class Board : MonoBehaviour
                 v.transform.SetParent(table, false);
                 v.MoveTo(at, Quaternion.identity);
                 // (Until a blow lands on it, it keeps showing what it was: app.ts holdCardStats.)
-                if (cardHold.TryGetValue(c.Uid, out var held) && Time.time < held.until) InPlay(v, held.s, held.p, held.c);
-                else InPlay(v, s, p, c);
+                if (cardHold.TryGetValue(c.Uid, out var held) && Time.time < held.until) InPlay(v, held.s, held.p, held.c, ui, c.Uid == tableOver);
+                else InPlay(v, s, p, c, ui, c.Uid == tableOver);
+                v.Dead(ui.ShownDead(p));
                 ui.Dress(v, p, c, true);
             }
+            // Each empty slot as it stands now (app.ts renderTableau's slots).
+            for (int i = -1; i < Balance.TableauSlots; i++) DressSlot(mine ? i : 100 + i, i, SlotNow(p, i, ui));
             // (A trap set face down, beside the row.)
             if (p.Lightspeed != null)
             {
@@ -674,6 +786,7 @@ public partial class Board : MonoBehaviour
                 // (Set face down, yours too, as the web's: hold it to read it.)
                 v.FaceDown();
                 for (int k = 0; k < 3; k++) v.Badge(new[] { "atk", "stab", "def" }[k], "atk", null);
+                v.Dead(ui.ShownDead(p));
             }
             // (A Lost Overlord has no sun: its vitals in its place.)
             if (p.Boss != null) { NoSun(p.Id); BossVitals(s, p, mine); continue; }
@@ -682,6 +795,7 @@ public partial class Board : MonoBehaviour
             if (sunHold.TryGetValue(p.Id, out var sh) && Time.time < sh.until) sunView.Show(sh.s, sh.p);
             else sunView.Show(s, p);
             sunView.Face(Cam);
+            SunRing(p.Id, mine, ui.SunChoosable(p.Id));
         }
         Hand(me, ui, seen);
         foreach (var uid in cards.Keys.Where(k => !seen.Contains(k)).ToList())
@@ -844,6 +958,10 @@ public partial class Board : MonoBehaviour
             v.Badge("stab", "stab", stands ? Game.BaseHealth(c.DefId) : (int?)null);
             v.Badge("def", "def", null);
             v.Dimmed(false);
+            // (Too costly to play now, muted; made cheaper, its discount on its corner: .card-pricey, .card-discount.)
+            v.Pricey(ui.Pricey(me, c));
+            int off = ui.Discount(c);
+            v.Mark("discount", off > 0 ? $"discount-{Mathf.Min(off, 6)}" : null, 3016);
             ui.Dress(v, me, c, false);
         }
     }
@@ -1055,6 +1173,42 @@ public partial class Board : MonoBehaviour
                 Sync(synced, syncedBy);
             }
         }
+        Hover();
+        if (synced != null && syncedBy != null)
+        {
+            // (A sun's explosion played out: its side greys now, app.ts shownDead.)
+            string dead = string.Join(",", synced.Players.Where(syncedBy.ShownDead).Select(p => p.Id));
+            if (dead != shownDead) { shownDead = dead; Sync(synced, syncedBy); }
+        }
+        foreach (var ring in sunRings.Values) ring.Throb();
+    }
+
+    string shownDead = "";
+
+    /// <summary>The card in play under the pointer (a mouse's: a touch has no hover), for what aimed heat would leave of it.</summary>
+    string tableOver;
+
+    void Hover()
+    {
+        if (!Application.isPlaying || Cam == null || synced == null || syncedBy == null || Input.touchCount > 0) return;
+        string over = null;
+        if (Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 100))
+        {
+            var v = hit.collider.GetComponentInParent<CardView>();
+            if (v != null && v.Table) over = v.Uid;
+        }
+        if (over == tableOver) return;
+        var was = tableOver;
+        tableOver = over;
+        // (Only the two cards' badges drawn again: the one left, and the one now under it.)
+        foreach (var uid in new[] { was, over })
+        {
+            if (uid == null || !cards.TryGetValue(uid, out var v) || v == null) continue;
+            var p = synced.Players.FirstOrDefault(x => x.Tableau.Any(c => c.Uid == uid));
+            var c = p?.Tableau.First(x => x.Uid == uid);
+            if (c == null || (cardHold.TryGetValue(uid, out var held) && Time.time < held.until)) continue;
+            InPlay(v, synced, p, c, syncedBy, uid == over);
+        }
     }
 
     /// <summary>
@@ -1080,17 +1234,98 @@ public partial class Board : MonoBehaviour
     /// <summary>Where a card is now (world space), if on show.</summary>
     public Vector3? WorldOf(string uid) => cards.TryGetValue(uid, out var v) ? v.transform.position : (Vector3?)null;
 
-    /// <summary>A card in play's badges: its attack (dimmed once it has attacked), stability, and defence (a Guard's).</summary>
-    static void InPlay(CardView v, GameState s, PlayerState p, CardInstance c)
+    /// <summary>
+    /// A card in play's badges: its attack (dimmed once it has attacked), stability, and defence (a Guard's; worn by
+    /// heat, .stat-dented). While heat or an attack is aimed, a card that can be chosen shows, under the pointer
+    /// (`over`), the defence and stability it would leave, in red (app.ts pv: .card-choosable:hover .pv-after). And
+    /// what else renderCard sets on it (Marks).
+    /// </summary>
+    static void InPlay(CardView v, GameState s, PlayerState p, CardInstance c, BattleView ui, bool over)
     {
         var def = Cards.Def(c.DefId);
         int atk = Game.CardAttack(s, p, c);
         bool armed = atk > 0 || Game.BaseAttack(def) > 0;
         v.Badge("atk", c.Dimmed == true ? "atk-dim" : "atk", armed ? Mathf.Max(0, atk) : (int?)null);
-        int hp = c.Health ?? 0;
-        v.Badge("stab", hp <= 1 ? "stab-low" : "stab", hp);
-        v.Badge("def", Game.IsGuard(p, c) ? "guard" : "def", Game.CardDefence(p, c));
+        int hp = c.Health ?? 0, defence = Game.CardDefence(p, c);
+        var pv = over && ui != null && ui.Choosable(p, c) ? ui.Preview(c.Uid) : null;
+        bool pvHp = pv != null && pv.Value.hp != hp, pvDef = pv != null && pv.Value.def != defence;
+        string stab = hp <= 1 ? "stab-low" : "stab", shield = (Game.IsGuard(p, c) ? "guard" : "def") + ((c.Dented ?? 0) > 0 ? "-dent" : "");
+        v.Badge("stab", pvHp ? stab + "-pv" : stab, pvHp ? pv.Value.hp : hp);
+        v.Badge("def", pvDef ? shield + "-pv" : shield, pvDef ? pv.Value.def : defence);
         v.Dimmed(c.Dimmed == true);
+        v.Frozen(c.Frozen == true);
+        CardMarks(v, s, p, c, ui);
+    }
+
+    // (Where each of a card's marks is drawn: under the card, over its face, over its badges (3010).)
+    const int QRing = 2994, QFusedBack = 2997, QFused = 2998, QFrost = 3005, QRoom = 3012, QGrowth = 3013, QChill = 3014, QShields = 3015, QAimHeat = 3016;
+
+    /// <summary>
+    /// app.ts renderCard, a card in play: its growth (top right), the boons and a room's guns along its top (.card-room),
+    /// the Fusion cards fused onto it tucked behind it (each a step higher, its name showing), the frost of a frozen or
+    /// chilled card (chilled's drawn over frozen's, as the later rule) and a chilled card's snowflake, its own shields
+    /// (on its top edge), the ring round a card a staged card is aimed at (.card-targeted), the burn of an Overlord's
+    /// part acting next (.card-intent) and the heat each part acting will deal, large across its middle (.boss-aim-heat).
+    /// </summary>
+    static void CardMarks(CardView v, GameState s, PlayerState p, CardInstance c, BattleView ui)
+    {
+        var def = Cards.Def(c.DefId);
+        v.Mark("growth", (c.Growth ?? 0) > 0 ? $"growth-{Mathf.Min(c.Growth.Value, 20)}" : null, QGrowth);
+        // (The room's guns, then the card's boons, one mark a kind: a Hero's boons stand on its rail instead.)
+        bool hero = c.Slot == Game.CommandSlot;
+        var room = ui != null ? ui.RoomMarks(p, hero ? -1 : c.Slot ?? -1, false, def.Kind == "command" && hero ? null : c.Boons) : new List<(string, int)>();
+        float css = v.Css > 0 ? v.Css : L.Tcw, bd = 0.18f, gap = 3 / css, total = room.Count * bd + Mathf.Max(0, room.Count - 1) * gap;
+        for (int i = 0; i < Mathf.Max(room.Count, v.RoomShown); i++)
+        {
+            string name = i >= room.Count ? null : room[i].Item1 == "guns" ? $"guns-{Mathf.Clamp(room[i].Item2, 1, 6)}" : $"boon-{room[i].Item1}-{Mathf.Clamp(room[i].Item2, 0, 3)}";
+            v.Mark($"room{i}", name, QRoom, -total / 2 + bd / 2 + i * (bd + gap));
+        }
+        v.RoomShown = room.Count;
+        for (int i = 0; i < 2; i++)
+            v.Mark($"fused{i}", c.Fused != null && i < c.Fused.Count ? $"fused-{c.Fused[i].DefId}-{i}" : null, i == 0 ? QFused : QFusedBack);
+        v.Mark("frost", (c.Chill ?? 0) > 0 ? "chilled" : c.Frozen == true ? "frozen" : null, QFrost);
+        v.Mark("chill", (c.Chill ?? 0) > 0 ? $"chill-{Mathf.Min(c.Chill.Value, 6)}" : null, QChill);
+        v.Mark("shields", (c.Shields ?? 0) > 0 ? $"shields-{Mathf.Min(c.Shields.Value, 12)}" : null, QShields);
+        // (The part acting next burns over any ring: its box-shadow !important.)
+        bool full = Cards.IsBossCard(c.DefId) || Builds.IsCaptain(c.DefId) || c.DefId.StartsWith("companion_");
+        bool intent = full && p.Boss?.Intent == c.Uid;
+        bool targeted = ui != null && ui.StageTarget == c.Uid && !ui.Choosable(p, c);
+        v.Mark("ring", intent ? "intent" : targeted ? "targeted" : null, QRing);
+        int aimHeat = 0;
+        if (p.Boss != null && (p.Boss.Intent == c.Uid || Game.BossMinions(p).Any(m => m.Uid == c.Uid)))
+        {
+            var blow = Game.PartAim(s, p, c);
+            aimHeat = Mathf.Max(0, blow.Sun);
+            foreach (var x in blow.Cards) aimHeat = Mathf.Max(aimHeat, x.heat);
+        }
+        v.Mark("aimheat", aimHeat > 0 ? $"aimheat-{Mathf.Min(aimHeat, 20)}" : null, QAimHeat);
+    }
+
+    /// <summary>
+    /// An empty slot as app.ts renderTableau draws it now: its defence (a ship's room's walls added; the Hero's, the
+    /// command room's; the wear of the card that stood there taken off, mending a day at a time), wrecked shut, the
+    /// Hero's with its hero wounded, a room's guns and module, its side out of the game.
+    /// </summary>
+    static SlotLook SlotNow(PlayerState p, int slot, BattleView ui)
+    {
+        var look = new SlotLook { Dead = ui.ShownDead(p) };
+        if (slot < 0)
+        {
+            look.Def = Balance.CommandSlotDefence + (p.Rooms?.Command ?? 0);
+            look.Wounded = p.Wounded != null && Game.CommandCard(p) == null;
+            return look;
+        }
+        if (Game.SlotClosed(p, slot)) { look.Wrecked = true; return look; }
+        int full = Game.SlotDefence(slot) + (p.Rooms?.Defence != null && slot < p.Rooms.Defence.Count ? p.Rooms.Defence[slot] : 0);
+        int wear = p.SlotWear != null && p.SlotWear.TryGetValue(slot, out var w) ? w : 0;
+        look.Def = Mathf.Max(0, full - wear);
+        look.Worn = wear > 0;
+        if (p.Rooms != null)
+        {
+            var marks = ui.RoomMarks(p, slot, true);
+            if (marks.Count > 0) look.Rooms = string.Join(",", marks.Select(m => $"{m.kind}:{m.n}"));
+        }
+        return look;
     }
 
     SunView SunFor(PlayerState p, bool mine)
@@ -1117,7 +1352,87 @@ public partial class Board : MonoBehaviour
     }
 }
 
-/// <summary>A number rising off the table and fading out.</summary>
+/// <summary>
+/// styles.css .vitals-choosable .vit::after: a circle 2% in from the sun's box, a 3 px border rgba(216,69,43,0.85), and
+/// round it a 2 px white ring and a red glow (0 0 18px rgba(216,69,43,0.45)), throbbing (aim-throb, 1.4 s ease-in-out,
+/// endless: half way, the white ring and the glow give way to a glow of 0 0 14px rgba(216,69,43,0.9)). Its two
+/// shadows' looks drawn each once and crossfaded; the border over them.
+/// </summary>
+public class SunRing
+{
+    public readonly GameObject Go;
+    public readonly float Vs;
+    public float Since;
+    readonly MeshRenderer rest, peak;
+    static readonly Dictionary<string, Texture2D> made = new Dictionary<string, Texture2D>();
+
+    public SunRing(Transform table, float vs)
+    {
+        Vs = vs;
+        Go = new GameObject("Sun ring");
+        Go.transform.SetParent(table, false);
+        float r = 0.48f * vs, R = r + 30;
+        float size = BoardLayout.Current.U(2 * R);
+        rest = Board.Picture("Rest", Go.transform, Ring(r, R, 0), Color.white, size, size, 2965, 0.001f);
+        peak = Board.Picture("Peak", Go.transform, Ring(r, R, 1), Color.white, size, size, 2966, 0.0012f);
+        Board.Picture("Border", Go.transform, Ring(r, R, 2), Color.white, size, size, 2967, 0.0014f);
+        Throb();
+    }
+
+    public void Throb()
+    {
+        if (Go == null || !Go.activeSelf) return;
+        float t = Mathf.Repeat(Time.time - Since, 1.4f) / 1.4f;
+        float k = t < 0.5f ? BattleView.CubicBezier(0.42f, 0, 0.58f, 1, t / 0.5f) : 1 - BattleView.CubicBezier(0.42f, 0, 0.58f, 1, (t - 0.5f) / 0.5f);
+        rest.sharedMaterial.color = new Color(1, 1, 1, 1 - k);
+        peak.sharedMaterial.color = new Color(1, 1, 1, k);
+    }
+
+    /// <summary>
+    /// One layer, a picture 2 `R` CSS px across round the circle of radius `r` (3 texels a pixel): 0, its shadows at
+    /// rest (the glow under the white ring); 1, half way (the 14 px glow); 2, the border.
+    /// </summary>
+    static Texture2D Ring(float r, float R, int layer)
+    {
+        string key = $"{r:0.00} {layer}";
+        if (made.TryGetValue(key, out var t)) return t;
+        const float k = 3;
+        int n = Mathf.CeilToInt(2 * R * k);
+        t = new Texture2D(n, n, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear };
+        var px = new Color[n * n];
+        var red = new Color(216 / 255f, 69 / 255f, 43 / 255f);
+        // (A box-shadow's blur is a Gaussian of half its length; outside the circle only.)
+        float Glow(float d, float blur) => d <= r ? 0 : 0.5f * Erfc((d - r) / (blur / 2 * Mathf.Sqrt(2)));
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float d = new Vector2((x + 0.5f) / k - R, (y + 0.5f) / k - R).magnitude, aa = 0.5f / k;
+                Color c;
+                if (layer == 2) c = new Color(red.r, red.g, red.b, 0.85f * Mathf.Clamp01(Mathf.Min(d - (r - 3) + aa, r - d + aa) / (2 * aa)));
+                else if (layer == 1) c = new Color(red.r, red.g, red.b, 0.9f * Glow(d, 14));
+                else
+                {
+                    float glow = 0.45f * Glow(d, 18), white = Mathf.Clamp01(Mathf.Min(d - r + aa, r + 2 - d + aa) / (2 * aa));
+                    float a = white + glow * (1 - white);
+                    c = a <= 0 ? new Color(1, 1, 1, 0) : new Color(Mathf.Lerp(red.r, 1, white / a), Mathf.Lerp(red.g, 1, white / a), Mathf.Lerp(red.b, 1, white / a), a);
+                }
+                px[y * n + x] = c;
+            }
+        t.SetPixels(px);
+        t.Apply(true);
+        made[key] = t;
+        return t;
+    }
+
+    /// <summary>The complementary error function (Abramowitz and Stegun 7.1.26).</summary>
+    static float Erfc(float x)
+    {
+        float z = Mathf.Abs(x), u = 1 / (1 + 0.3275911f * z);
+        float e = u * (0.254829592f + u * (-0.284496736f + u * (1.421413741f + u * (-1.453152027f + u * 1.061405429f)))) * Mathf.Exp(-z * z);
+        return x >= 0 ? e : 2 - e;
+    }
+}
+
 /// <summary>
 /// The Stellari on the board, turning as backdrop.ts turns it: one turn every three minutes, its inner ring the other
 /// way at 0.6 of the speed, and a 30° burst each time a move is made (eased in and out over 1.8 s).
@@ -1367,6 +1682,48 @@ public static class BoardArt
         float w = BoardLayout.Current.Tcw;
         return Outline(trap ? "trap" : "slot", w, w * 1.4f, w * 0.08f, new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.66f), new Color(1, 1, 1, 0.5f), 1,
             trap ? new Color(75 / 255f, 79 / 255f, 176 / 255f, 0.4f) : new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.35f), 1);
+    }
+
+    /// <summary>
+    /// A campaign hero's slot while the hero is wounded (.slot-empty.slot-wounded): a faint red, rgba(176,84,74,0.12), its
+    /// dashed edge rgba(232,138,128,0.6).
+    /// </summary>
+    public static Texture2D SlotWounded()
+    {
+        float w = BoardLayout.Current.Tcw;
+        return Outline("wounded", w, w * 1.4f, w * 0.08f, new Color(176 / 255f, 84 / 255f, 74 / 255f, 0.12f), new Color(1, 1, 1, 0.5f), 1, new Color(232 / 255f, 138 / 255f, 128 / 255f, 0.6f), 1);
+    }
+
+    /// <summary>
+    /// A wrecked slot (.slot-empty.slot-wrecked: a merchant's device that blew): scorched shut, its edge solid
+    /// rgba(181,80,58,0.35), striped across at 135° (rgba(120,90,80,0.12) 6 px, clear 6 px) over rgba(60,50,48,0.06).
+    /// </summary>
+    public static Texture2D SlotWrecked()
+    {
+        float w = BoardLayout.Current.Tcw, h = w * 1.4f;
+        string key = $"wrecked {w:0.0}x{h:0.0}";
+        if (made.TryGetValue(key, out var t)) return t;
+        const float k = Texel;
+        int tw = Mathf.CeilToInt(w * k), th = Mathf.CeilToInt(h * k);
+        // (Its edge and the white line inside it; a gap of nothing: solid.)
+        t = Dashed(tw, th, w * 0.08f * k, new Color(0, 0, 0, 0), new Color(1, 1, 1, 0.5f), k, new Color(181 / 255f, 80 / 255f, 58 / 255f, 0.35f), k, 3 * k, 0);
+        var px = t.GetPixels();
+        float hx = tw / 2f, hy = th / 2f;
+        Color under = new Color(60 / 255f, 50 / 255f, 48 / 255f, 0.06f), stripe = new Color(120 / 255f, 90 / 255f, 80 / 255f, 0.12f);
+        for (int y = 0; y < th; y++)
+            for (int x = 0; x < tw; x++)
+            {
+                float cover = Mathf.Clamp01(0.5f - Box(x + 0.5f - hx, y + 0.5f - hy, hx, hy, w * 0.08f * k));
+                // (Along the gradient's line, from the top left corner: rows run bottom up.)
+                float along = ((x + 0.5f) + (th - y - 0.5f)) / k / Mathf.Sqrt(2);
+                var c = Over(new Color(0, 0, 0, 0), under, cover);
+                if (Mathf.Repeat(along, 12) < 6) c = Over(c, stripe, cover);
+                px[y * tw + x] = Over(c, px[y * tw + x], 1);
+            }
+        t.SetPixels(px);
+        t.Apply(true);
+        made[key] = t;
+        return t;
     }
 
     /// <summary>A slot open to the card picked (button.slot-choosable): white at 0.7, a 1.5 px coral dashed edge.</summary>

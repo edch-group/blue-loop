@@ -8,7 +8,7 @@
  *
  * Sizes as the faces' (bake-cards.mjs): in play on a phone (t-p56, t-p66, t-p78) and a desktop (t-d84, t-d96), in the
  * hand (h-66, h-79, h-100, h-124: the discount only). The web's marks have floors (max()): a small card's are no large
- * one's shrunk.
+ * one's shrunk. (The boons and guns, sized with the card alone, at t-d96 only: they scale.)
  *
  * Usage: node scripts/bake-marks.mjs
  */
@@ -54,8 +54,8 @@ for (const s of SIZES) {
           ...range(1, 20).map((v) => [`growth-${v}`, 'growth', v, undefined, 6]),
           ...range(1, 6).map((v) => [`chill-${v}`, 'chill', v, undefined, 10]),
           ...range(1, 20).map((v) => [`aimheat-${v}`, 'aimheat', v, undefined, 14]),
-          ...BOONS.flatMap((k) => range(0, 3).map((v) => [`boon-${k}-${v}`, `boon-${k}`, v, undefined, 8])),
-          ...range(1, 6).map((v) => [`guns-${v}`, 'guns', v, undefined, 8]),
+          ...(s.dir === "t-d96" ? BOONS.flatMap((k) => range(0, 3).map((v) => [`boon-${k}-${v}`, `boon-${k}`, v, undefined, 8])) : []),
+          ...(s.dir === "t-d96" ? range(1, 6).map((v) => [`guns-${v}`, "guns", v, undefined, 8]) : []),
           ...fused.flatMap((id) => [0, 1].map((i) => [`fused-${id}-${i}`, `fused-${id}`, i, undefined, 8])),
           ['frozen', 'card-frozen', 0, undefined, 0],
           ['chilled', 'card-chilled', 0, undefined, 0],
