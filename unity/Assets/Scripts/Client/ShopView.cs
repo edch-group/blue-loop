@@ -158,8 +158,9 @@ public class ShopView : MonoBehaviour, MenuView.IRedraw
 
     void Opened()
     {
-        // The foot (.setup-foot): what was opened, quiet, on the left; done, the primary button, on the right.
-        float doneH = K.LineH(10.56f) + 24;
+        // The foot (.setup-foot): what was opened, quiet, on the left; done, the primary button (its line 14 tall,
+        // padded 12 above and below: 38), on the right.
+        float doneH = 14 + 24;
         var f = menu.Setup(root, "shop", () => { opened = null; Draw(); }, false, doneH);
         float footY = f.FootTop + (f.FootH - f.FootPad) / 2;
         K.Words(root, $"{PackName(openedKind)} booster", f.Left, footY - 7.5f, 300, 15, 12.8f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
