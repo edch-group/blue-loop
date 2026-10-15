@@ -121,8 +121,8 @@ public class HangarView : MonoBehaviour
         // (.up-title-big: SHIP, and under it how many parts are found of how many.)
         var title = WebLook.Words(WebLook.Box(root, "Title", px, 20, pw, 68), "SHIP", 54, 0.5f, Look.Ink, true, 400);
         // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
-        var count = WebLook.Words(Hud.Rect(root, "Found"), have.Count.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
-        var of = WebLook.Words(Hud.Rect(root, "Of"), $"OF {Parts.ShipParts.Count} PARTS FOUND", 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
+        var count = WebLook.Words(Hud.Fill(Hud.Rect(root, "Found")), have.Count.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
+        var of = WebLook.Words(Hud.Fill(Hud.Rect(root, "Of")), $"OF {Parts.ShipParts.Count} PARTS FOUND", 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
         float cw = count.GetPreferredValues(count.text).x, ow = of.GetPreferredValues(of.text).x, x0 = mid - (cw + 10 * Z + ow) / 2;
         WebLook.Box((RectTransform)count.transform, x0, 97, cw + 4, 33);
         WebLook.Box((RectTransform)of.transform, x0 + cw + 10 * Z, 105, ow + 8, 16);

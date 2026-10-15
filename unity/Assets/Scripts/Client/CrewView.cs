@@ -112,7 +112,7 @@ public class CrewView : MonoBehaviour
         {
             string name = id == null ? "CAPTAIN" : Companions.CompanionDef(id).Name.Split(' ')[0].ToUpperInvariant();
             int pts = id == null ? Meta.PointsLeft(meta) : Meta.CompanionPoints(meta, id);
-            var t = WebLook.Words(Hud.Rect(bar.transform, "Name"), name, font, 0.24f, id == tab ? Look.Ink : Look.InkFaint, true, 500, TextAlignmentOptions.Left);
+            var t = WebLook.Words(Hud.Fill(Hud.Rect(bar.transform, "Name")), name, font, 0.24f, id == tab ? Look.Ink : Look.InkFaint, true, 500, TextAlignmentOptions.Left);
             float w = 2 * pad + t.GetPreferredValues(name).x + (pts > 0 ? gap + Mathf.Max(badgeH, 8 * Z + 9 * pts.ToString().Length) : 0);
             labels.Add((t, w, pts));
             total += w + 4 * Z;
@@ -169,14 +169,14 @@ public class CrewView : MonoBehaviour
     void Who(string title, int points, string level, string note = null)
     {
         const float W = 619, X = 26;
-        var h = WebLook.Words(Hud.Rect(root, "Title"), title.ToUpperInvariant(), 50, 0.45f, Look.Ink, true, 400, TextAlignmentOptions.Top);
+        var h = WebLook.Words(Hud.Fill(Hud.Rect(root, "Title")), title.ToUpperInvariant(), 50, 0.45f, Look.Ink, true, 400, TextAlignmentOptions.Top);
         h.textWrappingMode = TextWrappingModes.Normal;
         // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
         float th = h.GetPreferredValues(h.text, W - 0.45f * 50, 0).y;
         WebLook.Box(h.rectTransform, X, 92, W, th + 4);
         float y = 92 + th + 6 * Z;
-        var count = WebLook.Words(Hud.Rect(root, "Points"), points.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
-        var small = WebLook.Words(Hud.Rect(root, "Level"), level.ToUpperInvariant(), 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
+        var count = WebLook.Words(Hud.Fill(Hud.Rect(root, "Points")), points.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
+        var small = WebLook.Words(Hud.Fill(Hud.Rect(root, "Level")), level.ToUpperInvariant(), 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
         float cw = count.GetPreferredValues(count.text).x, sw = small.GetPreferredValues(small.text).x;
         float rowW = 28 + 6 * Z + cw + 10 * Z + sw, x0 = X + W / 2 - rowW / 2;
         XpMark(root, x0, y + 2.5f, 28);
@@ -184,7 +184,7 @@ public class CrewView : MonoBehaviour
         WebLook.Box((RectTransform)small.transform, x0 + 28 + 6 * Z + cw + 10 * Z, y + 8, sw + 8, 16);
         if (note != null)
         {
-            var n = WebLook.Words(Hud.Rect(root, "Learns"), note.ToLowerInvariant(), 0.7f * 16 * Z, 0.06f, WebLook.Hex("#7d8496"), false, 400, TextAlignmentOptions.Top);
+            var n = WebLook.Words(Hud.Fill(Hud.Rect(root, "Learns")), note.ToLowerInvariant(), 0.7f * 16 * Z, 0.06f, WebLook.Hex("#7d8496"), false, 400, TextAlignmentOptions.Top);
             n.textWrappingMode = TextWrappingModes.Normal;
             float nw = Mathf.Min(W, 34 * 0.55f * 0.7f * 16 * Z);
             WebLook.Box(n.rectTransform, X + (W - nw) / 2, y + 33 + 6 * Z, nw, 80);

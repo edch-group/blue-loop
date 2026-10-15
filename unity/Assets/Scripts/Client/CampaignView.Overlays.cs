@@ -64,7 +64,7 @@ public partial class CampaignView
         for (int i = 0; i < items.Length; i++)
         {
             // (Orbitron at 600 is drawn at 700 on the web: the nearest heavier weight it has.)
-            counts[i] = WebLook.Words(Hud.Rect(purse, "Count"), items[i].n, 0.78f * 16 * Z, 0, Look.Ink, true, 700, TextAlignmentOptions.Left);
+            counts[i] = WebLook.Words(Hud.Fill(Hud.Rect(purse, "Count")), items[i].n, 0.78f * 16 * Z, 0, Look.Ink, true, 700, TextAlignmentOptions.Left);
             total += items[i].size + 4 * Z + counts[i].GetPreferredValues(items[i].n).x + (i > 0 ? 18 * Z : 0);
         }
         float x = 800 - total / 2;
@@ -133,7 +133,7 @@ public partial class CampaignView
         bubble.raycastTarget = true;
         // (Padded 10 and 12; the face 34 across, 12 to the words; the button 30 across, 12 before it.)
         float textW = 479 - 2 * 12 * Z - 34 * Z - 30 * Z - 2 * 12 * Z;
-        var words = WebLook.Words(Hud.Rect(bubble.transform, "Words"), line.Text, 0.8f * 16 * Z, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
+        var words = WebLook.Words(Hud.Fill(Hud.Rect(bubble.transform, "Words")), line.Text, 0.8f * 16 * Z, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
         words.textWrappingMode = TextWrappingModes.Normal;
         float textH = words.GetPreferredValues(line.Text, textW, 0).y;
         float bodyH = 16 + 2 * Z + textH;
@@ -440,7 +440,7 @@ public partial class CampaignView
         RiseIn.On(said.rectTransform, t0, 0.6f);
         y += p + gap;
         // (+ its petals, the petal after.)
-        var petals = WebLook.Words(Hud.Rect(v, "Petals"), $"+ {state.Petals}", 25.5f, 0.08f, Look.Ink, true, 400, TextAlignmentOptions.Left);
+        var petals = WebLook.Words(Hud.Fill(Hud.Rect(v, "Petals")), $"+ {state.Petals}", 25.5f, 0.08f, Look.Ink, true, 400, TextAlignmentOptions.Left);
         float pw = petals.GetPreferredValues(petals.text).x, rowW = pw + 6 * Z + 29;
         var pr = WebLook.Box(Hud.Rect(v, "Banked"), 800 - rowW / 2, y, rowW, pet);
         petals.transform.SetParent(pr, false);
@@ -556,9 +556,9 @@ public partial class CampaignView
         var meta = LoadMeta();
         var now = Meta.LevelFor(meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)));
         var g = WebLook.Box(v, "Experience", 0, y, 1600, 33);
-        var lv = WebLook.Words(Hud.Rect(g, "Level"), "LEVEL", 0.7f * 16 * Z, 0.12f, Look.InkSoft, true, 400, TextAlignmentOptions.Left);
-        var n = WebLook.Words(Hud.Rect(g, "N"), now.Level.ToString(), 1.15f * 16 * Z, 0.12f, Look.Ink, true, 700, TextAlignmentOptions.Left);
-        var gain = WebLook.Words(Hud.Rect(g, "Gain"), $"+{gained} XP", 0.8f * 16 * Z, 0.12f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
+        var lv = WebLook.Words(Hud.Fill(Hud.Rect(g, "Level")), "LEVEL", 0.7f * 16 * Z, 0.12f, Look.InkSoft, true, 400, TextAlignmentOptions.Left);
+        var n = WebLook.Words(Hud.Fill(Hud.Rect(g, "N")), now.Level.ToString(), 1.15f * 16 * Z, 0.12f, Look.Ink, true, 700, TextAlignmentOptions.Left);
+        var gain = WebLook.Words(Hud.Fill(Hud.Rect(g, "Gain")), $"+{gained} XP", 0.8f * 16 * Z, 0.12f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
         float lw = lv.GetPreferredValues(lv.text).x, nw = n.GetPreferredValues(n.text).x, gw = gain.GetPreferredValues(gain.text).x, bar = 260 * Z, gap = 12 * Z;
         float w = lw + 4 * Z + nw + gap + bar + gap + gw, x = 800 - w / 2;
         WebLook.Box(lv.rectTransform, x, 0, lw + 4, 33);
@@ -888,7 +888,7 @@ public partial class CampaignView
                 continue;
             }
             bool them = who == "visitor";
-            var p = WebLook.Words(Hud.Rect(v, "Words"), text, fs, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
+            var p = WebLook.Words(Hud.Fill(Hud.Rect(v, "Words")), text, fs, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
             p.textWrappingMode = TextWrappingModes.Normal;
             if (them) p.fontStyle = FontStyles.Italic;
             p.lineSpacing = (1.45f - 1.26f) * 100 / 1.26f;
@@ -927,7 +927,7 @@ public partial class CampaignView
         TextMeshProUGUI count = null;
         if (purse >= 0)
         {
-            count = WebLook.Words(Hud.Rect(row, "Purse"), purse.ToString(), 0.8f * 16 * Z, 0, Look.InkSoft, false, 700, TextAlignmentOptions.Left);
+            count = WebLook.Words(Hud.Fill(Hud.Rect(row, "Purse")), purse.ToString(), 0.8f * 16 * Z, 0, Look.InkSoft, false, 700, TextAlignmentOptions.Left);
             total += 20 + 4 * Z + count.GetPreferredValues(count.text).x;
         }
         total += gap * (made.Count - (purse >= 0 ? 0 : 1));
