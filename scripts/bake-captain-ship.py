@@ -1,6 +1,6 @@
 """
-The Captain's ship for Unity, baked from its model as Meshy textured it (unity/ModelSources/captain-ship/meshy-<task>/:
-model.glb and its textures, fetched by scripts/meshy/fetch.py; the newest), placed as its first, untextured export
+The Captain's ship for Unity, baked from its model as Meshy textured it (its GLB and textures, kept as a GitHub release by
+scripts/meshy/run.sh; what Meshy says of it in unity/ModelSources/captain-ship/meshy-<task>/), placed as its first, untextured export
 (iron-horizon.fbx) lies, nose to stern, so the cameras and the ship's place in its scenes hold (what is set on it, its
 deck, rails, bells and where the crew stand, is measured on the model itself: CaptainShip.cs):
 
@@ -13,7 +13,7 @@ deck, rails, bells and where the crew stand, is measured on the model itself: Ca
 Drawn by Ship.shader's painted metal.
 
     pip install numpy pillow trimesh pymeshlab scipy
-    python3 scripts/bake-captain-ship.py
+    python3 scripts/bake-captain-ship.py <its folder>      (or: "rebake captain-ship" in scripts/meshy/request.txt)
 """
 import glob
 import os
@@ -270,7 +270,8 @@ def write(path, bv, bf, wuv, mat, col):
 
 
 def main():
-    folder = max(glob.glob(os.path.join(SRC, 'meshy-*')), key=os.path.getmtime)
+    # (The model's folder, as scripts/meshy/run.sh downloads it; or the newest kept here.)
+    folder = sys.argv[1] if len(sys.argv) > 1 else max(glob.glob(os.path.join(SRC, 'meshy-*')), key=os.path.getmtime)
     fbx, _ = load_fbx(os.path.join(SRC, 'iron-horizon.fbx'))
     v, f, uv = load_glb(folder)
     print(f'model ({os.path.basename(folder)}): {len(v)} corners, {len(f)} triangles')

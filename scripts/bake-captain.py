@@ -8,7 +8,7 @@ fetched by scripts/meshy/fetch.py; the newest): unrigged, standing as he was mad
   unity/Assets/Resources/Models/CaptainColour.jpg   his colour
 
     pip install numpy pillow trimesh pymeshlab scipy
-    python3 scripts/bake-captain.py
+    python3 scripts/bake-captain.py <its folder>           (or: "rebake captain" in scripts/meshy/request.txt)
 """
 import glob
 import importlib.util
@@ -32,7 +32,8 @@ HEIGHT = 40
 
 def main():
     import trimesh
-    folder = max(glob.glob(os.path.join(SRC, 'meshy-*')), key=os.path.getmtime)
+    # (The model's folder, as scripts/meshy/run.sh downloads it; or the newest kept here.)
+    folder = sys.argv[1] if len(sys.argv) > 1 else max(glob.glob(os.path.join(SRC, 'meshy-*')), key=os.path.getmtime)
     scene = trimesh.load(os.path.join(folder, 'model.glb'))
     g = list(scene.geometry.values())[0]
     v, f, uv = np.asarray(g.vertices, float), np.asarray(g.faces, np.int32), np.asarray(g.visual.uv, float)
