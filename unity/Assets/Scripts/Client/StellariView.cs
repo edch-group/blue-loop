@@ -33,16 +33,39 @@ public class StellariView : MonoBehaviour
     float R;
     readonly Dictionary<string, Vector2> pos = new Dictionary<string, Vector2>();
 
+    /// <summary>The tree over its page (taken to fill the screen), laid out as the web lays it out at the screen's size, and again when that changes.</summary>
     public static StellariView Make(RectTransform parent, MenuView menu)
     {
-        var r = Hud.Rect(parent, "Stellari");
-        Hud.Fill(r);
+        var layer = RefLayer.Make(parent, "Stellari");
+        var r = layer.Rect;
         var v = r.gameObject.AddComponent<StellariView>();
         v.root = r;
+        v.layer = layer;
         v.menu = menu;
+        layer.Changed = v.Draw;
         v.Draw();
         return v;
     }
+
+    RefLayer layer;
+
+    /// <summary>
+    /// The page's padding (.up-shop: max(14, the safe area) at the top, on a short screen max(8, ...); max(18, ...) at
+    /// the sides; max(10, ...) at the foot), and so the sky (.up-sky: min(1100, the page) across, under the header).
+    /// </summary>
+    Vector4 Pad
+    {
+        get
+        {
+            var sa = layer.Insets;
+            return new Vector4(Mathf.Max((Css.MaxHeight(560) ? 8 : 14) * Z, sa.x), Mathf.Max(18 * Z, sa.y), Mathf.Max(10 * Z, sa.z), Mathf.Max(18 * Z, sa.w));
+        }
+    }
+    /// <summary>The title's size (clamp(1.6rem, 5.4vh, 2.6rem)), and the header's height (the title, 6 (on a short screen 2), the petals).</summary>
+    float TitleSize => Css.Clamp(1.6f * 16 * Z, 5.4f * layer.H / 100, 2.6f * 16 * Z);
+    float HeadH => TitleSize * 1.17f + (Css.MaxHeight(560) ? 2 : 6) * Z + 1.15f * 16 * Z * 1.15f;
+    float SkyW => Mathf.Min(1100 * Z, layer.W - Pad.y - Pad.w);
+    float SkyH => Mathf.Max(100, layer.H - Pad.x - HeadH - Pad.z);
 
     static Looks L => looks ??= Newtonsoft.Json.JsonConvert.DeserializeObject<Looks>(Resources.Load<TextAsset>("Engine/upgrades-look").text);
 
@@ -56,13 +79,15 @@ public class StellariView : MonoBehaviour
         foreach (Transform c in root) Mats.Kill(c.gameObject);
         var meta = CampaignView.LoadMeta();
         Header(meta);
-        // The sky (.up-sky, under the header, 1548 by 856 at 1600 x 1000): the Stellari's heart 40 (CSS) up from its foot.
+        // The sky (.up-sky, under the header, to the page's foot padding): the Stellari's heart 40 (CSS) up from its foot.
         sky = Hud.Rect(root, "Sky");
-        Hud.At(sky, new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(SkyW, SkyH));
+        Hud.At(sky, new Vector2(0.5f, 0), new Vector2(0, Pad.z), new Vector2(SkyW, SkyH));
         // (The branch alone, as large as the sky lets it be: R the rows' scale, G the gap between skills across a row;
-        // styles.css's, in CSS pixels, drawn 1.45 times.)
-        R = Mathf.Clamp((SkyH / Z - 150) / 1.16f, 96, 620) * Z;
-        G = Mathf.Clamp((0.5f * SkyW / Z - 220) * 0.9f, 128, 380) * Z;
+        // styles.css's, in CSS pixels: on a big screen (min-width 900, min-height 700) the branch grows to fill the
+        // sky, else the capstone's row 1.3 R above the heart, the names clear of the screen's edges.)
+        bool big = !Css.MaxWidth(899.9f) && !Css.MaxHeight(699.9f);
+        R = (big ? Mathf.Clamp((SkyH / Z - 150) / 1.16f, 96, 620) : Mathf.Clamp((SkyH / Z - 72) / 1.3f, 96, 210)) * Z;
+        G = (big ? Mathf.Clamp((0.5f * SkyW / Z - 220) * 0.9f, 128, 380) : Mathf.Clamp((0.5f * SkyW / Z - 150) * 0.95f, 128, 240)) * Z;
         Layout();
         Flower(meta);
         Lines(meta);
@@ -73,7 +98,7 @@ public class StellariView : MonoBehaviour
         if (aff != null) Affinity(meta);
     }
 
-    const float Z = WebLook.Zoom, SkyW = 1548, SkyH = 856;
+    const float Z = WebLook.Zoom;
 
     /// <summary>A point of the sky (pixels from the heart, y down as the web's) on the canvas.</summary>
     static Vector2 At(Vector2 p) => new Vector2(p.x, 40 * Z - p.y);
@@ -140,7 +165,8 @@ public class StellariView : MonoBehaviour
         var name = WebLook.Words(nav, Shown.title.ToUpperInvariant(), 0.62f * 16 * Z, 0.24f, Color.Lerp(Hex(Shown.colour), Look.Ink, 0.3f));
         name.margin = new Vector4(0, 0, 0.24f * 0.62f * 16 * Z, 0);
         float widest = L.branches.Max(b => name.GetPreferredValues(b.title.ToUpperInvariant()).x);
-        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, 10 * Z), new Vector2(widest + 2 * (40 + 14) * Z, 40 * Z));
+        // (max(10, the safe area) up from the foot.)
+        Hud.At(nav, new Vector2(0.5f, 0), new Vector2(0, Mathf.Max(10 * Z, layer.Insets.z)), new Vector2(widest + 2 * (40 + 14) * Z, 40 * Z));
         for (int d = -1; d <= 1; d += 2)
         {
             int step = d;
@@ -161,8 +187,9 @@ public class StellariView : MonoBehaviour
     {
         // (.up-head: back, then undo, clear and reset in small spaced capitals, 14 apart; the title in the middle, the
         // petals under it; the search at the right.)
-        var back = WebLook.UpBack(root, () => menu.Show("campaign"));
-        float x = 26 + ((RectTransform)back.transform).sizeDelta.x + 14 * Z;
+        var pad = Pad;
+        var back = WebLook.UpBack(root, () => menu.Show("campaign"), pad.w, pad.x);
+        float x = pad.w + ((RectTransform)back.transform).sizeDelta.x + 14 * Z;
         void Small(string label, System.Action act, Color ink, bool petals = false)
         {
             var r = Hud.Rect(root, label);
@@ -177,7 +204,7 @@ public class StellariView : MonoBehaviour
                 var n = WebLook.Words(WebLook.Box(r, "Price", w + 6 * Z + 16, 0, 40, 42), Meta.SkillResetPetals.ToString(), 0.56f * 16 * Z, 0.04f, ink, true, 500, TextAlignmentOptions.Left);
                 w += 6 * Z + 16 + n.GetPreferredValues(n.text).x;
             }
-            WebLook.Box(r, x, 20, w, 42);
+            WebLook.Box(r, x, pad.x, w, 42);
             var hit = r.gameObject.AddComponent<Image>();
             hit.color = new Color(1, 1, 1, 0);
             r.gameObject.AddComponent<Button>().onClick.AddListener(() => act());
@@ -189,18 +216,20 @@ public class StellariView : MonoBehaviour
             Small("clear", () => Undo(placed.Count), Look.InkSoft);
         }
         if (Meta.TreePetalsSpent(meta) > 0) Small(resetArmed ? "confirm reset" : "reset", Reset, resetArmed ? Look.Ink : Look.InkSoft, true);
-        // (.up-title-big: SKILLS at 54 across 0.5em, its petals under it: the petal, how many, PETALS small.)
-        var title = WebLook.Words(WebLook.Box(root, "Title", 0, 20, 1600, 68), "SKILLS", 54, 0.5f, Look.Ink, true, 400);
+        // (.up-title-big: SKILLS at clamp(1.6rem, 5.4vh, 2.6rem) across 0.5em, its petals 6 under it (on a short screen
+        // 2): the petal, how many, PETALS small.)
+        float ts = TitleSize, W = layer.W, py = pad.x + ts * 1.17f + (Css.MaxHeight(560) ? 2 : 6) * Z;
+        var title = WebLook.Words(WebLook.Box(root, "Title", 0, pad.x - ts * 0.05f, W, ts * 1.26f), "SKILLS", ts, 0.5f, Look.Ink, true, 400);
         // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
         var count = WebLook.Words(Hud.Fill(Hud.Rect(root, "Petals")), meta.Petals.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
         var unit = WebLook.Words(Hud.Fill(Hud.Rect(root, "Unit")), "PETALS", 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
         float cw = count.GetPreferredValues(count.text).x, uw = unit.GetPreferredValues(unit.text).x;
-        float rowW = 28 + 6 * Z + cw + 10 * Z + uw, x0 = 800 - rowW / 2;
-        var pi = WebLook.Centred(root, "Petal", x0 + 14, 114, 28, 28).gameObject.AddComponent<RawImage>();
+        float rowW = 28 + 6 * Z + cw + 10 * Z + uw, x0 = W / 2 - rowW / 2;
+        var pi = WebLook.Centred(root, "Petal", x0 + 14, py + 15, 28, 28).gameObject.AddComponent<RawImage>();
         pi.texture = Resources.Load<Texture2D>("Icons/purse-petal");
         pi.raycastTarget = false;
-        WebLook.Box((RectTransform)count.transform, x0 + 28 + 6 * Z, 97, cw + 4, 33);
-        WebLook.Box((RectTransform)unit.transform, x0 + 28 + 6 * Z + cw + 10 * Z, 105, uw + 8, 16);
+        WebLook.Box((RectTransform)count.transform, x0 + 28 + 6 * Z, py - 2, cw + 4, 33);
+        WebLook.Box((RectTransform)unit.transform, x0 + 28 + 6 * Z + cw + 10 * Z, py + 6, uw + 8, 16);
     }
 
     // ---- The search: skills whose name or words match lit, the rest dimmed ----
@@ -219,13 +248,15 @@ public class StellariView : MonoBehaviour
         box.type = Image.Type.Sliced;
         box.pixelsPerUnitMultiplier = 22f / 19.5f;
         box.raycastTarget = true;
-        WebLook.Box(box.rectTransform, 1264, 20, 310, 39);
+        // (At the header's right: its words clamp(90, 14vw, 170) across, 44 more for its lens and padding.)
+        float sw = (Css.Clamp(90, 14 * Css.Screen.x / 100, 170) + 44) * Z;
+        WebLook.Box(box.rectTransform, layer.W - Pad.y - sw, Pad.x, sw, 39);
         WebLook.Shadow(box, 0, 0, Color.clear, 19.5f, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.14f));
         var lens = WebLook.Centred(box.transform, "Lens", 27, 19.5f, 20, 20).gameObject.AddComponent<RawImage>();
         lens.texture = Lens();
         lens.color = Look.InkFaint;
         lens.raycastTarget = false;
-        var area = WebLook.Box(box.transform, "Text", 46, 0, 247, 39);
+        var area = WebLook.Box(box.transform, "Text", 46, 0, sw - 63, 39);
         area.gameObject.AddComponent<RectMask2D>();
         var hint = WebLook.Words(area, "SEARCH", 0.66f * 16 * Z, 0.14f, Look.InkFaint, true, 500, TextAlignmentOptions.Left);
         var text = WebLook.Words(area, "", 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
@@ -385,7 +416,8 @@ public class StellariView : MonoBehaviour
         var bc = Hex(L.branches.FirstOrDefault(b => b.g == u.Group)?.colour ?? "#8d93a8");
         var mc = open ? bc : Rgb(0xaab0bf);
         float lv = (float)level / Mathf.Max(1, u.Max);
-        float size = (tier == 3 ? 40 : 30) * Z;
+        // (On a short screen a size down: 24, a capstone 32.)
+        float size = (tier == 3 ? 40 : 30) * Z * (Css.MaxHeight(560) ? 0.8f : 1);
         var n = Hud.Rect(sky, u.Id);
         n.anchorMin = n.anchorMax = new Vector2(0.5f, 0);
         n.pivot = new Vector2(0.5f, 0.5f);

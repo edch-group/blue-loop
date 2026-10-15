@@ -30,19 +30,45 @@ public class CrewView : MonoBehaviour
     float keepScroll = -1;
 
     static readonly float[] Cols = { 40, 275, 545, 780 };
-    const float Spine = 512, Row = 96, Head = 46, GateH = 110, RootH = 110, Top = 30, SheetW = 900;
+    const float Spine = 512, Row = 96, Head = 46, GateH = 110, RootH = 110, Top = 30;
+    /// <summary>The sheet's width (its 1000 units across): the tree's column, 10 (CSS) in from each side.</summary>
+    float SheetW => TreeW - 20 * Z;
 
+    /// <summary>The page over its own (taken to fill the screen), laid out as the web lays it out at the screen's size, and again when that changes.</summary>
     public static CrewView Make(RectTransform parent, MenuView menu, CampaignBackdrop scene = null)
     {
-        var r = Hud.Rect(parent, "Crew");
-        Hud.Fill(r);
+        var layer = RefLayer.Make(parent, "Crew");
+        var r = layer.Rect;
         var v = r.gameObject.AddComponent<CrewView>();
         v.root = r;
+        v.layer = layer;
         v.menu = menu;
         v.scene = scene;
+        layer.Changed = v.Draw;
         v.Draw();
         return v;
     }
+
+    RefLayer layer;
+
+    /// <summary>
+    /// Where the page puts things (.up-shop.crew-panel): its padding (max(14, the safe area) at the top, on a short
+    /// screen max(8, ...); max(18, ...) at the sides; max(10, ...) at the foot); its header (as tall as back) over its
+    /// body, the left 40% of it who they are, the rest the tree.
+    /// </summary>
+    Vector4 PagePad
+    {
+        get
+        {
+            var sa = layer.Insets;
+            return new Vector4(Mathf.Max((Css.MaxHeight(560) ? 8 : 14) * Z, sa.x), Mathf.Max(18 * Z, sa.y), Mathf.Max(10 * Z, sa.z), Mathf.Max(18 * Z, sa.w));
+        }
+    }
+    float BodyTop => PagePad.x + 42;
+    float BodyW => layer.W - PagePad.y - PagePad.w;
+    float WhoW => BodyW * 0.4f;
+    float TreeW => BodyW - WhoW;
+    float TreeH => layer.H - BodyTop - PagePad.z;
 
     static Color Hex(string h) => ColorUtility.TryParseHtmlString(h, out var c) ? c : Look.InkSoft;
 
@@ -57,8 +83,8 @@ public class CrewView : MonoBehaviour
         if (tab != null && !crew.Contains(tab)) tab = null;
         scene?.Focus(tab ?? "captain");
         // The header (.crew-top): back, then undo, clear and the page's own tools, 6 apart.
-        var back = WebLook.UpBack(root, () => menu.Show("campaign"));
-        x = 26 + ((RectTransform)back.transform).sizeDelta.x + 6 * Z;
+        var back = WebLook.UpBack(root, () => menu.Show("campaign"), PagePad.w, PagePad.x);
+        x = PagePad.w + ((RectTransform)back.transform).sizeDelta.x + 6 * Z;
         if (placed.Count > 0)
         {
             Small("undo", Undo, Look.InkSoft);
@@ -86,7 +112,7 @@ public class CrewView : MonoBehaviour
             var n = WebLook.Words(WebLook.Box(r, "Price", w + 6 * Z + 16, 0, 40, 42), Meta.SkillResetPetals.ToString(), 0.56f * 16 * Z, 0.04f, ink, true, 500, TextAlignmentOptions.Left);
             w += 6 * Z + 16 + n.GetPreferredValues(n.text).x;
         }
-        WebLook.Box(r, x, 20, w + 12 * Z, 42);
+        WebLook.Box(r, x, PagePad.x, w + 12 * Z, 42);
         t.margin = new Vector4(6 * Z, 0, 0, 0);
         var hit = r.gameObject.AddComponent<Image>();
         hit.color = new Color(1, 1, 1, 0);
@@ -121,7 +147,7 @@ public class CrewView : MonoBehaviour
         bar.pixelsPerUnitMultiplier = 22f / (barH / 2);
         var br = bar.rectTransform;
         br.anchorMin = br.anchorMax = br.pivot = new Vector2(0.5f, 1);
-        br.anchoredPosition = new Vector2(0, -(41 - barH / 2));
+        br.anchoredPosition = new Vector2(0, -(PagePad.x + 21 - barH / 2));
         br.sizeDelta = new Vector2(total, barH);
         WebLook.Shadow(bar, 4 * Z, 12 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.06f), barH / 2, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
         float at = 4 * Z;
@@ -168,13 +194,14 @@ public class CrewView : MonoBehaviour
     /// </summary>
     void Who(string title, int points, string level, string note = null)
     {
-        const float W = 619, X = 26;
-        var h = WebLook.Words(Hud.Fill(Hud.Rect(root, "Title")), title.ToUpperInvariant(), 50, 0.45f, Look.Ink, true, 400, TextAlignmentOptions.Top);
+        // (.crew-who: clamp(6, 3vh, 28) down from the header; its title clamp(1.3rem, 5vh, 2.4rem).)
+        float W = WhoW, X = PagePad.w, fs = Css.Clamp(1.3f * 16 * Z, 5 * layer.H / 100, 2.4f * 16 * Z), top = BodyTop + Css.Clamp(6 * Z, 3 * layer.H / 100, 28 * Z);
+        var h = WebLook.Words(Hud.Fill(Hud.Rect(root, "Title")), title.ToUpperInvariant(), fs, 0.45f, Look.Ink, true, 400, TextAlignmentOptions.Top);
         h.textWrappingMode = TextWrappingModes.Normal;
         // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
-        float th = h.GetPreferredValues(h.text, W - 0.45f * 50, 0).y;
-        WebLook.Box(h.rectTransform, X, 92, W, th + 4);
-        float y = 92 + th + 6 * Z;
+        float th = h.GetPreferredValues(h.text, W - 0.45f * fs, 0).y;
+        WebLook.Box(h.rectTransform, X, top, W, th + 4);
+        float y = top + th + 6 * Z;
         var count = WebLook.Words(Hud.Fill(Hud.Rect(root, "Points")), points.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
         var small = WebLook.Words(Hud.Fill(Hud.Rect(root, "Level")), level.ToUpperInvariant(), 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
         float cw = count.GetPreferredValues(count.text).x, sw = small.GetPreferredValues(small.text).x;
@@ -312,7 +339,7 @@ public class CrewView : MonoBehaviour
 
         // The scroller (.crew-tree): the right 60% of the page under the header, the sheet in it 10 in from each side;
         // across, the sheet's 1000 units its width; down, its units CSS pixels (drawn 1.45 times).
-        var view = WebLook.Box(root, "Tree", 645, 62, 929, 923);
+        var view = WebLook.Box(root, "Tree", PagePad.w + WhoW, BodyTop, TreeW, TreeH);
         view.gameObject.AddComponent<RectMask2D>();
         var hit = view.gameObject.AddComponent<Image>();
         hit.color = new Color(1, 1, 1, 0);
@@ -462,8 +489,8 @@ public class CrewView : MonoBehaviour
         Root(pads, new Vector2(SheetW / 2, -rootY * Z));
         Canvas.ForceUpdateCanvases();
         // (It opens on the tier the character stands in, that tier's name in the middle; then where it was scrolled.)
-        float range = H * Z - 923;
-        float want = current < 0 ? range : Mathf.Clamp(current - 923 / 2f, 0, range);
+        float range = H * Z - TreeH;
+        float want = current < 0 ? range : Mathf.Clamp(current - TreeH / 2f, 0, range);
         scroll.verticalNormalizedPosition = keepScroll >= 0 ? keepScroll : range > 0 ? 1 - want / range : 0;
     }
 

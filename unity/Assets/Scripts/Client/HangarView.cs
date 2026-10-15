@@ -25,17 +25,22 @@ public class HangarView : MonoBehaviour
         ["dwarf"] = new Color32(0x5f, 0x86, 0xb8, 255), ["stellar"] = new Color32(0xb8, 0x89, 0x2f, 255), ["anomaly"] = new Color32(0x7a, 0x5c, 0xc0, 255),
     };
 
+    /// <summary>The page over its own (taken to fill the screen), laid out as the web lays it out at the screen's size, and again when that changes.</summary>
     public static HangarView Make(RectTransform parent, MenuView menu, CampaignBackdrop scene)
     {
-        var r = Hud.Rect(parent, "Hangar");
-        Hud.Fill(r);
+        var layer = RefLayer.Make(parent, "Hangar");
+        var r = layer.Rect;
         var v = r.gameObject.AddComponent<HangarView>();
         v.root = r;
+        v.layer = layer;
         v.menu = menu;
         v.scene = scene;
+        layer.Changed = v.Draw;
         v.Draw();
         return v;
     }
+
+    RefLayer layer;
 
     const float Z = WebLook.Zoom;
 
@@ -116,36 +121,50 @@ public class HangarView : MonoBehaviour
         var wash = panel.gameObject.AddComponent<RawImage>();
         wash.texture = Wash();
         wash.raycastTarget = false;
-        float px = 928 + 26, pw = 620, mid = px + pw / 2;
-        WebLook.UpBack(root, () => menu.Show("campaign"), px, 20);
-        // (.up-title-big: SHIP, and under it how many parts are found of how many.)
-        var title = WebLook.Words(WebLook.Box(root, "Title", px, 20, pw, 68), "SHIP", 54, 0.5f, Look.Ink, true, 400);
+        // (.up-shop: padded max(14, the safe area) at the top (on a short screen max(8, ...)), max(18, ...) at the sides,
+        // max(10, ...) at the foot.)
+        var sa = layer.Insets;
+        bool phone = Css.MaxHeight(560);
+        float padT = Mathf.Max((phone ? 8 : 14) * Z, sa.x), padB = Mathf.Max(10 * Z, sa.z);
+        float px = 0.58f * layer.W + Mathf.Max(18 * Z, sa.w), pw = layer.W - px - Mathf.Max(18 * Z, sa.y), mid = px + pw / 2;
+        WebLook.UpBack(root, () => menu.Show("campaign"), px, padT);
+        // (.up-title-big: SHIP (clamp(1.6rem, 5.4vh, 2.6rem)), and 6 under it (on a short screen 2) how many parts are
+        // found of how many.)
+        float ts = Css.Clamp(1.6f * 16 * Z, 5.4f * layer.H / 100, 2.6f * 16 * Z), py = padT + ts * 1.17f + (phone ? 2 : 6) * Z;
+        var title = WebLook.Words(WebLook.Box(root, "Title", px, padT - ts * 0.05f, pw, ts * 1.26f), "SHIP", ts, 0.5f, Look.Ink, true, 400);
         // (Its text-indent as wide as the letter-spacing trailing its last letter: the words centred as they are.)
         var count = WebLook.Words(Hud.Fill(Hud.Rect(root, "Found")), have.Count.ToString(), 1.15f * 16 * Z, 0, Look.Ink, true, 500, TextAlignmentOptions.Left);
         var of = WebLook.Words(Hud.Fill(Hud.Rect(root, "Of")), $"OF {Parts.ShipParts.Count} PARTS FOUND", 0.56f * 16 * Z, 0.22f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
         float cw = count.GetPreferredValues(count.text).x, ow = of.GetPreferredValues(of.text).x, x0 = mid - (cw + 10 * Z + ow) / 2;
-        WebLook.Box((RectTransform)count.transform, x0, 97, cw + 4, 33);
-        WebLook.Box((RectTransform)of.transform, x0 + cw + 10 * Z, 105, ow + 8, 16);
+        WebLook.Box((RectTransform)count.transform, x0, py - 2, cw + 4, 33);
+        WebLook.Box((RectTransform)of.transform, x0 + cw + 10 * Z, py + 6, ow + 8, 16);
         // Every part found (.hg-parts): its turning 3D view, its name; fitted, marked so; picked, ringed in gold.
         var owned = Parts.ShipParts.Where(p => have.Contains(p.Id)).ToList();
         var on = new HashSet<string>(fitted.Values.Where(v => v != null));
-        float gx = px + 6 + 3, gw = 608 - 6;
+        // (Under the header, padded 6 4 and 2; above the detail at the foot, scrolling between.)
+        float gx = px + 6 + 3, gw = pw - 12, detailH = (phone ? 44 : 56) * Z;
+        float gy = padT + ts * 1.17f + (phone ? 2 : 6) * Z + 1.15f * 16 * Z * 1.15f + 8 * Z, gh = Mathf.Max(40, layer.H - padB - detailH - 8 * Z - gy);
         if (owned.Count == 0)
         {
-            var none = WebLook.Words(WebLook.Box(root, "None", gx, 142, gw, 30), "No parts yet.", 0.85f * 16 * Z, 0, Look.InkFaint, false, 400, TextAlignmentOptions.TopLeft);
+            var none = WebLook.Words(WebLook.Box(root, "None", gx, gy, gw, 30), "No parts yet.", 0.85f * 16 * Z, 0, Look.InkFaint, false, 400, TextAlignmentOptions.TopLeft);
             none.raycastTarget = false;
         }
         float gap = 8 * Z, minW = 104 * Z;
         int cols = Mathf.Max(1, Mathf.FloorToInt((gw + gap) / (minW + gap)));
         float tileW = (gw - (cols - 1) * gap) / cols, tileH = 8 * Z + 64 * Z + 4 * Z + 15 + 8 * Z;
+        int rowsN = (owned.Count + cols - 1) / cols;
+        float need = rowsN * (tileH + 4 * Z + 17) + Mathf.Max(0, rowsN - 1) * gap + 12;
+        // (A margin round the grid for the tiles' rings and shadows.)
+        var area = WebLook.Box(root, "Parts", gx - 6, gy - 6, gw + 12, gh + 6);
+        var grid = owned.Count > 0 && need > gh ? StationKit.Scroller(area, need + 6) : area;
         for (int i = 0; i < owned.Count; i++)
         {
             var p = owned[i];
             bool fit = on.Contains(p.Id);
             float h = tileH + (fit ? 4 * Z + 17 : 0);
-            var tile = WebLook.Rounded(root, p.Id, fit ? WebLook.Hex("#f6f9fd") : Color.white, 12 * Z);
+            var tile = WebLook.Rounded(grid, p.Id, fit ? WebLook.Hex("#f6f9fd") : Color.white, 12 * Z);
             tile.raycastTarget = true;
-            WebLook.Box(tile.rectTransform, gx + (i % cols) * (tileW + gap), 142 + (i / cols) * (tileH + gap), tileW, h);
+            WebLook.Box(tile.rectTransform, 6 + (i % cols) * (tileW + gap), 6 + (i / cols) * (tileH + gap), tileW, h);
             if (pick == p.Id) WebLook.Shadow(tile, 3 * Z, 10 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.12f), 12 * Z, 2.5f * Z, WebLook.Hex("#d6bd7a"));
             else WebLook.Shadow(tile, 3 * Z, 8 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.06f), 12 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
             var icon = WebLook.Box(tile.transform, "Icon", (tileW - 64 * Z) / 2, 8 * Z, 64 * Z, 64 * Z);
@@ -158,18 +177,18 @@ public class HangarView : MonoBehaviour
             var id = p.Id;
             tile.gameObject.AddComponent<Button>().onClick.AddListener(() => { pick = pick == id ? null : id; Sound.Play("hover"); Draw(); });
         }
-        Detail(px, pw, fitted, have);
+        Detail(px, pw, layer.H - padB - detailH, detailH, fitted, have);
     }
 
     /// <summary>
     /// The part picked (.hp-detail), at the foot of the page: its name and what it does, and where it goes (or, fitted
     /// there, remove); none picked, a hint in faint words.
     /// </summary>
-    void Detail(float px, float pw, Dictionary<string, string> fitted, List<string> have)
+    void Detail(float px, float pw, float y, float dh, Dictionary<string, string> fitted, List<string> have)
     {
         var box = WebLook.Rounded(root, "Detail", Color.white, 16 * Z);
         box.raycastTarget = true;
-        WebLook.Box(box.rectTransform, px, 985 - 56 * Z, pw, 56 * Z);
+        WebLook.Box(box.rectTransform, px, y, pw, dh);
         WebLook.Shadow(box, 6 * Z, 18 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.1f), 16 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
         var p = Parts.ShipPart(pick);
         if (p == null)
@@ -198,7 +217,7 @@ public class HangarView : MonoBehaviour
         var what = WebLook.Words(box.transform, p.Text, 0.82f * 16 * Z, 0, Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
         what.textWrappingMode = TextWrappingModes.Normal;
         float nh = name.GetPreferredValues(name.text).y, wh = what.GetPreferredValues(p.Text, tw, 0).y, all = nh + 3 * Z + wh;
-        float top = Mathf.Max(10 * Z, (56 * Z - all) / 2);
+        float top = Mathf.Max(6 * Z, (dh - all) / 2);
         WebLook.Box(name.rectTransform, 16 * Z, top, tw, nh + 2);
         WebLook.Box(what.rectTransform, 16 * Z, top + nh + 3 * Z, tw, wh + 2);
     }
