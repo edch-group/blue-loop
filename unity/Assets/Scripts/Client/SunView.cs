@@ -136,9 +136,18 @@ public class SunView : MonoBehaviour
             r.sharedMaterial.SetFloat("_Soft", Mathf.Max(0.0005f, 0.6f / bw));
         }
         float px = left + w / 2;
-        // (Its shadow, 0 2px 8px: a softer, larger box a little down.)
-        Box(pillShadow, px, mid + 2, w + 8, h + 8, 0.0015f);
-        pillShadow.sharedMaterial.SetFloat("_Soft", 4f / (w + 8));
+        // (Its shadow, 0 2px 8px: the pill's own box 2 px down, its edge blurred 8 px (σ 4 px) either way, on a quad
+        // grown 8 px all round to hold the blur.)
+        {
+            float grow = Mathf.Max((w + 16) / w, (h + 16) / h), qw = w * grow, qh = h * grow;
+            pillShadow.transform.localPosition = At(px, mid + 2) + new Vector3(0, 0.0015f, 0);
+            pillShadow.transform.localScale = new Vector3(qw * u, qh * u, 1);
+            var m = pillShadow.sharedMaterial;
+            m.SetFloat("_Aspect", qh / qw);
+            m.SetFloat("_Size", 0.5f / grow);
+            m.SetFloat("_Radius", h / 2 / qw);
+            m.SetFloat("_Soft", 7f / qw);
+        }
         Box(pillEdge, px, mid, w, h, 0.0016f);
         Box(pill, px, mid, w - 4, h - 4, 0.0017f);
         planet.transform.localPosition = At(px, mid) + new Vector3(0, 0.0018f, 0);
