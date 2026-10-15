@@ -60,7 +60,7 @@ public class MenuView : MonoBehaviour
         var rings = Hud.Rect(glow, "Rings");
         Hud.At(glow, new Vector2(0.5f, 1), Vector2.zero, new Vector2(1600, 1440));
         var gi = glow.gameObject.AddComponent<RawImage>();
-        gi.texture = Resources.Load<Texture2D>("Icons/mandala-glow");
+        gi.texture = Pictures.Load("Icons/mandala-glow");
         gi.raycastTarget = false;
         Hud.At(rings, new Vector2(0.5f, 1), new Vector2(0, -752), Vector2.zero);
         rings.pivot = new Vector2(0.5f, 0.5f);
@@ -70,7 +70,7 @@ public class MenuView : MonoBehaviour
             Hud.At(r, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1088, 1088));
             r.pivot = new Vector2(0.5f, 0.5f);
             var ri = r.gameObject.AddComponent<RawImage>();
-            ri.texture = Resources.Load<Texture2D>("Icons/mandala-" + layer);
+            ri.texture = Pictures.Load("Icons/mandala-" + layer);
             ri.raycastTarget = false;
             if (layer == "outer") outerRing = r;
             else innerRing = r;

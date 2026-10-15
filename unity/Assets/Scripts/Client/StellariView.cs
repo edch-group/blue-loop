@@ -315,7 +315,7 @@ public class StellariView : MonoBehaviour
         fl.anchoredPosition = Vector2.zero;
         fl.sizeDelta = new Vector2(F, F);
         var raw = fl.gameObject.AddComponent<RawImage>();
-        raw.texture = Resources.Load<Texture2D>("Icons/up-flower");
+        raw.texture = Pictures.Load("Icons/up-flower");
         raw.raycastTarget = false;
     }
 
