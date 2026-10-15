@@ -237,6 +237,7 @@ public partial class BattleView : MonoBehaviour
             var a = HumanDawnChoice() ? AI.DawnChoiceFor(state) : AI.Choose(state);
             var was = state;
             state = Game.Apply(state, a);
+            StarSpin.Burst();
             Hear(was, state, a);
         }
         catch (System.Exception e)
@@ -268,6 +269,7 @@ public partial class BattleView : MonoBehaviour
         {
             var was = state;
             state = Game.Apply(state, a);
+            StarSpin.Burst();
             Hear(was, state, a);
         }
         catch (GameError e)
@@ -471,7 +473,7 @@ public partial class BattleView : MonoBehaviour
         var screen = Cam.WorldToScreenPoint(v.transform.position + new Vector3(0, 0, 0.7f));
         bool below = screen.y > Screen.height * 0.93f;
         if (below) screen = Cam.WorldToScreenPoint(v.transform.position - new Vector3(0, 0, 0.7f));
-        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, Cam, out var at)) Voices.Speak(defId, canvas, at, below);
+        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, screen, hudCam, out var at)) Voices.Speak(defId, canvas, at, below);
     }
 
     /// <summary>A blow on a card: its defence cracking if the blow wore it, and the crunch of what got through.</summary>
@@ -931,11 +933,26 @@ public partial class BattleView : MonoBehaviour
     /// <summary>The overlays' layer (see refLayer).</summary>
     Transform Layer => refLayer;
 
+    /// <summary>The HUD's own camera (see BuildHud).</summary>
+    Camera hudCam;
+
     void BuildHud()
     {
         // The HUD measured in the web's own pixels at its layout size (Css), so it is laid out as the web's on a phone
         // as on a big screen.
-        hud = Hud.CssCanvas(Cam);
+        // (On a camera of its own, well away from the table: the table's camera draws through an off-centre frustum,
+        // which would carry a canvas on it off centre too.)
+        hudCam = new GameObject("Hud camera").AddComponent<Camera>();
+        hudCam.transform.SetParent(transform, false);
+        hudCam.transform.position = new Vector3(0, -500, 0);
+        hudCam.clearFlags = CameraClearFlags.Depth;
+        hudCam.cullingMask = 1 << 5;
+        hudCam.depth = Cam.depth + 1;
+        hudCam.nearClipPlane = 0.1f;
+        hudCam.farClipPlane = 10;
+        Cam.cullingMask &= ~(1 << 5);
+        hud = Hud.CssCanvas(hudCam);
+        hud.gameObject.layer = 5;
         hud.transform.SetParent(transform, false);
         var root = hud.transform;
         chrome = Hud.Rect(root, "Chrome");

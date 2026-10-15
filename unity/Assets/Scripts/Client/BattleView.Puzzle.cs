@@ -165,7 +165,7 @@ public partial class BattleView
                 foreach (var dz in new[] { -1, 1 })
                 {
                     var sp = Cam.WorldToScreenPoint(centre + new Vector3(half.x * dx, half.y, half.z * dz));
-                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, sp, Cam, out var lp)) pts.Add(lp);
+                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(canvas, sp, hudCam, out var lp)) pts.Add(lp);
                 }
             if (pts.Count == 0) return null;
             float x0 = pts.Min(p => p.x), x1 = pts.Max(p => p.x), y0 = pts.Min(p => p.y), y1 = pts.Max(p => p.y);

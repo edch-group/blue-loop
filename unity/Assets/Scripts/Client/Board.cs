@@ -36,8 +36,6 @@ public class Board : MonoBehaviour
     public static float SunScale => L.U(L.Vs) / (145f / 87);
     public static Vector3 MySun => L.At(L.WrapLeft + 0.58f * L.Vs, L.MyRowCy - 0.08f * L.Vs, 0.55f * SunScale);
     public static Vector3 RivalSun => L.At(L.WrapLeft + 0.58f * L.Vs, L.RivalRowCy - 0.08f * L.Vs, 0.55f * SunScale);
-    /// <summary>The planet's pill under the sun (.vit-under), from the sun's middle, in the sun's own units.</summary>
-    static float SunUnder => L.U(0.76f * L.Vs + Mathf.Max(32, 0.3f * L.Vs) / 2) / SunScale;
     // (Each side's piles: its deck, its reserves and its wreckage, small cards in a row.)
     public static float PileScale => L.U(L.Pw);
     /// <summary>A web size in CSS pixels on the board, as a TextMeshPro size on the table (a card is --tcw px wide there).</summary>
@@ -178,14 +176,25 @@ public class Board : MonoBehaviour
         }
 
         // The Stellari's flower in the middle (160 px, 104 on a phone), and the day's phases beside it.
-        float star = l.U(l.Star) * 1.006f;
-        var flower = Mats.Flat("Flower", table, Mats.Make("Card"), star, star, 0.001f);
-        flower.sharedMaterial.mainTexture = Resources.Load<Texture2D>("Board/flower");
-        flower.sharedMaterial.SetFloat("_Radius", 0);
-        flower.sharedMaterial.SetFloat("_Aspect", 1);
-        flower.sharedMaterial.color = new Color(0.8f, 0.85f, 0.97f, 0.9f);
-        flower.transform.localPosition = new Vector3(0, 0.001f, 0);
-        flower.sharedMaterial.renderQueue = 2920;
+        // (The web's own: the petal mandala, its board framing (backdrop.ts attach: 780 of its units across), a silver
+        // wireframe on the white board (.backdrop-board .petals), its two rings baked (Board/star-outer, -inner) and
+        // turned as backdrop.ts turns them.)
+        float star = l.U(l.Star);
+        var spin = new GameObject("Stellari").AddComponent<StarSpin>();
+        spin.transform.SetParent(table, false);
+        foreach (var ring in new[] { "outer", "inner" })
+        {
+            var pivot = new GameObject(ring).transform;
+            pivot.SetParent(spin.transform, false);
+            var r = Mats.Flat("Ring", pivot, Mats.Make("Card"), star, star, ring == "outer" ? 0.001f : 0.0012f);
+            r.sharedMaterial.mainTexture = Resources.Load<Texture2D>("Board/star-" + ring);
+            r.sharedMaterial.SetFloat("_Radius", 0);
+            r.sharedMaterial.SetFloat("_Aspect", 1);
+            r.sharedMaterial.color = Color.white;
+            r.sharedMaterial.renderQueue = ring == "outer" ? 2920 : 2921;
+            if (ring == "outer") spin.Outer = pivot;
+            else spin.Inner = pivot;
+        }
         RoundDisc();
         // (styles.css .phase-track, --stellari-r out from the middle: capitals spaced 0.24em, a dot before each, a row
         // apart; the turn's two words the same distance to the flower's left, right-aligned.)
@@ -385,6 +394,10 @@ public class Board : MonoBehaviour
         face.sharedMaterial.renderQueue = 2950;
         var label = Mats.FlatText("Name", go.transform, title, Px(Mathf.Max(5, L.Pw * 0.068f)) / PileScale, Look.InkSoft, true, 400, 10);
         label.transform.localPosition = new Vector3(0, 0.03f, 0);
+        // (.tpile > small: at most 92% of the pile across, cut off past it, as the web's.)
+        label.rectTransform.sizeDelta = new Vector2(0.92f, 0.3f);
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        label.overflowMode = TextOverflowModes.Truncate;
         label.gameObject.SetActive(!back);
         // (How many, small in its corner.)
         count = Mats.FlatText("Count", go.transform, "", Px(Mathf.Max(11, L.Pw * 0.28f)) / PileScale * 0.86f, Look.InkSoft, true, 700, 0, TextAlignmentOptions.Right);
@@ -438,9 +451,7 @@ public class Board : MonoBehaviour
     /// <summary>A sun put where the web's stands at this size, at its size.</summary>
     static void PlaceSun(SunView sun, bool mine)
     {
-        sun.transform.localPosition = mine ? MySun : RivalSun;
-        sun.transform.localScale = Vector3.one * SunScale;
-        sun.Under(SunUnder);
+        sun.Place(L, L.WrapLeft + 0.58f * L.Vs, (mine ? L.MyRowCy : L.RivalRowCy) - 0.08f * L.Vs);
     }
 
     /// <summary>Lay the battle out as it stands: every card where it belongs, every sun as hot as it is.</summary>
@@ -721,6 +732,48 @@ public class Board : MonoBehaviour
 }
 
 /// <summary>A number rising off the table and fading out.</summary>
+/// <summary>
+/// The Stellari on the board, turning as backdrop.ts turns it: one turn every three minutes, its inner ring the other
+/// way at 0.6 of the speed, and a 30° burst each time a move is made (eased in and out over 1.8 s).
+/// </summary>
+public class StarSpin : MonoBehaviour
+{
+    public Transform Outer, Inner;
+    float angle;
+    readonly System.Collections.Generic.List<float> bursts = new System.Collections.Generic.List<float>();
+    static StarSpin current;
+
+    void Awake() => current = this;
+
+    /// <summary>A move was made: spin faster for a moment (at most three at once).</summary>
+    public static void Burst()
+    {
+        if (current == null || current.bursts.Count >= 3) return;
+        current.bursts.Add(Time.time);
+    }
+
+    void Update()
+    {
+        angle = (angle + 2 * Mathf.Min(0.1f, Time.deltaTime)) % 1800;
+        float extra = 0;
+        for (int i = bursts.Count - 1; i >= 0; i--)
+        {
+            float t = (Time.time - bursts[i]) / 1.8f;
+            if (t >= 1)
+            {
+                angle = (angle + 30) % 1800;
+                bursts.RemoveAt(i);
+                continue;
+            }
+            extra += 30 * (0.5f - Mathf.Cos(Mathf.PI * Mathf.Max(0, t)) / 2);
+        }
+        float a = angle + extra;
+        // (Clockwise as the page sees it, from above the board.)
+        if (Outer != null) Outer.localRotation = Quaternion.Euler(0, a, 0);
+        if (Inner != null) Inner.localRotation = Quaternion.Euler(0, -a * 0.6f, 0);
+    }
+}
+
 public class Floater : MonoBehaviour
 {
     float age;
