@@ -15,6 +15,8 @@ public class MenuView : MonoBehaviour
     Camera cam;
     Canvas canvas;
     RectTransform page;
+    /// <summary>The page's layer pinned to the safe area's corners (the hub's links and corner buttons).</summary>
+    RectTransform edges;
     string current;
     GameObject backdrop;
     CampaignBackdrop scene;
@@ -56,7 +58,10 @@ public class MenuView : MonoBehaviour
         // The Stellari behind it all (art.ts petalBackdrop, backdrop.ts): its glow from the top, and its two rings of
         // petals, low and wide, turning slowly (one turn in three minutes; the inner ring at 0.6 of it). Framed as the
         // web frames it: its 1000 x 900 across the screen's width, its heart 752 down.
-        var glow = Hud.Rect(backdrop.transform, "Glow");
+        // (In a frame of the page's own, scaled and centred as the page is, so the Stellari's heart stays under its title.)
+        var stage = Hud.Rect(backdrop.transform, "Stage");
+        Frame.Make(stage);
+        var glow = Hud.Rect(stage, "Glow");
         var rings = Hud.Rect(glow, "Rings");
         Hud.At(glow, new Vector2(0.5f, 1), Vector2.zero, new Vector2(1600, 1440));
         var gi = glow.gameObject.AddComponent<RawImage>();
@@ -96,11 +101,11 @@ public class MenuView : MonoBehaviour
 
     public void TitleBlock(Transform parent, float wordsY, float wordsWidth)
     {
-        // (The picture, 2752 x 628: the sun and its glow above, the words in rows 400 to 525, 1116 across, both
+        // (The picture, 2752 x 1028: the sun and its glow above, the words in rows 800 to 925, 1116 across, both
         // centred; drawn whole, so the glow is never cut.)
         float k = wordsWidth / 1116f;
         var block = Hud.Rect(parent, "Title");
-        Hud.At(block, new Vector2(0.5f, 1), new Vector2(0, -wordsY + 462 * k), new Vector2(2752 * k, 628 * k));
+        Hud.At(block, new Vector2(0.5f, 1), new Vector2(0, -wordsY + 862 * k), new Vector2(2752 * k, 1028 * k));
         block.pivot = new Vector2(0.5f, 1);
         var bi = block.gameObject.AddComponent<RawImage>();
         bi.texture = Resources.Load<Texture2D>("Icons/title");
@@ -112,13 +117,14 @@ public class MenuView : MonoBehaviour
     {
         if (page != null) Mats.Kill(page.gameObject);
         page = Hud.Rect(canvas.transform, name);
-        Hud.Fill(page);
+        // (Drawn whole on any screen, inside its safe area: see Frame.)
+        edges = Frame.Make(page).Edges;
         current = name;
         // (The campaign's page over its own scene: the land, the ship on it.)
         bool campaign = name == "campaign" || name == "captain" || name == "hangar";
         backdrop.SetActive(!campaign);
         // (The skill tree lies on the page's own paper, without the hub's glow.)
-        backdrop.transform.Find("Glow")?.gameObject.SetActive(name != "stellari");
+        backdrop.transform.Find("Stage/Glow")?.gameObject.SetActive(name != "stellari");
         if (campaign && scene == null) scene = CampaignBackdrop.Make(cam, transform);
         if (!campaign && scene != null) { Mats.Kill(scene.gameObject); scene = null; }
         if (scene != null) scene.Focus(name == "captain" || name == "hangar" ? name : null);
@@ -211,7 +217,7 @@ public class MenuView : MonoBehaviour
             var (icon, name) = links[i];
             float nameW = Hud.Wide(name.ToUpperInvariant(), 14.8f, 700, 20, 0);
             float linkW = 2.9f + 31.9f + 10.2f + nameW + 2.9f;
-            var r = Hud.Rect(page, name);
+            var r = Hud.Rect(edges, name);
             Hud.Place(r, linkX, 29, linkW, 43.5f);
             linkX += linkW + 38.4f;
             var b = r.gameObject.AddComponent<Button>();
@@ -225,9 +231,9 @@ public class MenuView : MonoBehaviour
             t.margin = new Vector4(45, 0, 0, 0);
         }
         // You, then options and full screen: white pills top right (the web's .hub-corner: 57 tall, 8 apart).
-        Chip(page, new Vector2(-180.9f, -17.4f));
-        RoundButton(page, new Vector2(-103.3f, -17.4f), "Icons/options-small", () => Show("options"));
-        RoundButton(page, new Vector2(-26.1f, -17.4f), Screen.fullScreen ? "Icons/hud-exit-fullscreen" : "Icons/hud-fullscreen", () => { Screen.fullScreen = !Screen.fullScreen; });
+        Chip(edges, new Vector2(-180.9f, -17.4f));
+        RoundButton(edges, new Vector2(-103.3f, -17.4f), "Icons/options-small", () => Show("options"));
+        RoundButton(edges, new Vector2(-26.1f, -17.4f), Screen.fullScreen ? "Icons/hud-exit-fullscreen" : "Icons/hud-fullscreen", () => { Screen.fullScreen = !Screen.fullScreen; });
 
         // The five ways to play.
         var tiles = new[] { ("campaign", "A dying universe"), ("quickplay", "Quickplay"), ("online", "Online"), ("tutorial", "Tutorial"), ("challenges", "Challenges") };
