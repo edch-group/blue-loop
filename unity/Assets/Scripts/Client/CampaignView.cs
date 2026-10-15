@@ -508,10 +508,18 @@ public partial class CampaignView : MonoBehaviour
         name.transform.localPosition = new Vector3(-rowW / 2 + gw, rowY, 0);
         if (glyphTex != null)
         {
-            var gl = new GameObject("Galaxy glyph").AddComponent<SpriteRenderer>();
+            // (A quad in the sign's plane in the project's own Card shader: a SpriteRenderer's default shader isn't in
+            // the web build, and drew as magenta.)
+            var gl = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            gl.name = "Galaxy glyph";
+            Mats.Kill(gl.GetComponent<Collider>());
             gl.transform.SetParent(sign, false);
-            gl.sprite = Sprite.Create(glyphTex, new Rect(0, 0, glyphTex.width, glyphTex.height), new Vector2(0.5f, 0.5f), glyphTex.width / (76 * Px));
-            gl.color = ink;
+            var gm = Mats.Make("Card", ink);
+            gm.mainTexture = glyphTex;
+            gm.SetFloat("_Radius", 0);
+            gm.SetFloat("_Aspect", 1);
+            gl.GetComponent<MeshRenderer>().sharedMaterial = gm;
+            gl.transform.localScale = new Vector3(76 * Px, 76 * Px * glyphTex.height / glyphTex.width, 1);
             gl.transform.localPosition = new Vector3(-rowW / 2 + 38 * Px, rowY + rowH / 2, 0);
         }
     }
