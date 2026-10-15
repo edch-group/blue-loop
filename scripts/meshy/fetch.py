@@ -73,7 +73,11 @@ def main():
     # (What Meshy says of it, without its signed links, and which files it offers.)
     print('task:', json.dumps({k: (v if 'url' not in k else sorted(v) if isinstance(v, dict) else '…') for k, v in pick.items()})[:1500])
     for name, url in files.items():
-        data = get(url, raw=True)
+        try:
+            data = get(url, raw=True)
+        except urllib.error.HTTPError as e:
+            print(f'  {name}: {e.code}, left out')
+            continue
         if len(data) > LIMIT:
             print(f'  {name}: {len(data) >> 20} MB, too big for git, left out')
             continue

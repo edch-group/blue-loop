@@ -176,14 +176,14 @@ def to_box(v, ref):
     return np.stack([NOSE - (v[:, 0] - ref[:, 0].min()) * k, v[:, 1] * k + 12, v[:, 2] * k + MID_Z], 1)
 
 
-def cut_down(v, f, uv):
-    """The hull cut to TRIANGLES, its texture's seams kept: its corners, triangles, and each triangle's corners' places in the texture."""
+def cut_down(v, f, uv, triangles=TRIANGLES):
+    """A model cut to so many triangles, its texture's seams kept: its corners, triangles, and each triangle's corners' places in the texture."""
     import pymeshlab
     ms = pymeshlab.MeshSet()
     ms.add_mesh(pymeshlab.Mesh(vertex_matrix=v, face_matrix=f, v_tex_coords_matrix=uv))
     ms.compute_texcoord_transfer_vertex_to_wedge()
     ms.meshing_merge_close_vertices(threshold=pymeshlab.PercentageValue(0.001))
-    ms.meshing_decimation_quadric_edge_collapse_with_texture(targetfacenum=TRIANGLES, qualitythr=0.5, extratcoordw=1.0, preserveboundary=True,
+    ms.meshing_decimation_quadric_edge_collapse_with_texture(targetfacenum=triangles, qualitythr=0.5, extratcoordw=1.0, preserveboundary=True,
                                                              boundaryweight=1.0, optimalplacement=True, preservenormal=True, planarquadric=True)
     m = ms.current_mesh()
     return m.vertex_matrix(), m.face_matrix(), m.wedge_tex_coord_matrix().reshape(-1, 3, 2)
@@ -245,6 +245,30 @@ def colour(folder, box, f, wuv):
     return out
 
 
+def write(path, bv, bf, wuv, mat, col):
+    """
+    A model as the game reads it (CaptainShip.cs, CaptainModels.cs): each triangle's corners, their place (box units), their
+    normal (shared where smooth), their material (8 the ship's texture, 11 the Captain's; 9 glowing, 10 plain, in their own
+    colour) and colour, and their place in the texture.
+    """
+    cn = creased_normals(bv, bf)
+    q = 512
+    pos = np.round(bv[bf].reshape(-1, 3) * q).astype(np.int16)
+    nor = np.round(cn.reshape(-1, 3) * 127).astype(np.int8)
+    m = np.repeat(mat, 3).astype(np.uint8)
+    rgb = np.repeat(np.round(col * 255), 3, 0).astype(np.uint8)
+    tex = np.ascontiguousarray(np.round(np.clip(wuv.reshape(-1, 2), 0, 1) * 65535).astype('<u2'))
+    key = np.concatenate([pos.view(np.uint8).reshape(-1, 6), nor.view(np.uint8).reshape(-1, 3), m[:, None], rgb, tex.view(np.uint8).reshape(-1, 4)], 1)
+    uniq, inv = np.unique(key, axis=0, return_inverse=True)
+    inv = inv.reshape(-1)
+    print(f'{os.path.basename(path)}: {len(uniq)} vertices, {len(bf)} triangles')
+    with open(path, 'wb') as o:
+        o.write(b'BLCS')
+        o.write(struct.pack('<iiif', 3, len(uniq), len(bf), q))
+        o.write(uniq.astype(np.uint8).tobytes())
+        o.write(inv.astype('<u4' if len(uniq) > 65535 else '<u2').tobytes())
+
+
 def main():
     folder = max(glob.glob(os.path.join(SRC, 'meshy-*')), key=os.path.getmtime)
     fbx, _ = load_fbx(os.path.join(SRC, 'iron-horizon.fbx'))
@@ -259,25 +283,7 @@ def main():
     # (Nothing is added to it now: Meshy's model closes its own bells. A triangle can still be given its own colour, and
     # can glow, as the format allows.)
 
-    # Each triangle's corners: their place, their normal (shared where smooth), and either their place in the texture
-    # (painted metal, 8) or, for the bells' discs and plate, their own colour (9 glowing, 10 plain).
-    cn = creased_normals(bv, bf)
-    mat = np.where(glow, 9, np.where(np.any(col > 0, 1), 10, 8))
-    q = 512
-    pos = np.round(bv[bf].reshape(-1, 3) * q).astype(np.int16)
-    nor = np.round(cn.reshape(-1, 3) * 127).astype(np.int8)
-    m = np.repeat(mat, 3).astype(np.uint8)
-    rgb = np.repeat(np.round(col * 255), 3, 0).astype(np.uint8)
-    tex = np.ascontiguousarray(np.round(np.clip(wuv.reshape(-1, 2), 0, 1) * 65535).astype('<u2'))
-    key = np.concatenate([pos.view(np.uint8).reshape(-1, 6), nor.view(np.uint8).reshape(-1, 3), m[:, None], rgb, tex.view(np.uint8).reshape(-1, 4)], 1)
-    uniq, inv = np.unique(key, axis=0, return_inverse=True)
-    inv = inv.reshape(-1)
-    print(f'{len(uniq)} vertices')
-    with open(os.path.join(OUT, 'CaptainShip.bytes'), 'wb') as o:
-        o.write(b'BLCS')
-        o.write(struct.pack('<iiif', 3, len(uniq), len(bf), q))
-        o.write(uniq.astype(np.uint8).tobytes())
-        o.write(inv.astype('<u4' if len(uniq) > 65535 else '<u2').tobytes())
+    write(os.path.join(OUT, 'CaptainShip.bytes'), bv, bf, wuv, np.where(glow, 9, np.where(np.any(col > 0, 1), 10, 8)), col)
     print('written', os.path.relpath(OUT, ROOT))
 
 
