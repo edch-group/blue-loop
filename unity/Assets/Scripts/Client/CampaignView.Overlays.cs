@@ -55,7 +55,6 @@ public partial class CampaignView
         string name = string.IsNullOrEmpty(Profile.Me.Name) ? "commander" : Profile.Me.Name.ToLowerInvariant();
         float whoX = (1 + 4) * Z + faceD + 8 * Z;
         var who = WebLook.Words(WebLook.Box(chip.transform, "Name", whoX, 0, 120 * Z, 12.4f * Z), name.ToUpperInvariant(), 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
-        Hud.Ellipsis(who);
         float nameW = Mathf.Min(120 * Z, who.GetPreferredValues(who.text).x);
         var lv = WebLook.Words(WebLook.Box(chip.transform, "Level", whoX + nameW + 8 * Z, 0, 80 * Z, 10.4f * Z), $"LEVEL {level.Level}", 0.56f * 16 * Z, 0.14f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
         float whoW = Mathf.Max(whoMin, nameW + 8 * Z + lv.GetPreferredValues(lv.text).x);
@@ -67,6 +66,8 @@ public partial class CampaignView
         // a short name leaves it at the right of the min-width.)
         float whoH = 14 * Z + 3 * Z + 4 * Z, whoY = (pillH - whoH) / 2, lvW = lv.GetPreferredValues(lv.text).x + 0.14f * 0.56f * 16 * Z;
         WebLook.Box(who.rectTransform, whoX, whoY, 120 * Z, 14 * Z);
+        // (Cut short with an ellipsis past 120 across: set once its box is where it stays, as Hud.Ellipsis gives it room.)
+        Hud.Ellipsis(who);
         WebLook.Box(lv.rectTransform, whoX + whoW - lvW, whoY + 2 * Z, lvW + 4, 11 * Z);
         Face(chip.transform, me.Hero ?? Campaign.Flagship(state, state.PlayerId)?.General, 5 * Z + faceD / 2, pillH / 2, faceD, new Color32(0x1a, 0x1c, 0x2a, 255), (2 * Z, Color.white), (3 * Z, new Color(201 / 255f, 162 / 255f, 78 / 255f, 0.7f)));
         var bar = WebLook.Rounded(chip.transform, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.25f), 2 * Z);
