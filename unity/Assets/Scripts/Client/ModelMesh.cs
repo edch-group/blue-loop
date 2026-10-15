@@ -14,8 +14,11 @@ public static class ModelMesh
 
     /// <summary>
     /// The Captain's ship's made hull and its texture (scripts/bake-captain-ship.py): the hull's bytes for its model, the
-    /// texture for the ship shader's painted metal (every ship drawn by it reads the one texture).
+    /// texture for the ship shader's painted metal (every ship drawn by it reads the one texture). Set before any model is
+    /// made: as the game loads, and (the editor's screenshots, which never play) whenever this is first used.
     /// </summary>
+    static ModelMesh() => CaptainShipHull();
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void CaptainShipHull()
     {
