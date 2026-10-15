@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq;
 using BlueLoop.Engine;
 using UnityEngine;
+using UnityEngine.UI;
 using EngineAction = BlueLoop.Engine.Action;
 
 /// <summary>
@@ -40,9 +41,8 @@ public partial class BattleView
             bool byHeat = heats && uid != a.EnemyUid && (uid == shotAim || (nowC?.Dented ?? 0) > (was[uid].Dented ?? 0) || (heroMove && nowC != null && (nowC.Health ?? 0) < (was[uid].Health ?? 0)));
             if (byHeat)
             {
-                var target = Board.WorldOf(uid);
-                var origin = fromUid != null ? Board.WorldOf(fromUid) : null;
-                if (target != null) Shot.Fire(Board.transform, origin ?? Board.SunOf(actor.Id)?.transform.position ?? target.Value, target.Value, null, true, delay);
+                var land = to.Value;
+                StartCoroutine(Projectile(from.Value, () => CardRect(uid) ?? land, Hot, delay, 30, 0.56f, null));
                 continue;
             }
             StartCoroutine(Arc(from.Value, to.Value, Beam.Kind.Plain, 0.36f, delay, 0.42f, 0.52f, 0.26f));
@@ -61,6 +61,99 @@ public partial class BattleView
                 StartCoroutine(Arc(from.Value, to.Value, Beam.Kind.Plain, 0.12f, (actor.IsAI ? 0.6f : 0.42f) + k++ * 0.14f, 0.38f, 0.38f * 0.6f, 0.22f));
             }
         }
+    }
+
+    /// <summary>app.ts HOT: heat's colour.</summary>
+    static readonly Color Hot = new Color(240 / 255f, 160 / 255f, 122 / 255f);
+
+    static readonly System.Collections.Generic.Dictionary<string, Texture2D> bolts = new System.Collections.Generic.Dictionary<string, Texture2D>();
+
+    /// <summary>
+    /// .bolt: a disc `size` across, radial-gradient(circle, #fff 0 30%, colour 60%, transparent 72%), and its glow
+    /// (box-shadow 0 0 22px 6px colour) round it; drawn `size` + 2 × 34 across.
+    /// </summary>
+    static Texture2D Bolt(Color c, float size)
+    {
+        string key = $"{ColorUtility.ToHtmlStringRGB(c)} {size}";
+        if (bolts.TryGetValue(key, out var t)) return t;
+        const int n = 96;
+        float extent = size + 2 * 34, k = extent / n, r = size / 2;
+        t = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        var px = new Color[n * n];
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(n / 2f, n / 2f)) * k;
+                // (The disc: white to 30% of its radius, its colour by 60%, gone by 72%.)
+                float u = d / r;
+                Color disc = u <= 0.3f ? Color.white : u <= 0.6f ? Color.Lerp(Color.white, c, (u - 0.3f) / 0.3f) : u <= 0.72f ? new Color(c.r, c.g, c.b, 1 - (u - 0.6f) / 0.12f) : new Color(c.r, c.g, c.b, 0);
+                if (u > 1) disc.a = 0;
+                // (The glow: spread 6, blurred 22: a soft edge from the disc's rim out.)
+                float g = d - (r + 6);
+                float glow = d <= r + 6 ? 1 : Mathf.Exp(-(g * g) / (2 * 11 * 11 / 4f * 4));
+                var gc = new Color(c.r, c.g, c.b, glow * (d <= r ? 0 : 1));
+                // (The disc over its glow.)
+                float a = disc.a + gc.a * (1 - disc.a);
+                px[y * n + x] = a > 0 ? new Color((disc.r * disc.a + gc.r * gc.a * (1 - disc.a)) / a, (disc.g * disc.a + gc.g * gc.a * (1 - disc.a)) / a, (disc.b * disc.a + gc.b * gc.a * (1 - disc.a)) / a, a) : new Color(c.r, c.g, c.b, 0);
+            }
+        t.SetPixels(px);
+        t.Apply();
+        bolts[key] = t;
+        return t;
+    }
+
+    /// <summary>
+    /// fx.ts projectile: a glowing bolt `size` across from one rectangle to another (measured as it fires and as it
+    /// flies), up to 80 px above the higher of them halfway, swelling from 0.4 to 1.2 and landing at 0.8, fading in
+    /// (cubic-bezier(.4,0,.6,1) over `duration`); `landed` as it arrives.
+    /// </summary>
+    IEnumerator Projectile(Rect from, System.Func<Rect> to, Color colour, float delay, float size, float duration, System.Action landed)
+    {
+        if (delay > 0) yield return new WaitForSeconds(delay);
+        if (beamLayer == null) yield break;
+        var r = Hud.Rect(beamLayer.parent, "Bolt");
+        r.anchorMin = r.anchorMax = new Vector2(0, 1);
+        r.pivot = new Vector2(0.5f, 0.5f);
+        float extent = size + 2 * 34;
+        r.sizeDelta = new Vector2(extent, extent);
+        r.SetAsLastSibling();
+        var img = r.gameObject.AddComponent<RawImage>();
+        img.texture = Bolt(colour, size);
+        img.raycastTarget = false;
+        float t0 = Time.time;
+        while (true)
+        {
+            float k = Mathf.Clamp01((Time.time - t0) / duration);
+            float p = CubicBezier(0.4f, 0f, 0.6f, 1f, k);
+            var b = to();
+            Vector2 a0 = from.center, a1 = b.center, mid = new Vector2((a0.x + a1.x) / 2, Mathf.Min(a0.y, a1.y) - 80);
+            Vector2 at; float s, o;
+            if (p < 0.5f) { float q = p / 0.5f; at = Vector2.Lerp(a0, mid, q); s = Mathf.Lerp(0.4f, 1.2f, q); o = q; }
+            else { float q = (p - 0.5f) / 0.5f; at = Vector2.Lerp(mid, a1, q); s = Mathf.Lerp(1.2f, 0.8f, q); o = 1; }
+            r.anchoredPosition = new Vector2(at.x, -at.y);
+            r.localScale = Vector3.one * s;
+            img.color = new Color(1, 1, 1, o);
+            if (k >= 1) break;
+            yield return null;
+        }
+        Destroy(r.gameObject);
+        landed?.Invoke();
+    }
+
+    /// <summary>A CSS cubic-bezier timing function at `x`.</summary>
+    static float CubicBezier(float x1, float y1, float x2, float y2, float x)
+    {
+        float t = x;
+        for (int i = 0; i < 10; i++)
+        {
+            float u = 1 - t;
+            float bx = 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t - x;
+            float dx = 3 * u * u * x1 + 6 * u * t * (x2 - x1) + 3 * t * t * (1 - x2);
+            if (Mathf.Abs(dx) < 1e-5f) break;
+            t = Mathf.Clamp01(t - bx / dx);
+        }
+        float v = 1 - t;
+        return 3 * v * v * t * y1 + 3 * v * t * t * y2 + t * t * t;
     }
 
     /// <summary>A sun's rectangle on the page (its gauge as drawn).</summary>

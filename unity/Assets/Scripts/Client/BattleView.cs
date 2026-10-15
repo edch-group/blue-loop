@@ -408,7 +408,14 @@ public partial class BattleView : MonoBehaviour
             var sunView = Board.SunOf(p.Id);
             if (sunView != null && (dHeat != 0 || p.Shields != w.Shields))
             {
-                if (byEnemy && a.Type != "attack" && dHeat > 0) Shot.Fire(Board.transform, origin, sunView.transform.position, sunView, true, Mathf.Max(0, at - 0.42f));
+                if (byEnemy && a.Type != "attack" && dHeat > 0)
+                {
+                    // (Heat flies from the card played, or the striking sun, to the sun it strikes: fx.ts projectile.)
+                    var fromRect = (a.CardUid != null ? CardRect(a.CardUid) : null) ?? SunRect(source.Id);
+                    var pid = p.Id;
+                    if (fromRect != null) StartCoroutine(Projectile(fromRect.Value, () => SunRect(pid) ?? fromRect.Value, Hot, Mathf.Max(0, at - 0.4f), 34, 0.62f, () => sunView.Pulse(true)));
+                    else sunView.Pulse(true, at);
+                }
                 else sunView.Pulse(dHeat >= 0, a.Type == "attack" ? 0.15f : at);
             }
             int lost = byEnemy ? Mathf.Max(0, w.Shields - p.Shields) : 0;
