@@ -1069,18 +1069,9 @@ public partial class BattleView : MonoBehaviour
         float pw = widths.Sum() + 2 * 2 + 2 * 3;
         float inX = l.PadL + (l.Phone ? 8 : 16), inY = l.PadB + (l.Phone ? 8 : 16);
         var pace = Hud.Box(chrome, "Pace", new Color(1, 1, 1, 0.92f), (bh + 6) / 2);
-        Hud.Shadow(pace, (bh + 6) / 2, new Hud.Drop(Hud.Rgba(70, 76, 100, 0.14f), 4, 14));
+        // (Its 1 px ring and its shadow both outside it: a ring drawn as its child had lain over it, greying it.)
+        Hud.Shadow(pace, (bh + 6) / 2, new Hud.Drop(Hud.Rgba(120, 126, 150, 0.22f), 0, 0, 1), new Hud.Drop(Hud.Rgba(70, 76, 100, 0.14f), 4, 14));
         Hud.At((RectTransform)pace.transform, new Vector2(0, 0), new Vector2(inX, inY), new Vector2(pw, bh + 6));
-        var edge = Hud.Rect(pace.transform, "Ring");
-        Hud.Fill(edge);
-        edge.offsetMin = new Vector2(-1, -1);
-        edge.offsetMax = new Vector2(1, 1);
-        edge.SetAsFirstSibling();
-        var ei = edge.gameObject.AddComponent<Image>();
-        ei.sprite = Hud.Rounded;
-        ei.type = Image.Type.Sliced;
-        ei.color = new Color(120 / 255f, 126 / 255f, 150 / 255f, 0.22f);
-        Corners(ei, (bh + 8) / 2);
         paceOn = new Image[3];
         float x = 3;
         for (int i = 0; i < 3; i++)
