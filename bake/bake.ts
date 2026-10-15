@@ -416,7 +416,8 @@ import { modeArt } from '../src/ui/glyphs';
 /**
  * A booster pack as the shop's row shows it: the foil wrapper, turned a little, its shadow under it (its sheen still).
  * `part` 'open' or 'tear': as a bought one is torn open (.pack-ripped), facing straight on, its body (no strip) or its
- * tear strip alone; 'off': too dear to buy (.pack-slot[disabled] .pack: greyed and faded, its shadow gone).
+ * tear strip alone; 'off': too dear to buy (.pack-slot[disabled] .pack: greyed and faded, its shadow gone); 'flat':
+ * whole, facing straight on, its shadow under it (the game turns it as the row does, and as it lifts under the pointer).
  */
 function pack(kind: string, width: number, part = ''): void {
   const k = kind === 'general' ? 'general' : Number(kind);

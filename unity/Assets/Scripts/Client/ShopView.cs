@@ -44,7 +44,8 @@ public class ShopView : MonoBehaviour, MenuView.IRedraw
 
     /// <summary>
     /// A pack's baked picture (scripts/bake-menus.mjs): turned as the shop's row shows it (`part` ""), too dear ("off"),
-    /// or torn open facing straight on, its body ("open") or its tear strip ("tear"); baked 132 across, the web's
+    /// torn open facing straight on, its body ("open") or its tear strip ("tear"), or whole facing straight on with its
+    /// shadow ("flat", for PackTilt to turn); baked 132 across, the web's
     /// largest, and 62 across as a phone held sideways sizes it and its words ("-m": for packs drawn under 97 across).
     /// </summary>
     static Texture2D PackFace(int? kind, string part, bool small)
@@ -126,8 +127,10 @@ public class ShopView : MonoBehaviour, MenuView.IRedraw
                 Hud.Place(slot, x, y, sw, slotH);
                 b.interactable = afford;
                 b.onClick.AddListener(() => Buy(kind));
-                // (Too dear: .pack-slot[disabled] .pack, greyed and faded, its shadow gone; baked so.)
-                Wrapper(slot, kind, afford ? "" : "off", (sw - pw) / 2, 0, pw);
+                // (Too dear: .pack-slot[disabled] .pack, greyed and faded, its shadow gone; baked so. Else turned as the row
+                // turns it, lifting and turning toward you under the pointer: PackTilt.)
+                if (afford) PackTilt.On(slot, PackFace(kind, "flat", pw < 97), (sw - pw) / 2, pw, sw, slotH);
+                else Wrapper(slot, kind, "off", (sw - pw) / 2, 0, pw);
                 K.Words(slot, PackName(kind).ToUpperInvariant(), -10, ph + 6, sw + 20, 14, 10.56f, Look.Ink, true, 700, 0.18f);
                 K.Words(slot, $"✦ {Progression.BoosterPrice}", 0, ph + 6 + 14 + 6, sw, 14, 10.56f, Hud.Rgba(185, 133, 42), true, 400);
                 x += sw + rowGap;
@@ -312,5 +315,108 @@ public class BoosterReveal : MonoBehaviour
         }
         float v = 1 - t;
         return 3 * v * v * t * y1 + 3 * v * t * t * y2 + t * t * t;
+    }
+}
+
+/// <summary>
+/// A pack in the shop's row, turned in 3D as the web turns it (styles.css .pack: rotateY(-14deg) rotateX(6deg) about its
+/// middle, in .pack-slot's perspective: 700px from the slot's middle), and under a mouse lifted and turned toward you
+/// (.pack-slot:not([disabled]):hover .pack, @media (hover: hover): rotateY(8deg) rotateX(4deg) translateY(-6px)), each
+/// way over 0.35 s, cubic-bezier(.2, .8, .2, 1). Drawn from the pack baked flat with its shadow (the web flattens it
+/// with its drop-shadow, then turns it), on a fine grid so it keeps its perspective. In the slot's CSS pixels, from its
+/// top left.
+/// </summary>
+public class PackTilt : MaskableGraphic, UnityEngine.EventSystems.IPointerEnterHandler, UnityEngine.EventSystems.IPointerExitHandler
+{
+    const int Grid = 12;
+    const float Perspective = 700, Length = 0.35f;
+    Texture tex;
+    // (The picture's box, the pack's middle and the slot's, all in the slot's CSS pixels, y down.)
+    Rect pic;
+    Vector2 middle, origin;
+    // (How far toward the lifted pose (0 at rest, 1 lifted), and the transition under way: from, to, since.)
+    float at, from, to;
+    float since = -1;
+
+    public override Texture mainTexture => tex != null ? tex : Texture2D.whiteTexture;
+
+    /// <summary>The pack `w` across at `x` in a slot `slotW` by `slotH` (its picture baked flat, 24 of 132 (or 62) out from its top left).</summary>
+    public static PackTilt On(RectTransform slot, Texture2D flat, float x, float w, float slotW, float slotH)
+    {
+        var r = Hud.Rect(slot, "Pack");
+        r.anchorMin = r.anchorMax = r.pivot = new Vector2(0, 1);
+        r.anchoredPosition = Vector2.zero;
+        r.sizeDelta = new Vector2(slotW, slotH);
+        var g = r.gameObject.AddComponent<PackTilt>();
+        g.raycastTarget = false;
+        g.tex = flat;
+        float baked = w < 97 ? 62 : 132, s = w / baked, tw = (baked + 58) * s;
+        g.pic = new Rect(x - 24 * s, -24 * s, tw, flat != null ? tw * flat.height / flat.width : tw * 1.36f);
+        g.middle = new Vector2(x + w / 2, w * 1.6f / 2);
+        g.origin = new Vector2(slotW / 2, slotH / 2);
+        // (The slot takes the pointer: it tells the pack.)
+        var relay = slot.gameObject.AddComponent<Relay>();
+        relay.Pack = g;
+        return g;
+    }
+
+    /// <summary>The slot's pointer, passed to its pack.</summary>
+    class Relay : MonoBehaviour, UnityEngine.EventSystems.IPointerEnterHandler, UnityEngine.EventSystems.IPointerExitHandler
+    {
+        public PackTilt Pack;
+        public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData e) => Pack?.OnPointerEnter(e);
+        public void OnPointerExit(UnityEngine.EventSystems.PointerEventData e) => Pack?.OnPointerExit(e);
+    }
+
+    // (A mouse only: the web's hover is for a device that hovers; a finger's touch is not one. Mouse pointers are -1 to -3.)
+    public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData e) { if (e.pointerId < 0) Go(1); }
+    public void OnPointerExit(UnityEngine.EventSystems.PointerEventData e) { if (e.pointerId < 0) Go(0); }
+
+    /// <summary>A transition to `target` from where it stands (turned back part way: as much of the time as it has to go, as CSS shortens a reversed one).</summary>
+    void Go(float target)
+    {
+        if (to == target && since >= 0) return;
+        from = at;
+        to = target;
+        since = Time.unscaledTime;
+    }
+
+    void Update()
+    {
+        if (since < 0) return;
+        float length = Length * Mathf.Abs(to - from);
+        float k = length > 0 ? Mathf.Clamp01((Time.unscaledTime - since) / length) : 1;
+        at = Mathf.Lerp(from, to, CampaignMenuPage.Bezier(k, 0.2f, 0.8f, 0.2f, 1));
+        if (k >= 1) since = -1;
+        SetVerticesDirty();
+    }
+
+    protected override void OnPopulateMesh(VertexHelper vh)
+    {
+        vh.Clear();
+        // (Each part of the transform between its rest and its lift, as CSS turns one list of transforms into the other.)
+        float ry = Mathf.Lerp(-14, 8, at) * Mathf.Deg2Rad, rx = Mathf.Lerp(6, 4, at) * Mathf.Deg2Rad, ty = Mathf.Lerp(0, -6, at);
+        float cy = Mathf.Cos(ry), sy = Mathf.Sin(ry), cx = Mathf.Cos(rx), sx = Mathf.Sin(rx);
+        var c = (Color32)color;
+        for (int j = 0; j <= Grid; j++)
+            for (int i = 0; i <= Grid; i++)
+            {
+                float u = i / (float)Grid, v = j / (float)Grid;
+                // (A point of the flat picture about the pack's middle; moved up, turned about x, then about y (CSS's
+                // rotateY(a) rotateX(b) translateY(t), the last first); then seen in the slot's perspective.)
+                float px = pic.x + u * pic.width - middle.x, py = pic.y + v * pic.height - middle.y + ty;
+                float y1 = cx * py, z1 = sx * py;
+                float x2 = cy * px + sy * z1, z2 = -sy * px + cy * z1;
+                float k = Perspective / (Perspective - z2);
+                float X = origin.x + (middle.x + x2 - origin.x) * k, Y = origin.y + (middle.y + y1 - origin.y) * k;
+                vh.AddVert(new Vector3(X, -Y, 0), c, new Vector2(u, 1 - v));
+            }
+        for (int j = 0; j < Grid; j++)
+            for (int i = 0; i < Grid; i++)
+            {
+                int a = j * (Grid + 1) + i, b = a + 1, d = a + Grid + 1, e = d + 1;
+                vh.AddTriangle(a, b, e);
+                vh.AddTriangle(a, e, d);
+            }
     }
 }

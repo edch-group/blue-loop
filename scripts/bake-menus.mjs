@@ -21,8 +21,9 @@ for (const k of ['0', '1', '2', '3', '4', '5', '6', '7', 'general']) {
   await settle();
   await page.waitForTimeout(150);
   await shoot(`pack-${k}`);
-  // (Torn open, facing straight on: its body, and its strip that flies off; and too dear to buy.)
-  for (const part of ['open', 'tear', 'off']) {
+  // (Torn open, facing straight on: its body, and its strip that flies off; too dear to buy; and whole, facing straight
+  // on, for the game to turn.)
+  for (const part of ['open', 'tear', 'off', 'flat']) {
     await page.evaluate(([kind, p]) => window.pack(kind, 132, p), [k, part]);
     await settle();
     await page.waitForTimeout(150);
@@ -37,7 +38,7 @@ for (const k of ['0', '1', '2', '3', '4', '5', '6', '7', 'general']) {
   await phone.waitForFunction(() => window.ready === true);
   await phone.addStyleTag({ content: 'html,body,#stage{background:transparent!important}' });
   for (const k of ['0', '1', '2', '3', '4', '5', '6', '7', 'general'])
-    for (const part of ['', 'open', 'tear', 'off']) {
+    for (const part of ['', 'open', 'tear', 'off', 'flat']) {
       // (Zoomed four times rather than shot at four times the pixels: a turned pack is drawn at its own size, blurred.)
       await phone.evaluate(([kind, p]) => { window.pack(kind, 62, p); document.getElementById('piece').style.zoom = '4'; }, [k, part]);
       await phone.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
