@@ -70,7 +70,8 @@ public partial class CampaignView
         // (Cut short with an ellipsis past 120 across: set once its box is where it stays, as Hud.Ellipsis gives it room.)
         Hud.Ellipsis(who);
         WebLook.Box((RectTransform)lv.transform.parent, whoX + whoW - lvW, whoY + 2 * Z, lvW + 4, 11 * Z);
-        Face(chip.transform, me.Hero ?? Campaign.Flagship(state, state.PlayerId)?.General, 5 * Z + faceD / 2, pillH / 2, faceD, new Color32(0x1a, 0x1c, 0x2a, 255), (2 * Z, Color.white), (3 * Z, new Color(201 / 255f, 162 / 255f, 78 / 255f, 0.7f)));
+        // (Your account's picture; without one, your hero's: glyphs.ts playerAvatar.)
+        Face(chip.transform, Account.Current?.Avatar ?? me.Hero, 5 * Z + faceD / 2, pillH / 2, faceD, new Color32(0x1a, 0x1c, 0x2a, 255), (2 * Z, Color.white), (3 * Z, new Color(201 / 255f, 162 / 255f, 78 / 255f, 0.7f)));
         var bar = WebLook.Rounded(chip.transform, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.25f), 2 * Z);
         WebLook.Box(bar.rectTransform, whoX, whoY + whoH - 4 * Z, whoW, 4 * Z);
         float into = Mathf.Clamp01((float)level.Into / Mathf.Max(1, (float)level.Need));
@@ -125,7 +126,9 @@ public partial class CampaignView
         {
             var badge = WebLook.Box(purse, "Relic", PW - pad.y - 16 * Z - 4 * Z - rd, PH / 2 - colH / 2 + i * (rd + rgap), rd, rd).gameObject.AddComponent<RawImage>();
             badge.texture = RelicArt(relics[i]);
-            badge.raycastTarget = false;
+            // (Under the pointer, a little larger: .cmp-relic:hover, scale(1.08).)
+            badge.raycastTarget = true;
+            badge.gameObject.AddComponent<Swell>().By = 1.08f;
             WebLook.Shadow(badge, 3 * Z, 8 * Z, new Color(30 / 255f, 34 / 255f, 50 / 255f, 0.3f), rd / 2);
             var bob = badge.gameObject.AddComponent<Bob>();
             bob.Height = 2 * Z;
@@ -245,6 +248,10 @@ public partial class CampaignView
     bool lootOpen;
     string cardPick, keepPick;
     bool dreamStarting;
+    /// <summary>The Power Struggle's rival last seen coming, and since when: its screen held back while their ship comes alongside.</summary>
+    string struggleSeen;
+    float struggleAt;
+    const float StruggleArrive = 1.6f;
 
     void Overlays()
     {
@@ -275,7 +282,19 @@ public partial class CampaignView
         var joined = s.Joined?.FirstOrDefault();
         if (joined != null && s.CardRewards.Count == 0) { Joined(joined); return; }
         if (s.Encounter != null && s.CardRewards.Count == 0) { Encounter(); return; }
-        if (s.Struggle != null && s.CardRewards.Count == 0) { Struggle(); return; }
+        if (s.Struggle != null && s.CardRewards.Count == 0)
+        {
+            // (A moment first, for the rival's ship to come alongside on the map: campaign.ts STRUGGLE_ARRIVE_MS.)
+            if (struggleSeen != s.Struggle.Hero)
+            {
+                struggleSeen = s.Struggle.Hero;
+                struggleAt = Time.time;
+                if (Application.isPlaying) Invoke(nameof(Refresh), StruggleArrive + 0.05f);
+            }
+            if (Application.isPlaying && Time.time - struggleAt < StruggleArrive) return;
+            Struggle();
+            return;
+        }
         if (s.Beaten != null && s.CardRewards.Count == 0) { Beaten(); return; }
         if (s.Dream != null && s.Struggle == null && s.Beaten == null) { Dream(); return; }
         if (s.Prophet != null) { Prophet(); return; }
@@ -692,31 +711,139 @@ public partial class CampaignView
         LootIn.On((RectTransform)ok.transform, t0, 0.45f + (count + first) * 0.42f + 0.2f, true);
     }
 
-    /// <summary>The experience a loot brought (campaign.ts xpGauge): LEVEL and the level, its bar filling in gold, +XP.</summary>
+    /// <summary>
+    /// The experience a loot brought (campaign.ts xpGauge): LEVEL and the level it stood at, its bar where it stood in
+    /// gold, +XP; once it is out, filling (XpFill).
+    /// </summary>
     void XpGauge(RectTransform v, float y, int gained, float t0)
     {
         var meta = LoadMeta();
-        var now = Meta.LevelFor(meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)));
+        double from = meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)) - gained;
+        var was = Meta.LevelFor(from);
         var g = WebLook.Box(v, "Experience", 0, y, PW, 33);
         var lv = WebLook.Words(Hud.Fill(Hud.Rect(g, "Level")), "LEVEL", 0.7f * 16 * Z, 0.12f, Look.InkSoft, true, 400, TextAlignmentOptions.Left);
-        var n = WebLook.Words(Hud.Fill(Hud.Rect(g, "N")), now.Level.ToString(), 1.15f * 16 * Z, 0.12f, Look.Ink, true, 700, TextAlignmentOptions.Left);
+        var n = WebLook.Words(Hud.Fill(Hud.Rect(g, "N")), was.Level.ToString(), 1.15f * 16 * Z, 0.12f, Look.Ink, true, 700, TextAlignmentOptions.Center);
         var gain = WebLook.Words(Hud.Fill(Hud.Rect(g, "Gain")), $"+{gained} XP", 0.8f * 16 * Z, 0.12f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
-        float lw = lv.GetPreferredValues(lv.text).x, nw = n.GetPreferredValues(n.text).x, gw = gain.GetPreferredValues(gain.text).x, bar = 260 * Z, gap = 12 * Z;
+        // (Its level's room as wide as the level it ends at, so the row stays put as the number ticks up.)
+        string most = Meta.LevelFor(from + gained).Level.ToString();
+        float lw = lv.GetPreferredValues(lv.text).x, nw = Mathf.Max(n.GetPreferredValues(n.text).x, n.GetPreferredValues(most).x), gw = gain.GetPreferredValues(gain.text).x, bar = 260 * Z, gap = 12 * Z;
         float w = lw + 4 * Z + nw + gap + bar + gap + gw, x = PW / 2 - w / 2;
         WebLook.Box(lv.rectTransform, x, 0, lw + 4, 33);
         WebLook.Box(n.rectTransform, x + lw + 4 * Z, 0, nw + 4, 33);
         var track = WebLook.Rounded(g, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.22f), 5 * Z);
         WebLook.Box(track.rectTransform, x + lw + 4 * Z + nw + gap, (33 - 10 * Z) / 2, bar, 10 * Z);
-        float into = Mathf.Clamp01((float)now.Into / Mathf.Max(1, (float)now.Need));
-        if (into > 0)
-        {
-            var fill = WebLook.Rounded(track.transform, "Fill", Color.white, 5 * Z);
-            WebLook.Box(fill.rectTransform, 0, 0, bar * into, 10 * Z);
-            WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f6dc94"), true);
-        }
+        // (Clipped to its rounded track, as overflow: hidden.)
+        track.gameObject.AddComponent<Mask>().showMaskGraphic = true;
+        var fill = WebLook.Rounded(track.transform, "Fill", Color.white, 5 * Z);
+        WebLook.Box(fill.rectTransform, 0, 0, bar * Mathf.Clamp01((float)was.Into / Mathf.Max(1, (float)was.Need)), 10 * Z);
+        WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f6dc94"), true);
         WebLook.Box(gain.rectTransform, x + w - gw, 0, gw + 4, 33);
+        // "+1 skill point" over the gauge's middle (.loot-xp-up: 6 above it, 0.66rem gold), unseen till a level is gained.
+        float us = 0.66f * 16 * Z;
+        var up = WebLook.Words(g, "+1 SKILL POINT", us, 0.12f, WebLook.Hex("#9a7429"), true, 400);
+        WebLook.Box(up.rectTransform, PW / 2 - 100 * Z, -6 * Z - us * 1.26f, 200 * Z, us * 1.26f);
+        up.alpha = 0;
+        up.raycastTarget = false;
         LootIn.On(g, t0, 0.45f);
+        // (The fill begins once it is out: LOOT_FIRST + 350ms after the cache opens.)
+        var f = g.gameObject.AddComponent<XpFill>();
+        f.Set(this, from, gained, t0 + 0.8f, fill.rectTransform, bar, n, up);
     }
+
+    /// <summary>The gauge's fill heard: its run once, and a chime for each level as it is reached (kept across redraws).</summary>
+    float xpHeardFor = -1;
+    int xpLevelHeard;
+
+    /// <summary>
+    /// The gauge filling (campaign.ts fillXpGauge): the bar runs from where it stood to where it ends up (eased out), round
+    /// again for every level gained, min(2.6s, 0.7s + 40ms an xp + 450ms a level) in all; each level reached, its number
+    /// ticks up with a bounce (xp-lv: to 1.5 and gold half way, 0.5s), a chime, "+1 skill point" rising and fading (xp-up,
+    /// 1.6s); the fill's own sound rising as it goes.
+    /// </summary>
+    public class XpFill : MonoBehaviour
+    {
+        CampaignView view;
+        double from;
+        int gain;
+        float start, dur, barW;
+        RectTransform fill;
+        TMP_Text level, up;
+        int startLevel;
+
+        public void Set(CampaignView v, double xpFrom, int gained, float at, RectTransform bar, float width, TMP_Text n, TMP_Text pop)
+        {
+            view = v;
+            from = xpFrom;
+            gain = gained;
+            start = at;
+            fill = bar;
+            barW = width;
+            level = n;
+            up = pop;
+            startLevel = Meta.LevelFor(from).Level;
+            int ups = Meta.LevelFor(from + gain).Level - startLevel;
+            dur = Mathf.Min(2.6f, 0.7f + gain * 0.04f + ups * 0.45f);
+            Update();
+        }
+
+        void Update()
+        {
+            if (view == null || fill == null) return;
+            float t = Time.time - start;
+            if (!Application.isPlaying) t = dur;
+            if (t < 0) return;
+            if (view.xpHeardFor != start && Application.isPlaying)
+            {
+                view.xpHeardFor = start;
+                view.xpLevelHeard = startLevel;
+                // (Baked at each tenth of a second it may run: the nearest.)
+                Sound.Play($"xp-fill-{Mathf.Clamp(Mathf.RoundToInt(dur * 10), 7, 26)}");
+            }
+            float k = Mathf.Min(1, t / dur), e = 1 - (1 - k) * (1 - k);
+            var now = Meta.LevelFor(from + gain * e);
+            fill.sizeDelta = new Vector2(barW * Mathf.Clamp01((float)now.Into / Mathf.Max(1, (float)now.Need)), fill.sizeDelta.y);
+            level.text = now.Level.ToString();
+            if (now.Level > view.xpLevelHeard && Application.isPlaying)
+            {
+                view.xpLevelHeard = now.Level;
+                view.xpLevelAt = Time.time;
+                Sound.Play("level-up");
+            }
+            // (The level's bounce and the point's rise, from the moment the last level was reached.)
+            float since = now.Level > startLevel ? Time.time - view.xpLevelAt : 99;
+            // (xp-lv: to 1.5 and gold at its half, and back, each half eased by cubic-bezier(.2, 1.6, .4, 1).)
+            float b = since / 0.5f, bounce = b >= 1 ? 0 : b < 0.5f ? Bezier(0.2f, 1.6f, 0.4f, 1, b * 2) : 1 - Bezier(0.2f, 1.6f, 0.4f, 1, b * 2 - 1);
+            level.rectTransform.localScale = Vector3.one * (1 + 0.5f * bounce);
+            level.color = Color.LerpUnclamped(Look.Ink, WebLook.Hex("#c9a24e"), Mathf.Clamp01(bounce));
+            // (xp-up: in by a fifth of its 1.6s, held, out over the last fifth, each eased out; rising from 60% of its
+            // height above its place (6 over the gauge) to 160%.)
+            float u = since / 1.6f;
+            up.alpha = u >= 1 ? 0 : u < 0.2f ? EaseOut(u / 0.2f) : u < 0.8f ? 1 : 1 - EaseOut((u - 0.8f) / 0.2f);
+            float h = up.rectTransform.sizeDelta.y;
+            up.rectTransform.anchoredPosition = new Vector2(up.rectTransform.anchoredPosition.x, 6 * WebLook.Zoom + (0.6f + EaseOut(Mathf.Clamp01(u))) * h);
+        }
+
+        static float EaseOut(float x) => Bezier(0, 0, 0.58f, 1, x);
+
+        /// <summary>A CSS cubic-bezier timing function at a moment (its x solved for, then its y).</summary>
+        static float Bezier(float x1, float y1, float x2, float y2, float x)
+        {
+            if (x <= 0) return 0;
+            if (x >= 1) return 1;
+            float t = x;
+            for (int i = 0; i < 12; i++)
+            {
+                float cx = 3 * x1 * t * (1 - t) * (1 - t) + 3 * x2 * t * t * (1 - t) + t * t * t - x;
+                float dx = 3 * x1 * (1 - t) * (1 - 3 * t) + 3 * x2 * t * (2 - 3 * t) + 3 * t * t;
+                if (Mathf.Abs(dx) < 1e-5f) break;
+                t = Mathf.Clamp01(t - cx / dx);
+            }
+            return 3 * y1 * t * (1 - t) * (1 - t) + 3 * y2 * t * t * (1 - t) + t * t * t;
+        }
+    }
+
+    /// <summary>When the gauge last reached a level.</summary>
+    float xpLevelAt = -99;
 
     /// <summary>Materials or petals: their token on its glow and rays (baked from the page), the number under it.</summary>
     static void LootToken(RectTransform r, string icon, string big, float lw)
@@ -949,6 +1076,24 @@ public partial class CampaignView
             float e = k < 0.5f ? Mathf.SmoothStep(0, 1, k * 2) : Mathf.SmoothStep(1, 0, k * 2 - 1);
             r.anchoredPosition = rest + new Vector2(0, Height * e);
         }
+    }
+
+    /// <summary>A thing a little larger under the pointer (a :hover scale), about its middle; at once, as the web's has no transition.</summary>
+    public class Swell : MonoBehaviour, UnityEngine.EventSystems.IPointerEnterHandler, UnityEngine.EventSystems.IPointerExitHandler
+    {
+        public float By = 1.08f;
+
+        void Awake()
+        {
+            // (Turned about its middle: its pivot moved there, where it stands kept.)
+            var r = (RectTransform)transform;
+            var shift = new Vector2(0.5f - r.pivot.x, 0.5f - r.pivot.y);
+            r.pivot = new Vector2(0.5f, 0.5f);
+            r.anchoredPosition += new Vector2(shift.x * r.sizeDelta.x, shift.y * r.sizeDelta.y);
+        }
+
+        public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData e) => transform.localScale = Vector3.one * By;
+        public void OnPointerExit(UnityEngine.EventSystems.PointerEventData e) => transform.localScale = Vector3.one;
     }
 
     /// <summary>The sealed cache floating (styles.css loot-float: up and down over 3.2s).</summary>
@@ -1457,9 +1602,79 @@ public partial class CampaignView
     {
         var hero = state.Beaten.Hero;
         float bh = 0.66f * 16 * Z * 1.25f + 2 * 12 * Z + 0.66f * 16 * Z * 1.2f + 3 * Z;
-        Standoff("beaten", hero, null, (row, h) => Buttons(row,
-            ("recruit · joins your deck", true, null, () => Act(new CampaignAction { Type = "struggleChoice", Recruit = true }, "upgrade")),
-            ("slay · for their hoard", false, null, () => Act(new CampaignAction { Type = "struggleChoice", Recruit = false }, "buy"))), bh);
+        // (The hoard spelled out: materials (more in every galaxy after the first), petals, rare cards.)
+        int materials = Campaign.SlayMaterials + Campaign.SlayPerGalaxy * (state.Universe - 1);
+        Standoff("beaten", hero, null, (row, h) => TwoLineButtons(row, bh,
+            ("recruit", new (string, string)[] { (null, "joins your deck") }, true, () => Act(new CampaignAction { Type = "struggleChoice", Recruit = true }, "upgrade")),
+            ("slay", new (string, string)[] { ("materials", $"{materials} · "), ("petal", $"{Campaign.SlayPetals} · {Campaign.SlayCards} rare cards") }, false, () => Act(new CampaignAction { Type = "struggleChoice", Recruit = false }, "buy"))), bh);
+    }
+
+    /// <summary>
+    /// The beaten rival's choices (.struggle-choice): side by side, 12 apart, the row centred (wrapping); each a button
+    /// at least 150 across, padded 12 24, its name over a line of small words (0.66rem Exo 2, unspaced, at 0.8), 3 under
+    /// it: each run of the line after a mark (1em, 3 apart from its words: the materials' crate, the petal) if it has one.
+    /// </summary>
+    void TwoLineButtons(RectTransform row, float bh, params (string label, (string icon, string words)[] sub, bool primary, System.Action act)[] bs)
+    {
+        float fs = 0.66f * 16 * Z, ss = 0.66f * 16 * Z, gap = 12 * Z, labelH = fs * 1.25f, subH = ss * 1.2f, rowW = row.sizeDelta.x;
+        var made = new List<(RectTransform r, float w)>();
+        foreach (var (label, sub, primary, act) in bs)
+        {
+            var b = WebLook.Button(row, label, () => act(), primary, fs, 0.14f);
+            var r = (RectTransform)b.transform;
+            var t = b.GetComponentInChildren<TextMeshProUGUI>();
+            float lw = t.GetPreferredValues(t.text).x;
+            // (The small line: each mark and its run of words, inline, 3 apart.)
+            var line = Hud.Rect(r, "Sub");
+            var group = line.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = 0.8f;
+            group.blocksRaycasts = false;
+            float x = 0;
+            foreach (var (icon, words) in sub)
+            {
+                if (icon != null)
+                {
+                    if (x > 0) x += 3 * Z;
+                    var mark = WebLook.Box(line, icon, x, (subH - ss) / 2, ss, ss).gameObject.AddComponent<RawImage>();
+                    mark.texture = Resources.Load<Texture2D>(icon == "materials" ? "Icons/materials" : "Icons/petal");
+                    mark.raycastTarget = false;
+                    x += ss;
+                }
+                var w = WebLook.Words(line, words, ss, 0, Look.Ink, false, 400, TextAlignmentOptions.Left);
+                w.raycastTarget = false;
+                float ww = w.GetPreferredValues(words).x;
+                if (x > 0) x += 3 * Z;
+                WebLook.Box(w.rectTransform, x, 0, ww + 2, subH);
+                x += ww;
+            }
+            float bw = Mathf.Max(150 * Z, Mathf.Max(lw, x) + 2 * 24 * Z);
+            r.sizeDelta = new Vector2(bw, bh);
+            WebLook.Box(t.rectTransform, 0, 12 * Z, bw, labelH);
+            WebLook.Box(line, (bw - x) / 2, 12 * Z + labelH + 3 * Z, x, subH);
+            made.Add((r, bw));
+        }
+        // (display: flex; flex-wrap: wrap; justify-content: center; 12 apart.)
+        var rows = new List<List<(RectTransform r, float w)>> { new List<(RectTransform, float)>() };
+        float used = 0;
+        foreach (var m in made)
+        {
+            var now = rows[rows.Count - 1];
+            if (now.Count > 0 && used + gap + m.w > rowW) { rows.Add(new List<(RectTransform, float)>()); used = 0; now = rows[rows.Count - 1]; }
+            used += (now.Count > 0 ? gap : 0) + m.w;
+            now.Add(m);
+        }
+        float y = 0;
+        foreach (var line in rows)
+        {
+            float lineW = line.Sum(m => m.w) + gap * (line.Count - 1), x = (rowW - lineW) / 2;
+            foreach (var m in line)
+            {
+                WebLook.Box(m.r, x, y, m.w, bh);
+                x += m.w + gap;
+            }
+            y += bh + gap;
+        }
+        row.sizeDelta = new Vector2(rowW, Mathf.Max(0, y - gap));
     }
 
     /// <summary>A Dream of the Lost: the screen drifts into dark, with a line; then the dream begins by itself.</summary>
@@ -1534,6 +1749,187 @@ public partial class CampaignView
         sheetNow = () => Ask(title, words, yes);
         // (renderOverlay's rift sheet: the narrow modal, the choice it is for and its words under it, then stay.)
         Modal(title, body => SetList(body, 0, new SetRow(yes.label, () => { CloseSheet(); yes.act(); }, words, true), new SetRow("stay", CloseSheet)), 560 * Z, sheetRoot);
+    }
+
+    /// <summary>
+    /// A known foe's system (renderOverlay's attack sheet, .cmp-modal-narrow.cmp-attack): ATTACK X? over the matchup and,
+    /// 12 under it, fight or back, as the settings' rows. Fight: the ship sets out.
+    /// </summary>
+    void Attack(string armyId, string toId)
+    {
+        CloseSheet();
+        sheetNow = () => Attack(armyId, toId);
+        var to = Campaign.NodeById(state, toId);
+        Modal($"attack {to.Name.ToLowerInvariant()}?", body =>
+        {
+            float h = Matchup(body, armyId, to);
+            return h + 12 * Z + SetList(body, h + 12 * Z, new SetRow("fight", () => SetOut(armyId, toId), go: true), new SetRow("back", CloseSheet));
+        }, 560 * Z, sheetRoot);
+    }
+
+    /// <summary>
+    /// The two sides of a battle, and, in a few plain words, whatever tips it (campaign.ts matchup). Each side (.cmp-vs-side)
+    /// its face 56 across ringed 2.5 in its colour, its name (0.64rem, spaced 0.14em) 6 under it and its sun as the battle
+    /// starts it (heat / max, 0.7rem) 6 under that; VS between them (0.6rem, spaced 0.2em, faint), 10 apart. Under them, 12
+    /// apart, the tips (.cmp-attack .cmp-tips): centred lines 0.74rem, 2 apart, a good one green and a bad one rust, each
+    /// with a dot before it; where the odds come from, faint. Its height.
+    /// </summary>
+    float Matchup(RectTransform body, string armyId, CampaignNode to, bool defending = false)
+    {
+        var s = state;
+        var attacker = s.Armies.FirstOrDefault(a => a.Id == armyId);
+        var defender = Campaign.DefenderOf(s, to, attacker);
+        var odds = attacker != null ? Campaign.BattleOdds(s, attacker, to) : ((Campaign.SideOdds, Campaign.SideOdds)?)null;
+        float W = body.sizeDelta.x, face = 56 * Z, nameS = 0.64f * 16 * Z, sunS = 0.7f * 16 * Z, vsS = 0.6f * 16 * Z;
+        var vs = WebLook.Words(body, "vs", vsS, 0.2f, Look.InkFaint, true, 400);
+        float vsW = vs.GetPreferredValues("vs").x + 0.2f * vsS, colW = (W - vsW - 2 * 10 * Z) / 2;
+        // (One side, in its column from its top: its leader's face (a holder's emblem, the sentinels' blank), its name, its
+        // sun. Its height.)
+        float Side(RectTransform col, Army army, CampaignNode n, Campaign.SideOdds o)
+        {
+            string name = army != null ? Campaign.ArmyLeader(army) : n.Owner != null ? $"{Campaign.FactionById(s, n.Owner).Name} guard" : n.Heart == true ? Campaign.OverlordById(s.Overlord ?? "colossus").Name : $"{n.Name} sentinels";
+            var colour = army != null ? ColourOf(army.Owner) : n.Owner != null ? ColourOf(n.Owner) : Hex(NeutralHex);
+            float y = 0;
+            VsFace(col, army, n, colW / 2, face / 2, face, colour);
+            y += face + 6 * Z;
+            var b = WebLook.Words(col, name.ToUpperInvariant(), nameS, 0.14f, Look.Ink, true, 500);
+            b.textWrappingMode = TextWrappingModes.Normal;
+            float bh = b.GetPreferredValues(b.text, colW, 0).y;
+            WebLook.Box(b.rectTransform, 0, y, colW, bh + 2);
+            y += bh;
+            if (o != null)
+            {
+                y += 6 * Z;
+                int max = Balance.SupernovaAt + (o.Mods.MaxHealthDelta ?? 0);
+                var sun = WebLook.Words(col, $"{Mathf.Max(0, o.Heat)}<color=#a6a9b0>/</color>{max}", sunS, 0.08f, Look.Ink, true, 400);
+                WebLook.Box(sun.rectTransform, 0, y, colW, sunS * 1.26f);
+                y += sunS * 1.26f;
+            }
+            return y;
+        }
+        var atkNode = attacker != null ? Campaign.NodeById(s, attacker.NodeId) : to;
+        var left = Hud.Rect(body, "Attacker");
+        var right = Hud.Rect(body, "Defender");
+        float hl = Side(left, attacker, atkNode, odds?.Item1), hr = Side(right, defender, to, odds?.Item2), rowH = Mathf.Max(hl, hr);
+        // (grid-template-columns: 1fr auto 1fr, 10 apart; the row's items centred on its height.)
+        WebLook.Box(left, 0, (rowH - hl) / 2, colW, hl);
+        WebLook.Box(right, W - colW, (rowH - hr) / 2, colW, hr);
+        WebLook.Box(vs.rectTransform, colW + 10 * Z, (rowH - vsS * 1.26f) / 2, vsW, vsS * 1.26f);
+        // What tips the fight, said plainly: each side's sun and modifiers, as the battle would start them (said from the
+        // player's side: attacking, or defending).
+        var tips = new List<(string text, int tone)>();
+        if (odds != null)
+        {
+            var sides = new[] { (defending ? "They" : "You", defending ? "Their" : "Your", odds.Value.Item1), (defending ? "You" : "They", defending ? "Your" : "Their", odds.Value.Item2) };
+            foreach (var (who, whose, side) in sides)
+            {
+                bool mine = who == "You";
+                int Tone(bool good) => good == mine ? 1 : -1;
+                var m = side.Mods;
+                if (side.Heat > 0) tips.Add(($"{whose} sun starts {side.Heat} hotter{(!mine && to.Gate == true && to.Owner == null && !defending ? ": they are weakened" : "")}.", Tone(false)));
+                if (side.Heat < 0) tips.Add(($"{whose} sun starts {-side.Heat} cooler.", Tone(true)));
+                if ((m.ShieldPerTurn ?? 0) != 0) tips.Add(($"{who} gain {m.ShieldPerTurn} shield{(m.ShieldPerTurn == 1 ? "" : "s")} every day.", Tone(true)));
+                if ((m.CoolPerTurn ?? 0) != 0) tips.Add(($"{whose} sun cools by {m.CoolPerTurn} every day.", Tone(true)));
+                if ((m.HeatPerTurn ?? 0) != 0) tips.Add(($"{whose} sun heats by {m.HeatPerTurn} every day.", Tone(false)));
+                if ((m.WaveCardHeat ?? 0) != 0) tips.Add(($"Heat waves from the Stellari strike {whose.ToLowerInvariant()} cards for {m.WaveCardHeat} too.", Tone(false)));
+                int draw = m.ExtraDraw ?? 0, hand = m.OpeningHand ?? 0;
+                if (draw != 0) tips.Add(($"{who} draw {Mathf.Abs(draw)} {(draw > 0 ? "more" : "fewer")} every day.", Tone(draw > 0)));
+                if (hand != 0) tips.Add(($"{who} start with {Mathf.Abs(hand)} {(hand > 0 ? "more" : "fewer")} card{(Mathf.Abs(hand) == 1 ? "" : "s")} in hand.", Tone(hand > 0)));
+            }
+        }
+        var g = Campaign.GarrisonBonus(to);
+        int held = g.Tableau.Count + (g.Lightspeed != null ? 1 : 0);
+        if (held > 0) tips.Add(($"{held} of {(defending ? "your" : "their")} cards start in play.", defending ? 1 : -1));
+        if (defender?.Lost != null) tips.Add(($"Win to take their emblems: {InlineMark("materials")} {Campaign.T.LostRelicMaterials} and a card.", 1));
+        var why = odds != null ? odds.Value.Item1.Sources.Concat(odds.Value.Item2.Sources).Distinct().ToList() : new List<string>();
+        if (why.Count > 0) tips.Add(($"From: {string.Join(", ", why)}.", 0));
+        float y0 = rowH;
+        if (tips.Count == 0) return y0;
+        y0 += 12 * Z;
+        float ts = 0.74f * 16 * Z, lineH = ts * 1.4f;
+        for (int i = 0; i < tips.Count; i++)
+        {
+            var (text, tone) = tips[i];
+            if (i > 0) y0 += 2 * Z;
+            var colour = tone > 0 ? WebLook.Hex("#2f7f55") : tone < 0 ? WebLook.Hex("#a4523f") : tone == 0 && text.StartsWith("From:") ? Look.InkFaint : Look.InkSoft;
+            // (Each line padded 1 above and below; wrapping within the body, centred.)
+            var t = WebLook.Words(body, text, ts, 0, colour, false, 400);
+            t.textWrappingMode = TextWrappingModes.Normal;
+            t.lineSpacing = (1.4f - 1.2f) * 100 / 1.2f;
+            float dot = tone != 0 ? 5 * Z + 7 * Z : 0, tw = Mathf.Min(W - dot, t.GetPreferredValues(text).x + 1), th = Mathf.Max(lineH, t.GetPreferredValues(text, W - dot, 0).y);
+            float x = (W - tw - dot) / 2;
+            if (tone != 0)
+            {
+                // (A dot in the line's colour before it, 5 across, 7 from its words, on its first line's middle.)
+                var d = WebLook.Rounded(body, "Dot", colour, 999);
+                WebLook.Box(d.rectTransform, x, y0 + 1 * Z + lineH / 2 - 2.5f * Z, 5 * Z, 5 * Z);
+            }
+            WebLook.Box(t.rectTransform, x + dot, y0 + 1 * Z, tw, th);
+            if (text.Contains("<alpha=#00>")) RuleMarks(t, text, ts);
+            y0 += th + 2 * Z;
+        }
+        return y0;
+    }
+
+    /// <summary>
+    /// A side's face in the matchup (.cmp-vs-side .cmp-portrait, .fav): an army's leader (one of the Lost Races, its faded
+    /// figure), a holder's emblem, or the sentinels' blank pearl; 56 across, ringed 2.5 in its colour, softly shadowed.
+    /// </summary>
+    void VsFace(RectTransform parent, Army army, CampaignNode n, float cx, float cy, float size, Color colour)
+    {
+        var r = WebLook.Centred(parent, "Face", cx, cy, size, size);
+        var ring = WebLook.Rounded(r, "Ring", colour, 999);
+        Hud.Fill(ring.rectTransform);
+        ring.rectTransform.offsetMin = -Vector2.one * 2.5f * Z;
+        ring.rectTransform.offsetMax = Vector2.one * 2.5f * Z;
+        // (var(--shadow): 0 8px 30px rgba(90, 90, 110, 0.13), 0 2px 6px.)
+        WebLook.Shadow(ring, 8 * Z, 30 * Z, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.13f), size / 2 + 2.5f * Z);
+        var disc = WebLook.Rounded(r, "Disc", WebLook.Hex("#1a1f2a"), 999);
+        Hud.Fill(disc.rectTransform);
+        Texture tex;
+        bool lost = army != null ? army.Lost != null : n.Owner == "lost";
+        if (lost) tex = Resources.Load<Texture2D>("Portraits/lost");
+        else if (army != null) tex = EngineData.Art(army.General);
+        else if (n.Owner != null)
+        {
+            // (A holder's painted badge, on no disc of its own.)
+            disc.color = new Color(1, 1, 1, 0);
+            tex = Resources.Load<Texture2D>($"Icons/faction-f{(state.Factions.FirstOrDefault(f => f.Id == n.Owner)?.Race ?? 0) + 1}");
+        }
+        else
+        {
+            disc.color = Color.white;
+            tex = VsBlank();
+        }
+        disc.gameObject.AddComponent<Mask>().showMaskGraphic = true;
+        var pic = Hud.Rect(disc.transform, "Picture");
+        Hud.Fill(pic);
+        var raw = pic.gameObject.AddComponent<RawImage>();
+        raw.texture = tex;
+        raw.enabled = tex != null;
+        raw.raycastTarget = false;
+    }
+
+    static Texture2D vsBlank;
+
+    /// <summary>The sentinels' blank (.cmp-vs-blank): a pearl, white at 40% 36% to #e3e6ec half way out, #b9bfcc at its edge.</summary>
+    static Texture2D VsBlank()
+    {
+        if (vsBlank != null) return vsBlank;
+        const int N = 64;
+        vsBlank = new Texture2D(N, N, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        Color a = Color.white, b = WebLook.Hex("#e3e6ec"), c = WebLook.Hex("#b9bfcc");
+        // (radial-gradient(circle at 40% 36%): to the farthest corner from there.)
+        float fx = 0.4f, fy = 0.36f, far = Mathf.Sqrt(0.6f * 0.6f + 0.64f * 0.64f);
+        for (int y = 0; y < N; y++)
+            for (int x = 0; x < N; x++)
+            {
+                float dx = (x + 0.5f) / N - fx, dy = 1 - (y + 0.5f) / N - fy, d = Mathf.Sqrt(dx * dx + dy * dy) / far;
+                var col = d < 0.18f ? a : d < 0.5f ? Color.Lerp(a, b, (d - 0.18f) / 0.32f) : Color.Lerp(b, c, (d - 0.5f) / 0.5f);
+                vsBlank.SetPixel(x, y, col);
+            }
+        vsBlank.Apply();
+        return vsBlank;
     }
 
     /// <summary>
@@ -1704,6 +2100,24 @@ public partial class CampaignView
     /// </summary>
     void Banner(string text, string sub)
     {
+        // (The campaign's banners come 120ms on, each its moment: one due before the last has had 1.3 seconds waits for
+        // it (app.ts showBanner, BANNER_GAP_MS). Gone from the map meanwhile, it never shows.)
+        float at = Mathf.Max(Time.time + 0.12f, bannerFree);
+        bannerFree = at + 1.3f;
+        if (isActiveAndEnabled) StartCoroutine(BannerAt(at, text, sub));
+    }
+
+    /// <summary>When the next banner may show.</summary>
+    float bannerFree;
+
+    System.Collections.IEnumerator BannerAt(float at, string text, string sub)
+    {
+        yield return new WaitForSeconds(Mathf.Max(0, at - Time.time));
+        ShowBanner(text, sub);
+    }
+
+    void ShowBanner(string text, string sub)
+    {
         const float Z = WebLook.Zoom;
         var v = Hud.Rect(notes, "Banner");
         Hud.Fill(v);
@@ -1727,10 +2141,9 @@ public partial class CampaignView
         Sound.Play("turn");
     }
 
-    /// <summary>A run carried on from the menu (app.ts campaign-continue): CAMPAIGN, and the galaxy and turn under it, 120ms on.</summary>
-    System.Collections.IEnumerator Announce()
+    /// <summary>A run carried on from the menu (app.ts campaign-continue): CAMPAIGN, and the galaxy and turn under it (as every banner, 120ms on).</summary>
+    void Announce()
     {
-        yield return new WaitForSeconds(0.12f);
         if (state != null) Banner("campaign", $"galaxy {state.Universe} · turn {state.Turn}");
     }
 

@@ -30,6 +30,9 @@ const effects = [
   ...[1, 2, 3, 4, 5].flatMap((n) => [[`hurt-${n}`, 'hurt', [n], 4], [`strike-${n}`, 'strike', [n], 4], [`clash-${n}`, 'clash', [n], 4]]),
   ...[0, 1, 2, 3].map((n) => [`charge-${n}`, 'charge', [n], 3]),
   ...[0, 1, 2, 3, 4, 5].map((n) => [`loot-${n}`, 'lootChime', [n], 3]),
+  // (The experience gauge's fill runs min(2.6, 0.7 + ...) seconds (campaign.ts fillXpGauge): baked at each tenth of a
+  // second it may run, xp-fill-7 to xp-fill-26, the game playing the nearest.)
+  ...Array.from({ length: 20 }, (_, i) => [`xp-fill-${i + 7}`, 'xpFill', [(i + 7) / 10], (i + 7) / 10 + 1.5]),
 ];
 // Each score: one whole pass of its form, in seconds (as src/ui/sound.ts's REVERSE_LOOP).
 const scores = [['ambient', 120], ['battle', 3 * 4 * 4 * 8 * (60 / 80 / 2)], ['voyage', 4 * 4 * 4 * 6 * 0.42], ['boss', 32 * 8 * (60 / 88 / 2)]];
@@ -47,15 +50,23 @@ const encode = (name, b64, quality) => {
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', wavPath, '-c:a', 'libvorbis', '-q:a', String(quality), `${out}/${name}.ogg`]);
   rmSync(wavPath);
 };
-// (VOICES_ONLY=1: just the heroes' lines, leaving the effects and scores as they are; SCORES_ONLY=1: just the scores.)
+// (VOICES_ONLY=1: just the heroes' lines, leaving the effects and scores as they are; SCORES_ONLY=1: just the scores;
+// EFFECTS=<prefix>: just the effects whose names begin so.)
 const only = !!process.env.VOICES_ONLY;
 const scoresOnly = !!process.env.SCORES_ONLY;
-for (const [name, method, args, seconds] of only || scoresOnly ? [] : effects) {
+const some = process.env.EFFECTS;
+for (const [name, method, args, seconds] of only || scoresOnly ? [] : effects.filter(([n]) => !some || n.startsWith(some))) {
   try {
     encode(name, await page.evaluate(([m, a, s]) => window.bakeEffect(m, a, s), [method, args, seconds]), 5);
   } catch (e) {
     console.error(`${name}: ${e.message}`);
   }
+}
+if (some) {
+  console.log(`effects beginning ${some}`);
+  await browser.close();
+  await server.close();
+  process.exit(0);
 }
 // Each score twice: its first pass from silence (the intro, played once) and its pass folded to loop seamlessly after it.
 for (const [scene, loop] of only ? [] : scores) {

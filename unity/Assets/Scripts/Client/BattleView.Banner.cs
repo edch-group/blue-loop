@@ -14,15 +14,16 @@ public partial class BattleView
     const float BannerShown = 2f, BannerGap = 1.3f;
     float bannerFree;
 
-    /// <summary>A day begins: its dawn's banner (the viewer's own reads plainly; anyone else's carries their name).</summary>
-    void DawnBanner(GameState s, float delay, float day = 0)
+    /// <summary>
+    /// A day begins: its dawn's banner (the viewer's own reads plainly; anyone else's carries their name); `onShow` as it
+    /// comes up (the phase track lighting dawn).
+    /// </summary>
+    void DawnBanner(GameState s, float delay, System.Action onShow = null)
     {
         if (s == null || s.WinnerId != null || Autoplay || hud == null || !Application.isPlaying) return;
         var p = Game.ActivePlayer(s);
         string text = p.Id == you ? "dawn" : $"{p.Name.ToLowerInvariant()}'s dawn";
-        // (The AI waits for the day's banner to have come and gone, and the day's effects after it, before it acts.)
-        if (p.IsAI) aiAfter = Mathf.Max(aiAfter, Mathf.Max(Time.time + delay, bannerFree) + BannerShown + 0.3f, Time.time + Mathf.Max(1.2f, (day + BannerShown + 0.3f) / SpeedK));
-        StartCoroutine(Banner(text, $"round {BoardArt.Roman(s.Round)}", Game.CurrentPlanet(p, s), delay));
+        StartCoroutine(Banner(text, $"round {BoardArt.Roman(s.Round)}", Game.CurrentPlanet(p, s), delay, onShow));
     }
 
     static Texture2D bannerGlow, bannerSweep, bannerLine;
@@ -66,12 +67,13 @@ public partial class BattleView
         return t;
     }
 
-    IEnumerator Banner(string text, string sub, string planet, float delay)
+    IEnumerator Banner(string text, string sub, string planet, float delay, System.Action onShow = null)
     {
         float at = Mathf.Max(Time.time + delay, bannerFree);
         bannerFree = at + BannerGap;
         yield return new WaitForSeconds(at - Time.time);
         if (hud == null) yield break;
+        onShow?.Invoke();
         var old = hud.transform.Find("Banner");
         if (old != null) Destroy(old.gameObject);
         Sound.Play("turn");

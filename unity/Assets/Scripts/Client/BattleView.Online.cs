@@ -50,15 +50,25 @@ public partial class BattleView
         sentAt = -10;
         bool unchanged = prev == null || last == null || (prev.Log.LastOrDefault()?.Seq ?? 0) == (next.Log.LastOrDefault()?.Seq ?? 0);
         state = next;
+        bool turnPassed = !unchanged && Game.ActivePlayer(prev).Id != Game.ActivePlayer(next).Id;
         if (!unchanged)
         {
             try { Hear(prev, next, last.Action); }
             catch (System.Exception e) { Debug.LogException(e); }
+            // (Skip all lasts the rival's day: as yours begins, it is back to auto.)
+            if (turnPassed && confirmMode == "skip" && Game.ActivePlayer(next).Id == you) confirmMode = "auto";
         }
         dawnPick = null;
         discarding = null;
         Clear();
+        // (A new day isn't under way until its dawn has played out: dusk, the dawn's banner, then the day.)
+        if (turnPassed) Phase = "dawn";
         Refresh();
+        if (turnPassed && Application.isPlaying)
+        {
+            var actor = prev.Players.FirstOrDefault(p => p.Id == last.ActorId) ?? Game.ActivePlayer(prev);
+            AnnouncePhases(next, DayTimeline(next, actor));
+        }
     }
 
     /// <summary>The room said no (or something else went wrong): said on the board.</summary>
@@ -97,12 +107,9 @@ public partial class BattleView
     void RivalCard()
     {
         if (Online.WaitFor != "you" || state.WinnerId != null) return;
-        // (Kept on, the auto-confirm setting reads it for you after a moment.)
-        if (Store.Get(AutoConfirmKey) == "1")
-        {
-            if (autoAck == null) autoAck = StartCoroutine(AckLater());
-            return;
-        }
+        // (The pill set to auto or skip: shown a moment, then read for you; a card set face down needs no reading, and
+        // goes by itself after a moment: app.ts stageEntrance.)
+        if ((AutoConfirms || Online.LastPlayed == null) && autoAck == null) autoAck = StartCoroutine(AckLater(Online.LastPlayed == null ? 1.1f : AutoConfirm));
         var veil = Hud.Rect(onlineLayer, "Rival card");
         Hud.Fill(veil);
         veil.gameObject.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.94f, 0.55f);
@@ -127,9 +134,9 @@ public partial class BattleView
         Hud.At((RectTransform)ok.transform, new Vector2(0.5f, 0.5f), new Vector2(0, -250), new Vector2(180, 56));
     }
 
-    System.Collections.IEnumerator AckLater()
+    System.Collections.IEnumerator AckLater(float after)
     {
-        yield return new WaitForSeconds(1.2f);
+        yield return new WaitForSeconds(after);
         autoAck = null;
         if (online && Online.WaitFor == "you") Online.Ack();
         OnlineChanged();

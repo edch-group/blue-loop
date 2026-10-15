@@ -129,7 +129,7 @@ public partial class CampaignView : MonoBehaviour
         pitchNow = RestPitch;
         Refresh();
         // (A run carried on: announced.)
-        if (!fresh && Application.isPlaying) StartCoroutine(Announce());
+        if (!fresh && Application.isPlaying) Announce();
     }
 
     // (The web's map, laid on its world: MAP_K world units a map pixel, centred; this world is the web's scaled up
@@ -557,6 +557,7 @@ public partial class CampaignView : MonoBehaviour
             spin += Mathf.Min(0.1f, Time.deltaTime) * (Mathf.PI * 2 / 360);
             glideRate = Mathf.Min(glideRate, 2.5f);
         }
+        if (Input.GetKeyDown(KeyCode.Escape)) OnEscape();
         bool still = !flying && !Cining && !launching && overlay.childCount == 0 && sheetRoot.childCount == 0;
         bool overUi = UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
         // The system under the pointer swells and flares.
@@ -614,12 +615,44 @@ public partial class CampaignView : MonoBehaviour
 
     void Tap()
     {
-        if (!Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 200)) return;
-        var tag = hit.collider.GetComponent<NodeTag>();
-        if (tag != null) Select(tag.Id);
+        // (A ship's hull first, as the web's lies over its star: another army's focuses the system it stands in.)
+        if (Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 200))
+        {
+            var ship = hit.collider.GetComponent<ShipTag>();
+            if (ship != null) { TapArmy(ship.Id); return; }
+            var tag = hit.collider.GetComponent<NodeTag>();
+            if (tag != null) { Select(tag.Id); return; }
+        }
+        // (Nothing under it: whatever was focused, let go (campaign.ts cmp-deselect).)
+        if (selected == null) return;
+        selected = null;
+        Refresh();
     }
 
-    /// <summary>A system tapped: one in your ship's reach sends it there; your own (a station) goes back in; any other, focused.</summary>
+    /// <summary>
+    /// A ship tapped (campaign.ts cmp-army): your own, nothing to show (it is always the one that moves); anyone else's,
+    /// the system it stands in, focused.
+    /// </summary>
+    void TapArmy(string armyId)
+    {
+        var army = state.Armies.FirstOrDefault(a => a.Id == armyId);
+        if (army == null) return;
+        selected = army.Owner == state.PlayerId ? null : army.NodeId;
+        Sound.Play("hover");
+        Refresh();
+    }
+
+    /// <summary>The system focused (campaign.ts selected): its planets orbiting it.</summary>
+    string selected;
+
+    /// <summary>Whether what a system holds is known (campaign.ts known): the wormhole and its guardian, or a ship seen standing there.</summary>
+    bool Known(string nodeId) => Campaign.NodeById(state, nodeId).Heart == true || Campaign.ArmyAt(state, nodeId) != null;
+
+    /// <summary>
+    /// A system tapped (campaign.ts cmp-select): one in your ship's reach sends it there (a rift asked first; into the
+    /// unknown it just sets out; a known foe gets a look at the matchup first; a known system with no fight, straight
+    /// in); where your ship stands, back into its station; any other, focused, its planets showing.
+    /// </summary>
     void Select(string id)
     {
         if (state.Phase == "player" && state.Battle == null && state.Winner == null)
@@ -628,18 +661,43 @@ public partial class CampaignView : MonoBehaviour
             var move = army != null ? Campaign.ArmyMoves(state, army).FirstOrDefault(m => m.ToId == id) : null;
             if (move != null)
             {
-                if (Campaign.NodeById(state, id).Challenge?.Kind == "rift")
+                var to = Campaign.NodeById(state, id);
+                if (to.Challenge?.Kind == "rift")
                 {
-                    Ask("enter rift?", "You may not come back.", ("enter", () => SetOut(army.Id, id)));
+                    // (The rift named before the warning: "<rift> · You may not come back.")
+                    string rift = to.Challenge.Rift != null && Rifts.ByKind != null && Rifts.ByKind.TryGetValue(to.Challenge.Rift, out var rd) ? $"{rd.Name} · " : "";
+                    Ask("enter rift?", $"{rift}You may not come back.", ("enter", () => SetOut(army.Id, id)));
+                    Sound.Play("hover");
                     return;
                 }
-                SetOut(army.Id, id);
+                // (Into the unknown (who knows what a system holds until you get there): the ship just sets out.)
+                if (!Known(id) && to.Owner == null) { SetOut(army.Id, id); return; }
+                warpMove = move.Warp == true;
+                if (move.Battle) Attack(army.Id, id);
+                else if (Apply(new CampaignAction { Type = "move", ArmyId = army.Id, ToId = id }))
+                {
+                    Sound.Play("play");
+                    // (Arrived: nothing to pick.)
+                    selected = null;
+                    Map();
+                    Refresh();
+                }
                 return;
             }
         }
         var n = Campaign.NodeById(state, id);
-        if (Campaign.Flagship(state, state.PlayerId)?.NodeId == id && n.Station != null) EnterStation(id);
-        else { Sound.Play("hover"); Refresh(); }
+        // (No popovers on the map: at home or where your ship stands, a tap goes back into its station; anywhere else a
+        // tap only focuses the system, showing its planets.)
+        if (n.Home != null || Campaign.Flagship(state, state.PlayerId)?.NodeId == id)
+        {
+            selected = null;
+            if (n.Station != null) EnterStation(id);
+            Refresh();
+            return;
+        }
+        selected = id;
+        Sound.Play("hover");
+        Refresh();
     }
 
     /// <summary>Your ship sets out down a route: it flies there, and what the system holds shows as it lands.</summary>
@@ -673,9 +731,19 @@ public partial class CampaignView : MonoBehaviour
         if (dur > 0) yield return new WaitForSeconds(dur);
         flying = false;
         int seq = state.Log.Count > 0 ? state.Log[state.Log.Count - 1].Seq : 0;
+        string rift0 = state.Rift?.Kind;
         if (!Apply(new CampaignAction { Type = "move", ArmyId = armyId, ToId = toId })) { Map(); Refresh(); yield break; }
-        if (state.Log.Any(l => l.Seq > seq && l.Text.Contains(" finds "))) Sound.Play("buy");
-        if (state.Battle == null) EnterStation(toId);
+        // (Through a rift the galaxy is a new one (its systems' ids used afresh): nothing to focus or open.)
+        bool through = state.Rift?.Kind != rift0 || !state.Nodes.Any(x => x.Id == toId);
+        selected = through ? null : toId;
+        if (!through && state.Log.Any(l => l.Seq > seq && l.Text.Contains(" finds "))) Sound.Play("buy");
+        // A station: straight in, its screen open on arrival (after a Power Struggle, a beaten rival or a dream, if one
+        // waits: campaign.ts afterStruggle).
+        if (!through && state.Battle == null)
+        {
+            if (state.Struggle != null || state.Beaten != null || state.Dream != null) afterStruggle = toId;
+            else EnterStation(toId);
+        }
         // (The systems as they now stand: one used, one taken, the routes from here.)
         if (state.Battle == null) Map();
         Refresh();
@@ -691,6 +759,40 @@ public partial class CampaignView : MonoBehaviour
         var n = state.Nodes.FirstOrDefault(x => x.Id == nodeId);
         if (n?.Station?.Kind == "armory") Armory(nodeId);
         else if (n?.Station?.Kind == "research") Lab(nodeId);
+    }
+
+    /// <summary>
+    /// Escape on the map (campaign.ts onKey): the settings, or (open) shut them. Not over anything that waits on a choice
+    /// (another sheet or a station, spoils, a dream, a struggle, a scene's word).
+    /// </summary>
+    void OnEscape()
+    {
+        var s = state;
+        if (s == null) return;
+        if (sheetNow == (System.Action)Settings)
+        {
+            CloseSheet();
+            return;
+        }
+        if (sheetRoot.childCount > 0 || stationId != null || s.Battle != null || s.Loot != null || s.CardRewards.Count > 0 || s.Dream != null || s.Struggle != null || s.Beaten != null
+            || s.Conquest != null || s.Prophet != null || s.Boon != null || (s.EmblemChoice?.Count ?? 0) > 0 || s.Winner != null || s.Story.Queue.Count > 0) return;
+        Settings();
+    }
+
+    /// <summary>A station the flagship arrived at with a Power Struggle (a beaten rival, a dream) waiting: its screen opens once that is done.</summary>
+    string afterStruggle;
+
+    /// <summary>The station waiting (campaign.ts openAfterStruggle), opened once nothing else waits on you, the flagship still there.</summary>
+    void OpenAfterStruggle()
+    {
+        var s = state;
+        if (afterStruggle == null || s == null) return;
+        if (!s.Nodes.Any(x => x.Id == afterStruggle)) { afterStruggle = null; return; }
+        if (s.Struggle != null || s.Beaten != null || s.Dream != null || s.Battle != null || s.Loot != null || s.CardRewards.Count > 0 || sheetRoot.childCount > 0 || stationId != null) return;
+        var id = afterStruggle;
+        afterStruggle = null;
+        if (Campaign.Flagship(s, s.PlayerId)?.NodeId != id) return;
+        EnterStation(id);
     }
 
     // ---- Moves ----
@@ -725,6 +827,7 @@ public partial class CampaignView : MonoBehaviour
         }
         if (state.Universe != universe && state.Winner == null)
         {
+            selected = null;
             Map();
             var f = Campaign.Flagship(state, state.PlayerId);
             if (f != null) focus = focusGoal = Home(f.NodeId);
@@ -748,6 +851,7 @@ public partial class CampaignView : MonoBehaviour
     {
         if (!MoveSpent()) return;
         if (!Apply(new CampaignAction { Type = "endTurn" })) return;
+        selected = null;
         Map();
         Refresh();
     }
@@ -830,7 +934,9 @@ public partial class CampaignView : MonoBehaviour
         CineHud();
         Rings();
         Overlays();
+        Orbits();
         Camera();
+        if (afterStruggle != null) OpenAfterStruggle();
     }
 
     /// <summary>
@@ -863,4 +969,7 @@ public partial class CampaignView : MonoBehaviour
 
     // (Taps on the map are told by this.)
     public class NodeTag : MonoBehaviour { public string Id; }
+
+    // (And taps on a ship's hull by this: the army it is.)
+    public class ShipTag : MonoBehaviour { public string Id; }
 }

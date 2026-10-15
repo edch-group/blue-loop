@@ -23,7 +23,90 @@ public static class CampaignMenuPage
             foreach (Transform c in layer.Rect) Mats.Kill(c.gameObject);
             Lay(layer, menu, scene);
         });
+        var zones = layer.Rect.gameObject.AddComponent<Zones>();
+        zones.Scene = scene;
         Lay(layer, menu, scene);
+    }
+
+    /// <summary>
+    /// The ship's sections under the pointer (campaign.ts showBase's hover): a section of the ship under it (base3d.ts
+    /// zoneAt: the Captain, one of the crew, the hull; never the research bay, nor a section not yet open) lights its
+    /// option as if it were under the pointer, a label under it lights its own; each new one sounds (not to a finger).
+    /// A tap on a section is a tap on its option.
+    /// </summary>
+    public class Zones : MonoBehaviour
+    {
+        public CampaignBackdrop Scene;
+        /// <summary>Each option's section, its node lighting, its button (none: shut).</summary>
+        public readonly Dictionary<string, (WebLook.Lift lift, Button button)> Options = new Dictionary<string, (WebLook.Lift, Button)>();
+        /// <summary>The option the pointer is over, if any (told by its node).</summary>
+        public string OverLabel;
+        string over;
+        Vector3 downAt;
+
+        void Update()
+        {
+            bool overControl = OverControl();
+            string zone = OverLabel;
+            if (zone == null && !overControl && Scene != null && Input.mousePresent)
+            {
+                var z = Scene.ZoneAt(Input.mousePosition);
+                zone = z != null && z != "research" && !(Options.TryGetValue(z, out var o) && o.button == null) ? z : null;
+            }
+            if (zone != over)
+            {
+                // (Lit as under the pointer: .cs-base-label.on.)
+                if (over != null && over != OverLabel && Options.TryGetValue(over, out var was) && was.lift != null) was.lift.OnPointerExit(null);
+                if (zone != null && Options.TryGetValue(zone, out var now) && now.lift != null) now.lift.OnPointerEnter(null);
+                over = zone;
+                if (zone != null && Input.touchCount == 0) Sound.Play("hover");
+            }
+            // (A tap on the ship over a section: its option's.)
+            if (Input.GetMouseButtonDown(0)) downAt = Input.mousePosition;
+            if (Input.GetMouseButtonUp(0) && !overControl && OverLabel == null && (Input.mousePosition - downAt).magnitude < 8 && Scene != null)
+            {
+                var z = Scene.ZoneAt(Input.mousePosition);
+                if (z != null && z != "research" && Options.TryGetValue(z, out var o) && o.button != null) o.button.onClick.Invoke();
+            }
+        }
+
+        /// <summary>The page's own controls under the pointer (back, begin run, an option): the ship behind them is not.</summary>
+        public int OverControls;
+
+        bool OverControl() => OverControls > 0;
+    }
+
+    /// <summary>A control telling the page's Zones the pointer is over it (an option: over its section).</summary>
+    class OverOption : MonoBehaviour, UnityEngine.EventSystems.IPointerEnterHandler, UnityEngine.EventSystems.IPointerExitHandler
+    {
+        public Zones Zones;
+        public string Zone;
+        bool on;
+        public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData e)
+        {
+            if (Zones == null || on) return;
+            on = true;
+            Zones.OverControls++;
+            if (Zone != null) Zones.OverLabel = Zone;
+        }
+        public void OnPointerExit(UnityEngine.EventSystems.PointerEventData e) => Leave();
+        void OnDisable() => Leave();
+        void Leave()
+        {
+            if (Zones == null || !on) return;
+            on = false;
+            Zones.OverControls--;
+            if (Zone != null && Zones.OverLabel == Zone) Zones.OverLabel = null;
+        }
+
+        /// <summary>A control told of (an option's section with it).</summary>
+        public static void On(Component c, Zones zones, string zone = null)
+        {
+            if (zones == null) return;
+            var o = c.gameObject.AddComponent<OverOption>();
+            o.Zones = zones;
+            o.Zone = zone;
+        }
     }
 
     static void Lay(RefLayer layer, MenuView menu, CampaignBackdrop scene)
@@ -40,6 +123,8 @@ public static class CampaignMenuPage
         // The header: back (.btn.btn-small, 26 high) and the page's name (.menu-heading, clamp(0.9rem, 4vh, 1.3rem)).
         var back = WebLook.Button(page, "‹ back", () => menu.Show("hub"), false, 0.56f * 16 * Z, 0.14f);
         WebLook.Box((RectTransform)back.transform, padL, padT + headH / 2 - 13 * Z, 63 * Z, 26 * Z);
+        var zoneKeeper = layer.Rect.GetComponent<Zones>();
+        OverOption.On(back, zoneKeeper);
         float hs = Css.Clamp(0.9f * 16 * Z, 4 * H / 100, 1.3f * 16 * Z);
         var head = WebLook.Box(page, "Heading", 0, padT + headH / 2 - hs * 0.62f, W, hs * 1.25f);
         var h = WebLook.Words(head, "A DYING UNIVERSE", hs, 0.3f, WebLook.Hex("#555a63"));
@@ -104,7 +189,15 @@ public static class CampaignMenuPage
             float textW = Mathf.Max(name.GetPreferredValues(name.text).x, holds.GetPreferredValues(holds.text).x);
             float nodeW = 52 * Z + textW;
             WebLook.Box(node, Mathf.Round(Mathf.Min(at.x, W - nodeW + 21 * Z - 4 * Z)) - 21 * Z, Mathf.Round(at.y) - 21 * Z, 52 * Z + 150 * Z, 42 * Z);
-            if (shut) continue;
+            // (Its section of the ship: the Captain's, the hull for the ship's, the research bay for the Stellari's.)
+            string zone = section == "ship" ? "hangar" : section == "stellari" ? "research" : section;
+            var zones = zoneKeeper;
+            if (shut)
+            {
+                if (zones != null) zones.Options[zone] = (null, null);
+                OverOption.On(node, zones);
+                continue;
+            }
             var b = node.gameObject.AddComponent<Button>();
             b.transition = Selectable.Transition.None;
             b.onClick.AddListener(() => { Sound.Play("click"); menu.Show(to); });
@@ -113,6 +206,11 @@ public static class CampaignMenuPage
             lift.Name = name;
             lift.Rest = Look.InkSoft;
             lift.Over = Look.Ink;
+            if (zones != null)
+            {
+                zones.Options[zone] = (lift, b);
+                OverOption.On(node, zones, zone);
+            }
         }
 
         // Begin the run (.setup-foot .btn-primary: at least 160 across, padded 11 24, on a short screen 7 20; clamp(4,
@@ -127,5 +225,6 @@ public static class CampaignMenuPage
         float bw = Mathf.Max(160 * Z, bt.GetPreferredValues(bt.text).x + 2 * (phone ? 20 : 24) * Z), bh = 0.66f * 16 * Z * 1.25f + 2 * (phone ? 7 : 11) * Z;
         float foot = phone ? 0 : Css.Clamp(4 * Z, 2 * H / 100, 16 * Z);
         WebLook.Box((RectTransform)begin.transform, W / 2 - bw / 2, H - padB - foot - bh, bw, bh);
+        OverOption.On(begin, zoneKeeper);
     }
 }

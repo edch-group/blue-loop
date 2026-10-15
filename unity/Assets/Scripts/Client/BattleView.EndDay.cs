@@ -91,12 +91,86 @@ public partial class BattleView
             else if (sheet == null || askingEnd) RequestEndDay();
         }
         if (sheet == null) askingEnd = false;
+        EndReady();
         if (!CanAutoEnd()) { settledSince = -1; return; }
         if (settledSince < 0) settledSince = Time.time;
         else if (Time.time - settledSince >= AutoEnd)
         {
             settledSince = -1;
             EndDay();
+        }
+    }
+
+    /// <summary>
+    /// app.ts renderTurnControls' .end-turn-ready: End Day, on your day, with no card in hand you could play now,
+    /// pulses (@keyframes endReady, 1.8 s ease-in-out, three times as it begins: at its height a 2 px white ring and a
+    /// green glow, 0 0 18px rgba(110, 196, 146, .55)).
+    /// </summary>
+    void EndReady()
+    {
+        if (endDay == null) return;
+        bool ready = MyDay && Phase == "day" && !Me.Hand.Any(c => CanPlayNow(Me, c.DefId, c.Discount ?? 0));
+        var pulse = endDay.GetComponent<EndPulse>() ?? endDay.gameObject.AddComponent<EndPulse>();
+        pulse.Ready = ready;
+    }
+
+    class EndPulse : MonoBehaviour
+    {
+        public bool Ready;
+        bool was;
+        float t0 = -1;
+        UnityEngine.UI.Image ring, glow;
+
+        void Update()
+        {
+            if (Ready && !was) t0 = Time.time;
+            if (!Ready) t0 = -1;
+            was = Ready;
+            float k = 0;
+            if (t0 >= 0)
+            {
+                float t = (Time.time - t0) / 1.8f;
+                if (t >= 3) t0 = -1;
+                // (ease-in-out to the middle and back: cubic-bezier(.42, 0, .58, 1) over each half.)
+                else k = BattleView.CubicBezier(0.42f, 0, 0.58f, 1, 1 - Mathf.Abs((t % 1) * 2 - 1));
+            }
+            if (k <= 0 && ring == null) return;
+            if (ring == null) Make();
+            ring.color = new Color(1, 1, 1, k);
+            glow.color = new Color(110 / 255f, 196 / 255f, 146 / 255f, 0.55f * k);
+        }
+
+        /// <summary>The glow and the ring, just under the button (as its box-shadow is), where it stands.</summary>
+        void Make()
+        {
+            var r = (RectTransform)transform;
+            glow = Layer("End ready glow", 18 * 1.25f, Hud.Soft, 14.4f / 18);
+            ring = Layer("End ready ring", 2, Hud.Rounded, 22f / (10 + 2));
+            UnityEngine.UI.Image Layer(string name, float e, Sprite sprite, float ppu)
+            {
+                var go = new GameObject(name, typeof(RectTransform));
+                var s = (RectTransform)go.transform;
+                s.SetParent(r.parent, false);
+                s.SetSiblingIndex(r.GetSiblingIndex());
+                s.anchorMin = r.anchorMin;
+                s.anchorMax = r.anchorMax;
+                s.pivot = r.pivot;
+                s.offsetMin = r.offsetMin - new Vector2(e, e);
+                s.offsetMax = r.offsetMax + new Vector2(e, e);
+                var img = go.AddComponent<UnityEngine.UI.Image>();
+                img.sprite = sprite;
+                img.type = UnityEngine.UI.Image.Type.Sliced;
+                img.pixelsPerUnitMultiplier = ppu;
+                img.raycastTarget = false;
+                img.color = Color.clear;
+                return img;
+            }
+        }
+
+        void OnDestroy()
+        {
+            if (ring != null) Destroy(ring.gameObject);
+            if (glow != null) Destroy(glow.gameObject);
         }
     }
 }

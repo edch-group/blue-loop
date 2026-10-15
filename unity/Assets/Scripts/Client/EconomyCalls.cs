@@ -28,6 +28,14 @@ public static class EconomyCalls
         });
     }
 
+    /// <summary>A game against the AI begun: the server notes it, for its reward (account.ts startAiGame). Its id, or null.</summary>
+    public static void StartAiGame(System.Action<string> done) =>
+        Net.Api("game/start", "POST", new JObject { ["kind"] = "ai" }, r => done(r.Ok ? r.Data["gameId"]?.ToString() : null));
+
+    /// <summary>A game against the AI over: the server pays what it earned (account.ts finishAiGame). The payout, or null.</summary>
+    public static void FinishAiGame(string gameId, bool won, bool conceded, System.Action<Account.Payout> done) =>
+        Call("game/finish", new JObject { ["gameId"] = gameId, ["won"] = won, ["conceded"] = conceded }, r => done(r.Ok ? Account.PayoutOf(r.Data["payout"]) : null));
+
     /// <summary>Buy and open a booster: its cards, or why not.</summary>
     public static void Booster(int? kind, System.Action<List<BoosterCard>, string> done)
     {
