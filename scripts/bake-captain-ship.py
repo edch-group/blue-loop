@@ -1,15 +1,17 @@
 """
 The Captain's ship for Unity, baked from its model (unity/ModelSources/captain-ship/iron-horizon.fbx, a Meshy export) and
-painted after its art (reference.png, the same ship side on):
+painted after its art (reference.png, the same ship side on: a guide only, its pixels never laid on the model):
 
   unity/Assets/Resources/Models/CaptainShip.bytes   the hull, cut down to a size the map can fly, in the ship's box units
-  unity/Assets/Resources/Models/CaptainShipPaint.png its paint: the art laid over the hull side on (rgb), lit glass (a)
+  unity/Assets/Resources/Models/CaptainShipPaint.png its paint, each side seen square (rgb), lit glass (a)
 
-The model comes untextured, so its look is the art's: the art is fitted over the model's own outline seen side on, then
-stretched onto the model's own details (its porthole, windows and plates) along the hull and up it apart, so straight
-lines stay straight, and each point of the hull takes its colour from the art where it lies (CaptainShip.cs, Ship.shader's painted metal).
+The model comes untextured and is not the art to the pixel, so the art cannot simply be laid over it: it is repainted
+from its own shape instead, in the art's colours. The hull is parted into its own pieces (plates, panels, frames, panes,
+pipes, bands), seen square from each side, and each piece painted by what it is: slate plating, darker panels set in,
+amber trim, the windows and porthole lit, the rail's glass; its edges inked as the art inks its own. The lamps and the
+bells' throats are marked on the hull itself (CaptainShip.cs, Ship.shader's painted metal).
 
-    pip install numpy pillow pyfqmr
+    pip install numpy pillow pyfqmr scipy scikit-image
     python3 scripts/bake-captain-ship.py
 """
 import os
@@ -32,6 +34,10 @@ TRIANGLES = 48000
 LENGTH, NOSE, MID_Z = 43.1, 40.5, 7.3
 # The paint's extent (box units, x along and z up) and size.
 PAINT_X, PAINT_Z, PAINT_W, PAINT_H = (-4.0, 42.0), (0.0, 16.0), 1536, 512
+# The engine block's three bells, their mouths' centres (box units: across, up), as CaptainShip.cs has them.
+BELLS = ((9.96, 5.3), (14.08, 5.3), (11.9, 2.5))
+# Where the dish's struts meet over it, its lamp (box units: along, up).
+DISH_LAMP = (6.1, 10.9)
 # Corners sharper than this (degrees) keep their own normals.
 CREASE = 42
 
@@ -229,229 +235,138 @@ def creased_normals(v, f):
 
 # ---- The paint ----
 
-def fit_art(box, f, art_mask):
-    """Where the art's pixels lie over the hull side on: u = a + s·x, v = b − t·z, fitted to the model's outline."""
-    res = 0.05
-    x0, z0 = box[:, 0].min() - 1, box[:, 2].min() - 1
-    w, h = int((box[:, 0].max() + 1 - x0) / res), int((box[:, 2].max() + 1 - z0) / res)
-    pts = np.stack([(box[:, 0] - x0) / res, (box[:, 2] - z0) / res], 1)
-    sil = raster(pts[f], w, h)
-    zs, xs = np.nonzero(sil)
-    bx, bz = xs * res + x0 + res / 2, zs * res + z0 + res / 2
-    ys, us = np.nonzero(art_mask)
-    s = (us.max() - us.min()) / (bx.max() - bx.min()); t = (ys.max() - ys.min()) / (bz.max() - bz.min())
-    p = [us.min() - s * bx.min(), s, ys.min() + t * bz.max(), t]
-
-    def iou(a, s, b, t):
-        u = np.round(a + s * bx).astype(int); vv = np.round(b - t * bz).astype(int)
-        ok = (u >= 0) & (u < art_mask.shape[1]) & (vv >= 0) & (vv < art_mask.shape[0])
-        cell = s * res * t * res
-        inter = art_mask[vv[ok], u[ok]].sum() * cell
-        return inter / (len(bx) * cell + art_mask.sum() - inter)
-
-    best = iou(*p)
-    for scale in (1, 0.5, 0.25, 0.12):
-        step = [8 * scale, 0.5 * scale, 8 * scale, 0.5 * scale]
-        better = True
-        while better:
-            better = False
-            for i in range(4):
-                for sg in (-1, 1):
-                    q = list(p); q[i] += sg * step[i]
-                    val = iou(*q)
-                    if val > best: best, p, better = val, q, True
-    print(f'art fitted over the hull: overlap {best:.3f}')
-    return p
-
-
-def blur(x, k):
-    for ax in (0, 1):
-        x = sum(np.roll(x, d, ax) for d in range(-k, k + 1)) / (2 * k + 1)
-    return x
-
-
-def warp(box, f, art, fit):
+def side_view(box, f, fn, sign):
     """
-    How far the art's details lie from the model's own, here and there along the hull (box units, x along and z up): the
-    model was made from the art but not to the pixel, so its porthole, windows and plates sit a little off the art's.
-    The hull's relief side on (the model lit across its faces) is matched against the art's edges a patch at a time, the
-    matches it is sure of kept and smoothed: a field (dx, dz) to add to a point of the hull for where the art draws it.
+    The hull seen square from one side (sign −1: from −y; +1 the other), on the paint's grid: at each
+    point the face seen there, and the hull's own pieces as it is made (its plates, frames, window panes, bands): parts
+    of it parted by a crease or a step, found where the faces' normals turn or the surface jumps.
     """
-    a, s, b, t = fit
-    r = 0.04
-    x0, x1, z0, z1 = PAINT_X[0], PAINT_X[1], PAINT_Z[0], PAINT_Z[1]
-    w, h = int((x1 - x0) / r), int((z1 - z0) / r)
-    fn = np.cross(box[f[:, 1]] - box[f[:, 0]], box[f[:, 2]] - box[f[:, 0]])
-    fn /= np.maximum(np.linalg.norm(fn, axis=1, keepdims=True), 1e-12)
-    # (Seen from the art's side, -y: the nearest face at each point, lit from above and astern.)
-    tid = nearest(np.stack([(box[:, 0] - x0) / r, (z1 - box[:, 2]) / r], 1)[f], -box[:, 1][f], w, h)
-    light = np.array([-0.45, -0.55, 0.7]) / np.linalg.norm([-0.45, -0.55, 0.7])
-    relief = np.abs(fn[np.maximum(tid, 0)] @ light)
+    from scipy import ndimage
+    from skimage import measure
+    rx, rz = (PAINT_X[1] - PAINT_X[0]) / PAINT_W, (PAINT_Z[1] - PAINT_Z[0]) / PAINT_H
+    tid = nearest(np.stack([(box[:, 0] - PAINT_X[0]) / rx, (PAINT_Z[1] - box[:, 2]) / rz], 1)[f], -sign * box[:, 1][f], PAINT_W, PAINT_H)
+    gx, gz = np.meshgrid(PAINT_X[0] + (np.arange(PAINT_W) + 0.5) * rx, PAINT_Z[1] - (np.arange(PAINT_H) + 0.5) * rz)
+    t = np.maximum(tid, 0)
+    n = fn[t]
+    p0 = box[f[t, 0]]
+    ny = np.where(np.abs(n[..., 1]) < 1e-3, 1e-3, n[..., 1])
+    y = np.clip(p0[..., 1] - (n[..., 0] * (gx - p0[..., 0]) + n[..., 2] * (gz - p0[..., 2])) / ny, p0[..., 1] - 1, p0[..., 1] + 1)
     seen = tid >= 0
-    relief[~seen] = relief[seen].mean()
-    gx, gz = np.meshgrid(x0 + (np.arange(w) + 0.5) * r, z1 - (np.arange(h) + 0.5) * r)
-    u = np.clip(a + s * gx, 0, art.shape[1] - 1).astype(int)
-    v = np.clip(b - t * gz, 0, art.shape[0] - 1).astype(int)
-    drawn = art[v, u].mean(2)
-
-    def edges(x):
-        gy_, gx_ = np.gradient(blur(x, 1))
-        return blur(np.hypot(gx_, gy_), 1)
-
-    eg = edges(relief) * seen
-
-    def match(ea, step, half, reach, sig, pen):
-        """Each patch of the relief (every step, half wide) sought in the art's edges within reach: a smooth field of how
-        far the art lies from it (box units), with how sure it is of each place."""
-        half, reach = int(half / r), int(reach / r)
-        n, m = 2 * half, 2 * half + 2 * reach
-        found = []
-        for zc in np.arange(1.0, 15.0, step):
-            for xc in np.arange(x0 + 2, x1 - 1, step):
-                cx, cy = int((xc - x0) / r), int((z1 - zc) / r)
-                if cy - half - reach < 0 or cy + half + reach > h or cx - half - reach < 0 or cx + half + reach > w: continue
-                if seen[cy - half:cy + half, cx - half:cx + half].mean() < 0.6: continue
-                p = eg[cy - half:cy + half, cx - half:cx + half]
-                p = p - p.mean()
-                if p.std() < 1e-3: continue
-                q = ea[cy - half - reach:cy + half + reach, cx - half - reach:cx + half + reach]
-                q = q - q.mean()
-                cc = np.fft.irfft2(np.conj(np.fft.rfft2(p, (m, m))) * np.fft.rfft2(q, (m, m)), (m, m))[:2 * reach + 1, :2 * reach + 1]
-                cs = np.cumsum(np.cumsum(np.pad(q * q, ((1, 0), (1, 0))), 0), 1)
-                energy = cs[n:, n:] - cs[:-n, n:] - cs[n:, :-n] + cs[:-n, :-n]
-                ncc = cc / np.sqrt(np.maximum(energy[:2 * reach + 1, :2 * reach + 1], 1e-9) * (p * p).sum())
-                dy, dx = np.mgrid[-reach:reach + 1, -reach:reach + 1]
-                iy, ix = np.unravel_index(np.argmax(ncc - pen * np.hypot(dx, dy) / reach), ncc.shape)
-                best = ncc[iy, ix]
-                if best > 0.3 and best > ncc[reach, reach] + 0.01:
-                    found.append((xc, zc, (ix - reach) * r, -(iy - reach) * r, min(best - 0.3, 0.5)))
-        px, pz, pdx, pdz, conf = np.array(found).T
-
-        def curve(pos, val, lo, hi, sg):
-            """A smooth, robust curve of how far the art lies along one axis, by place on that axis, never folding back."""
-            grid = np.arange(lo, hi + 0.25, 0.25)
-            out = np.zeros_like(grid)
-            for i, g in enumerate(grid):
-                wt = conf * np.exp(-(pos - g) ** 2 / (2 * sg * sg))
-                if wt.sum() < 1e-6: continue
-                mid = (wt * val).sum() / wt.sum()
-                for _ in range(4):
-                    w2 = wt / (1 + ((val - mid) / 0.15) ** 2)
-                    mid = (w2 * val).sum() / w2.sum()
-                out[i] = mid * wt.sum() / (wt.sum() + 0.05)
-            y = grid + out
-            for i in range(1, len(y)): y[i] = max(y[i], y[i - 1] + 0.125)
-            return grid, y - grid
-
-        # (Along the hull and up it apart: a straight line on the hull stays straight in the paint.)
-        cx_, cdx = curve(px, pdx, x0, x1, sig)
-        cz_, cdz = curve(pz, pdz, z0, z1, sig * 1.5)
-        print(f'art matched to the hull at {len(px)} places (patches {2 * half * r:.1f} wide)')
-
-        def at(qx, qz):
-            return np.interp(qx, cx_, cdx), np.interp(qz, cz_, cdz)
-
-        return at
-
-    def drawn_at(fx, fz):
-        u = np.clip(a + s * (gx + fx), 0, art.shape[1] - 1).astype(int)
-        v = np.clip(b - t * (gz + fz), 0, art.shape[0] - 1).astype(int)
-        return edges(art[v, u].mean(2))
-
-    # Coarse, then finer and finer: each pass matching what the last left over (where nothing was matched, nothing moves).
-    passes = []
-    fx, fz = np.zeros_like(gx), np.zeros_like(gz)
-    for step, half, reach, sig, pen in ((1.0, 1.8, 1.6, 2.0, 0.08), (0.6, 1.0, 0.7, 1.0, 0.1), (0.4, 0.6, 0.4, 0.6, 0.15)):
-        f = match(drawn_at(fx, fz), step, half, reach, sig, pen)
-        passes.append(f)
-        dx, dz = f(gx, gz)
-        fx, fz = fx + dx, fz + dz
-
-    def at(qx, qz):
-        tx, tz = np.zeros_like(qx), np.zeros_like(qz)
-        for f in passes:
-            dx, dz = f(qx, qz)
-            tx, tz = tx + dx, tz + dz
-        return np.clip(tx, -2, 2), np.clip(tz, -2, 2)
-
-    return at
+    edge = np.zeros_like(seen)
+    for dy, dx in ((0, 1), (1, 0)):
+        n2, y2, s2 = (np.roll(q, (-dy, -dx), (0, 1)) for q in (n, y, seen))
+        edge |= (np.sum(n * n2, -1) < np.cos(np.radians(20))) | (np.abs(y - y2) > 0.06) | (seen != s2)
+    lab = measure.label(seen & ~edge, connectivity=1)
+    # (The creases themselves go to the piece nearest them.)
+    near = ndimage.distance_transform_edt(lab == 0, return_distances=False, return_indices=True)
+    lab = lab[near[0], near[1]] * seen
+    return tid, lab, edge & seen, gx, gz
 
 
-def ship_mask(art):
-    """The art's ship: everything but the paper round it (lit windows, near white, are the ship's: the paper is what
-    reaches the edge of the picture)."""
-    bg = np.median(np.concatenate([art[:16, :16], art[:16, -16:], art[-16:, :16], art[-16:, -16:]]).reshape(-1, 3), 0)
-    plain = np.abs(art - bg).max(2) <= 0.08
-    paper = Image.fromarray((plain * 255).astype(np.uint8)).copy()
-    from PIL import ImageDraw
-    for corner in ((0, 0), (paper.width - 1, 0), (0, paper.height - 1), (paper.width - 1, paper.height - 1)):
-        if paper.getpixel(corner) == 255: ImageDraw.floodfill(paper, corner, 128)
-    ship = np.asarray(paper) != 128
-    # (Paper seen through the ship, between the dish's struts or the rail's bars, is still paper; but not lit glass, as
-    # pale as the paper: the windows are small.)
-    holes = Image.fromarray(((ship & plain) * 255).astype(np.uint8)).copy()
-    h = np.asarray(holes)
-    while True:
-        ys, xs = np.nonzero(np.asarray(holes) == 255)
-        if len(ys) == 0: break
-        ImageDraw.floodfill(holes, (int(xs[0]), int(ys[0])), 100)
-        blob = np.asarray(holes) == 100
-        ImageDraw.floodfill(holes, (int(xs[0]), int(ys[0])), 1 if blob.sum() > 300 else 2)
-    return ship & (np.asarray(holes) != 1)
+# The ship's colours, after its art.
+SLATE = (0.31, 0.33, 0.37)      # its plating
+PANEL = (0.18, 0.19, 0.22)      # panels set into it, slots, the joints between its sections
+FRAME = (0.13, 0.14, 0.16)      # the porthole's frame, pipes' fittings, the mast, the rails, anything thin
+PIPE = (0.22, 0.24, 0.27)       # its pipes
+AMBER = (0.86, 0.55, 0.17)      # its trim: the bow's band, the bells' rims, the lower pipe
+WINDOW = (1.0, 0.88, 0.58)      # its lit windows
+PORT = (1.0, 0.74, 0.32)        # the porthole's glow
+GLASS = (0.42, 0.56, 0.64)      # the deck rail's glass
+CYAN = (0.55, 0.92, 1.0)        # its lamps (the bow's, the dish's)
 
 
-def paint(art, fit, moved):
-    """The paint, over the box (x along, z up): the art's colours, its lit glass and lamps in alpha, gaps filled."""
-    a, s, b, t = fit
-    h, w = art.shape[:2]
-    ship = ship_mask(art)
-    r, g, bl = art[..., 0], art[..., 1], art[..., 2]
-    hi, lo = art.max(2), art.min(2)
-    # Lit glass and lamps: near white and bright, or a hot warm glow (the porthole's rim, the bells' throats).
-    lit = np.clip((lo - 0.55) / 0.25, 0, 1) * np.clip((hi - 0.85) / 0.1, 0, 1)
-    warm = np.clip((r - 0.88) / 0.08, 0, 1) * np.clip((g - 0.6) / 0.15, 0, 1)
-    glow = np.maximum(lit, warm)
-    # (Not a highlight's thin glint along a pipe or a rail: only lit patches with some body to them; but the engines'
-    # throats, seen edge on, all of theirs.)
-    body = dilate(erode(glow > 0.5, 2), 3)
-    body[:, :int(a)] = True
-    bg = np.median(np.concatenate([art[:16, :16], art[:16, -16:], art[-16:, :16], art[-16:, -16:]]).reshape(-1, 3), 0)
-    pale = (np.abs(art - bg).max(2) <= 0.08) & (hi < 0.962)
-    glow = glow * body * ship * ~pale
-    # Over the box's grid.
-    xs = np.linspace(PAINT_X[0], PAINT_X[1], PAINT_W, endpoint=False) + (PAINT_X[1] - PAINT_X[0]) / PAINT_W / 2
-    zs = np.linspace(PAINT_Z[1], PAINT_Z[0], PAINT_H, endpoint=False) - (PAINT_Z[1] - PAINT_Z[0]) / PAINT_H / 2
-    gx, gz = np.meshgrid(xs, zs)
-    dx, dz = np.zeros_like(gx), np.zeros_like(gz)
-    for rows in np.array_split(np.arange(PAINT_H), 16):
-        dx[rows], dz[rows] = moved(gx[rows], gz[rows])
-    u, v = a + s * (gx + dx), b - t * (gz + dz)
-    inside = (u >= 0) & (u <= w - 1) & (v >= 0) & (v <= h - 1)
-    ui, vi = np.clip(u, 0, w - 1), np.clip(v, 0, h - 1)
-    u0, v0 = np.floor(ui).astype(int), np.floor(vi).astype(int)
-    u1, v1 = np.minimum(u0 + 1, w - 1), np.minimum(v0 + 1, h - 1)
-    fu, fv = (ui - u0)[..., None], (vi - v0)[..., None]
-    rgba = np.concatenate([art, glow[..., None]], 2)
+def pieces(box, f, fn, sign):
+    """Each of the hull's pieces seen from one side (side_view), with its place, size and how far it stands out."""
+    from scipy import ndimage
+    from skimage import measure
+    tid, lab, edge, gx, gz = side_view(box, f, fn, sign)
+    rx, rz = gx[0, 1] - gx[0, 0], gz[0, 0] - gz[1, 0]
+    t = np.maximum(tid, 0)
+    n = fn[t]
+    p0 = box[f[t, 0]]
+    ny = np.where(np.abs(n[..., 1]) < 1e-3, 1e-3, n[..., 1])
+    out = np.abs(np.clip(p0[..., 1] - (n[..., 0] * (gx - p0[..., 0]) + n[..., 2] * (gz - p0[..., 2])) / ny, p0[..., 1] - 1, p0[..., 1] + 1) - 12)
+    seen = tid >= 0
+    found = []
+    for p in measure.regionprops(lab):
+        r0, c0, r1, c1 = p.bbox
+        m = lab[r0:r1, c0:c1] == p.label
+        # (How far it stands out from what is round it: raised, or set in.)
+        pad = 5
+        R0, C0, R1, C1 = max(r0 - pad, 0), max(c0 - pad, 0), r1 + pad, c1 + pad
+        big = lab[R0:R1, C0:C1] == p.label
+        ring = ndimage.binary_dilation(big, iterations=4) & ~big & seen[R0:R1, C0:C1]
+        o = out[R0:R1, C0:C1]
+        raised = float(np.median(o[big]) - np.median(o[ring])) if ring.any() else 0.0
+        cy, cx = p.centroid
+        found.append(dict(label=p.label, x=gx[0, 0] + cx * rx, z=gz[0, 0] - cy * rz, area=p.area * rx * rz,
+                          w=(c1 - c0) * rx, h=(r1 - r0) * rz, raised=raised))
+    return tid, lab, edge, found
 
-    def bil(img):
-        return (img[v0, u0] * (1 - fu) * (1 - fv) + img[v0, u1] * fu * (1 - fv) + img[v1, u0] * (1 - fu) * fv + img[v1, u1] * fu * fv)
 
-    out = bil(rgba)
-    # (The art's own edge, half its paper, left out: what lies past it takes the colour just within.)
-    known = inside & (bil(erode(ship, 2)[..., None].astype(float))[..., 0] > 0.99)
-    out, filled = fill(out, known)
-    out[~filled] = [0.33, 0.36, 0.4, 0]
-    out[~known, 3] = 0
-    # (Nothing is lit on the foredeck's rail: the art's paper glints between its bars.)
-    out[(gx > 22) & (gz > 8.2), 3] = 0
-    return out
+def kind_of(pc):
+    """What a piece is, by its place, size and relief (the model's own: the art only says what colour each kind is)."""
+    x, z, ar, w, h, raised = pc['x'], pc['z'], pc['area'], pc['w'], pc['h'], pc['raised']
+    if 15.5 < x < 20.5 and 4 < z < 5.8 and 1.5 < ar < 4.5 and w > 1.8: return 'port'
+    if 0.04 < ar < 0.3 and 0.25 < w < 0.8 and 0.15 < h < 0.5 and 1.1 < w / h < 3 and -0.3 < raised < -0.04 and (5.9 < z < 6.8 or 8.6 < z < 9.8): return 'window'
+    if 23 < x < 35.5 and 8.1 < z < 8.9 and 0.4 < ar < 1.4: return 'glass'
+    if 32 < x < 33 and 4.3 < z < 4.9 and ar < 0.15: return 'lamp'
+    # (The porthole's heavy frame, round its glass.)
+    if 14.8 < x - w / 2 and x + w / 2 < 21.2 and 3.3 < z - h / 2 and z + h / 2 < 7.6: return 'frame'
+    if w > 4 and w / max(h, 1e-3) > 7:
+        return 'amber' if 2.55 < z < 3.1 and x > 4 else 'pipe'
+    # (The bells: dark, ringed in amber.)
+    if x < 0 and h > 0.8: return 'amber' if w < 0.7 else 'panel'
+    if h > 2.2 and w < 1.7 and z > 3:
+        return 'amber' if x > 34.5 else 'panel'
+    if min(w, h) < 0.16 and ar < 0.3: return 'frame'
+    if 0.15 < ar < 6 and raised < -0.04: return 'panel'
+    if 0.25 < ar < 0.5 and h > 1.5 * w and 5.4 < z < 6.6: return 'panel'
+    return 'slate'
+
+
+def paint(box, f, fn):
+    """
+    The paint, both sides of the hull (−y in the lower half, +y the upper), over the box (x along, z up): painted piece by
+    piece of the hull as it is made, each by what it is (slate plating, panels set in, joints and pipes, amber trim, lit
+    windows and porthole, the rail's glass), its edges inked as the art inks its own; lit (alpha) only its windows and
+    porthole.
+    """
+    colour = dict(slate=SLATE, panel=PANEL, frame=FRAME, pipe=PIPE, amber=AMBER, window=WINDOW, port=PORT, glass=GLASS, lamp=CYAN)
+    halves, seen = [], {}
+    for sign in (1, -1):
+        tid, lab, edge, found = pieces(box, f, fn, sign)
+        seen[sign] = np.bincount(tid[tid >= 0], minlength=len(f))
+        col = np.tile(np.array(SLATE), (lab.max() + 1, 1))
+        lit = np.zeros(lab.max() + 1)
+        counts = {}
+        for pc in found:
+            k = kind_of(pc)
+            counts[k] = counts.get(k, 0) + 1
+            col[pc['label']] = colour[k]
+            lit[pc['label']] = k in ('window', 'port', 'lamp')
+        C, A = col[lab], lit[lab]
+        # (An amber stripe round the engine block's fore edge.)
+        rx, rz = (PAINT_X[1] - PAINT_X[0]) / PAINT_W, (PAINT_Z[1] - PAINT_Z[0]) / PAINT_H
+        gx, gz = np.meshgrid(PAINT_X[0] + (np.arange(PAINT_W) + 0.5) * rx, PAINT_Z[1] - (np.arange(PAINT_H) + 0.5) * rz)
+        stripe = (gx > 3.15) & (gx < 3.45) & (gz > 1.8) & (gz < 7.9) & (tid >= 0) & (np.all(C == SLATE, -1))
+        C = np.where(stripe[..., None], np.array(AMBER), C)
+        out = np.where((edge & (A < 0.5))[..., None], C * 0.5, C)
+        print(f'{"+" if sign > 0 else "-"}y side:', ', '.join(f'{v} {k}' for k, v in sorted(counts.items())))
+        rgba = np.concatenate([out, A[..., None]], 2)
+        rgba, _ = fill(rgba, tid >= 0, rounds=40)
+        halves.append(rgba)
+    out = np.concatenate(halves, 0)
+    # (A patch of plain plating in the corner, for what neither side's paint shows.)
+    out[:4, :4] = [*SLATE, 0]
+    out[:4, 4:8] = [*AMBER, 0]
+    return out, seen
 
 
 def main():
     v, f = load_fbx(os.path.join(SRC, 'iron-horizon.fbx'))
     print(f'model: {len(v)} corners, {len(f)} triangles')
     box = to_box(v)
-    art = np.asarray(Image.open(os.path.join(SRC, 'reference.png')).convert('RGB')).astype(float) / 255
 
     simp = pyfqmr.Simplify()
     simp.setMesh(box.astype(np.float64), f.astype(np.int32))
@@ -461,18 +376,38 @@ def main():
     bf = bf[keep]
     print(f'cut down to {len(bv)} corners, {len(bf)} triangles')
 
-    fit = fit_art(bv, bf, ship_mask(art))
-    pm = paint(art, fit, warp(bv, bf, art, fit))
+    fn = np.cross(bv[bf[:, 1]] - bv[bf[:, 0]], bv[bf[:, 2]] - bv[bf[:, 0]])
+    fn /= np.maximum(np.linalg.norm(fn, axis=1, keepdims=True), 1e-12)
+    pm, seen = paint(bv, bf, fn)
     os.makedirs(OUT, exist_ok=True)
     Image.fromarray((np.clip(pm, 0, 1) * 255 + 0.5).astype(np.uint8), 'RGBA').save(os.path.join(OUT, 'CaptainShipPaint.png'), optimize=True)
 
-    # Each triangle's corners with their own normals (shared where smooth), and its material: 8, painted metal; 9 the
-    # same where the engines' throats face astern (their glow seen from behind as well as side on).
+    # Each triangle's corners with their own normals (shared where smooth), and its material: painted metal, 8 on the
+    # −y side (the paint's lower half), 10 on the +y side (its upper), 13 plain plating, 14 the bells' amber lips; 9 the engines' throats, deep in
+    # the bells, lit.
     cn = creased_normals(bv, bf)
-    fn = np.cross(bv[bf[:, 1]] - bv[bf[:, 0]], bv[bf[:, 2]] - bv[bf[:, 0]])
-    fn /= np.maximum(np.linalg.norm(fn, axis=1, keepdims=True), 1e-12)
-    cx = bv[bf].mean(1)[:, 0]
-    mat = np.where((cx < -0.6) & (np.abs(fn[:, 0]) > 0.55), 9, 8)
+    cen = bv[bf].mean(1)
+    side = np.where(np.abs(fn[:, 1]) > 0.05, np.sign(fn[:, 1]), np.sign(cen[:, 1] - 12 + 1e-9))
+    mat = np.where(side > 0, 10, 8)
+    # Faces hidden from their side (behind a pipe, under a lug), big enough to have been seen if they were: plain
+    # plating (13), not the paint of whatever hides them.
+    rx, rz = (PAINT_X[1] - PAINT_X[0]) / PAINT_W, (PAINT_Z[1] - PAINT_Z[0]) / PAINT_H
+    q2 = np.stack([bv[:, 0] / rx, bv[:, 2] / rz], 1)[bf]
+    e1, e2 = q2[:, 1] - q2[:, 0], q2[:, 2] - q2[:, 0]
+    px_area = np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]) / 2
+    shown = np.where(side > 0, seen[1], seen[-1])
+    mat[(shown == 0) & (px_area > 3)] = 13
+    for y, z in BELLS:
+        r = np.hypot(cen[:, 1] - y, cen[:, 2] - z)
+        # (Each bell's mouth ringed in amber (14), its throat burning (9).)
+        mat[(cen[:, 0] < -1.6) & (r > 1.25) & (r < 2.2) & (fn[:, 0] < -0.5)] = 14
+        mat[(cen[:, 0] < -0.8) & (r < 1.25) & (fn[:, 0] < 0.3)] = 9
+    # The lamps: the mast's at its top (12, amber), the dish's at its feed, where its struts meet (11, cyan).
+    mat[(cen[:, 2] > 13.55) & (cen[:, 0] > 13.9) & (cen[:, 0] < 14.9)] = 12
+    near = (np.abs(cen[:, 0] - DISH_LAMP[0]) < 0.3) & (np.abs(cen[:, 2] - DISH_LAMP[1]) < 0.3)
+    if near.any():
+        at = np.array([DISH_LAMP[0], np.median(cen[near, 1]), DISH_LAMP[1]])
+        mat[np.linalg.norm(cen - at, axis=1) < 0.38] = 11
     q = 512
     pos = np.round(bv[bf].reshape(-1, 3) * q).astype(np.int16)
     nor = np.round(cn.reshape(-1, 3) * 127).astype(np.int8)

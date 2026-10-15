@@ -62,22 +62,25 @@ Shader "BlueLoop/Ship"
                 float m = i.m;
                 float t = _Time.y;
                 float3 c;
+                if (m > 8.5)
+                {
+                    // The Captain's ship's engines' throats, deep in the bells, burning.
+                    float flick = 0.9 + 0.1 * sin(t * 23.0 + i.l.x * 30.0) * sin(t * 13.0 + i.l.z * 20.0);
+                    c = lerp(i.c, float3(1, 1, 1), 0.25) * flick * (1.0 + _Burn * 0.15);
+                    return fixed4(min(c, 1) * _Alpha, _Alpha);
+                }
                 if (m > 7.5)
                 {
-                    // The Captain's ship's made hull, painted after its art (CaptainShip.cs): the art laid over it side on,
-                    // where it lies in the vertex's colour. Its flanks wear the art as it is, lit glass and lamps glowing;
-                    // faces turned up or down from the side (the art's outline there, its glass smeared) take the slate of
-                    // its plating, keeping only its amber bands; the engines' throats (9) glow seen from astern as well.
+                    // The Captain's ship's made hull, painted after its art (CaptainShip.cs): each side's paint seen
+                    // square, piece by piece of the hull, where the vertex's colour says. Its flanks wear it as drawn,
+                    // its panes and lamps glowing; faces turned up or down from the side take the slate of its plating,
+                    // keeping only its amber bands.
                     float4 p = tex2D(_CaptainPaint, i.c.rg);
                     float3 ln = normalize(i.ln);
                     float side = smoothstep(0.2, 0.5, abs(ln.z)), lit = smoothstep(0.05, 0.3, abs(ln.z));
-                    if (m > 8.5)
-                    {
-                        side = max(side, smoothstep(0.3, 0.6, -ln.x));
-                        lit = max(lit, side);
-                    }
                     float3 slate = float3(0.33, 0.36, 0.4);
-                    float amber = saturate((p.r - p.b - 0.22) * 4.0) * (1.0 - p.a);
+                    // (Amber only on faces turned up or down: a band's top, not the engine block's back.)
+                    float amber = saturate((p.r - p.b - 0.22) * 4.0) * (1.0 - p.a) * (1.0 - smoothstep(0.4, 0.7, abs(ln.x)));
                     float3 base = lerp(lerp(slate, p.rgb, amber), p.rgb, side);
                     // (The art is drawn shaded already: on its flanks it is shown much as drawn, the light only
                     // turning it a little; faces away from the side are lit for their form.)

@@ -63,6 +63,7 @@ namespace BlueLoop.Models
         static readonly Rgb Engine = C(1, 0.8, 0.52);
         static readonly Rgb Ember = C(1, 0.55, 0.22);
         static readonly Rgb LampCyan = C(0.55, 0.88, 1);
+        static readonly Rgb LampAmber = C(1, 0.86, 0.4);
         static readonly Dictionary<string, Rgb> PartTint = new Dictionary<string, Rgb> { ["dwarf"] = C(0.62, 0.7, 0.82), ["stellar"] = C(0.93, 0.75, 0.38), ["anomaly"] = C(0.72, 0.56, 0.98) };
 
         /// <summary>The ship's slots, in the hangar's order.</summary>
@@ -229,7 +230,8 @@ namespace BlueLoop.Models
             var smoke = new List<V3>();
             var engines = new List<V3>();
 
-            // The hull, each corner where the paint is laid over it side on (its colour: the paint's place; Ship.shader).
+            // The hull, each corner where its paint is (its colour: the paint's place, each side its own half; Ship.shader):
+            // painted metal (8), or lit (9): the engines' throats burning, the lamps.
             {
                 var o = m.Out;
                 o.Capacity = h.Tris.Length * Ship3d.ShipStride + 60000;
@@ -246,10 +248,22 @@ namespace BlueLoop.Models
                     o.Add((float)n.X);
                     o.Add((float)n.Y);
                     o.Add((float)n.Z);
-                    o.Add((float)((x - h.PaintX0) / pw));
-                    o.Add((float)((z - h.PaintZ0) / ph));
+                    var mat = h.Mat[i];
+                    if (mat == 9 || mat == 11 || mat == 12)
+                    {
+                        // (Lit: the engines' throats, the dish's cyan lamp, the mast's amber one.)
+                        var glow = mat == 9 ? Engine : mat == 11 ? LampCyan : LampAmber;
+                        o.Add((float)glow.R);
+                        o.Add((float)glow.G);
+                        o.Add((float)glow.B);
+                        o.Add(9);
+                        continue;
+                    }
+                    // (Plain plating hidden from either side's paint, or the bells' amber lips: the paint's corner patches.)
+                    o.Add(mat == 13 ? 0.001f : mat == 14 ? 0.0035f : (float)((x - h.PaintX0) / pw));
+                    o.Add(mat == 13 || mat == 14 ? 0.999f : (float)((mat == 10 ? 0.5 : 0) + 0.5 * (z - h.PaintZ0) / ph));
                     o.Add(0);
-                    o.Add(h.Mat[i]);
+                    o.Add(8);
                 }
             }
 
