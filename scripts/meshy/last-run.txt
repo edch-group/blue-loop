@@ -1,9 +1,15 @@
 v2/text-to-3d: 0 tasks
-v1/image-to-3d: 14 tasks
-v1/multi-image-to-3d: 0 tasks
+v1/image-to-3d: 16 tasks
+v1/multi-image-to-3d: 4 tasks
 v1/retexture: 1 tasks
 v1/remesh: 0 tasks
 v1/text-to-texture: 404
+  b3b7d07c-b2a4-5d77-8f5d-b3e799f10024 v1/image-to-3d SUCCEEDED created 1792071400598 Iron Horizon Clean
+  f851b5cc-b4a7-453b-9863-17e508dbdeb9 v1/image-to-3d SUCCEEDED created 1792071309849 Iron Horizon Clean
+  5173abc6-06ec-5326-a610-2b17a5beedc4 v1/multi-image-to-3d SUCCEEDED created 1792070334661 Iron Horizon Multi-View
+  01a13fb5-879c-7078-bed0-c7c9cc71c4c4 v1/multi-image-to-3d SUCCEEDED created 1792070223778 Iron Horizon Multi-View
+  0cdda1ae-3dea-5687-a1d9-b13a182659e5 v1/multi-image-to-3d SUCCEEDED created 1792069748764 Iron Horizon Multi-View
+  e3223595-ee88-47d9-ab60-733d86f03570 v1/multi-image-to-3d SUCCEEDED created 1792069607955 Iron Horizon Multi-View
   a71de10e-23be-4f22-a54c-57bd1d137d44 v1/retexture SUCCEEDED created 1792067126549 Iron Horizon Textured
   d5e6370f-3691-5e71-9f55-c4cfb703361f v1/image-to-3d SUCCEEDED created 1792013706151 stylized_dark_veteran
   e7f3c084-8853-4442-bb95-4c1dccf40020 v1/image-to-3d SUCCEEDED created 1792013570086 stylized_dark_veteran
@@ -13,15 +19,5 @@ v1/text-to-texture: 404
   5d3ee36b-2da2-4eab-9263-7d442fc0a331 v1/image-to-3d SUCCEEDED created 1791977357857 dark_warrior_character
   67e0852a-16f4-40fc-840a-488217bf1257 v1/image-to-3d SUCCEEDED created 1791977357838 dark_tattered_cape
   2fc18a67-e6e6-43d9-82b8-95e6003bef64 v1/image-to-3d SUCCEEDED created 1791977357715 dark_weathered_sword
-  ae5fce22-e328-589c-a440-a1279c59fd11 v1/image-to-3d SUCCEEDED created 1791976920909 anime_warrior_character
-  59d6b3f4-9e81-5c4c-abbe-acd8f95ed8cd v1/image-to-3d SUCCEEDED created 1791976855520 anime_warrior_cape
-  8b80e185-dba1-5663-9189-d9a4620711d8 v1/image-to-3d SUCCEEDED created 1791976799856 anime_stormblade_sword
-  d850505d-1902-40d2-a5e8-e7ec72367f18 v1/image-to-3d SUCCEEDED created 1791976729379 anime_warrior_cape
-  3d638579-6903-4748-a504-3d6393e83194 v1/image-to-3d SUCCEEDED created 1791976729359 anime_warrior_character
-  238d7259-a29a-4b80-85d4-a291f7ecf8e1 v1/image-to-3d SUCCEEDED created 1791976729321 anime_stormblade_sword
-fetching a71de10e-23be-4f22-a54c-57bd1d137d44 (v1/retexture)
-  model.glb: 34070 KB
-  texture-base_color.png: 20623 KB
-  texture-metallic.png: 496 KB
-  texture-roughness.png: 1513 KB
-  texture-normal.png: 16829 KB
+fetching b3b7d07c-b2a4-5d77-8f5d-b3e799f10024 (v1/image-to-3d)
+  model.glb: 16146 KB
