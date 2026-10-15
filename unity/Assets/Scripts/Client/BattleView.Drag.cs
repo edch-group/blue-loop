@@ -150,11 +150,7 @@ public partial class BattleView
                     var view = Board.View(d.Uid);
                     // (In a layer of its own canvas, with its shadows: moved every frame, it would otherwise have the
                     // whole HUD batched again each frame.)
-                    var layer = Hud.Rect(hud.transform, "Drag layer");
-                    Hud.Fill(layer);
-                    var own = layer.gameObject.AddComponent<Canvas>();
-                    own.overrideSorting = true;
-                    own.sortingOrder = 500;
+                    var layer = Hud.Own(Hud.Fill(Hud.Rect(hud.transform, "Drag layer")), 500);
                     var ghost = Hud.Rect(layer, "Drag ghost");
                     ghost.anchorMin = ghost.anchorMax = new Vector2(0, 1);
                     ghost.pivot = new Vector2(0.5f, 0.5f);

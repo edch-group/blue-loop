@@ -56,6 +56,11 @@ public static class Hud
     /// </summary>
     public static RectTransform Own(RectTransform r, int order)
     {
+        // (On its parent canvas's layer: a canvas sorted on its own is drawn by a camera only when its own layer is in
+        // the camera's mask, and the battle's HUD camera draws the UI layer alone, so on the default layer it was
+        // never drawn at all.)
+        var under = r.parent != null ? r.parent.GetComponentInParent<Canvas>() : null;
+        if (under != null) r.gameObject.layer = under.gameObject.layer;
         var c = r.gameObject.AddComponent<Canvas>();
         c.overrideSorting = true;
         c.sortingOrder = order;
