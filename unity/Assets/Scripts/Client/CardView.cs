@@ -22,6 +22,26 @@ public class CardView : MonoBehaviour
     Vector3 lunge;
     const float LungeTime = 0.4f, ShakeTime = 0.32f;
 
+    /// <summary>
+    /// A card in the hand drawn over everything on the table, its shadow, rim, face and badges together: the table's
+    /// badges (3010) were drawn over the hand's faces (3000).
+    /// </summary>
+    int Lift => Table ? 0 : 200 + 30 * stack;
+
+    /// <summary>Its place in the hand's fan (0 at the back): each card a band of queues over the one before, badges and all.</summary>
+    int stack;
+
+    public void Stack(int i)
+    {
+        if (Table || i == stack) return;
+        stack = i;
+        shadow.sharedMaterial.renderQueue = 2990 + Lift;
+        rim.sharedMaterial.renderQueue = 2995 + Lift;
+        if (flash != null) flash.sharedMaterial.renderQueue = 2996 + Lift;
+        face.sharedMaterial.renderQueue = 3000 + Lift;
+        foreach (var b in badges.Values) b.sharedMaterial.renderQueue = 3010 + Lift;
+    }
+
     public static CardView Make(Transform parent, string uid, string defId, bool table)
     {
         var go = new GameObject($"Card {defId}");
@@ -34,14 +54,14 @@ public class CardView : MonoBehaviour
         v.shadow.sharedMaterial.SetFloat("_Size", 0.36f);
         v.shadow.sharedMaterial.SetFloat("_Soft", 0.09f);
         v.shadow.transform.localPosition = new Vector3(0.02f, -0.002f, -0.07f);
-        v.shadow.sharedMaterial.renderQueue = 2990;
+        v.shadow.sharedMaterial.renderQueue = 2990 + v.Lift;
         v.rim = Mats.Flat("Rim", go.transform, Mats.Make("Soft", new Color(0, 0, 0, 0)), 1.36f, 1.76f, -0.001f);
         v.rim.sharedMaterial.SetFloat("_Aspect", 1.76f / 1.36f);
         v.rim.sharedMaterial.SetFloat("_Size", 0.37f);
         v.rim.sharedMaterial.SetFloat("_Soft", 0.035f);
-        v.rim.sharedMaterial.renderQueue = 2995;
+        v.rim.sharedMaterial.renderQueue = 2995 + v.Lift;
         v.face = Mats.Flat("Face", go.transform, Mats.Make("Card"), 1, 1.4f);
-        v.face.sharedMaterial.renderQueue = 3000;
+        v.face.sharedMaterial.renderQueue = 3000 + v.Lift;
         var col = go.AddComponent<BoxCollider>();
         col.size = new Vector3(1, 0.05f, 1.4f);
         v.SetCard(defId);
@@ -94,7 +114,7 @@ public class CardView : MonoBehaviour
             flash.sharedMaterial.SetFloat("_Aspect", 2.2f / 1.8f);
             flash.sharedMaterial.SetFloat("_Size", 0.54f / 1.8f);
             flash.sharedMaterial.SetFloat("_Soft", 0.3f / 1.8f);
-            flash.sharedMaterial.renderQueue = 2996;
+            flash.sharedMaterial.renderQueue = 2996 + Lift;
         }
         flashHit = hit;
         flashTrigger = false;
@@ -142,7 +162,7 @@ public class CardView : MonoBehaviour
             r = Mats.Flat(slot, transform, Mats.Make("Card"), p.w, p.h, 0.004f);
             r.sharedMaterial.SetFloat("_Radius", 0);
             r.sharedMaterial.SetFloat("_Aspect", p.h / p.w);
-            r.sharedMaterial.renderQueue = 3010;
+            r.sharedMaterial.renderQueue = 3010 + Lift;
             r.transform.localPosition = new Vector3(-0.5f + p.x + p.w / 2, 0.004f, 0.7f - (p.y + p.h / 2));
             badges[slot] = r;
         }

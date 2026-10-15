@@ -82,6 +82,8 @@ public partial class BattleView
             replaying = false;
             // (The next day's dawn: its banner when the timeline brings it, after the dusk's effects.)
             if (turnPassed && day.Item2 != null) DawnBanner(next, day.Item2.Value, day.Item3);
+            // (Until the day's banner and its effects are over, it is still dawn: no cards but Lightspeed ones count as playable.)
+            if (turnPassed) dayFrom = Time.time + day.Item3 + (day.Item2 != null ? BannerShown : 0);
         }
         if (stage != null && stage.Confirm)
         {

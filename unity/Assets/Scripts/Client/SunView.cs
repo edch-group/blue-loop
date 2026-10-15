@@ -280,7 +280,9 @@ public class SunView : MonoBehaviour
             orbitSeen = now;
             return real;
         }
-        float speed = dt / 1.4f * Mathf.Max(1, Mathf.Abs(gap) / 2.5f);
+        // (A step is a planet's worth of notches: with a day for each planet, one sweep from planet to planet.)
+        float per = 3f / BlueLoop.Engine.Balance.OrbitTurns;
+        float speed = dt / 1.4f * per * Mathf.Max(1, Mathf.Abs(gap) / per / 2.5f);
         shownOrbit = Mathf.Abs(gap) <= speed ? real : shownOrbit + Mathf.Sign(gap) * speed;
         orbitSeen = now;
         moving = shownOrbit != real;
@@ -304,14 +306,20 @@ public class SunView : MonoBehaviour
     {
         if (lay == null) return;
         float now = Time.realtimeSinceStartup, ms = now * 1000;
-        // The corona flickers about 20 times a second; the dome turns about 10 (every frame while the orbit swings).
-        if (now >= nextCorona)
+        // (Drawn pixel by pixel on the one thread the page has: at most one drawing a frame across all the suns, the
+        // corona and the dome taking turns, so their work is spread over frames rather than piled into one.)
+        if (drawnFrame == Time.frameCount) return;
+        // The corona flickers about 20 times a second; the dome turns about 10 (every other frame while the orbit swings).
+        if (now >= nextCorona && !domeDirty)
         {
             nextCorona = now + 0.05f;
+            drawnFrame = Time.frameCount;
             DrawCorona(ms);
+            return;
         }
         if (domeDirty || moving || now >= nextDome)
         {
+            drawnFrame = Time.frameCount;
             nextDome = now + 0.1f;
             domeDirty = false;
             DrawDome(ms, now);
@@ -332,11 +340,17 @@ public class SunView : MonoBehaviour
         }
     }
 
+    /// <summary>The frame a sun last drew on (shared by all of them).</summary>
+    static int drawnFrame = -1;
+
+    /// <summary>The pixels per CSS pixel the suns are drawn at: the screen's, but at most 2 (a phone's 3 drew them 2¼ times the work).</summary>
+    static float SunDpr => Mathf.Min(2, Css.PixelRatio);
+
     void DrawCorona(float ms)
     {
         // (sun3d.ts draw: its canvas at the screen's pixels, at most 220 at the page's zoom.)
         float cw = 0.88f * vs;
-        int size = Mathf.Max(8, Mathf.RoundToInt(Mathf.Min(220 * Css.Zoom, cw * Css.PixelRatio * Css.Zoom)));
+        int size = Mathf.Max(8, Mathf.RoundToInt(Mathf.Min(220 * Css.Zoom, cw * SunDpr * Css.Zoom)));
         Ensure(ref coronaTex, ref coronaPx, ref coronaFlip, size, corona);
         float t = Mathf.Clamp01(heat / (float)most);
         float c = heat < 0 ? Mathf.Min(1, heat / (float)Balance.MinHeat) : 0;
@@ -348,7 +362,7 @@ public class SunView : MonoBehaviour
     {
         // (sun3d.ts drawDome: a little finer than the screen's own pixels, at most 760 at the page's zoom.)
         float span = vs * (1 + 2 * SunArt.DOME_PAD);
-        int size = Mathf.Max(8, Mathf.RoundToInt(Mathf.Min(760 * Css.Zoom, span * Css.PixelRatio * Css.Zoom * 1.15f)));
+        int size = Mathf.Max(8, Mathf.RoundToInt(Mathf.Min(760 * Css.Zoom, span * SunDpr * Css.Zoom * 1.15f)));
         Ensure(ref domeTex, ref domePx, ref domeFlip, size, dome);
         var cam = EyeInGauge();
         float t = Mathf.Clamp01(heat / (float)most);

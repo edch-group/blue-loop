@@ -142,7 +142,7 @@ public partial class BattleView
     {
         if (delay > 0) yield return new WaitForSeconds(delay);
         if (beamLayer == null) yield break;
-        var r = Hud.Rect(beamLayer.parent, "Bolt");
+        var r = Hud.Own(Hud.Rect(beamLayer.parent, "Bolt"), 24);
         r.anchorMin = r.anchorMax = new Vector2(0, 1);
         r.pivot = new Vector2(0.5f, 0.5f);
         float extent = size + 2 * 34;

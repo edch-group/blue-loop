@@ -372,18 +372,23 @@ function shownOrbit(pid: string, orbit: number, now: number): number {
     orbitsShown.set(pid, { at: orbit, seen: now });
     return orbit;
   }
-  // Several notches at once go a little faster each, so a big swing doesn't drag on.
-  const speed = (dt / ORBIT_STEP_MS) * Math.max(1, Math.abs(gap) / 2.5);
+  // (A step is a planet's worth of notches: with a day for each planet, one sweep from planet to planet.)
+  const per = 3 / BALANCE.orbitTurns;
+  // Several steps at once go a little faster each, so a big swing doesn't drag on.
+  const speed = (dt / ORBIT_STEP_MS) * per * Math.max(1, Math.abs(gap) / per / 2.5);
   const at = Math.abs(gap) <= speed ? orbit : was.at + Math.sign(gap) * speed;
   orbitsShown.set(pid, { at, seen: now });
   if (at !== orbit) orbitsMoving = true;
   return at;
 }
 
-/** A notch-to-notch swing: within each step, ease in and out. */
+/** A step-to-step swing (a planet's worth of notches, from one planet's place to the next): within each, ease in and out. */
 function notchEase(o: number): number {
-  const i = Math.floor(o), f = o - i;
-  return i + f * f * (3 - 2 * f);
+  const per = 3 / BALANCE.orbitTurns;
+  const off = (per - 1) / 2;
+  const u = (o - off) / per;
+  const i = Math.floor(u), f = u - i;
+  return off + (i + f * f * (3 - 2 * f)) * per;
 }
 
 /** A half-sphere sitting in the board: its centre on the board, its colour at a point of its surface. */

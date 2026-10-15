@@ -288,11 +288,12 @@ public static class SunArt
         return orbit * per + (per - 1) / 2;
     }
 
-    /// <summary>A notch-to-notch swing: within each step, ease in and out.</summary>
+    /// <summary>A step-to-step swing (a planet's worth of notches, from one planet's place to the next): within each, ease in and out.</summary>
     public static float NotchEase(float o)
     {
-        float i = Mathf.Floor(o), f = o - i;
-        return i + f * f * (3 - 2 * f);
+        float per = 3f / BlueLoop.Engine.Balance.OrbitTurns, off = (per - 1) / 2;
+        float u = (o - off) / per, i = Mathf.Floor(u), f = u - i;
+        return off + (i + f * f * (3 - 2 * f)) * per;
     }
 
     static Vector3 OnBoard(Vector3 cam, Vector3 p)

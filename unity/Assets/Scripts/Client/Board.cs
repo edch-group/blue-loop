@@ -788,6 +788,8 @@ public class Board : MonoBehaviour
             y = foot + (y - foot) * size - rise;
             var at = l.Screen(x, y, depth);
             v.MoveTo(new Vector3(at.x, -depth + 0.001f * (lifted ? 50 : i), at.y), Quaternion.Euler(0, turn, 0), w * size * px);
+            // (Drawn in the fan's order, the lifted card over all, each with its own badges.)
+            v.Stack(lifted ? 50 : i);
             float a = turn * Mathf.Deg2Rad, bw = (w * Mathf.Abs(Mathf.Cos(a)) + h * Mathf.Abs(Mathf.Sin(a))) * size, bh = (w * Mathf.Abs(Mathf.Sin(a)) + h * Mathf.Cos(a)) * size;
             HandRects.Add(new Rect(x - bw / 2, y - bh / 2, bw, bh));
             // (Its attack and stability as printed, as the web's hand cards wear them: stabilityBadge.)

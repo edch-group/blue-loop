@@ -50,6 +50,18 @@ public static class Hud
         return c;
     }
 
+    /// <summary>
+    /// A layer drawn in a canvas of its own, over the rest at `order`: what animates every frame (a banner, a number
+    /// rising, a flash) then has only itself batched again each frame, not the whole screen's canvas.
+    /// </summary>
+    public static RectTransform Own(RectTransform r, int order)
+    {
+        var c = r.gameObject.AddComponent<Canvas>();
+        c.overrideSorting = true;
+        c.sortingOrder = order;
+        return r;
+    }
+
     public static Canvas Canvas(Camera cam, int order = 0)
     {
         var go = new GameObject("Hud", typeof(RectTransform));
@@ -440,6 +452,7 @@ public class GlassShadow : MonoBehaviour
     }
 
     void OnRectTransformDimensionsChange() => Follow();
+
     void LateUpdate() => Follow();
     void OnEnable() { if (shadow != null) shadow.gameObject.SetActive(true); Follow(); }
     void OnDisable() { if (shadow != null) shadow.gameObject.SetActive(false); }
@@ -575,12 +588,40 @@ public class Shades : MonoBehaviour
         var img = layers[i].GetComponent<Image>();
         img.color = d.Color;
         if (d.Blur > 0) img.pixelsPerUnitMultiplier = 14.4f / d.Blur;
+        lastSibling = -1;
         Follow();
     }
 
     void OnRectTransformDimensionsChange() => Follow();
-    void LateUpdate() => Follow();
-    void OnEnable() { foreach (var s in layers) if (s != null) s.gameObject.SetActive(true); Follow(); }
+
+    // (Where the box stood when its shades last followed it: unmoved, they are left alone, not set again every frame.)
+    Vector2 lastMin, lastMax, lastPivot, lastOffMin, lastOffMax;
+    Vector3 lastScale, lastWorld;
+    Quaternion lastRot;
+    int lastSibling = -1;
+    Transform lastParent;
+
+    void LateUpdate()
+    {
+        var r = (RectTransform)transform;
+        var world = cut != null ? r.position : Vector3.zero;
+        if (r.anchorMin == lastMin && r.anchorMax == lastMax && r.pivot == lastPivot && r.offsetMin == lastOffMin && r.offsetMax == lastOffMax
+            && r.localScale == lastScale && r.localRotation == lastRot && r.GetSiblingIndex() == lastSibling && r.parent == lastParent && world == lastWorld)
+            return;
+        lastMin = r.anchorMin;
+        lastMax = r.anchorMax;
+        lastPivot = r.pivot;
+        lastOffMin = r.offsetMin;
+        lastOffMax = r.offsetMax;
+        lastScale = r.localScale;
+        lastRot = r.localRotation;
+        lastParent = r.parent;
+        lastWorld = world;
+        Follow();
+        lastSibling = r.GetSiblingIndex();
+    }
+
+    void OnEnable() { foreach (var s in layers) if (s != null) s.gameObject.SetActive(true); lastSibling = -1; Follow(); }
     void OnDisable() { foreach (var s in layers) if (s != null) s.gameObject.SetActive(false); }
     void OnDestroy()
     {
