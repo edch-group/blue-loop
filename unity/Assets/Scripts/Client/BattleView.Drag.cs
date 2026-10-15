@@ -73,6 +73,23 @@ public partial class BattleView
     }
 
     /// <summary>
+    /// What lies on the table under a point, through your hand (document.elementsFromPoint, as dropEl looks): the
+    /// nearest card in play, slot or sun, whatever of the hand is over it.
+    /// </summary>
+    (CardView card, SlotTag slot, SunTag sun) OnTable(Vector3 screen)
+    {
+        foreach (var hit in Physics.RaycastAll(Cam.ScreenPointToRay(screen), 100).OrderBy(h => h.distance))
+        {
+            var card = hit.collider.GetComponentInParent<CardView>();
+            if (card != null && !card.Table) continue;
+            var slot = hit.collider.GetComponent<SlotTag>();
+            var sun = hit.collider.GetComponentInParent<SunTag>();
+            if (card != null || slot != null || sun != null) return (card, slot, sun);
+        }
+        return (null, null, null);
+    }
+
+    /// <summary>
     /// Whether a card in hand can be dragged straight onto what it heats: a surge whose only choice is where its heat
     /// goes (one target: no other card to pick, no option, nothing to consume). (app.ts quickAim)
     /// </summary>
@@ -144,6 +161,7 @@ public partial class BattleView
                     var r = CardRect(d.Uid);
                     if (r != null && r.Value.width > 0) d.Offset *= d.Size.x / r.Value.width;
                     view?.Ghosted(true);
+                    Board.Sync(state, this);
                     Sound.Play("hand-lift");
                 }
             }
@@ -197,7 +215,7 @@ public partial class BattleView
     /// <summary>What an attack being dragged is over that it could strike: a rival card lit for it, or their sun ("sun").</summary>
     string AttackTargetAt(Vector3 screen)
     {
-        var (card, _, sun) = Under(screen);
+        var (card, _, sun) = OnTable(screen);
         if (card != null && card.Table && Rival.Tableau.Any(c => c.Uid == card.Uid) && Game.AttackProblem(state, Me, attacker, card.Uid, true) == null) return card.Uid;
         if (sun != null && sun.PlayerId != you && Game.AttackProblem(state, Me, attacker, null, true) == null) return "sun";
         return null;
@@ -211,7 +229,7 @@ public partial class BattleView
     /// </summary>
     Drop? DropAt(Vector3 screen)
     {
-        var (card, slot, sun) = Under(screen);
+        var (card, slot, sun) = OnTable(screen);
         if (drag?.Aim == true)
         {
             var ch = drag.Choices ??= Game.AimChoices(state, Me);
@@ -318,6 +336,8 @@ public partial class BattleView
     /// <summary>The rim a drag puts on a card: the spot it would land (.drop-over), aiming (.card-aiming), the target under an attack (.aim-over).</summary>
     bool DragRim(CardView v, CardInstance c)
     {
+        // (Left in the hand while its copy flies, faint, its ring with it.)
+        if (drag?.Ghost != null && c.Uid == drag.Uid) { v.Rim(Look.Good, 0.6f * 0.3f); return true; }
         if (c.Uid == aimingUid) { v.Rim(Hud.Rgba(224, 110, 60), 0.75f); return true; }
         if (c.Uid == aimOver) { v.Rim(Hud.Rgba(224, 69, 43), 1.15f); return true; }
         if (c.Uid == dropOver)
