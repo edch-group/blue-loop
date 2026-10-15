@@ -62,7 +62,7 @@ public partial class BattleView
             handoff = null;
             handoffFor = forId;
             // (No way out but revealing: the veil closes nothing.)
-            if (need) handoff = Hud.Sheet(Layer, $"pass to {Game.ActivePlayer(state).Name.ToLowerInvariant()}", new[] { new Hud.Row("reveal hand", Reveal, null, true) }, () => { });
+            if (need) handoff = Hud.Sheet(Layer, $"pass to {Game.ActivePlayer(state).Name.ToLowerInvariant()}", new[] { new Hud.Row("reveal hand", Reveal, null, true) }, () => { }, false);
         }
         if (handoff != null) handoff.SetAsLastSibling();
         if (chrome == null) return;

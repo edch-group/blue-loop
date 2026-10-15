@@ -317,7 +317,8 @@ public static class Hud
     /// it is the choice the sheet is for; a line under it after a newline) 16 in, and its setting in a grey pill or a
     /// chevron (17.6, faint; #5f8fc4 for the choice) 12 from its right. Centred; a tap on the veil closes it.
     /// </summary>
-    public static RectTransform Sheet(Transform parent, string title, Row[] rows, Action close)
+    /// <remarks>`soft` false: the plain .overlay's wash (rgba(240, 240, 238, 0.55)), as over "pass to …".</remarks>
+    public static RectTransform Sheet(Transform parent, string title, Row[] rows, Action close, bool soft = true)
     {
         // (In CSS pixels: undo the parent's own scale.)
         var css = Rect(parent, "Sheet");
@@ -330,7 +331,7 @@ public static class Hud
         Fill(veil);
         // (.overlay.overlay-soft: rgba(244, 244, 242, 0.45) over the page blurred 6.)
         var v = veil.gameObject.AddComponent<Image>();
-        v.color = Rgba(244, 244, 242, 0.45f);
+        v.color = soft ? Rgba(244, 244, 242, 0.45f) : Rgba(240, 240, 238, 0.55f);
         BackdropBlur.Blur(css);
         veil.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
         float w = Mathf.Min(380, 0.92f * W);
