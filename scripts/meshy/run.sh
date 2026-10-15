@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Each line of scripts/meshy/request.txt, run by .github/workflows/meshy.yml:
-#   <task id or latest> <name> [nobake]   fetch a model from Meshy, keep its files as a GitHub release
+#   <task id|latest|rigged> <name> [nobake] fetch a model from Meshy, keep its files as a GitHub release
 #                                         (model-<name>-<task>), and bake it (scripts/bake-<name>.py) unless "nobake"
 #   rebake <name>                         bake again from the newest model kept for <name>, its files from its release
 # The originals never go into git (Meshy's are hundreds of MB): only what is baked from them (unity/Assets/Resources/Models)

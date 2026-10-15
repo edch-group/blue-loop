@@ -6,7 +6,7 @@ Meshy says of it (no links) is written to unity/ModelSources/<name>/meshy-<task>
 
     MESHY_API_KEY=... python3 scripts/meshy/fetch.py <task id or latest> <name> <download folder>
 
-"latest" is the newest finished model of any kind that has its textures.
+"latest" is the newest finished model of any kind that has its textures; "rigged" the newest finished rigging.
 """
 import json
 import os
@@ -53,8 +53,13 @@ def main():
               f"{t.get('name') or t.get('prompt') or ''} [{', '.join(sorted(k for k, v in t.items() if v and k.endswith('urls')))}]"[:220])
     # (The newest that has its textures: a bare model, made to be textured, is not what is wanted.)
     done = [t for t in every if t.get('status') == 'SUCCEEDED' and t.get('model_urls') and textured(t)]
-    pick = max(done, key=lambda t: t.get('created_at') or 0) if want == 'latest' else next((t for t in every if t.get('id') == want), None)
-    if pick is None and want != 'latest':
+    if want == 'rigged':
+        done = [t for t in every if t.get('status') == 'SUCCEEDED' and t['_kind'] == 'v1/rigging']
+    if want in ('latest', 'rigged'):
+        pick = max(done, key=lambda t: t.get('created_at') or 0) if done else None
+    else:
+        pick = next((t for t in every if t.get('id') == want), None)
+    if pick is None and want not in ('latest', 'rigged'):
         # (A task made in Meshy's own site, not listed: asked for by its id, of each kind in turn.)
         for kind in KINDS:
             try:
@@ -71,11 +76,20 @@ def main():
     keep = os.path.join('unity', 'ModelSources', name, f"meshy-{pick['id']}")
     os.makedirs(keep, exist_ok=True)
     files = {f'model.{k}': u for k, u in (pick.get('model_urls') or {}).items() if u and k in ('glb', 'fbx')}
+    # (A rigging's own files: the rigged model, and its walk and run, under its result.)
+    def found(d, at=''):
+        for k, v in (d or {}).items():
+            if isinstance(v, dict): found(v, f'{at}{k}-')
+            elif isinstance(v, str) and k.endswith('_url') and v.startswith('http'):
+                kind = k[:-4].rsplit('_', 1)
+                files[f"{at}{kind[0]}.{kind[1]}" if len(kind) == 2 and kind[1] in ('glb', 'fbx', 'usdz', 'obj') else f"{at}{k[:-4]}.png"] = v
+    found(pick.get('result'))
     for i, tex in enumerate(pick.get('texture_urls') or []):
         for k, u in tex.items():
             if u: files[f'texture{i or ""}-{k}.png'] = u
     # (What Meshy says of it, without its signed links, and which files it offers.)
-    print('task:', json.dumps({k: (v if 'url' not in k else sorted(v) if isinstance(v, dict) else '…') for k, v in pick.items()})[:1500])
+    print('task:', json.dumps({k: (v if 'url' not in k else sorted(v) if isinstance(v, dict) else '…') for k, v in pick.items() if k != 'result'})[:1500])
+    print('files:', ', '.join(files))
     for file, url in files.items():
         try:
             data = get(url, raw=True)
@@ -88,7 +102,8 @@ def main():
         with open(os.path.join(out, file), 'wb') as f: f.write(data)
         print(f'  {file}: {len(data) >> 10} KB')
     # (Not its links: signed, and soon stale.)
-    meta = {k: v for k, v in pick.items() if 'url' not in k}
+    def bare(d): return {k: bare(v) if isinstance(v, dict) else v for k, v in d.items() if 'url' not in k}
+    meta = bare(pick)
     meta['_release'] = f"model-{name}-{pick['id'][:8]}"
     for d in (out, keep):
         with open(os.path.join(d, 'meshy.json'), 'w') as f: json.dump(meta, f, indent=2)
