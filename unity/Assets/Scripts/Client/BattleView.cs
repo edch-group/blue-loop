@@ -128,7 +128,10 @@ public partial class BattleView : MonoBehaviour
         if (FitScreen() && state != null) Refresh();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
         if (state == null || state.WinnerId != null) return;
-        if (!busy && AiToMove()) StartCoroutine(AiMove());
+        StageTick();
+        if (!busy && StageClear && AiToMove()) StartCoroutine(AiMove());
+        // (Skip all: a reply waiting on you is let pass.)
+        if (!busy && confirmMode == "skip" && state.Reaction != null && state.Reaction.PlayerId == you && !online) StartCoroutine(PassReply());
         if (Autoplay) return;
         // (A touch screen has no hover: a first tap on the hand raises it, a tap away lowers it, as the web's.)
         if (Input.touchCount > 0) touch = true;
@@ -224,6 +227,15 @@ public partial class BattleView : MonoBehaviour
 
     bool HumanDawnChoice() => state.Reaction == null && Game.ActivePlayer(state).Id == you && (Game.ActivePlayer(state).DawnChoices?.Count ?? 0) > 0;
 
+    IEnumerator PassReply()
+    {
+        busy = true;
+        var s = state;
+        yield return new WaitForSeconds(0.25f);
+        busy = false;
+        if (state == s && confirmMode == "skip") Do(new EngineAction { Type = "react" });
+    }
+
     IEnumerator AiMove()
     {
         busy = true;
@@ -239,10 +251,7 @@ public partial class BattleView : MonoBehaviour
         try
         {
             var a = HumanDawnChoice() ? AI.DawnChoiceFor(state) : AI.Choose(state);
-            var was = state;
-            state = Game.Apply(state, a);
-            StarSpin.Burst();
-            Hear(was, state, a);
+            Commit(a);
         }
         catch (System.Exception e)
         {
@@ -271,10 +280,7 @@ public partial class BattleView : MonoBehaviour
         }
         try
         {
-            var was = state;
-            state = Game.Apply(state, a);
-            StarSpin.Burst();
-            Hear(was, state, a);
+            Commit(a);
         }
         catch (GameError e)
         {
@@ -940,6 +946,19 @@ public partial class BattleView : MonoBehaviour
     RectTransform chrome;
     RectTransform rivalHand;
     Image[] paceOn;
+    readonly TextMeshProUGUI[] paceWords = new TextMeshProUGUI[3];
+
+    /// <summary>The pill's chosen mode, a dark pill under its name.</summary>
+    void PaceShown()
+    {
+        if (paceOn == null) return;
+        int k = confirmMode == "auto" ? 1 : confirmMode == "skip" ? 2 : 0;
+        for (int i = 0; i < 3; i++)
+        {
+            paceOn[i].color = i == k ? Look.Ink : new Color(1, 1, 1, 0);
+            if (paceWords[i] != null) paceWords[i].color = i == k ? Color.white : Look.InkSoft;
+        }
+    }
     const float RefScale = 1.45f;
 
     /// <summary>The overlays' layer (see refLayer).</summary>
@@ -1053,8 +1072,13 @@ public partial class BattleView : MonoBehaviour
             on.color = i == 0 ? Look.Ink : new Color(1, 1, 1, 0);
             Corners(on, bh / 2);
             paceOn[i] = on;
-            Hud.Label(seg, names[i].ToUpperInvariant(), font, i == 0 ? Color.white : Look.InkSoft, true, 400, spacing);
+            paceWords[i] = Hud.Label(seg, names[i].ToUpperInvariant(), font, i == 0 ? Color.white : Look.InkSoft, true, 400, spacing);
+            string mode = names[i].ToLowerInvariant();
+            var pb = seg.gameObject.AddComponent<Button>();
+            pb.transition = Selectable.Transition.None;
+            pb.onClick.AddListener(() => SetConfirmMode(mode));
         }
+        PaceShown();
 
         // The corner buttons (the web's .hud .icon-btn, round, clamp(36px, 8vh, 44px), 6 px apart, at the page's top
         // right padding): the log, fullscreen, settings.
@@ -1234,6 +1258,8 @@ public partial class BattleView : MonoBehaviour
         ShowHint();
         PuzzleTag();
         GameOver();
+        DrawStage();
+        PaceShown();
     }
 
     void Reaction()

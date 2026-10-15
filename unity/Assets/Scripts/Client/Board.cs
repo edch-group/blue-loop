@@ -579,7 +579,16 @@ public class Board : MonoBehaviour
         var l = L;
         const float depth = 3.2f, grow = 1.14f;
         float px = l.ScreenScale(depth), w = l.HandCard, h = w * 1.4f;
-        int n = me.Hand.Count;
+        // (The card picked, or just played, is on the stage, not in the hand: kept, out of sight, until it comes back
+        // or lands.)
+        var hand = new List<CardInstance>();
+        foreach (var c in me.Hand)
+        {
+            if (!ui.OffHand(c.Uid)) { hand.Add(c); continue; }
+            seen.Add(c.Uid);
+            if (cards.TryGetValue(c.Uid, out var gone)) gone.gameObject.SetActive(false);
+        }
+        int n = hand.Count;
         float inset = w * 0.12f, room = l.HandW - 2 * inset;
         float spacing = n > 1 ? Mathf.Min(0.98f, (room - w) / ((n - 1) * w)) * w : 0;
         float span = w + (n - 1) * spacing, start = l.HandLeft + inset + (room - span) / 2 + w / 2;
@@ -601,8 +610,9 @@ public class Board : MonoBehaviour
         HandRects.Clear();
         for (int i = 0; i < n; i++)
         {
-            var c = me.Hand[i];
+            var c = hand[i];
             var v = Card(c, false);
+            v.gameObject.SetActive(true);
             seen.Add(c.Uid);
             v.transform.SetParent(handRoot, false);
             float t = i - (n - 1) / 2f;
