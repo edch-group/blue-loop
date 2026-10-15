@@ -16,9 +16,9 @@ public partial class CampaignView
     // ---- Along the top ----
 
     /// <summary>The layers' size (the web's page, laid out, in drawn pixels) and its padding clear of the safe area.</summary>
-    float PW => top.rect.width;
-    float PH => top.rect.height;
-    Vector4 Pad => top.GetComponent<RefLayer>().Pad;
+    float PW => overlay.rect.width;
+    float PH => overlay.rect.height;
+    Vector4 Pad => overlay.GetComponent<RefLayer>().Pad;
 
     /// <summary>The screen changed size (or its safe area): all that is over the map laid out again, as the web lays its page out again.</summary>
     void Relayout()

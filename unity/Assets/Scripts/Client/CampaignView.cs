@@ -104,8 +104,9 @@ public partial class CampaignView : MonoBehaviour
         // lays its page out at that size, clear of the safe area where the web keeps clear of it; again when it changes.)
         hud = Hud.CssCanvas(Cam);
         hud.transform.SetParent(transform, false);
-        top = RefLayer.Make(hud.transform, "Top", Relayout).Rect;
-        overlay = RefLayer.Make(hud.transform, "Overlay").Rect;
+        // (The overlay's layer, never put away, says when the screen changes.)
+        top = RefLayer.Make(hud.transform, "Top").Rect;
+        overlay = RefLayer.Make(hud.transform, "Overlay", Relayout).Rect;
         sheetRoot = RefLayer.Make(hud.transform, "Sheet").Rect;
         notes = RefLayer.Make(hud.transform, "Notes").Rect;
         Sound.Scene("ambient");

@@ -716,7 +716,8 @@ public partial class CampaignView
             var p = Cam.WorldToScreenPoint(world.TransformPoint(NodePos(n.Id)));
             darkMat.SetVector("_Centre", new Vector4(p.x, p.y, 0, 0));
         }
-        darkMat.SetFloat("_Radius", 240f * Cam.pixelHeight / Hud.H);
+        // (240 of the web's CSS pixels, as it lays its page out: the same light round the ship on any screen.)
+        darkMat.SetFloat("_Radius", 240f * Cam.pixelHeight / Mathf.Max(1, Css.Size.y));
     }
 
     // ---- The land's sky: the starry abyss under what has fallen, the stars and comets over it ----

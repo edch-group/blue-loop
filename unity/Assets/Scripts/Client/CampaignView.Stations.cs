@@ -38,7 +38,7 @@ public partial class CampaignView
     ArLayout ArLay(bool tabs = true)
     {
         const float Z = WebLook.Zoom;
-        var sa = top.GetComponent<RefLayer>().Insets;
+        var sa = overlay.GetComponent<RefLayer>().Insets;
         bool phone = Css.MaxHeight(560);
         var l = new ArLayout { Phone = phone };
         l.Pad = new Vector4(Mathf.Max((phone ? 10 : 16) * Z, sa.x), Mathf.Max(20 * Z, sa.y), Mathf.Max(14 * Z, sa.z), Mathf.Max(20 * Z, sa.w));
@@ -342,7 +342,7 @@ public partial class CampaignView
     void StationFrame(RectTransform page, CampaignNode n, Faction me, ArLayout lay)
     {
         const float Z = WebLook.Zoom;
-        var sa = top.GetComponent<RefLayer>().Insets;
+        var sa = overlay.GetComponent<RefLayer>().Insets;
         Kit.Paper(page);
         // (.ar-back: max(18, the safe area) in, max(14, the safe area) down.)
         WebLook.UpBack(page, LeaveStation, Mathf.Max(18 * Z, sa.w), Mathf.Max(14 * Z, sa.x), "‹ map");
