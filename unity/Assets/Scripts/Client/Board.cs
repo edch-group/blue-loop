@@ -559,9 +559,25 @@ public class Board : MonoBehaviour
         Hand(me, ui, seen);
         foreach (var uid in cards.Keys.Where(k => !seen.Contains(k)).ToList())
         {
-            // (In play, a card leaving fades away where it was; it was destroyed, returned, or played out.)
-            if (Application.isPlaying) cards[uid].Die(0.25f);
-            else Mats.Kill(cards[uid].gameObject);
+            // (In play, a card leaving flies to the pile it went to, or to its owner's sun; anywhere else, it fades away
+            // where it was.)
+            var gone = cards[uid];
+            if (!Application.isPlaying) Mats.Kill(gone.gameObject);
+            else
+            {
+                Vector3? to = null;
+                float k = 0.3f;
+                foreach (var p in s.Players)
+                {
+                    bool mine = p.Id == Viewer;
+                    if (p.Discard.Any(c => c.Uid == uid)) { to = this.table.TransformPoint(PileAt(mine, 1)); k = PileScale / Mathf.Max(0.001f, gone.transform.lossyScale.x); }
+                    else if (p.Wreck != null && p.Wreck.Any(c => c.Uid == uid)) { to = this.table.TransformPoint(PileAt(mine, 2)); k = PileScale / Mathf.Max(0.001f, gone.transform.lossyScale.x); }
+                    else if (p.Deck.Any(c => c.Uid == uid) || p.Hand.Any(c => c.Uid == uid)) to = suns.TryGetValue(p.Id, out var sv) ? sv.transform.position : (Vector3?)null;
+                    if (to != null) break;
+                }
+                if (to != null && gone.Table) gone.GoTo(to.Value + Vector3.up * 0.05f, Mathf.Clamp(k, 0.15f, 1));
+                else gone.Die(0.25f);
+            }
             cards.Remove(uid);
         }
         dealt = true;
