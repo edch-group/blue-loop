@@ -1027,6 +1027,20 @@ public static class BoardArt
         return t;
     }
 
+    /// <summary>
+    /// A dashed box `w` by `h` CSS px (drawn at 3 texels a pixel): corners of `radius`, filled `fill`, a `edgeW` px
+    /// dashed `edge` (as a CSS dashed border: dashes 3 widths long, as far apart).
+    /// </summary>
+    public static Texture2D DashedBox(float w, float h, float radius, Color fill, Color edge, float edgeW)
+    {
+        string key = $"dashed {w:0.0}x{h:0.0} {radius} {ColorUtility.ToHtmlStringRGBA(fill)} {ColorUtility.ToHtmlStringRGBA(edge)} {edgeW}";
+        if (made.TryGetValue(key, out var t)) return t;
+        const float k = 3;
+        t = Dashed(Mathf.CeilToInt(w * k), Mathf.CeilToInt(h * k), radius * k, fill, new Color(0, 0, 0, 0), 0, edge, edgeW * k, edgeW * 3 * k, edgeW * 3 * k);
+        made[key] = t;
+        return t;
+    }
+
     /// <summary>An empty slot (1 × 1.4 card widths at 160 pixels a width): pale, a white line inside a dashed edge; a trap's edge indigo.</summary>
     public static Texture2D Slot(bool trap)
     {
