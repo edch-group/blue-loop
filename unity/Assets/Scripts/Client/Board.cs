@@ -8,28 +8,51 @@ using UnityEngine;
 /// The battle as a 3D scene (the web's .board-plane): a pearl table seen at a tilt, each side's row of five slots,
 /// their Heroes, their suns (burning spheres with a heat meter round them and their three planets in orbit), the
 /// Stellari's flower and the day's phases in the middle, the piles at the side, and the hand along the foot of the
-/// screen. <see cref="Sync"/> lays it all out from a game state; cards glide to their new places.
+/// screen. <see cref="Sync"/> lays it all out from a game state; cards glide to their new places. Everything stands
+/// where the web's board puts it at the screen's size (BoardLayout): <see cref="Relayout"/> when that changes.
 /// </summary>
 public class Board : MonoBehaviour
 {
-    // The table's layout, in card widths (a card is 1 × 1.4), x across and z away from the viewer: the web board's
-    // own, measured off it laid flat (scripts/measure-board.mjs), the table 12.68 wide.
-    public const float Pitch = 1.1775f, RowZ = 2.495f, MyRowZ = -2.475f, TableW = 12.68f, TableD = 8.07f, TableZ = 0.09f;
-    public static readonly Vector3 MyHero = new Vector3(2.944f, 0, -0.886f), RivalHero = new Vector3(-2.944f, 0, 0.906f);
-    public static readonly Vector3 MyTrap = new Vector3(2.944f, 0, MyRowZ), RivalTrap = new Vector3(-2.944f, 0, RowZ);
-    public static readonly Vector3 MySun = new Vector3(-5.03f, 0.12f, -2.342f), RivalSun = new Vector3(-5.03f, 0.12f, 2.628f);
+    // The table's layout, in card widths (a card is 1 × 1.4), x across and z away from the viewer, from the Stellari's
+    // middle: the web board's own at this screen's size (BoardLayout, from styles.css).
+    static BoardLayout L => BoardLayout.Current;
+    public static float Pitch => L.U(L.Pitch);
+    public static float RowZ => L.At(0, L.RivalRowCy).z;
+    public static float MyRowZ => L.At(0, L.MyRowCy).z;
+    public static float TableW => L.U(L.Gw);
+    public static float TableD => L.U(L.GameH);
+    public static float TableZ => L.U(L.PlaneCy - L.GameH / 2);
+    /// <summary>How far each side's Hero stands out from its row (its slot, and the outline's gap before it).</summary>
+    static float HeroOff => 1.4f + L.U(L.FramePad + 4);
+    public static Vector3 MyHero => L.At(L.ColX(5), L.MyRowCy) + new Vector3(0, 0, HeroOff);
+    public static Vector3 RivalHero => L.At(L.ColX(0), L.RivalRowCy) - new Vector3(0, 0, HeroOff);
+    public static Vector3 MyTrap => L.At(L.ColX(5), L.MyRowCy);
+    public static Vector3 RivalTrap => L.At(L.ColX(0), L.RivalRowCy);
+    /// <summary>
+    /// Each side's sun: in the middle of its .vit, at the row's left end (its --vs across, 0.08 of it in from the row's
+    /// edge, a little above the row's middle), drawn at the size the web's is (SunView is made for a sun 1.667 card widths
+    /// across), its middle above the table as the sphere's own.
+    /// </summary>
+    public static float SunScale => L.U(L.Vs) / (145f / 87);
+    public static Vector3 MySun => L.At(L.WrapLeft + 0.58f * L.Vs, L.MyRowCy - 0.08f * L.Vs, 0.55f * SunScale);
+    public static Vector3 RivalSun => L.At(L.WrapLeft + 0.58f * L.Vs, L.RivalRowCy - 0.08f * L.Vs, 0.55f * SunScale);
+    /// <summary>The planet's pill under the sun (.vit-under), from the sun's middle, in the sun's own units.</summary>
+    static float SunUnder => L.U(0.76f * L.Vs + Mathf.Max(32, 0.3f * L.Vs) / 2) / SunScale;
     // (Each side's piles: its deck, its reserves and its wreckage, small cards in a row.)
-    public const float PileX = 4.313f, PileStep = 0.704f, PileScale = 0.552f;
-    /// <summary>A web size in CSS pixels on the board, as a TextMeshPro size on the table (a card is 87 px wide there).</summary>
-    public static float Px(float css) => css * 10f / 87f;
+    public static float PileScale => L.U(L.Pw);
+    /// <summary>A web size in CSS pixels on the board, as a TextMeshPro size on the table (a card is --tcw px wide there).</summary>
+    public static float Px(float css) => css * 10f / L.Tcw;
 
     public Camera Cam;
     public string Viewer;
-    /// <summary>Whether the hand is raised to be read whole (the pointer over it).</summary>
+    /// <summary>Whether the hand is raised to be read whole (the pointer over it, or a first tap on it).</summary>
     public bool HandUp;
-    /// <summary>The hand's cards' top edge, and how far either side of the middle they reach: in pixels of a screen 1000 tall, from its middle (down positive).</summary>
-    public float HandTop = 1e9f, HandSpan;
-    Transform table, handRoot;
+    /// <summary>The card in hand under the pointer (lifted out of the fan, straight), if any.</summary>
+    public string HandHover;
+    /// <summary>Where the hand's cards stand on the page now (layout pixels: x right, y down), for what the pointer is over.</summary>
+    public readonly List<Rect> HandRects = new List<Rect>();
+    Transform table, decor, handRoot;
+    BoardLayout built;
     readonly Dictionary<string, CardView> cards = new Dictionary<string, CardView>();
     readonly Dictionary<string, SunView> suns = new Dictionary<string, SunView>();
     readonly List<GameObject> slotMarks = new List<GameObject>();
@@ -42,13 +65,13 @@ public class Board : MonoBehaviour
     MeshRenderer myDeck, rivalDeck, myDiscard, rivalDiscard, myWreck, rivalWreck;
     TextMeshPro myDeckN, rivalDeckN, myDiscardN, rivalDiscardN, myWreckN, rivalWreckN, rivalHandN, myHandN;
 
-    public static Vector3 PileAt(bool mine, int i) => new Vector3(PileX + PileStep * i, 0, mine ? MyRowZ : RowZ);
+    public static Vector3 PileAt(bool mine, int i) => L.At(L.PilesLeft + L.Pw / 2 + i * (L.Pw + L.PileGap), mine ? L.MyRowCy : L.RivalRowCy);
 
     public static Vector3 SlotAt(bool mine, int slot)
     {
         if (slot < 0) return mine ? MyHero : RivalHero;
         // (Your row runs from the left, your trap's place at its right end; your rival's from its trap's place.)
-        return mine ? new Vector3(-2.944f + Pitch * slot, 0, MyRowZ) : new Vector3(-1.766f + Pitch * slot, 0, RowZ);
+        return mine ? L.At(L.ColX(slot), L.MyRowCy) : L.At(L.ColX(slot + 1), L.RivalRowCy);
     }
 
     public static Board Make(Camera cam)
@@ -98,58 +121,96 @@ public class Board : MonoBehaviour
     {
         table = new GameObject("Table").transform;
         table.SetParent(transform, false);
+        table.localPosition = Vector3.zero;
+        handRoot = new GameObject("Hand").transform;
+        handRoot.SetParent(Cam.transform, false);
+        handRoot.localRotation = Quaternion.Euler(-90, 0, 0);
+        Relayout();
+    }
+
+    /// <summary>The table drawn again at the screen's size: its plate, slots, frames, middle, piles and labels (the cards and suns kept, put in place by the next Sync).</summary>
+    public void Relayout()
+    {
+        built = L;
+        string tagWas = tagName != null ? tagName.text : null, subWas = tagSub != null ? tagSub.text : null;
+        tagName = tagSub = null;
+        if (decor != null) Mats.Kill(decor.gameObject);
+        slotMarks.Clear();
+        roundTicks.Clear();
+        decor = new GameObject("Decor").transform;
+        decor.SetParent(table, false);
+        var table0 = table;
+        table = decor;
+        try { Decor(); }
+        finally { table = table0; }
+        foreach (var kv in suns) PlaceSun(kv.Value, kv.Value.Mine);
+        if (tagWas != null) SetTag(tagWas, subWas);
+    }
+
+    /// <summary>Whether the table was last drawn for the screen as it is now.</summary>
+    public bool Fits => built == BoardLayout.Current;
+
+    void Decor()
+    {
+        var l = L;
         // The plate (styles.css .table-view > .game: corners of 34 px), its lip under the near edge (a shadow 18 px
         // down in #dcdbd5), and its shadow on the floor (60 px down, blurred 90 px).
-        table.localPosition = new Vector3(0, 0, 0);
-        var floor = Shape("Floor shadow", table, Rgba(60, 60, 80, 0.28f), TableW, TableD, 0.39f, 2900, -0.05f, 0.5f, 1.1f);
-        floor.transform.localPosition = new Vector3(0, -0.05f, TableZ - Px(60) / 10);
-        var lip = Shape("Lip", table, Rgba(220, 219, 213), TableW - Px(2) / 5, TableD - Px(2) / 5, 0.39f, 2905, -0.02f);
-        lip.transform.localPosition = new Vector3(0, -0.02f, TableZ - Px(18) / 10);
+        float r34 = l.U(34);
+        var floor = Shape("Floor shadow", table, Rgba(60, 60, 80, 0.28f), TableW, TableD, r34, 2900, -0.05f, l.U(45), l.U(95));
+        floor.transform.localPosition = new Vector3(0, -0.05f, TableZ - l.U(60));
+        var lip = Shape("Lip", table, Rgba(220, 219, 213), TableW - l.U(4), TableD - l.U(4), r34, 2905, -0.02f);
+        lip.transform.localPosition = new Vector3(0, -0.02f, TableZ - l.U(18));
         var plate = Mats.Flat("Plate", table, Mats.Make("Table"), TableW, TableD);
         plate.transform.localPosition = new Vector3(0, 0, TableZ);
         plate.sharedMaterial.SetFloat("_Aspect", TableD / TableW);
-        plate.sharedMaterial.SetFloat("_Radius", 0.39f / TableW);
+        plate.sharedMaterial.SetFloat("_Radius", r34 / TableW);
         plate.sharedMaterial.renderQueue = 2910;
 
         // Each side's tableau framed: a pale panel round its row, reaching up round its Hero's slot (app.ts frameTableaus).
-        var frame = BoardArt.Frame();
+        float rowW = l.U(6 * l.Tcw + 5 * l.SlotGap), pad = l.U(l.FramePad), up = HeroOff;
+        var frame = BoardArt.Frame(rowW, pad, up);
+        float fw = rowW + 2 * pad, fd = 1.4f + 2 * pad + up;
         foreach (bool mine in new[] { true, false })
         {
-            var f = Picture("Tableau frame", table, frame, Color.white, BoardArt.FrameW, BoardArt.FrameD, 2915, 0.0002f);
-            f.transform.localPosition = mine ? new Vector3(0, 0.0002f, BoardArt.FrameZ) : new Vector3(0, 0.0002f, -BoardArt.FrameZ + RowZ + MyRowZ);
+            var f = Picture("Tableau frame", table, frame, Color.white, fw, fd, 2915, 0.0002f);
+            f.transform.localPosition = mine ? new Vector3(0, 0.0002f, MyRowZ + up / 2) : new Vector3(0, 0.0002f, RowZ - up / 2);
             if (!mine) f.transform.localRotation = Quaternion.Euler(90, 180, 0);
         }
 
-        // The Stellari's flower in the middle, and the day's phases beside it.
-        var flower = Mats.Flat("Flower", table, Mats.Make("Card"), 1.85f, 1.85f, 0.001f);
+        // The Stellari's flower in the middle (160 px, 104 on a phone), and the day's phases beside it.
+        float star = l.U(l.Star) * 1.006f;
+        var flower = Mats.Flat("Flower", table, Mats.Make("Card"), star, star, 0.001f);
         flower.sharedMaterial.mainTexture = Resources.Load<Texture2D>("Board/flower");
         flower.sharedMaterial.SetFloat("_Radius", 0);
         flower.sharedMaterial.SetFloat("_Aspect", 1);
         flower.sharedMaterial.color = new Color(0.8f, 0.85f, 0.97f, 0.9f);
-        flower.transform.localPosition = new Vector3(0, 0.001f, 0.01f);
+        flower.transform.localPosition = new Vector3(0, 0.001f, 0);
         flower.sharedMaterial.renderQueue = 2920;
         RoundDisc();
-        // (styles.css .phase-track: 10 px capitals spaced 0.24em, a 9 px dot before each, 26 px apart; the turn's
-        // two words to the flower's left, right-aligned.)
+        // (styles.css .phase-track, --stellari-r out from the middle: capitals spaced 0.24em, a dot before each, a row
+        // apart; the turn's two words the same distance to the flower's left, right-aligned.)
+        float dot = l.U(l.PhaseDot), rowPx = l.PhaseFont * 1.15f + l.PhaseRowGap, dotX = l.U(l.StellariR + l.PhaseDot / 2);
+        float textX = l.U(l.StellariR + l.PhaseDot + l.PhaseGap);
         phases = new[] { "dawn", "day", "dusk" }.Select((k, i) =>
         {
-            float z = 0.272f - i * 0.262f;
-            var t = Mats.FlatText(k, table, k.ToUpperInvariant(), Px(10.34f), Rgba(161, 168, 179), true, 400, 24, TextAlignmentOptions.Left);
-            t.transform.localPosition = new Vector3(1.046f + 3, 0.01f, z);
-            phaseGlows[i] = Shape("Glow", table, Rgba(240, 160, 64, 0), 0.103f, 0.103f, 0.06f, 2985, 0.009f, 0.06f, 0.1f);
-            phaseGlows[i].transform.localPosition = new Vector3(0.902f, 0.009f, z);
-            var dot = Shape("Dot", table, Rgba(202, 206, 213), 0.103f, 0.103f, 0.06f, 2990, 0.01f);
-            dot.transform.localPosition = new Vector3(0.902f, 0.01f, z);
-            var halo = Shape("Dot ring", table, Color.white, 0.103f + Px(3) / 10, 0.103f + Px(3) / 10, 0.1f, 2988, 0.0095f);
-            halo.transform.SetParent(dot.transform, true);
-            phaseDots[i] = dot;
-            dotScale = dot.transform.localScale;
+            float z = l.U((1 - i) * rowPx);
+            var t = Mats.FlatText(k, table, k.ToUpperInvariant(), Px(l.PhaseFont), Rgba(161, 168, 179), true, 400, l.PhaseSpacing, TextAlignmentOptions.Left);
+            t.transform.localPosition = new Vector3(textX + 3, 0.01f, z);
+            phaseGlows[i] = Shape("Glow", table, Rgba(240, 160, 64, 0), dot, dot, dot * 0.6f, 2985, 0.009f, dot * 0.6f, dot);
+            phaseGlows[i].transform.localPosition = new Vector3(dotX, 0.009f, z);
+            var d = Shape("Dot", table, Rgba(202, 206, 213), dot, dot, dot * 0.6f, 2990, 0.01f);
+            d.transform.localPosition = new Vector3(dotX, 0.01f, z);
+            var halo = Shape("Dot ring", table, Color.white, dot + l.U(3), dot + l.U(3), dot, 2988, 0.0095f);
+            halo.transform.SetParent(d.transform, true);
+            phaseDots[i] = d;
+            dotScale = d.transform.localScale;
             return t;
         }).ToArray();
-        turnThem = Mats.FlatText("Opponent", table, "OPPONENT", Px(10.34f), Rgba(185, 191, 202), true, 400, 24, TextAlignmentOptions.Right);
-        turnThem.transform.localPosition = new Vector3(-0.851f - 3, 0.01f, 0.141f);
-        turnYou = Mats.FlatText("You", table, "YOU", Px(10.34f), Rgba(47, 58, 82), true, 400, 24, TextAlignmentOptions.Right);
-        turnYou.transform.localPosition = new Vector3(-0.851f - 3, 0.01f, -0.121f);
+        float turnX = -l.U(l.StellariR) - 3;
+        turnThem = Mats.FlatText("Opponent", table, "OPPONENT", Px(l.PhaseFont), Rgba(185, 191, 202), true, 400, l.PhaseSpacing, TextAlignmentOptions.Right);
+        turnThem.transform.localPosition = new Vector3(turnX, 0.01f, l.U(rowPx / 2));
+        turnYou = Mats.FlatText("You", table, "YOU", Px(l.PhaseFont), Rgba(47, 58, 82), true, 400, l.PhaseSpacing, TextAlignmentOptions.Right);
+        turnYou.transform.localPosition = new Vector3(turnX, 0.01f, -l.U(rowPx / 2));
 
         // Each side's slots: a dashed outline and its defence where a card could stand.
         for (int s = -1; s < Balance.TableauSlots; s++)
@@ -159,9 +220,10 @@ public class Board : MonoBehaviour
         }
         TrapSlot(MyTrap);
         TrapSlot(RivalTrap);
-        // (An eye at each row's left end: the web's way to look closely at a tableau.)
-        Eye(new Vector3(-3.828f, 0, RowZ));
-        Eye(new Vector3(-3.828f, 0, MyRowZ));
+        // (An eye at each row's left end, clear of the tableau's outline: the web's way to look closely at a tableau.)
+        float eyeX = l.RowLeft - l.FramePad - 8 - l.Eye / 2;
+        Eye(l.At(eyeX, l.RivalRowCy));
+        Eye(l.At(eyeX, l.MyRowCy));
 
         // The piles.
         myDeck = Pile("My deck", PileAt(true, 0), true, out myDeckN);
@@ -170,40 +232,57 @@ public class Board : MonoBehaviour
         rivalDiscard = Pile("Rival reserves", PileAt(false, 1), false, out rivalDiscardN, "RESERVES");
         myWreck = Pile("My wreckage", PileAt(true, 2), false, out myWreckN, "WRECKAGE");
         rivalWreck = Pile("Rival wreckage", PileAt(false, 2), false, out rivalWreckN, "WRECKAGE");
-        rivalHandN = HandPill("Rival hand", new Vector3(5.017f, 0, 1.902f));
-        myHandN = HandPill("My hand", new Vector3(5.017f, 0, -1.882f));
-        // (Each player's name by their hand: 11 px capitals spaced 0.18em, from the piles' left edge.)
-        rivalLabel = Mats.FlatText("Rival name", table, "", Px(11.03f), Rgba(58, 66, 86), true, 400, 18, TextAlignmentOptions.Left);
-        rivalLabel.transform.localPosition = new Vector3(4.107f + 3, 0.01f, 1.639f);
-        myLabel = Mats.FlatText("My name", table, "", Px(11.03f), Rgba(58, 66, 86), true, 400, 18, TextAlignmentOptions.Left);
-        myLabel.transform.localPosition = new Vector3(4.107f + 3, 0.01f, -1.619f);
+        // (The hand counts: above your piles, below theirs, 8 px off them.)
+        float pileHalf = 0.7f * l.Pw, pillOff = pileHalf + 8 + l.HandPillH / 2;
+        rivalHandN = HandPill("Rival hand", l.At(l.PilesLeft + l.PilesW / 2, l.RivalRowCy + pillOff));
+        myHandN = HandPill("My hand", l.At(l.PilesLeft + l.PilesW / 2, l.MyRowCy - pillOff));
+        // (Each player's name beyond its hand count, 14 px off it: capitals spaced 0.18em from the piles' left edge, 6 px
+        // in, wrapping within the piles' width, as the web's .tpile-name.)
+        float nameOff = pileHalf + 14 + l.HandPillH;
+        rivalLabel = Name("Rival name", l.At(l.PilesLeft + 6, l.RivalRowCy + nameOff), false);
+        myLabel = Name("My name", l.At(l.PilesLeft + 6, l.MyRowCy - nameOff), true);
+    }
 
-        handRoot = new GameObject("Hand").transform;
-        handRoot.SetParent(Cam.transform, false);
-        handRoot.localRotation = Quaternion.Euler(-90, 0, 0);
+    /// <summary>A player's name by their piles: from the left on one line; too long for it, wrapped and centred (as the web's button's text).</summary>
+    static void SetName(TextMeshPro t, string name, bool mine)
+    {
+        t.text = name.ToUpperInvariant();
+        bool one = t.GetPreferredValues(t.text).x <= t.rectTransform.sizeDelta.x;
+        t.alignment = mine ? (one ? TextAlignmentOptions.BottomLeft : TextAlignmentOptions.Bottom) : (one ? TextAlignmentOptions.TopLeft : TextAlignmentOptions.Top);
+    }
+
+    TextMeshPro Name(string name, Vector3 at, bool mine)
+    {
+        var t = Mats.FlatText(name, table, "", Px(L.NameSize), Rgba(58, 66, 86), true, 400, 18, mine ? TextAlignmentOptions.BottomLeft : TextAlignmentOptions.TopLeft);
+        t.textWrappingMode = TextWrappingModes.Normal;
+        t.rectTransform.pivot = new Vector2(0, mine ? 0 : 1);
+        t.rectTransform.sizeDelta = new Vector2(L.U(L.PilesW - 12), L.U(60));
+        t.transform.localPosition = at + new Vector3(0, 0.01f, 0);
+        return t;
     }
 
     /// <summary>
-    /// The round, in the flower's heart (styles.css .round-ring): a white disc 37 px across, regional stability's
+    /// The round, in the flower's heart (styles.css .round-ring): a white disc (27 px on a phone), regional stability's
     /// ticks round its rim on a faint track, and the round in Roman numerals.
     /// </summary>
     void RoundDisc()
     {
-        float d = Px(37.24f) / 10;
-        var shadow = Shape("Round shadow", table, Rgba(90, 90, 110, 0.18f), d, d, d / 2, 2921, 0.0015f, Px(4) / 10, Px(8) / 10);
-        shadow.transform.localPosition = new Vector3(0, 0.0015f, 0.01f - Px(2) / 10);
+        var l = L;
+        float d = l.U(l.Round);
+        var shadow = Shape("Round shadow", table, Rgba(90, 90, 110, 0.18f), d, d, d / 2, 2921, 0.0015f, l.U(4), l.U(8));
+        shadow.transform.localPosition = new Vector3(0, 0.0015f, -l.U(2));
         var disc = Shape("Round", table, Rgba(247, 247, 248), d, d, d / 2, 2922, 0.002f);
-        disc.transform.localPosition = new Vector3(0, 0.002f, 0.01f);
-        float svg = Px(35.86f) / 10, r = svg * 0.44f;
+        disc.transform.localPosition = new Vector3(0, 0.002f, 0);
+        float svg = d * 0.963f, r = svg * 0.44f;
         roundTrack = Shape("Track", table, Rgba(120, 124, 134, 0.14f), 2 * r + svg * 0.09f, 2 * r + svg * 0.09f, r, 2923, 0.0025f, svg * 0.045f, 0.01f, true);
-        roundTrack.transform.localPosition = new Vector3(0, 0.0025f, 0.01f);
+        roundTrack.transform.localPosition = new Vector3(0, 0.0025f, 0);
         int total = Balance.InstabilityStartsRound - 1;
         for (int i = 0; i < total; i++)
         {
             // (Each tick an arc of the rim, 4° apart from the next, clockwise from the top.)
             var go = new GameObject("Tick");
             go.transform.SetParent(table, false);
-            go.transform.localPosition = new Vector3(0, 0.003f, 0.01f);
+            go.transform.localPosition = new Vector3(0, 0.003f, 0);
             var mf = go.AddComponent<MeshFilter>();
             var mr = go.AddComponent<MeshRenderer>();
             mr.sharedMaterial = Mats.Make("Soft", Color.white);
@@ -213,21 +292,23 @@ public class Board : MonoBehaviour
             mf.mesh = BoardArt.Arc(r, svg * 0.06f, (i / (float)total) * 360 + 2, ((i + 1) / (float)total) * 360 - 2);
             roundTicks.Add(mr);
         }
-        roundN = Mats.FlatText("Round", table, "I", Px(13.79f), Rgba(91, 95, 103), true, 700, 0);
-        roundN.transform.localPosition = new Vector3(0, 0.004f, 0.01f);
-        roundUp = Mats.FlatText("Unstable", table, "", Px(7), Rgba(192, 86, 61), true, 500, 10);
-        roundUp.transform.localPosition = new Vector3(0, 0.004f, 0.01f - Px(11) / 10);
+        roundN = Mats.FlatText("Round", table, "I", Px(l.RoundNum), Rgba(91, 95, 103), true, 700, 0);
+        roundN.transform.localPosition = new Vector3(0, 0.004f, 0);
+        roundUp = Mats.FlatText("Unstable", table, "", Px(l.RoundEm), Rgba(192, 86, 61), true, 500, 10);
+        roundUp.transform.localPosition = new Vector3(0, 0.004f, -l.U(l.RoundEm * 1.6f));
     }
 
-    /// <summary>A slot's defence: the shield sign and the number, 12 px, centred where it is placed.</summary>
+    /// <summary>A slot's defence: the shield sign and the number, `size` px, centred where it is placed.</summary>
     static void Defence(Transform parent, string text, Vector3 at, Color c, float size)
     {
-        var mark = Picture("Shield", parent, Resources.Load<Texture2D>("Icons/bt-shield"), c, size * 0.00823f, size * 0.00862f, 2935, 0.002f);
-        var t = Mats.FlatText("Defence", parent, text, size * 0.1149f, c, true, 400, 8, TextAlignmentOptions.Left);
+        // (Measured at a card 87 px wide: as many card widths at this size.)
+        float k = 87f / L.Tcw;
+        var mark = Picture("Shield", parent, Resources.Load<Texture2D>("Icons/bt-shield"), c, size * 0.00823f * k, size * 0.00862f * k, 2935, 0.002f);
+        var t = Mats.FlatText("Defence", parent, text, size * 0.1149f * k, c, true, 400, 8, TextAlignmentOptions.Left);
         t.rectTransform.sizeDelta = new Vector2(1, 0.3f);
         // (The sign's advance, then the number; the pair centred.)
-        float adv = size * 0.0101f, w = adv + t.GetPreferredValues(text).x;
-        mark.transform.localPosition = at + new Vector3(-w / 2 + size * 0.0046f, 0.002f, 0);
+        float adv = size * 0.0101f * k, w = adv + t.GetPreferredValues(text).x;
+        mark.transform.localPosition = at + new Vector3(-w / 2 + size * 0.0046f * k, 0.002f, 0);
         t.transform.localPosition = at + new Vector3(-w / 2 + adv + 0.5f, 0.002f, 0);
     }
 
@@ -237,18 +318,19 @@ public class Board : MonoBehaviour
         var go = new GameObject($"Slot {(mine ? "mine" : "rival")} {s}");
         go.transform.SetParent(table, false);
         go.transform.localPosition = at;
-        // (styles.css .slot-empty: pale, a white line inside a dashed edge, corners of 7 px.)
+        // (styles.css .slot-empty: pale, a white line inside a dashed edge, corners of 8% of its width.)
         Picture("Outline", go.transform, BoardArt.Slot(false), Color.white, 1, 1.4f, 2925, 0.0005f);
         var ink = Rgba(120, 128, 150, 0.55f);
         int def = Game.SlotDefence(s);
+        float size = Mathf.Max(9, L.Tcw * 0.14f);
         if (s < 0)
         {
             // (The Hero's slot: its defence, and "hero" small under it.)
-            Defence(go.transform, def.ToString(), new Vector3(0, 0, 0.059f), ink, 12.18f);
-            var hero = Mats.FlatText("Hero", go.transform, "HERO", Px(6.53f), new Color(ink.r, ink.g, ink.b, ink.a * 0.8f), true, 400, 20);
+            Defence(go.transform, def.ToString(), new Vector3(0, 0, 0.059f), ink, size);
+            var hero = Mats.FlatText("Hero", go.transform, "HERO", Px(Mathf.Max(6, L.Tcw * 0.075f)), new Color(ink.r, ink.g, ink.b, ink.a * 0.8f), true, 400, 20);
             hero.transform.localPosition = new Vector3(0, 0.002f, -0.102f);
         }
-        else Defence(go.transform, def.ToString(), Vector3.zero, ink, 12.18f);
+        else Defence(go.transform, def.ToString(), Vector3.zero, ink, size);
         var col = go.AddComponent<BoxCollider>();
         col.size = new Vector3(1, 0.05f, 1.4f);
         go.AddComponent<SlotTag>().Set(mine, s);
@@ -262,22 +344,22 @@ public class Board : MonoBehaviour
         go.transform.SetParent(table, false);
         go.transform.localPosition = at;
         Picture("Outline", go.transform, BoardArt.Slot(true), Color.white, 1, 1.4f, 2925, 0.0005f);
-        // (Its mark 22 px, drawn on a picture a quarter larger than it.)
-        float s = Px(22) / 10 * 1.25f;
+        // (Its mark 1.15em of the slot's defence size, drawn on a picture a quarter larger than it.)
+        float s = L.U(Mathf.Max(12, L.Tcw * 0.22f) * 1.15f) * 1.25f;
         Picture("Trap", go.transform, Resources.Load<Texture2D>("Icons/bt-trap"), Rgba(70, 74, 160, 0.6f), s, s, 2935, 0.002f);
     }
 
-    /// <summary>A round white button by a row (styles.css .tableau-eye): 26 px, an eye in it.</summary>
+    /// <summary>A round white button by a row (styles.css .tableau-eye: 30% of a card's width, 26 to 40 px), an eye in it.</summary>
     void Eye(Vector3 at)
     {
         var go = new GameObject("Eye");
         go.transform.SetParent(table, false);
         go.transform.localPosition = at;
-        float d = Px(26.1f) / 10;
-        var shadow = Shape("Shadow", go.transform, Rgba(70, 76, 100, 0.2f), d, d, d / 2, 2926, 0.001f, Px(4) / 10, Px(8) / 10);
-        shadow.transform.localPosition = new Vector3(0, 0.001f, -Px(2) / 10);
+        float d = L.U(L.Eye);
+        var shadow = Shape("Shadow", go.transform, Rgba(70, 76, 100, 0.2f), d, d, d / 2, 2926, 0.001f, L.U(4), L.U(8));
+        shadow.transform.localPosition = new Vector3(0, 0.001f, -L.U(2));
         Shape("Button", go.transform, new Color(1, 1, 1, 0.92f), d, d, d / 2, 2927, 0.0015f);
-        float s = Px(15.32f) / 10 * 1.25f;
+        float s = d * 0.587f * 1.25f;
         Picture("Eye", go.transform, Resources.Load<Texture2D>("Icons/bt-eye"), Rgba(91, 97, 112), s, s, 2928, 0.002f);
     }
 
@@ -301,39 +383,40 @@ public class Board : MonoBehaviour
         face.sharedMaterial.mainTexture = back ? Resources.Load<Texture2D>("Board/back") : null;
         face.sharedMaterial.color = back ? Color.white : new Color(1, 1, 1, 0);
         face.sharedMaterial.renderQueue = 2950;
-        var label = Mats.FlatText("Name", go.transform, title, Px(5) / PileScale, Look.InkSoft, true, 400, 10);
+        var label = Mats.FlatText("Name", go.transform, title, Px(Mathf.Max(5, L.Pw * 0.068f)) / PileScale, Look.InkSoft, true, 400, 10);
         label.transform.localPosition = new Vector3(0, 0.03f, 0);
         label.gameObject.SetActive(!back);
         // (How many, small in its corner.)
-        count = Mats.FlatText("Count", go.transform, "", 2.4f, Look.InkSoft, true, 700, 0, TextAlignmentOptions.Right);
+        count = Mats.FlatText("Count", go.transform, "", Px(Mathf.Max(11, L.Pw * 0.28f)) / PileScale * 0.86f, Look.InkSoft, true, 700, 0, TextAlignmentOptions.Right);
         count.rectTransform.sizeDelta = new Vector2(1, 0.4f);
         count.transform.localPosition = new Vector3(-0.08f, 0.03f, -0.5f);
         return face;
     }
 
     /// <summary>
-    /// A side's hand, counted (styles.css .tpile-hand): a pale pill 170 × 20 px with a fine edge, the hand's mark,
-    /// "HAND" and how many at its right.
+    /// A side's hand, counted (styles.css .tpile-hand): a pale pill as wide as the piles and max(20 px, 26% of a pile)
+    /// tall with a fine edge, 10 px in: the hand's mark, "HAND" 6 px after it, and how many at its right.
     /// </summary>
     TextMeshPro HandPill(string name, Vector3 at)
     {
+        var l = L;
         var go = new GameObject(name);
         go.transform.SetParent(table, false);
         go.transform.localPosition = at;
-        float w = 1.959f, h = 0.23f;
-        var shadow = Shape("Shadow", go.transform, Rgba(90, 90, 110, 0.1f), w, h, h / 2, 2952, 0.001f, Px(4) / 10, Px(8) / 10);
-        shadow.transform.localPosition = new Vector3(0, 0.001f, -Px(2) / 10);
+        float w = l.U(l.PilesW), h = l.U(l.HandPillH), font = Mathf.Max(9, l.Pw * 0.11f);
+        var shadow = Shape("Shadow", go.transform, Rgba(90, 90, 110, 0.1f), w, h, h / 2, 2952, 0.001f, l.U(4), l.U(8));
+        shadow.transform.localPosition = new Vector3(0, 0.001f, -l.U(2));
         Shape("Pill", go.transform, Rgba(250, 251, 253, 0.85f), w, h, h / 2, 2955, 0.002f);
         Shape("Edge", go.transform, Rgba(140, 150, 175, 0.28f), w, h, h / 2, 2956, 0.0025f, 0.004f, 0.01f, true);
-        float s = 0.134f * 1.25f;
-        var icon = Picture("Hand", go.transform, Resources.Load<Texture2D>("Icons/bt-hand"), Color.white, s, s, 2957, 0.003f);
-        icon.transform.localPosition = new Vector3(-0.797f, 0.003f, 0);
-        var word = Mats.FlatText("Hand", go.transform, "HAND", Px(9), Look.InkSoft, true, 400, 14, TextAlignmentOptions.Left);
+        float icon = l.U(1.3f * font);
+        var mark = Picture("Hand", go.transform, Resources.Load<Texture2D>("Icons/bt-hand"), Color.white, icon * 1.25f, icon * 1.25f, 2957, 0.003f);
+        mark.transform.localPosition = new Vector3(-w / 2 + l.U(10) + icon / 2, 0.003f, 0);
+        var word = Mats.FlatText("Hand", go.transform, "HAND", Px(font), Look.InkSoft, true, 400, 14, TextAlignmentOptions.Left);
         word.rectTransform.sizeDelta = new Vector2(1, 0.3f);
-        word.transform.localPosition = new Vector3(-0.65f + 0.5f, 0.01f, 0);
-        var t = Mats.FlatText("Count", go.transform, "", Px(11.25f), Look.Ink, true, 700, 0, TextAlignmentOptions.Center);
-        t.rectTransform.sizeDelta = new Vector2(0.4f, 0.3f);
-        t.transform.localPosition = new Vector3(0.812f, 0.01f, 0);
+        word.transform.localPosition = new Vector3(-w / 2 + l.U(10 + 6) + icon + 0.5f, 0.01f, 0);
+        var t = Mats.FlatText("Count", go.transform, "", Px(font * 1.25f), Look.Ink, true, 700, 0, TextAlignmentOptions.Right);
+        t.rectTransform.sizeDelta = new Vector2(1, 0.3f);
+        t.transform.localPosition = new Vector3(w / 2 - l.U(10) - 0.5f, 0.01f, 0);
         return t;
     }
 
@@ -344,7 +427,7 @@ public class Board : MonoBehaviour
     void Float(Vector3 at, int delta, bool heat)
     {
         if (!Application.isPlaying) return;
-        var t = Mats.FlatText("Float", table, (delta > 0 ? "+" : "") + delta, 5.5f, heat ? (delta > 0 ? Look.Heat : Look.Cool) : (delta < 0 ? Look.Heat : Look.Good), true, 700, 0);
+        var t = Mats.FlatText("Float", table, (delta > 0 ? "+" : "") + delta, Px(48), heat ? (delta > 0 ? Look.Heat : Look.Cool) : (delta < 0 ? Look.Heat : Look.Good), true, 700, 0);
         t.transform.localRotation = Quaternion.LookRotation(Cam.transform.forward, Cam.transform.up);
         t.transform.localPosition = at + new Vector3(0, 1.2f, 0);
         t.outlineWidth = 0.2f;
@@ -352,9 +435,18 @@ public class Board : MonoBehaviour
         t.gameObject.AddComponent<Floater>();
     }
 
+    /// <summary>A sun put where the web's stands at this size, at its size.</summary>
+    static void PlaceSun(SunView sun, bool mine)
+    {
+        sun.transform.localPosition = mine ? MySun : RivalSun;
+        sun.transform.localScale = Vector3.one * SunScale;
+        sun.Under(SunUnder);
+    }
+
     /// <summary>Lay the battle out as it stands: every card where it belongs, every sun as hot as it is.</summary>
     public void Sync(GameState s, BattleView ui)
     {
+        if (!Fits) Relayout();
         var me = s.Players.First(p => p.Id == Viewer);
         var rival = s.Players.First(p => p.Id != Viewer);
         var seen = new HashSet<string>();
@@ -394,47 +486,7 @@ public class Board : MonoBehaviour
                 lastHealth[c.Uid] = hp;
             }
         }
-        // My hand, fanned along the foot of the screen (app.ts fitHand, at 1600 × 1000: the page drawn 1.45 times its
-        // layout size): cards 127 px wide in a hand 753 px across, overlapping by the same share of their widths,
-        // turned 2.5° apart (less for a big hand) on an arc, their middles 63 px above the screen's foot; a picked
-        // card held up. Raised (the pointer over it), the hand grows 1.14 times from its foot and rises until its
-        // lowest corner is 8 px above the screen's foot (app.ts measureRaise).
-        float d = 3.2f;
-        float h = 2 * d * Mathf.Tan(Cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
-        float px = h / 1000;
-        const float z = 1.45f, cw = 127 * z, room = (753 - 2 * 0.12f * 127) * z, grow = 1.14f, foot = 479.3f;
-        int n = me.Hand.Count;
-        float spacing = n > 1 ? Mathf.Min(0.98f, (room - cw) / ((n - 1) * cw)) * cw : 0;
-        float turn = Mathf.Min(2.5f, 12f / Mathf.Max(n - 1, 1));
-        float radius = spacing / (turn * Mathf.Deg2Rad);
-        // (Where each card stands, in pixels from the screen's middle, down positive; and the lowest corner of all.)
-        var spot = new Vector2[n];
-        float low = 0;
-        for (int i = 0; i < n; i++)
-        {
-            float t = i - (n - 1) / 2f, a = t * turn * Mathf.Deg2Rad;
-            spot[i] = new Vector2(t * spacing, 437.5f + radius * (1 - Mathf.Cos(a)) * 1.25f);
-            low = Mathf.Max(low, spot[i].y + (cw * Mathf.Abs(Mathf.Sin(a)) + cw * 1.4f * Mathf.Cos(a)) / 2);
-        }
-        float rise = HandUp && n > 0 ? Mathf.Max(0, foot + (low - foot) * grow - 500 + 8 * z) : 0, size = HandUp ? grow : 1;
-        HandTop = 1e9f;
-        HandSpan = 0;
-        for (int i = 0; i < n; i++)
-        {
-            var c = me.Hand[i];
-            var v = Card(c, false);
-            seen.Add(c.Uid);
-            v.transform.SetParent(handRoot, false);
-            float t = i - (n - 1) / 2f;
-            float x = spot[i].x * size, y = foot + (spot[i].y - foot) * size - rise;
-            HandTop = Mathf.Min(HandTop, y - cw * 1.4f * size / 2);
-            HandSpan = Mathf.Max(HandSpan, Mathf.Abs(x) + cw * size / 2);
-            float lift = ui.HandLift(c);
-            v.MoveTo(new Vector3(x * px, -d + 0.001f * i, -y * px + lift * cw * 1.4f * px * 0.3f), Quaternion.Euler(0, t * turn, 0), cw * size * px);
-            foreach (var b in new[] { "atk", "stab", "def" }) v.Badge(b, "atk", null);
-            v.Dimmed(false);
-            ui.Dress(v, me, c, false);
-        }
+        Hand(me, ui, seen);
         foreach (var uid in cards.Keys.Where(k => !seen.Contains(k)).ToList())
         {
             // (In play, a card leaving fades away where it was; it was destroyed, returned, or played out.)
@@ -455,8 +507,8 @@ public class Board : MonoBehaviour
         rivalDeck.gameObject.SetActive(rival.Deck.Count > 0);
         rivalHandN.text = rival.Hand.Count.ToString();
         myHandN.text = me.Hand.Count.ToString();
-        rivalLabel.text = rival.Name.ToUpperInvariant();
-        myLabel.text = me.Name.ToUpperInvariant();
+        SetName(rivalLabel, rival.Name, false);
+        SetName(myLabel, me.Name, true);
         var active = Game.ActivePlayer(s);
         bool mineNow = active == me;
         // (Whose turn: the one lit dark, the other pale; the day's part lit, its dot amber, larger and glowing.)
@@ -477,10 +529,74 @@ public class Board : MonoBehaviour
         int total = roundTicks.Count, left = Mathf.Max(0, total - (s.Round - 1)), unstable = Game.InstabilityHeat(s);
         roundN.text = BoardArt.Roman(s.Round);
         roundUp.text = unstable > 0 ? $"+{unstable}" : "";
-        roundN.transform.localPosition = new Vector3(0, 0.004f, 0.01f + (unstable > 0 ? Px(3) / 10 : 0));
+        roundN.transform.localPosition = new Vector3(0, 0.004f, unstable > 0 ? L.U(3) : 0);
         for (int i = 0; i < total; i++) roundTicks[i].sharedMaterial.color = new Color(1, 1, 1, unstable > 0 ? 0.35f : i < left ? 1 : 0.5f);
         roundTrack.sharedMaterial.color = unstable > 0 ? Rgba(201, 138, 134, 0.25f) : Rgba(120, 124, 134, 0.14f);
         foreach (var slot in slotMarks) slot.SetActive(true);
+    }
+
+    /// <summary>
+    /// My hand, flat along the foot of the screen in front of the board (app.ts fitHand, styles.css .table-view &gt;
+    /// .dock): cards --hw wide between the dock's side columns, overlapping by the same share of their widths (at most
+    /// 98%), 12% of a card in from each end, turned 2.5° apart (less for a big hand) on an arc, their tops 10 px into
+    /// the hand's strip, the rest below the screen. The card under the pointer (or picked) rises 8% of --hh and turns
+    /// straight. Raised (the pointer over it, or a first tap on a touch screen), the hand grows 1.14 times from its
+    /// foot and rises until its lowest corner is 8 px above the screen's foot (app.ts measureRaise).
+    /// </summary>
+    void Hand(PlayerState me, BattleView ui, HashSet<string> seen)
+    {
+        var l = L;
+        const float depth = 3.2f, grow = 1.14f;
+        float px = l.ScreenScale(depth), w = l.HandCard, h = w * 1.4f;
+        int n = me.Hand.Count;
+        float inset = w * 0.12f, room = l.HandW - 2 * inset;
+        float spacing = n > 1 ? Mathf.Min(0.98f, (room - w) / ((n - 1) * w)) * w : 0;
+        float span = w + (n - 1) * spacing, start = l.HandLeft + inset + (room - span) / 2 + w / 2;
+        float step = Mathf.Min(2.5f, 12f / Mathf.Max(n - 1, 1));
+        float radius = spacing / (step * Mathf.Deg2Rad);
+        // (Where each card rests, its middle on the page; and the lowest corner of all, from the hand's top.)
+        var spot = new Vector2[n];
+        float low = 0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = i - (n - 1) / 2f, a = t * step * Mathf.Deg2Rad;
+            float fy = radius * (1 - Mathf.Cos(a)) * 1.25f;
+            spot[i] = new Vector2(start + i * spacing, l.HandTop + 10 + h / 2 + fy);
+            low = Mathf.Max(low, 10 + fy + h / 2 + (w * Mathf.Abs(Mathf.Sin(a)) + h * Mathf.Cos(a)) / 2);
+        }
+        float foot = l.HandBottom;
+        float rise = HandUp && n > 0 ? Mathf.Max(0, Mathf.Round(foot + (l.HandTop + low - foot) * grow - l.H + 8)) : 0, size = HandUp ? grow : 1;
+        float mid = l.HandLeft + l.HandW / 2;
+        HandRects.Clear();
+        for (int i = 0; i < n; i++)
+        {
+            var c = me.Hand[i];
+            var v = Card(c, false);
+            seen.Add(c.Uid);
+            v.transform.SetParent(handRoot, false);
+            float t = i - (n - 1) / 2f;
+            bool lifted = ui.HandLift(c) > 0 || c.Uid == HandHover;
+            float turn = lifted ? 0 : t * step;
+            float y = spot[i].y - (lifted ? l.DockHh * 0.08f : 0);
+            // (Raised: grown from the hand's foot, then lifted.)
+            float x = mid + (spot[i].x - mid) * size;
+            y = foot + (y - foot) * size - rise;
+            var at = l.Screen(x, y, depth);
+            v.MoveTo(new Vector3(at.x, -depth + 0.001f * (lifted ? 50 : i), at.y), Quaternion.Euler(0, turn, 0), w * size * px);
+            float a = turn * Mathf.Deg2Rad, bw = (w * Mathf.Abs(Mathf.Cos(a)) + h * Mathf.Abs(Mathf.Sin(a))) * size, bh = (w * Mathf.Abs(Mathf.Sin(a)) + h * Mathf.Cos(a)) * size;
+            HandRects.Add(new Rect(x - bw / 2, y - bh / 2, bw, bh));
+            foreach (var b in new[] { "atk", "stab", "def" }) v.Badge(b, "atk", null);
+            v.Dimmed(false);
+            ui.Dress(v, me, c, false);
+        }
+    }
+
+    /// <summary>Whether a point of the page is in the hand's column: between its outermost cards, from their tops down (app.ts inHandColumn).</summary>
+    public bool InHandColumn(Vector2 at)
+    {
+        if (HandRects.Count == 0) return false;
+        float left = HandRects.Min(r => r.xMin), right = HandRects.Max(r => r.xMax), top = HandRects.Min(r => r.yMin);
+        return at.x >= left && at.x <= right && at.y >= top;
     }
 
     /// <summary>An open pile: its top card face up, and how many are in it (none: its empty place and name).</summary>
@@ -500,10 +616,11 @@ public class Board : MonoBehaviour
     {
         if (tagName == null)
         {
-            tagName = Mats.FlatText("Tag", table, "", 1.6f, Look.Ink, true, 600, 24);
-            tagName.transform.localPosition = new Vector3(0, 0.01f, -1.02f);
-            tagSub = Mats.FlatText("Tag words", table, "", 1.4f, Look.InkSoft, false, 400, 4);
-            tagSub.transform.localPosition = new Vector3(0, 0.01f, -1.2f);
+            float under = L.Star / 2;
+            tagName = Mats.FlatText("Tag", decor, "", Px(13.9f), Look.Ink, true, 600, 24);
+            tagName.transform.localPosition = new Vector3(0, 0.01f, -L.U(under + 9));
+            tagSub = Mats.FlatText("Tag words", decor, "", Px(12.2f), Look.InkSoft, false, 400, 4);
+            tagSub.transform.localPosition = new Vector3(0, 0.01f, -L.U(under + 25));
         }
         tagName.text = name?.ToUpperInvariant() ?? "";
         tagSub.text = sub ?? "";
@@ -536,7 +653,8 @@ public class Board : MonoBehaviour
 
     /// <summary>
     /// Where a card arriving comes from: drawn, from your deck; your rival's, shown large on the stage a moment (so you
-    /// see what they played) before it lands; anything else, from just above its place.
+    /// see what they played: the web's stage, a card min(250 px, 44vh) wide in the screen's middle) before it lands;
+    /// anything else, from just above its place.
     /// </summary>
     void Arrive(CardView v, bool table, bool mine)
     {
@@ -548,8 +666,12 @@ public class Board : MonoBehaviour
         }
         if (!mine)
         {
+            var l = L;
+            const float depth = 5;
             var f = Cam.transform.forward;
-            v.StartFrom(Cam.transform.position + f * 5.25f + Cam.transform.up * 0.23f, Quaternion.LookRotation(Cam.transform.up, -f), Vector3.one * 2.3f);
+            var at = Cam.transform.TransformPoint(l.Screen(l.W / 2, l.H * 0.45f, depth));
+            float w = Mathf.Min(250, 0.44f * l.H) / 1.4f;
+            v.StartFrom(at, Quaternion.LookRotation(Cam.transform.up, -f), Vector3.one * w * l.ScreenScale(depth));
             v.Hold(0.85f);
             return;
         }
@@ -581,6 +703,7 @@ public class Board : MonoBehaviour
             sun = SunView.Make(table, mine ? MySun : RivalSun, p.Id, mine);
             suns[p.Id] = sun;
         }
+        PlaceSun(sun, mine);
         return sun;
     }
 
@@ -705,26 +828,31 @@ public static class BoardArt
         return t;
     }
 
-    // The frame round your tableau, in card widths: your row's six places and your Hero's above its right end, 12 px
-    // (0.138) round them, corners of 12 px and the inner corner where they meet rounded 8 px. (Your rival's, turned round.)
-    public const float FrameW = 7.164f, FrameD = 3.265f, FrameZ = -1.6805f;
-
-    public static Texture2D Frame()
+    /// <summary>
+    /// The frame round your tableau (in card widths): your row's six places, `rowW` across, and your Hero's place above
+    /// its right end, `up` beyond the row's top edge; `pad` round them (the web's --frame-pad), corners of 12 px and the
+    /// inner corner where they meet rounded 8 px. (Your rival's, turned round.) Its picture is `rowW` + 2 `pad` wide and
+    /// 1.4 + 2 `pad` + `up` deep, the row's middle `up` / 2 below its middle.
+    /// </summary>
+    public static Texture2D Frame(float rowW, float pad, float up)
     {
-        if (made.TryGetValue("frame", out var t)) return t;
-        const float k = 128, pad = 0.138f, r = 0.138f, rc = 0.092f;
-        int w = Mathf.CeilToInt(FrameW * k), h = Mathf.CeilToInt(FrameD * k);
+        string key = $"frame {rowW:0.000} {pad:0.000} {up:0.000}";
+        if (made.TryGetValue(key, out var t)) return t;
+        // (Corners of 12 px and 8 px on a card 87 px wide.)
+        const float k = 128, r = 0.138f, rc = 0.092f;
+        float fw = rowW + 2 * pad, fd = 1.4f + 2 * pad + up;
+        int w = Mathf.CeilToInt(fw * k), h = Mathf.CeilToInt(fd * k);
         t = New(w, h);
         var px = new Color[w * h];
         var fill = new Color(250 / 255f, 251 / 255f, 253 / 255f, 0.45f);
         var line = new Color(140 / 255f, 150 / 255f, 175 / 255f, 0.16f);
-        float rowZ = Board.MyRowZ, rowH = 0.7f + pad, top = rowZ + rowH;
-        float bx0 = Board.MyHero.x - 0.5f - pad, bx1 = FrameW / 2, bz1 = Board.MyHero.z + 0.7f + pad;
+        float rowZ = -up / 2, rowH = 0.7f + pad, top = rowZ + rowH;
+        float bx0 = rowW / 2 - 1 - pad, bx1 = fw / 2, bz1 = rowZ + 0.7f + up + pad;
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
             {
-                float u = (x + 0.5f) / k - FrameW / 2, v = FrameZ + (y + 0.5f) / k - FrameD / 2;
-                float d = Mathf.Min(Box(u, v - rowZ, FrameW / 2, rowH, r), Box(u - (bx0 + bx1) / 2, v - (rowZ + bz1) / 2, (bx1 - bx0) / 2, (bz1 - rowZ) / 2, r));
+                float u = (x + 0.5f) / k - fw / 2, v = (y + 0.5f) / k - fd / 2;
+                float d = Mathf.Min(Box(u, v - rowZ, fw / 2, rowH, r), Box(u - (bx0 + bx1) / 2, v - (rowZ + bz1) / 2, (bx1 - bx0) / 2, (bz1 - rowZ) / 2, r));
                 // (The inner corner, filled round to a quarter circle; the fill reaches a little into both boxes, so
                 // their edges there are inside it and draw no line.)
                 const float e = 3 / k;
@@ -736,7 +864,13 @@ public static class BoardArt
             }
         t.SetPixels(px);
         t.Apply(true);
-        made["frame"] = t;
+        // (Only the latest few kept: a window dragged to a new size makes a new one each time.)
+        foreach (var old in made.Keys.Where(n => n.StartsWith("frame ") && n != key).ToList())
+        {
+            Mats.Kill(made[old]);
+            made.Remove(old);
+        }
+        made[key] = t;
         return t;
     }
 

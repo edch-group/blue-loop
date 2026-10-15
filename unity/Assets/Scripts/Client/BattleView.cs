@@ -56,24 +56,20 @@ public partial class BattleView : MonoBehaviour
     }
 
     /// <summary>
-    /// The web's view of the table (styles.css .table-view at 1600 × 1000): the board scaled to 0.82 and tipped 22°
-    /// away, seen in a perspective of twice the screen's height from an eye a quarter of the way down the screen. That
-    /// eye is off the screen's middle, which a camera can't be; but the table is flat, so a camera that draws the
-    /// table's plane exactly as the web does stands here (worked out from the web's projection of the table's corners
-    /// and slots: every point of the table lands on the same pixel). Narrower screens widen the view so the whole
-    /// table still fits.
+    /// The web's view of the table at the screen's size (styles.css .table-view: the board scaled to 0.82 and tipped
+    /// 22° away, seen in a perspective of twice the page's height from an eye a quarter of the way down it): every
+    /// point of the table lands on the web's pixel, on a phone as on a big screen (BoardLayout.Frame).
     /// </summary>
     public static void Frame(Camera cam)
     {
-        float aspect = cam.aspect > 0 ? cam.aspect : 1.6f;
-        float fov = 46.44f;
-        if (aspect < 1.6f) fov = 2 * Mathf.Atan(Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad) * 1.6f / aspect) * Mathf.Rad2Deg;
-        cam.fieldOfView = fov;
-        cam.transform.position = new Vector3(0, 10.774f, -3.350f);
-        cam.transform.rotation = Quaternion.Euler(77.391f, 0, 0);
+        // (A camera drawing to a texture, as the build's screenshots: laid out for the texture's size.)
+        var tex = cam.targetTexture;
+        BoardLayout.Target = tex != null ? new Vector2(tex.width, tex.height) : (Vector2?)null;
+        BoardLayout.Current.Frame(cam);
     }
 
-    float framedAspect;
+    /// <summary>The layout the screen was last laid out for (laid out again when it changes).</summary>
+    BoardLayout laidOut;
 
     public void NewBattle(int seed, string myDeck = null, string theirDeck = null)
     {
@@ -129,29 +125,22 @@ public partial class BattleView : MonoBehaviour
 
     void Update()
     {
-        if (Cam != null && !Mathf.Approximately(framedAspect, Cam.aspect))
-        {
-            framedAspect = Cam.aspect;
-            Frame(Cam);
-            if (state != null) Board.Sync(state, this);
-        }
+        if (FitScreen() && state != null) Refresh();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
         if (state == null || state.WinnerId != null) return;
         if (!busy && AiToMove()) StartCoroutine(AiMove());
         if (Autoplay) return;
-        // The pointer over your hand raises it to be read whole; off it (or over the screen's own layer), it lowers.
-        if (Board.HandTop < 1e8f)
+        // (A touch screen has no hover: a first tap on the hand raises it, a tap away lowers it, as the web's.)
+        if (Input.touchCount > 0) touch = true;
+        var page = Page(Input.mousePosition);
+        // With a mouse, the pointer over your hand raises it to be read whole, and lifts the card under it; off the
+        // hand's column (or over the screen's own layer), it lowers.
+        if (!touch)
         {
-            float s = 1000f / Mathf.Max(1, Screen.height);
-            var m = Input.mousePosition;
-            float mx = (m.x - Screen.width / 2f) * s, my = (Screen.height / 2f - m.y) * s;
-            bool up = Mathf.Abs(mx) <= Board.HandSpan && my >= Board.HandTop && my <= 500 && !OverHud() && !inspector.gameObject.activeSelf;
-            if (up != Board.HandUp)
-            {
-                Board.HandUp = up;
-                if (up) Sound.Play("hand-lift");
-                Board.Sync(state, this);
-            }
+            bool up = Board.HandUp ? Board.InHandColumn(page) : Board.InHandColumn(page) && !OverHud();
+            up &= !inspector.gameObject.activeSelf && sheet == null;
+            string over = up ? HandCardAt(Input.mousePosition) : null;
+            if (up != Board.HandUp || over != Board.HandHover) RaiseHand(up, over);
         }
         // A tap acts; a press held (or a right click) reads the card under it, large.
         if (Input.GetMouseButtonDown(1) && !OverHud()) Inspect();
@@ -160,7 +149,7 @@ public partial class BattleView : MonoBehaviour
             pressAt = Time.time;
             pressPos = Input.mousePosition;
         }
-        if (pressAt >= 0 && Input.GetMouseButton(0) && Time.time - pressAt > 0.45f && (Input.mousePosition - pressPos).magnitude < 12)
+        if (pressAt >= 0 && Input.GetMouseButton(0) && Time.time - pressAt > 0.45f && (Input.mousePosition - pressPos).magnitude < 12 * Css.PixelRatio)
         {
             pressAt = -1;
             Inspect();
@@ -169,8 +158,58 @@ public partial class BattleView : MonoBehaviour
         {
             pressAt = -1;
             if (inspector.gameObject.activeSelf) inspector.gameObject.SetActive(false);
-            else Tap();
+            else if (touch && !Board.HandUp && HandCardAt(Input.mousePosition) != null) RaiseHand(true, null);
+            else
+            {
+                if (touch && Board.HandUp && !Board.InHandColumn(page)) RaiseHand(false, null);
+                Tap();
+            }
         }
+    }
+
+    /// <summary>
+    /// The screen changed size (a phone turned, a window dragged): the table, the hand and the HUD laid out again as the
+    /// web lays them out at the new size. Whether it had.
+    /// </summary>
+    bool FitScreen()
+    {
+        if (Cam == null || hud == null) return false;
+        var tex = Cam.targetTexture;
+        var want = tex != null ? new Vector2(tex.width, tex.height) : (Vector2?)null;
+        if (BoardLayout.Target != want) Frame(Cam);
+        if (laidOut == BoardLayout.Current) return false;
+        laidOut = BoardLayout.Current;
+        Frame(Cam);
+        Board.Relayout();
+        LayoutHud();
+        return true;
+    }
+
+    /// <summary>Whether a touch screen is in use (seen touched).</summary>
+    bool touch;
+
+    /// <summary>A point on the screen (in screen pixels, y up) as a point of the web's page (layout pixels, y down).</summary>
+    static Vector2 Page(Vector3 screen)
+    {
+        float k = Css.PixelRatio * Css.Zoom;
+        return new Vector2(screen.x / k, (Screen.height - screen.y) / k);
+    }
+
+    /// <summary>The card in your hand under a point of the screen, if any.</summary>
+    string HandCardAt(Vector3 screen)
+    {
+        if (!Physics.Raycast(Cam.ScreenPointToRay(screen), out var hit, 100)) return null;
+        var v = hit.collider.GetComponentInParent<CardView>();
+        return v != null && !v.Table && state != null && Me.Hand.Any(c => c.Uid == v.Uid) ? v.Uid : null;
+    }
+
+    /// <summary>The hand raised to be read whole, or lowered (app.ts raiseHand), and the card lifted under the pointer.</summary>
+    void RaiseHand(bool up, string over)
+    {
+        if (up && !Board.HandUp) Sound.Play("hand-lift");
+        Board.HandUp = up;
+        Board.HandHover = over;
+        if (state != null) Board.Sync(state, this);
     }
 
     bool AiToMove()
@@ -250,15 +289,17 @@ public partial class BattleView : MonoBehaviour
         if (heroPanel != null) heroPanel.gameObject.SetActive(false);
     }
 
-    void Say(string text)
+    void Say(string text, bool fresh = true)
     {
         toast.text = text;
-        toastUntil = Time.time + 3.5f;
-        // (As wide as its words, at most 440 px of the web's page.)
+        if (fresh) toastUntil = Time.time + 3.5f;
+        // (As wide as its words, at most min(440px, 100vw − 32px), padded 7 × 16 px; its lines 1.35 apart.)
         var box = (RectTransform)toast.transform.parent;
-        float w = Mathf.Min(638, toast.GetPreferredValues(text).x + 46);
+        float most = Mathf.Min(440, BoardLayout.Current.W - 32);
+        toast.textWrappingMode = TextWrappingModes.NoWrap;
+        float w = Mathf.Min(most, toast.GetPreferredValues(text).x + 32 + 2);
         toast.textWrappingMode = TextWrappingModes.Normal;
-        float h = Mathf.Max(43, toast.GetPreferredValues(text, w - 46, 0).y + 20);
+        float h = toast.GetPreferredValues(text, w - 34, 0).y * 1.1f + 14 + 2;
         box.sizeDelta = new Vector2(w, h);
     }
 
@@ -283,7 +324,7 @@ public partial class BattleView : MonoBehaviour
     {
         CloseSheet();
         bool over = state == null || state.WinnerId != null;
-        sheet = Hud.Sheet(hud.transform, "settings", new[]
+        sheet = Hud.Sheet(Layer, "settings", new[]
         {
             new Hud.Row("sound", () => { Sound.Muted = !Sound.Muted; Settings(); }, Sound.Muted ? "off" : "on"),
             new Hud.Row("music", Sound.Muted ? (System.Action)null : () => { Sound.MusicOn = !Sound.MusicOn; Settings(); }, Sound.MusicOn && !Sound.Muted ? "on" : "off"),
@@ -299,16 +340,16 @@ public partial class BattleView : MonoBehaviour
         // (A battle of the run's: retreat, which loses it.)
         if (campaignOf != null)
         {
-            sheet = Hud.Sheet(hud.transform, "quit game", new[] { new Hud.Row("retreat", () => { CloseSheet(); state = Game.Apply(state, new EngineAction { Type = "concede", PlayerId = you }); BackToCampaign(); }, null, true), new Hud.Row("keep playing", CloseSheet) }, CloseSheet);
+            sheet = Hud.Sheet(Layer, "quit game", new[] { new Hud.Row("retreat", () => { CloseSheet(); state = Game.Apply(state, new EngineAction { Type = "concede", PlayerId = you }); BackToCampaign(); }, null, true), new Hud.Row("keep playing", CloseSheet) }, CloseSheet);
             return;
         }
         // (A lesson or a challenge is quick to begin again: only leave.)
         if (puzzleKind != null)
         {
-            sheet = Hud.Sheet(hud.transform, "quit game", new[] { new Hud.Row("leave", LeavePuzzle, null, true), new Hud.Row("keep playing", CloseSheet) }, CloseSheet);
+            sheet = Hud.Sheet(Layer, "quit game", new[] { new Hud.Row("leave", LeavePuzzle, null, true), new Hud.Row("keep playing", CloseSheet) }, CloseSheet);
             return;
         }
-        sheet = Hud.Sheet(hud.transform, "quit game", new[]
+        sheet = Hud.Sheet(Layer, "quit game", new[]
         {
             new Hud.Row("save and leave", () => { Persist(); App.Instance?.Menu("hub"); }, null, true),
             new Hud.Row("concede", () => { CloseSheet(); Do(new EngineAction { Type = "concede", PlayerId = you }); }),
@@ -426,7 +467,7 @@ public partial class BattleView : MonoBehaviour
         yield return new WaitForSeconds(after);
         var v = Board.View(uid);
         if (v == null || hud == null) yield break;
-        var canvas = (RectTransform)hud.transform;
+        var canvas = refLayer;
         var screen = Cam.WorldToScreenPoint(v.transform.position + new Vector3(0, 0, 0.7f));
         bool below = screen.y > Screen.height * 0.93f;
         if (below) screen = Cam.WorldToScreenPoint(v.transform.position - new Vector3(0, 0, 0.7f));
@@ -629,56 +670,65 @@ public partial class BattleView : MonoBehaviour
     }
 
     /// <summary>
-    /// What the board waits on you for (the web's .mid-hint, over the board's middle): the words in a white pill,
-    /// spaced capitals, and under it the ways out, small white pills side by side.
+    /// What the board waits on you for (the web's .mid-hint, lying on the board's middle, over the flower): the words in
+    /// a white pill, spaced capitals clamp(0.8rem, 3.6vh, 1.5rem), and under it the ways out (.mid-cancel), white pills
+    /// side by side; drawn where the board's middle is drawn, at the board's size there.
     /// </summary>
     void MidHint(string text, params (string label, System.Action act)[] buttons)
     {
+        var l = BoardLayout.Current;
         hint.gameObject.SetActive(true);
-        var pill = Hud.Glass(hint, "Words", new Color(1, 1, 1, 0.88f));
-        var l = Hud.Label(pill.transform, text.ToUpperInvariant(), 28, Look.Ink, true, 500, 32);
-        float w = l.GetPreferredValues(l.text).x + 2 * 21;
-        Corners(pill, 22);
-        Hud.At((RectTransform)pill.transform, new Vector2(0.5f, 1), new Vector2(0, 44), new Vector2(w, 46));
-        float x = 0, gap = 9.5f;
+        PlaceHint();
+        float f = Css.Clamp(12.8f, 3.6f * l.Vh, 24), ph = f * 1.2f + 12;
+        float f2 = Css.Clamp(9.6f, 2.2f * l.Vh, 12.8f), bh = f2 * 1.2f + 14 + 2;
+        float total = ph + (buttons.Length > 0 ? 8 + bh : 0);
+        var pill = Hud.Box(hint, "Words", new Color(1, 1, 1, 0.86f), ph / 2);
+        Hud.Shadow(pill, ph / 2, new Hud.Drop(Color.white, 0, 0, 1), new Hud.Drop(Hud.Rgba(70, 76, 100, 0.14f), 6, 18));
+        var words = Hud.Label(pill.transform, text.ToUpperInvariant(), f, Look.Ink, true, 500, 32);
+        float w = words.GetPreferredValues(words.text).x + 2 * 18;
+        Hud.At(pill.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, total / 2 - ph / 2), new Vector2(w, ph));
+        float x = 0, gap = 8;
         var made = new List<(RectTransform, float)>();
         foreach (var (label, act) in buttons)
         {
-            var b = Hud.Glass(hint, label, Color.white);
-            Corners(b, 16);
-            var bl = Hud.Label(b.transform, label.ToUpperInvariant(), 15, Look.Ink, true, 500, 20);
-            float bw = bl.GetPreferredValues(bl.text).x + 2 * 21;
-            var edge = Hud.Rect(b.transform, "Edge");
-            Hud.Fill(edge);
-            edge.SetAsFirstSibling();
-            var ei = edge.gameObject.AddComponent<Image>();
-            ei.sprite = Hud.Rounded;
-            ei.type = Image.Type.Sliced;
-            ei.color = new Color(120 / 255f, 126 / 255f, 150 / 255f, 0.35f);
-            ei.raycastTarget = false;
-            Corners(ei, 16);
-            var face = Hud.Rect(b.transform, "Face");
-            Hud.Fill(face);
-            face.offsetMin = new Vector2(1.2f, 1.2f);
-            face.offsetMax = new Vector2(-1.2f, -1.2f);
-            face.SetSiblingIndex(1);
-            var fi = face.gameObject.AddComponent<Image>();
-            fi.sprite = Hud.Rounded;
-            fi.type = Image.Type.Sliced;
-            fi.raycastTarget = false;
-            Corners(fi, 15);
+            // (A white pill with a faint 1 px edge and a soft shadow; its word 600 weight, drawn bold.)
+            var b = Hud.Box(hint, label, Hud.Rgba(120, 126, 150, 0.35f), bh / 2);
+            b.raycastTarget = true;
+            Hud.Shadow(b, bh / 2, new Hud.Drop(Hud.Rgba(70, 76, 100, 0.18f), 4, 14));
+            var face = Hud.Box(b.transform, "Face", Color.white, bh / 2 - 1);
+            Hud.Fill(face.rectTransform);
+            face.rectTransform.offsetMin = new Vector2(1, 1);
+            face.rectTransform.offsetMax = new Vector2(-1, -1);
+            var bl = Hud.Label(b.transform, label.ToUpperInvariant(), f2, Look.Ink, true, 700, 20);
+            float bw = bl.GetPreferredValues(bl.text).x + 2 * 18 + 2;
             var btn = b.gameObject.AddComponent<Button>();
             btn.onClick.AddListener(() => { Sound.Play("click"); act(); });
-            made.Add(((RectTransform)b.transform, bw));
+            made.Add((b.rectTransform, bw));
             x += bw + gap;
         }
         float at = -(x - gap) / 2;
         foreach (var (r, bw) in made)
         {
-            Hud.At(r, new Vector2(0.5f, 1), new Vector2(at + bw / 2, -4), new Vector2(bw, 32));
-            r.pivot = new Vector2(0.5f, 1);
+            Hud.At(r, new Vector2(0.5f, 0.5f), new Vector2(at + bw / 2, -total / 2 + bh / 2), new Vector2(bw, bh));
             at += bw + gap;
         }
+    }
+
+    /// <summary>The mid-board hint put over the board's middle as drawn (30 px up off it), at the board's scale there.</summary>
+    void PlaceHint()
+    {
+        var l = BoardLayout.Current;
+        var t = Board.transform;
+        var mid = t.TransformPoint(new Vector3(0, l.U(30), 0));
+        var a = Cam.WorldToScreenPoint(mid);
+        var e = Cam.WorldToScreenPoint(mid + t.TransformVector(Vector3.right));
+        float k = Css.PixelRatio * Css.Zoom;
+        float scale = (e - a).magnitude / k / l.Tcw;
+        hint.anchorMin = hint.anchorMax = new Vector2(0, 1);
+        hint.pivot = new Vector2(0.5f, 0.5f);
+        hint.sizeDelta = Vector2.zero;
+        hint.anchoredPosition = new Vector2(a.x / k, -(Screen.height - a.y) / k);
+        hint.localScale = Vector3.one * scale;
     }
 
     void ShowHint()
@@ -777,7 +827,9 @@ public partial class BattleView : MonoBehaviour
         var btn = inspector.gameObject.GetComponent<Button>() ?? inspector.gameObject.AddComponent<Button>();
         btn.onClick.RemoveAllListeners();
         btn.onClick.AddListener(() => inspector.gameObject.SetActive(false));
-        var face = Hud.Rect(inspector, "Face");
+        // (Seen whole on any screen: smaller on a phone's.)
+        var box = Whole(inspector, new Vector2(880, 700));
+        var face = Hud.Rect(box, "Face");
         Hud.At(face, new Vector2(0.5f, 0.5f), new Vector2(-205, 30), new Vector2(406, 568));
         var raw = face.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(v.DefId, false);
@@ -797,52 +849,55 @@ public partial class BattleView : MonoBehaviour
             if ((card.Growth ?? 0) > 0) lines.Add($"Grown {card.Growth}");
             if (card.Frozen == true) lines.Add("Frozen");
         }
-        var info = Hud.Glass(inspector, "Info", Look.GlassStrong);
+        var info = Hud.Glass(box, "Info", Look.GlassStrong);
         Hud.At((RectTransform)info.transform, new Vector2(0.5f, 0.5f), new Vector2(219, 30 + 145), new Vector2(406, 60 + 40 * lines.Count));
         var t = Hud.Label(info.transform, string.Join("\n", lines), 24, Look.Ink, false, 500, 0, TextAlignmentOptions.TopLeft);
         t.margin = new Vector4(24, 20, 24, 20);
         // (Under it, as the web's inspector sheet: a way to close it.)
-        var close = WhiteButton(inspector, "Close", () => inspector.gameObject.SetActive(false), 15);
+        var close = WhiteButton(box, "Close", () => inspector.gameObject.SetActive(false), 15);
         Hud.At((RectTransform)close.transform, new Vector2(0.5f, 0.5f), new Vector2(0, -300), new Vector2(150, 50));
     }
 
     // ---- The screen's own layer ----
 
-    /// <summary>A rounded image's corners at `radius` reference pixels (Hud.Rounded's own are 22).</summary>
+    /// <summary>A rounded image's corners at `radius` canvas units (Hud.Rounded's own are 22).</summary>
     static Image Corners(Image img, float radius)
     {
-        img.pixelsPerUnitMultiplier = 22f / Mathf.Max(1, radius);
+        img.pixelsPerUnitMultiplier = 22f / Mathf.Max(0.5f, radius);
         return img;
     }
 
     /// <summary>
     /// The web's .btn-primary (End Day, a result's way on): white, a white hairline inside a faint ring, corners of
-    /// 14 px, a soft shadow; its words bold spaced capitals. Disabled, the whole of it fades to 0.4.
+    /// `radius`, a soft shadow; its words bold spaced capitals. Disabled, the whole of it fades to 0.4. (In the units of
+    /// the canvas it is on: `ring` the ring's width.)
     /// </summary>
-    static Button WhiteButton(Transform parent, string text, System.Action onClick, float size, float radius = 14.5f)
+    static Button WhiteButton(Transform parent, string text, System.Action onClick, float size, float radius = 14.5f, float ring = 1.5f)
     {
-        var img = Hud.Glass(parent, text, new Color(0.975f, 0.976f, 0.98f));
-        Corners(img, radius);
-        var ring = Hud.Rect(img.transform, "Ring");
-        Hud.Fill(ring);
-        ring.offsetMin = new Vector2(-1.5f, -1.5f);
-        ring.offsetMax = new Vector2(1.5f, 1.5f);
-        var ri = ring.gameObject.AddComponent<Image>();
+        var img = Hud.Box(parent, text, new Color(0.975f, 0.976f, 0.98f), radius);
+        img.raycastTarget = true;
+        // (Its shadow, 0 6px 20px, in the canvas's units: `ring` is a CSS pixel's worth of them.)
+        Hud.Shadow(img, radius, new Hud.Drop(Hud.Rgba(120, 124, 134, 0.22f), 6 * ring, 20 * ring));
+        var edge = Hud.Rect(img.transform, "Ring");
+        Hud.Fill(edge);
+        edge.offsetMin = new Vector2(-ring, -ring);
+        edge.offsetMax = new Vector2(ring, ring);
+        var ri = edge.gameObject.AddComponent<Image>();
         ri.sprite = Hud.Rounded;
         ri.type = Image.Type.Sliced;
         ri.color = new Color(120 / 255f, 124 / 255f, 134 / 255f, 0.3f);
         ri.raycastTarget = false;
-        Corners(ri, radius + 1.5f);
+        Corners(ri, radius + ring);
         // (The ring is the button's own child, so drawn over it: the face is drawn again over the ring, inset.)
         var face = Hud.Rect(img.transform, "Face");
         Hud.Fill(face);
-        face.offsetMin = new Vector2(1, 1);
-        face.offsetMax = new Vector2(-1, -1);
+        face.offsetMin = new Vector2(ring * 0.67f, ring * 0.67f);
+        face.offsetMax = new Vector2(-ring * 0.67f, -ring * 0.67f);
         var fi = face.gameObject.AddComponent<Image>();
         fi.sprite = Hud.Rounded;
         fi.type = Image.Type.Sliced;
         fi.raycastTarget = false;
-        Corners(fi, radius - 1);
+        Corners(fi, radius - ring * 0.67f);
         fi.color = Color.white;
         img.color = Color.white;
         var b = img.gameObject.AddComponent<Button>();
@@ -861,106 +916,166 @@ public partial class BattleView : MonoBehaviour
         if (g != null) g.alpha = on ? 1 : 0.4f;
     }
 
+    /// <summary>
+    /// The layer the battle's overlays are drawn on (the hero's abilities, the inspector, an answer to make, the result,
+    /// the settings and quit sheets, Oriel, an online game's words): measured as the web's page at 1600 × 1000 (its CSS
+    /// pixels × 1.45), drawn at the web's size on any screen, as large as the page.
+    /// </summary>
+    RectTransform refLayer;
+    /// <summary>The HUD's pieces laid out at the screen's size (made again when it changes).</summary>
+    RectTransform chrome;
     RectTransform rivalHand;
     Image[] paceOn;
+    const float RefScale = 1.45f;
+
+    /// <summary>The overlays' layer (see refLayer).</summary>
+    Transform Layer => refLayer;
 
     void BuildHud()
     {
-        hud = Hud.Canvas(Cam);
+        // The HUD measured in the web's own pixels at its layout size (Css), so it is laid out as the web's on a phone
+        // as on a big screen.
+        hud = Hud.CssCanvas(Cam);
         hud.transform.SetParent(transform, false);
         var root = hud.transform;
+        chrome = Hud.Rect(root, "Chrome");
+        Hud.Fill(chrome);
+        // (What the board waits on you for lies in the board's middle, over the flower: the web's .mid-hint.)
+        hint = Hud.Rect(root, "Dawn hint");
+        hint.gameObject.SetActive(false);
+        refLayer = Hud.Rect(root, "Overlays");
+        refLayer.anchorMin = refLayer.anchorMax = refLayer.pivot = new Vector2(0.5f, 0.5f);
+        refLayer.localScale = Vector3.one / RefScale;
+        inspector = Hud.Rect(refLayer, "Inspector");
+        Hud.Fill(inspector);
+        inspector.gameObject.SetActive(false);
+        reactionPanel = Hud.Rect(refLayer, "Reaction");
+        heroPanel = Hud.Rect(refLayer, "Hero");
+        overPanel = Hud.Rect(refLayer, "Over");
+        foreach (var p in new[] { reactionPanel, heroPanel, overPanel }) p.gameObject.SetActive(false);
+        laidOut = BoardLayout.Current;
+        LayoutHud();
+    }
+
+    /// <summary>
+    /// The HUD at the screen's size, where the web puts it (styles.css; the page's padding --pad-* keeps it clear of a
+    /// phone's notch, corners and home bar): your rival's hand hanging in from the top, the corner buttons top right,
+    /// the pace bottom left, End Day and your energy bottom right, and the toast.
+    /// </summary>
+    void LayoutHud()
+    {
+        var l = BoardLayout.Current;
+        refLayer.sizeDelta = new Vector2(l.W, l.H) * RefScale;
+        foreach (Transform c in chrome) Mats.Kill(c.gameObject);
         // Your rival's hand, its cards' backs hanging in from the top of the screen (under everything else).
-        rivalHand = Hud.Rect(root, "Rival hand");
+        rivalHand = Hud.Rect(chrome, "Rival hand");
         Hud.At(rivalHand, new Vector2(0.5f, 1), Vector2.zero, Vector2.zero);
-        // End Day, and your energy over it (as the web's at 1600 × 1000: .turn-corner, 224 × 62, 17 px in, 20 up).
-        endDay = WhiteButton(root, "End day", EndDay, 15.3f);
-        Hud.At((RectTransform)endDay.transform, new Vector2(1, 0), new Vector2(-17, 20), new Vector2(224, 62));
-        var energy = Hud.Rect(root, "Energy");
-        Hud.At(energy, new Vector2(1, 0), new Vector2(-17, 86), new Vector2(224, 40));
-        energyLabel = Hud.Label(energy, "ENERGY", 13.9f, Look.InkSoft, true, 400, 16, TextAlignmentOptions.Center);
-        Hud.At(energyLabel.rectTransform, new Vector2(0.5f, 0), new Vector2(0, 22), new Vector2(224, 18));
+
+        // End Day, and your energy over it (.turn-corner: clamp(120px, 14vw, 190px) wide, at the page's right padding and
+        // at least 14 px up; the button padded clamp(8px, 3vh, 14px), its word 0.66rem bold; .plays 5 px over it, its
+        // word clamp(0.46rem, 1.6vh, 0.6rem) over 9 px pips).
+        float cw = Css.Clamp(120, 14 * l.Vw, 190), right = l.PadR, bottom = Mathf.Max(14, l.PadB);
+        float eh = 10.56f * 1.2f + 2 * Css.Clamp(8, 3 * l.Vh, 14) + 2;
+        endDay = WhiteButton(chrome, "End day", EndDay, 10.56f, 10, 1);
+        Hud.At((RectTransform)endDay.transform, new Vector2(1, 0), new Vector2(-right, bottom), new Vector2(cw, eh));
+        float word = Css.Clamp(7.36f, 1.6f * l.Vh, 9.6f), plays = word * 1.22f + 3 + 9;
+        var energy = Hud.Rect(chrome, "Energy");
+        Hud.At(energy, new Vector2(1, 0), new Vector2(-right, bottom + eh + 5), new Vector2(cw, plays));
+        energyLabel = Hud.Label(energy, "ENERGY", word, Look.InkSoft, true, 400, 16, TextAlignmentOptions.Center);
+        Hud.At(energyLabel.rectTransform, new Vector2(0.5f, 1), Vector2.zero, new Vector2(cw, word * 1.22f));
         energyDots = Hud.Rect(energy, "Dots");
-        Hud.At(energyDots, new Vector2(0.5f, 0), new Vector2(0, 3), new Vector2(224, 13));
-        // The pace (the web's .confirm-pill): a white pill 292 × 43, the mode chosen a dark pill in it.
-        var pace = Hud.Glass(root, "Pace", new Color(1, 1, 1, 0.92f));
-        Corners(pace, 21.5f);
-        Hud.At((RectTransform)pace.transform, new Vector2(0, 0), new Vector2(41, 32), new Vector2(292, 43));
+        Hud.At(energyDots, new Vector2(0.5f, 0), Vector2.zero, new Vector2(cw, 9));
+
+        // The pace (the web's .confirm-pill): a white pill at the bottom left (16 px in from the page's padding, 8 on a
+        // phone), 3 px round its buttons, the mode chosen a dark pill in it.
+        var names = new[] { "Normal", "Auto", "Skip" };
+        float font = l.Phone ? 8 : 9.28f, spacing = l.Phone ? 10 : 14, padX = l.Phone ? 8 : 12, padY = l.Phone ? 5 : 6;
+        float bh = font * 1.2f + 2 * padY;
+        var widths = names.Select(n => Hud.Wide(n.ToUpperInvariant(), font, 400, spacing, padX)).ToArray();
+        float pw = widths.Sum() + 2 * 2 + 2 * 3;
+        float inX = l.PadL + (l.Phone ? 8 : 16), inY = l.PadB + (l.Phone ? 8 : 16);
+        var pace = Hud.Box(chrome, "Pace", new Color(1, 1, 1, 0.92f), (bh + 6) / 2);
+        Hud.Shadow(pace, (bh + 6) / 2, new Hud.Drop(Hud.Rgba(70, 76, 100, 0.14f), 4, 14));
+        Hud.At((RectTransform)pace.transform, new Vector2(0, 0), new Vector2(inX, inY), new Vector2(pw, bh + 6));
         var edge = Hud.Rect(pace.transform, "Ring");
         Hud.Fill(edge);
-        edge.offsetMin = new Vector2(-1.5f, -1.5f);
-        edge.offsetMax = new Vector2(1.5f, 1.5f);
+        edge.offsetMin = new Vector2(-1, -1);
+        edge.offsetMax = new Vector2(1, 1);
         edge.SetAsFirstSibling();
         var ei = edge.gameObject.AddComponent<Image>();
         ei.sprite = Hud.Rounded;
         ei.type = Image.Type.Sliced;
         ei.color = new Color(120 / 255f, 126 / 255f, 150 / 255f, 0.22f);
-        Corners(ei, 23);
-        var names = new[] { "Normal", "Auto", "Skip" };
-        float[] xs = { 4, 120, 209 }, ws = { 114, 86, 78 };
+        Corners(ei, (bh + 8) / 2);
         paceOn = new Image[3];
+        float x = 3;
         for (int i = 0; i < 3; i++)
         {
             var seg = Hud.Rect(pace.transform, names[i]);
-            Hud.At(seg, new Vector2(0, 0.5f), new Vector2(xs[i], 0), new Vector2(ws[i], 34));
+            Hud.At(seg, new Vector2(0, 0.5f), new Vector2(x, 0), new Vector2(widths[i], bh));
+            x += widths[i] + 2;
             var on = seg.gameObject.AddComponent<Image>();
             on.sprite = Hud.Rounded;
             on.type = Image.Type.Sliced;
             on.color = i == 0 ? Look.Ink : new Color(1, 1, 1, 0);
-            Corners(on, 17);
+            Corners(on, bh / 2);
             paceOn[i] = on;
-            Hud.Label(seg, names[i].ToUpperInvariant(), 13.5f, i == 0 ? Color.white : Look.InkSoft, true, 400, 14);
+            Hud.Label(seg, names[i].ToUpperInvariant(), font, i == 0 ? Color.white : Look.InkSoft, true, 400, spacing);
         }
-        // The corner buttons (the web's .icon-btn, round, 64 px): the log, fullscreen, settings.
+
+        // The corner buttons (the web's .hud .icon-btn, round, clamp(36px, 8vh, 44px), 6 px apart, at the page's top
+        // right padding): the log, fullscreen, settings.
+        float b = Css.Clamp(36, 8 * l.Vh, 44);
         string[] icons = { "log", "fullscreen", "settings" };
         for (int i = 0; i < 3; i++)
         {
-            var b = Hud.Glass(root, "Corner " + icons[i], Look.GlassStrong);
-            b.sprite = Hud.Circle;
-            b.type = Image.Type.Simple;
-            Hud.At((RectTransform)b.transform, new Vector2(1, 1), new Vector2(-17 - (2 - i) * 72.5f, -9), new Vector2(64, 64));
-            var btn = b.gameObject.AddComponent<Button>();
+            var bi = Hud.Box(chrome, "Corner " + icons[i], Look.GlassStrong, b / 2);
+            bi.raycastTarget = true;
+            Hud.Shadow(bi, b / 2, new Hud.Drop(Hud.Rgba(90, 90, 110, 0.12f), 2, 10));
+            Hud.At((RectTransform)bi.transform, new Vector2(1, 1), new Vector2(-l.PadR - (2 - i) * (b + 6), -l.PadT), new Vector2(b, b));
+            var btn = bi.gameObject.AddComponent<Button>();
             if (i == 2) btn.onClick.AddListener(() => { Sound.Play("click"); Settings(); });
             if (i == 1) btn.onClick.AddListener(() => Screen.fullScreen = !Screen.fullScreen);
-            var ic = Hud.Rect(b.transform, "Icon");
-            Hud.At(ic, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64, 64));
+            var ic = Hud.Rect(bi.transform, "Icon");
+            Hud.At(ic, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(b, b));
             var raw = ic.gameObject.AddComponent<RawImage>();
             raw.texture = Resources.Load<Texture2D>("Icons/hud-" + icons[i]);
             raw.raycastTarget = false;
         }
-        // A word when something can't be done (the web's .toast): a small white pill at the top, in soft ink.
-        var t = Hud.Glass(root, "Toast", new Color(1, 1, 1, 0.9f), false);
-        Corners(t, 17);
-        Hud.At((RectTransform)t.transform, new Vector2(0.5f, 1), new Vector2(0, -20), new Vector2(300, 43));
-        toast = Hud.Label(t.transform, "", 17.2f, Look.InkSoft, false, 400, 0);
-        toast.margin = new Vector4(23, 0, 23, 0);
-        toast.gameObject.SetActive(false);
+
+        // A word when something can't be done (the web's .toast): a small white slip 8 px under the page's top padding,
+        // centred, at most min(440px, 100vw − 32px) wide, padded 7 × 16 px, corners of 12, its words 0.74rem soft ink.
+        string said = toast != null ? toast.text : "";
+        // (Its faint 1 px ring the slip itself, its white face inset in it.)
+        var t = Hud.Box(chrome, "Toast", Hud.Rgba(58, 66, 86, 0.1f), 13);
+        Hud.At((RectTransform)t.transform, new Vector2(0.5f, 1), new Vector2(0, -(l.PadT + 8)), new Vector2(300, 30));
+        var slip = Hud.Box(t.transform, "Face", new Color(1, 1, 1, 0.9f), 12);
+        Hud.Fill(slip.rectTransform);
+        slip.rectTransform.offsetMin = new Vector2(1, 1);
+        slip.rectTransform.offsetMax = new Vector2(-1, -1);
+        toast = Hud.Label(t.transform, said, 11.84f, Look.InkSoft, false, 400, 0);
+        toast.margin = new Vector4(16, 0, 16, 0);
+        toast.gameObject.SetActive(Time.time < toastUntil);
         t.gameObject.AddComponent<ToastHide>().Text = toast;
         foreach (var img in t.GetComponentsInChildren<Image>(true)) img.enabled = false;
-
-        inspector = Hud.Rect(root, "Inspector");
-        Hud.Fill(inspector);
-        inspector.gameObject.SetActive(false);
-        // (What the board waits on you for lies in the board's middle, over the flower: the web's .mid-hint.)
-        hint = Hud.Rect(root, "Dawn hint");
-        Hud.At(hint, new Vector2(0.5f, 1), new Vector2(0, -396), new Vector2(1000, 0));
-        hint.gameObject.SetActive(false);
-        reactionPanel = Hud.Rect(root, "Reaction");
-        heroPanel = Hud.Rect(root, "Hero");
-        overPanel = Hud.Rect(root, "Over");
-        foreach (var p in new[] { reactionPanel, heroPanel, overPanel }) p.gameObject.SetActive(false);
+        if (said != "") Say(said, false);
+        else toast.text = "";
+        hint.SetAsLastSibling();
+        refLayer.SetAsLastSibling();
+        if (state != null) Usable(endDay, MyDay);
     }
 
     /// <summary>
-    /// The rival's hand (app.ts renderRivalHand, styles.css .rival-hand): a card's back for each card they hold, 93 px
-    /// wide, hanging half off the top of the screen in a fan (each 58 px from the next, turned 4° about a point well
-    /// above the screen), white-edged with a soft shadow.
+    /// The rival's hand (app.ts renderRivalHand, styles.css .rival-hand): a card's back for each card they hold,
+    /// clamp(40px, 4.3vw, 64px) wide, hanging half off the top of the screen in a fan (each 62% of a card from the next,
+    /// turned 4° about a point well above the screen), white-edged with a soft shadow.
     /// </summary>
     void RivalHand()
     {
         foreach (Transform c in rivalHand) Mats.Kill(c.gameObject);
         var rival = Rival;
         int n = rival != null && !rival.Eliminated ? rival.Hand.Count : 0;
-        const float w = 92.8f, h = 129.9f;
+        float w = BoardLayout.Current.RivalBack, h = w * 1.4f;
         var back = Resources.Load<Texture2D>("Board/back");
         for (int i = 0; i < n; i++)
         {
@@ -970,15 +1085,16 @@ public partial class BattleView : MonoBehaviour
             // (Pivoted 2.6 card heights above its top edge, as the web's transform-origin: 50% -260%.)
             card.pivot = new Vector2(0.5f, 3.6f);
             card.sizeDelta = new Vector2(w, h);
-            card.anchoredPosition = new Vector2(o * 57.54f, (0.54f + 2.6f) * h);
+            card.anchoredPosition = new Vector2(o * w * 0.62f, (0.54f + 2.6f) * h);
             card.localRotation = Quaternion.Euler(0, 0, 4 * o);
             var shadow = Hud.Rect(card, "Shadow");
             Hud.Fill(shadow);
-            shadow.offsetMin = new Vector2(-14, -18);
-            shadow.offsetMax = new Vector2(14, 10);
+            shadow.offsetMin = new Vector2(-w * 0.15f, -w * 0.19f);
+            shadow.offsetMax = new Vector2(w * 0.15f, w * 0.11f);
             var si = shadow.gameObject.AddComponent<Image>();
             si.sprite = Hud.Soft;
             si.type = Image.Type.Sliced;
+            si.pixelsPerUnitMultiplier = 14.4f / 10;
             si.color = new Color(50 / 255f, 56 / 255f, 80 / 255f, 0.3f);
             si.raycastTarget = false;
             var edge = Hud.Rect(card, "Edge");
@@ -988,31 +1104,47 @@ public partial class BattleView : MonoBehaviour
             ei.type = Image.Type.Sliced;
             ei.color = Color.white;
             ei.raycastTarget = false;
-            Corners(ei, 9.3f);
+            Corners(ei, w * 0.1f);
             var clip = Hud.Rect(card, "Clip");
             Hud.Fill(clip);
-            clip.offsetMin = new Vector2(2.2f, 2.2f);
-            clip.offsetMax = new Vector2(-2.2f, -2.2f);
+            clip.offsetMin = new Vector2(1.5f, 1.5f);
+            clip.offsetMax = new Vector2(-1.5f, -1.5f);
             var ci = clip.gameObject.AddComponent<Image>();
             ci.sprite = Hud.Rounded;
             ci.type = Image.Type.Sliced;
             ci.raycastTarget = false;
-            Corners(ci, 7.1f);
+            Corners(ci, w * 0.1f - 1.5f);
             clip.gameObject.AddComponent<Mask>().showMaskGraphic = false;
             var face = Hud.Rect(clip, "Face");
             Hud.Fill(face);
             // (The baked back has its own pale corners: drawn a little larger, so they fall outside the clip.)
-            face.offsetMin = new Vector2(-2, -2);
-            face.offsetMax = new Vector2(2, 2);
+            face.offsetMin = new Vector2(-1.4f, -1.4f);
+            face.offsetMax = new Vector2(1.4f, 1.4f);
             var raw = face.gameObject.AddComponent<RawImage>();
             raw.texture = back;
             raw.raycastTarget = false;
         }
     }
 
+    /// <summary>
+    /// A part of the overlays' layer for something that must be seen whole (`need` of the layer's units across and
+    /// down): as large as the layer, drawn smaller on a screen too small for it.
+    /// </summary>
+    RectTransform Whole(RectTransform parent, Vector2 need)
+    {
+        var size = refLayer.sizeDelta;
+        float k = Mathf.Min(1, Mathf.Min(size.x / need.x, size.y / need.y));
+        var r = Hud.Rect(parent, "Whole");
+        r.anchorMin = r.anchorMax = r.pivot = new Vector2(0.5f, 0.5f);
+        r.sizeDelta = size / k;
+        r.localScale = Vector3.one * k;
+        return r;
+    }
+
     void Refresh()
     {
         if (state == null) return;
+        FitScreen();
         Phase = Dawn != null ? "dawn" : "day";
         Persist();
         Board.Sync(state, this);
@@ -1033,17 +1165,19 @@ public partial class BattleView : MonoBehaviour
             Color fill = !on ? new Color(1, 1, 1, 0.7f) : !myTurn ? new Color(226 / 255f, 176 / 255f, 74 / 255f) : bonus ? new Color(242 / 255f, 181 / 255f, 68 / 255f) : new Color(124 / 255f, 199 / 255f, 154 / 255f);
             Color ring = !myTurn ? new Color(212 / 255f, 149 / 255f, 42 / 255f) : bonus ? (on ? new Color(212 / 255f, 149 / 255f, 42 / 255f) : new Color(224 / 255f, 178 / 255f, 90 / 255f)) : on ? new Color(95 / 255f, 181 / 255f, 130 / 255f) : new Color(185 / 255f, 194 / 255f, 207 / 255f);
             var d = Hud.Rect(energyDots, "Pip");
-            Hud.At(d, new Vector2(0.5f, 0.5f), new Vector2((i - (total - 1) / 2f) * 18.85f, 0), new Vector2(13, 13));
+            // (Each 9 px, 4 apart, a 1 px ring.)
+            Hud.At(d, new Vector2(0.5f, 0.5f), new Vector2((i - (total - 1) / 2f) * 13, 0), new Vector2(9, 9));
             if (on)
             {
                 // (Lit, it glows.)
                 var glow = Hud.Rect(d, "Glow");
                 Hud.Fill(glow);
-                glow.offsetMin = new Vector2(-8, -8);
-                glow.offsetMax = new Vector2(8, 8);
+                glow.offsetMin = new Vector2(-6, -6);
+                glow.offsetMax = new Vector2(6, 6);
                 var gi = glow.gameObject.AddComponent<Image>();
                 gi.sprite = Hud.Soft;
                 gi.type = Image.Type.Sliced;
+                gi.pixelsPerUnitMultiplier = 14.4f / 6;
                 gi.color = new Color(fill.r, fill.g, fill.b, 0.5f);
                 gi.raycastTarget = false;
             }
@@ -1055,8 +1189,8 @@ public partial class BattleView : MonoBehaviour
             ei.raycastTarget = false;
             var core = Hud.Rect(d, "Core");
             Hud.Fill(core);
-            core.offsetMin = new Vector2(1.45f, 1.45f);
-            core.offsetMax = new Vector2(-1.45f, -1.45f);
+            core.offsetMin = new Vector2(1, 1);
+            core.offsetMax = new Vector2(-1, -1);
             var ci = core.gameObject.AddComponent<Image>();
             ci.sprite = Hud.Circle;
             ci.color = on ? fill : Color.white;

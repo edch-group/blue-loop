@@ -88,7 +88,7 @@ public partial class BattleView
         if (tour != null) Mats.Kill(tour.gameObject);
         tour = null;
         if (at >= steps.Count) return;
-        tour = Hud.Rect(hud.transform, "Oriel");
+        tour = Hud.Rect(Layer, "Oriel");
         Hud.Fill(tour);
         var (text, light) = steps[at];
         // What he speaks of, ringed.
@@ -138,8 +138,11 @@ public partial class BattleView
         if (target != null)
         {
             var r = target.Value;
-            bool below = r.center.y > -150;
-            pos = new Vector2(Mathf.Clamp(r.center.x, -800 + bs.x / 2 + 20, 800 - bs.x / 2 - 20), below ? r.yMin - 24 - bs.y / 2 : r.yMax + 24 + bs.y / 2);
+            // (Within the screen, whatever its size: the layer is as large as the page.)
+            var room = refLayer.rect.size / 2;
+            bool below = r.center.y > -0.3f * room.y;
+            pos = new Vector2(Mathf.Clamp(r.center.x, -room.x + bs.x / 2 + 20, room.x - bs.x / 2 - 20), below ? r.yMin - 24 - bs.y / 2 : r.yMax + 24 + bs.y / 2);
+            pos.y = Mathf.Clamp(pos.y, -room.y + bs.y / 2 + 10, room.y - bs.y / 2 - 90);
         }
         Hud.At(br, new Vector2(0.5f, 0.5f), pos, bs);
         var face = Hud.Rect(br, "Oriel");
@@ -154,7 +157,7 @@ public partial class BattleView
     /// <summary>Where on the canvas a lesson's light falls (the web's selector for it), if it is on show.</summary>
     Rect? LightRect(string sel)
     {
-        var canvas = (RectTransform)hud.transform;
+        var canvas = refLayer;
         Rect? FromWorld(Vector3 centre, Vector3 half)
         {
             var pts = new List<Vector2>();
@@ -186,14 +189,22 @@ public partial class BattleView
             return FromWorld(v.transform.position, new Vector3(0.5f, 0, 0.7f));
         }
         string id = sel.Contains("data-card=\"") ? sel.Split(new[] { "data-card=\"" }, System.StringSplitOptions.None)[1].Split('"')[0] : null;
-        if (sel.StartsWith(".tableau-rival .vitals")) return FromWorld(Board.RivalSun, new Vector3(1, 0, 1));
-        if (sel.StartsWith(".tableau-mine .vitals")) return FromWorld(Board.MySun, new Vector3(1, 0, 1));
+        // (A sun's place as large as it is drawn; the rival's row its five slots.)
+        var sunHalf = new Vector3(1, 0, 1) * Board.SunScale;
+        if (sel.StartsWith(".tableau-rival .vitals")) return FromWorld(Board.RivalSun, sunHalf);
+        if (sel.StartsWith(".tableau-mine .vitals")) return FromWorld(Board.MySun, sunHalf);
         if (sel.StartsWith(".tableau-mine .slot-ls")) return FromWorld(Board.MyTrap, new Vector3(0.5f, 0, 0.7f));
-        if (sel.StartsWith(".tableau-rival .tableau-row")) return FromWorld(new Vector3(0.59f, 0, Board.RowZ), new Vector3(3.2f, 0, 0.75f));
+        if (sel.StartsWith(".tableau-rival .tableau-row")) return FromWorld(new Vector3(Board.Pitch / 2, 0, Board.RowZ), new Vector3(2 * Board.Pitch + 0.75f, 0, 0.75f));
         if (id != null && sel.StartsWith(".tableau-mine")) return Card(Me, id, false);
         if (id != null && sel.StartsWith(".tableau-rival")) return Card(Rival, id, false);
         if (id != null && sel.StartsWith(".hand")) return Card(Me, id, true);
-        if (sel.StartsWith(".hand")) return new Rect(-330, -500, 660, 230);
+        if (sel.StartsWith(".hand") && Board.HandRects.Count > 0)
+        {
+            // (The hand's cards on the page, as the layer measures it: from its middle, y up.)
+            var l = BoardLayout.Current;
+            float x0 = Board.HandRects.Min(r => r.xMin), x1 = Board.HandRects.Max(r => r.xMax), y0 = Board.HandRects.Min(r => r.yMin);
+            return new Rect((x0 - l.W / 2) * RefScale, (l.H / 2 - l.H) * RefScale, (x1 - x0) * RefScale, (l.H - y0) * RefScale);
+        }
         if (sel.StartsWith(".plays")) return FromHud(energyDots);
         if (sel.StartsWith(".end-turn")) return FromHud((RectTransform)endDay.transform);
         return null;
