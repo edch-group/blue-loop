@@ -55,7 +55,6 @@ public partial class CampaignView
         string name = string.IsNullOrEmpty(Profile.Me.Name) ? "commander" : Profile.Me.Name.ToLowerInvariant();
         float whoX = (1 + 4) * Z + faceD + 8 * Z;
         var who = WebLook.Words(WebLook.Box(chip.transform, "Name", whoX, 0, 120 * Z, 12.4f * Z), name.ToUpperInvariant(), 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
-        Hud.Ellipsis(who);
         float nameW = Mathf.Min(120 * Z, who.GetPreferredValues(who.text).x);
         var lv = WebLook.Words(WebLook.Box(chip.transform, "Level", whoX + nameW + 8 * Z, 0, 80 * Z, 10.4f * Z), $"LEVEL {level.Level}", 0.56f * 16 * Z, 0.14f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
         float whoW = Mathf.Max(whoMin, nameW + 8 * Z + lv.GetPreferredValues(lv.text).x);
@@ -63,9 +62,14 @@ public partial class CampaignView
         WebLook.Box(chip.rectTransform, x0, y0 + (rowH - pillH) / 2, pillW, pillH);
         WebLook.Shadow(chip, 8 * Z, 30 * Z, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.13f), pillH / 2);
         // (The name over the bar, 3 between: the two in the pill's middle.)
-        float whoH = 12.4f * Z + 3 * Z + 4 * Z, whoY = (pillH - whoH) / 2;
-        WebLook.Box(who.rectTransform, whoX, whoY, 120 * Z, 12.4f * Z);
-        WebLook.Box(lv.rectTransform, whoX + nameW + 8 * Z, whoY + 1.4f * Z, 80 * Z, 10.4f * Z);
+        // (The name's line 14 high, the level's 11 on its baseline; the level at its column's end (justify-self: end), so
+        // a short name leaves it at the right of the min-width.)
+        float whoH = 14 * Z + 3 * Z + 4 * Z, whoY = (pillH - whoH) / 2, lvW = lv.GetPreferredValues(lv.text).x + 0.14f * 0.56f * 16 * Z;
+        // (Its box placed, not the words filling it: placing those again in the pill's own measures put them twice as far in.)
+        WebLook.Box((RectTransform)who.transform.parent, whoX, whoY, 120 * Z, 14 * Z);
+        // (Cut short with an ellipsis past 120 across: set once its box is where it stays, as Hud.Ellipsis gives it room.)
+        Hud.Ellipsis(who);
+        WebLook.Box((RectTransform)lv.transform.parent, whoX + whoW - lvW, whoY + 2 * Z, lvW + 4, 11 * Z);
         Face(chip.transform, me.Hero ?? Campaign.Flagship(state, state.PlayerId)?.General, 5 * Z + faceD / 2, pillH / 2, faceD, new Color32(0x1a, 0x1c, 0x2a, 255), (2 * Z, Color.white), (3 * Z, new Color(201 / 255f, 162 / 255f, 78 / 255f, 0.7f)));
         var bar = WebLook.Rounded(chip.transform, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.25f), 2 * Z);
         WebLook.Box(bar.rectTransform, whoX, whoY + whoH - 4 * Z, whoW, 4 * Z);
@@ -111,6 +115,22 @@ public partial class CampaignView
             float w = counts[i].GetPreferredValues(n).x;
             WebLook.Box((RectTransform)counts[i].transform, x, mid - fs * 0.75f, w + 4, fs * 1.5f);
             x += w + gap;
+        }
+        // Your emblems (campaign.ts renderRelics, .cmp-relics): a column of badges 40 across, 10 apart, down the right of
+        // the screen 16 in from its padding (and 4 more), centred on its height; each softly shadowed, bobbing 2 up and
+        // down (cmp-token-float, 5s, every other half a beat behind). (Under the purse: it comes and goes with it.)
+        var relics = me.Relics ?? new List<Relic>();
+        float rd = 40 * Z, rgap = 10 * Z, colH = relics.Count * rd + Mathf.Max(0, relics.Count - 1) * rgap;
+        for (int i = 0; i < relics.Count; i++)
+        {
+            var badge = WebLook.Box(purse, "Relic", PW - pad.y - 16 * Z - 4 * Z - rd, PH / 2 - colH / 2 + i * (rd + rgap), rd, rd).gameObject.AddComponent<RawImage>();
+            badge.texture = RelicArt(relics[i]);
+            badge.raycastTarget = false;
+            WebLook.Shadow(badge, 3 * Z, 8 * Z, new Color(30 / 255f, 34 / 255f, 50 / 255f, 0.3f), rd / 2);
+            var bob = badge.gameObject.AddComponent<Bob>();
+            bob.Height = 2 * Z;
+            bob.Period = 5;
+            bob.Delay = i % 2 == 1 ? -2.5f : 0;
         }
         // Settings (.icon-btn): a white disc, its gear, at the bar's right.
         var gear = WebLook.Rounded(top, "Settings", Look.GlassStrong, 999);
@@ -174,15 +194,17 @@ public partial class CampaignView
         float textW = bw - 2 * 12 * Z - 34 * Z - 30 * Z - 2 * 12 * Z;
         var words = WebLook.Words(Hud.Fill(Hud.Rect(bubble.transform, "Words")), line.Text, 0.8f * 16 * Z, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
         words.textWrappingMode = TextWrappingModes.Normal;
-        float textH = words.GetPreferredValues(line.Text, textW, 0).y;
-        float bodyH = 16 + 2 * Z + textH;
+        // (.cmp-guide-text: line-height 1.4; the speaker's name over it 11 high (0.54rem Orbitron), 2 between.)
+        words.lineSpacing = (1.4f - 1.26f) * 100 / 1.26f;
+        float textH = words.GetPreferredValues(line.Text, textW, 0).y, whoH = 11 * Z;
+        float bodyH = whoH + 2 * Z + textH;
         float h = Mathf.Max(34 * Z, bodyH) + 2 * 10 * Z;
         WebLook.Box(bubble.rectTransform, x0, y0, bw, h);
         WebLook.Shadow(bubble, 8 * Z, 24 * Z, new Color(40 / 255f, 46 / 255f, 70 / 255f, 0.12f), 18 * Z);
         Face(bubble.transform, sp?.Card, 12 * Z + 17 * Z, h / 2, 34 * Z, WebLook.Hex("#1a1f2a"), (2 * Z, ring));
         float left = 12 * Z + 34 * Z + 12 * Z, top0 = (h - bodyH) / 2;
-        WebLook.Words(WebLook.Box(bubble.transform, "Who", left, top0, textW, 16), who.ToUpperInvariant(), 0.54f * 16 * Z, 0.14f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
-        WebLook.Box(words.rectTransform, left, top0 + 16 + 2 * Z, textW, textH + 4);
+        WebLook.Words(WebLook.Box(bubble.transform, "Who", left, top0, textW, whoH), who.ToUpperInvariant(), 0.54f * 16 * Z, 0.14f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
+        WebLook.Box(words.rectTransform, left, top0 + whoH + 2 * Z, textW, textH + 4);
         var next = WebLook.Rounded(bubble.transform, "Next", WebLook.Hex("#f3f2f8"), 999);
         next.raycastTarget = true;
         var nr = next.rectTransform;
@@ -190,6 +212,16 @@ public partial class CampaignView
         nr.anchoredPosition = new Vector2(-12 * Z, 0);
         nr.sizeDelta = new Vector2(30 * Z, 30 * Z);
         WebLook.Words(nr, "×", 1.05f * 16 * Z, 0, Look.Ink, false, 400);
+        // (cmp-guide-in: from 6 above and unseen, 0.28s, eased out; a new run's first words wait for the flagship to fly
+        // in (cmp-guide-arrive: 0.5s, 2.9s on; through the opening shot 0.9s on). Timed from when this line first showed.)
+        string key = $"guide:{scene.Id}:{Shown(scene).Count}:{line.Text}";
+        if (key != guideKey)
+        {
+            guideKey = key;
+            guideAt = Time.time;
+        }
+        bool arrive = scene.Id == "intro" && fresh;
+        RiseIn.On(bubble.rectTransform, guideAt, arrive ? (Cining ? 0.9f : 2.9f) : 0, arrive ? 0.5f : 0.28f, -6, true);
         next.gameObject.AddComponent<Button>().onClick.AddListener(() =>
         {
             Sound.Play("hover");
@@ -199,6 +231,10 @@ public partial class CampaignView
             Refresh();
         });
     }
+
+    /// <summary>The guide's line showing, and since when (so a redraw carries its coming in on).</summary>
+    string guideKey;
+    float guideAt;
 
     // ---- Over the map: whatever waits on you ----
 
@@ -271,8 +307,9 @@ public partial class CampaignView
         wash.offsetMin = new Vector2(-4000, -4000);
         wash.offsetMax = new Vector2(4000, 4000);
         var i = wash.gameObject.AddComponent<Image>();
-        // (No blur here: a touch more of the wash in its place.)
-        i.color = soft ? new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.62f) : new Color(240 / 255f, 240 / 255f, 238 / 255f, 0.72f);
+        // (No blur here: more of the wash in its place, as much as the web's wash and blur together leave of the map's
+        // lines (measured: about a fifth of them showing through).)
+        i.color = soft ? new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.82f) : new Color(240 / 255f, 240 / 255f, 238 / 255f, 0.85f);
         return v;
     }
 
@@ -423,6 +460,12 @@ public partial class CampaignView
                 WebLook.Words(WebLook.Box(r.transform, "Note", 16 * Z, top + lh + 3 * Z, w - 80 * Z, nh), row.Note, fs, 0.02f, Look.InkFaint, false, row.Go ? 600 : 400, TextAlignmentOptions.Left);
             }
             else label.margin = new Vector4(16 * Z, 0, 60 * Z, 0);
+            if (row.Label.Contains("⬢"))
+            {
+                // (Materials in its words: their mark, as the web's choiceRow carries it.)
+                label.text = row.Label.ToUpperInvariant().Replace("⬢", InlineMark("materials"));
+                RuleMarks(label, label.text, fs);
+            }
             if (row.Value != null)
             {
                 // (.opt-value: a grey pill, its value in spaced capitals.)
@@ -468,6 +511,7 @@ public partial class CampaignView
         Hud.Fill(face);
         var raw = face.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(id, false);
+        StationKit.Printed(face, id, w);
         var b = r.gameObject.AddComponent<Button>();
         b.targetGraphic = raw;
         if (act != null) b.onClick.AddListener(() => act());
@@ -513,11 +557,11 @@ public partial class CampaignView
         float y = Middle(total), mid = PW / 2;
         var title = WebLook.Words(WebLook.Box(v, "Title", 0, y, PW, h2), "YOU ARE DEAD", h2s, 0.32f, Look.Ink, true, 400);
         title.margin = new Vector4(0, 0, 0.32f * h2s, 0);
-        RiseIn.On(title.rectTransform, t0, 0);
+        RiseIn.On(title.rectTransform, t0, 0, 1.4f);
         y += h2 + gap;
         var said = WebLook.Words(WebLook.Box(v, "Said", 0, y, PW, p), "The others will follow, soon enough…", ps, 0, Look.InkSoft, false, 400);
         said.fontStyle = FontStyles.Italic;
-        RiseIn.On(said.rectTransform, t0, 0.6f);
+        RiseIn.On(said.rectTransform, t0, 0.6f, 1.4f);
         y += p + gap;
         // (+ its petals, the petal after: 1.1rem, the petal 20 across, 6 between.)
         var petals = WebLook.Words(Hud.Fill(Hud.Rect(v, "Petals")), $"+ {state.Petals}", 1.1f * 16 * Z, 0.08f, Look.Ink, true, 400, TextAlignmentOptions.Left);
@@ -528,7 +572,7 @@ public partial class CampaignView
         var mark = WebLook.Centred(pr, "Petal", pw + 6 * Z + pet / 2, pet / 2, pet, pet).gameObject.AddComponent<RawImage>();
         mark.texture = Resources.Load<Texture2D>("Icons/purse-petal");
         mark.raycastTarget = false;
-        RiseIn.On(pr, t0, 1.3f);
+        RiseIn.On(pr, t0, 1.3f, 1);
         y += pet;
         if (n > 0)
         {
@@ -545,12 +589,12 @@ public partial class CampaignView
                 float x0 = 6 * Z + (rw - (inRow * cw + (inRow - 1) * cg)) / 2;
                 CardPick(cards, id, new Vector2(x0 + (i % cols) * (cw + cg), -(6 * Z + row * (cw * 1.4f + cg))), cw, keepPick == id, () => { Sound.Play("hover"); keepPick = keepPick == id ? null : id; Refresh(); }, new Vector2(0, 1));
             }
-            RiseIn.On(keep, t0, 1.6f);
+            RiseIn.On(keep, t0, 1.6f, 1);
             y += keepH;
         }
         y += gap + 10 * Z;
         var exit = WebButton(v, keepPick != null ? $"keep {Cards.Def(keepPick).Name.ToLowerInvariant()} · exit" : "exit", NewRunFromHere, true, mid, y);
-        RiseIn.On((RectTransform)exit.transform, t0, 1.8f);
+        RiseIn.On((RectTransform)exit.transform, t0, 1.8f, 0.8f);
     }
 
     /// <summary>The run over: the card picked to keep goes with the account into the next run; off to the campaign's menu.</summary>
@@ -602,12 +646,16 @@ public partial class CampaignView
             return;
         }
         float t0 = RevealFrom("loot open");
+        // (Burst open: a white flash swelling from the middle of the screen, rays turning out through it.)
+        Burst.On(v, t0);
+        // (Each reward a tile, and how many tiles across it is: an emblem's 1.5 (.loot-emblem), the rest 1.)
         var tiles = new List<System.Action<RectTransform, float>>();
-        if (l.Materials > 0) tiles.Add((r, w) => LootToken(r, "loot-materials", $"+{l.Materials}", w));
-        if (l.Petals > 0) tiles.Add((r, w) => LootToken(r, "loot-petal", $"+{l.Petals}", w));
-        foreach (var rel in l.Relics ?? new List<Relic>()) tiles.Add((r, w) => Token(r, "✧", rel.Name.ToLowerInvariant(), Heroes.RelicText(rel)));
-        foreach (var id in l.Cards ?? new List<string>()) tiles.Add((r, w) => { LootGlow(r, w, w * 1.4f, w * 1.2f); CardPick(r, id, Vector2.zero, w, false, null); });
-        foreach (var id in l.Parts ?? new List<string>()) tiles.Add((r, w) => LootPart(r, id, w));
+        var wide = new List<float>();
+        if (l.Materials > 0) { tiles.Add((r, w) => LootToken(r, "loot-materials", $"+{l.Materials}", w)); wide.Add(1); }
+        if (l.Petals > 0) { tiles.Add((r, w) => LootToken(r, "loot-petal", $"+{l.Petals}", w)); wide.Add(1); }
+        foreach (var rel in l.Relics ?? new List<Relic>()) { tiles.Add((r, w) => RelicTile(r, rel, w)); wide.Add(1.5f); }
+        foreach (var id in l.Cards ?? new List<string>()) { tiles.Add((r, w) => { LootGlow(r, w, w * 1.4f, w * 1.2f); CardPick(r, id, Vector2.zero, w, false, null); }); wide.Add(1); }
+        foreach (var id in l.Parts ?? new List<string>()) { tiles.Add((r, w) => LootPart(r, id, w)); wide.Add(1); }
         int count = tiles.Count, split = count > 3 ? (count + 1) / 2 : count;
         int rows = count > split ? 2 : 1, cols = split;
         // (.loot-items: --gap clamp(14, 3vw, 34); each tile min(112, what fits the columns across 92vw, what fits the rows
@@ -626,18 +674,22 @@ public partial class CampaignView
         int first = l.Xp > 0 ? 1 : 0;
         for (int i = 0; i < count; i++)
         {
-            int row = i < split ? 0 : 1, j = row == 0 ? i : i - split, n = row == 0 ? split : count - split;
+            int row = i < split ? 0 : 1, j = row == 0 ? i : i - split, n = row == 0 ? split : count - split, from = row == 0 ? 0 : split;
             float at = j - (n - 1) / 2f;
-            float cx = mid + at * (lw + gap) + (row == 1 ? lw * 0.3f : 0);
+            // (Its row's tiles side by side, gap apart, the row centred: each as wide as it is.)
+            float rowW = 0, before = 0;
+            for (int k = from; k < from + n; k++) rowW += wide[k] * lw + (k > from ? gap : 0);
+            for (int k = from; k < i; k++) before += wide[k] * lw + gap;
+            float cx = mid - rowW / 2 + before + wide[i] * lw / 2 + (row == 1 ? lw * 0.3f : 0);
             float cy = y + row * (lh + gap) + lh / 2 + at * at * 7 * Z;
-            var slot = WebLook.Centred(v, "Reward", cx, cy, lw, lh);
+            var slot = WebLook.Centred(v, "Reward", cx, cy, wide[i] * lw, lh);
             slot.localRotation = Quaternion.Euler(0, 0, -((i % 2 == 1 ? 1 : -1) * (2 + i % 3)));
             tiles[i](slot, lw);
-            RiseIn.On(slot, t0, 0.45f + (i + first) * 0.42f);
+            LootIn.On(slot, t0, 0.45f + (i + first) * 0.42f);
         }
         y += itemsH - padY + 4 * Z + 6 * Z;
         var ok = WebButton(v, "take it", () => { lootOpen = false; Act(new CampaignAction { Type = "dismissLoot" }, "buy"); }, true, mid, y);
-        RiseIn.On((RectTransform)ok.transform, t0, 0.45f + (count + first) * 0.42f + 0.2f);
+        LootIn.On((RectTransform)ok.transform, t0, 0.45f + (count + first) * 0.42f + 0.2f, true);
     }
 
     /// <summary>The experience a loot brought (campaign.ts xpGauge): LEVEL and the level, its bar filling in gold, +XP.</summary>
@@ -663,7 +715,7 @@ public partial class CampaignView
             WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f6dc94"), true);
         }
         WebLook.Box(gain.rectTransform, x + w - gw, 0, gw + 4, 33);
-        RiseIn.On(g, t0, 0.45f);
+        LootIn.On(g, t0, 0.45f);
     }
 
     /// <summary>Materials or petals: their token on its glow and rays (baked from the page), the number under it.</summary>
@@ -718,6 +770,187 @@ public partial class CampaignView
         return cacheHalo;
     }
 
+    /// <summary>
+    /// A reward coming out of the cache (styles.css loot-in): from 18 lower, at 0.6 its size and unseen, springing to its
+    /// place over 0.55s on cubic-bezier(.2, 1.4, .4, 1), `delay` after `start`; the take button (`plain`) over 0.4s, eased out.
+    /// </summary>
+    public class LootIn : MonoBehaviour
+    {
+        float from, delay;
+        bool plain;
+        Vector2 rest;
+        CanvasGroup group;
+
+        public static void On(RectTransform r, float start, float delay, bool plain = false)
+        {
+            var x = r.gameObject.AddComponent<LootIn>();
+            x.from = start;
+            x.delay = delay;
+            x.plain = plain;
+            x.rest = r.anchoredPosition;
+            x.group = r.GetComponent<CanvasGroup>();
+            if (x.group == null) x.group = r.gameObject.AddComponent<CanvasGroup>();
+            x.Apply();
+        }
+
+        void Update() => Apply();
+
+        void Apply()
+        {
+            float k = Application.isPlaying ? Mathf.Clamp01((Time.time - from - delay) / (plain ? 0.4f : 0.55f)) : 1;
+            float e = plain ? Bezier(0, 0, 0.58f, 1, k) : Bezier(0.2f, 1.4f, 0.4f, 1, k);
+            group.alpha = Mathf.Clamp01(e);
+            var r = (RectTransform)transform;
+            r.anchoredPosition = rest - new Vector2(0, 18 * Z * (1 - e));
+            r.localScale = Vector3.one * Mathf.LerpUnclamped(0.6f, 1, e);
+            if (k >= 1) enabled = false;
+        }
+    }
+
+    /// <summary>A CSS cubic-bezier timing function at `x` (its y free to overshoot).</summary>
+    static float Bezier(float x1, float y1, float x2, float y2, float x)
+    {
+        float t = x;
+        for (int i = 0; i < 10; i++)
+        {
+            float u = 1 - t;
+            float bx = 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t - x;
+            float dx = 3 * u * u * x1 + 6 * u * t * (x2 - x1) + 3 * t * t * (1 - x2);
+            if (Mathf.Abs(dx) < 1e-5f) break;
+            t = Mathf.Clamp01(t - bx / dx);
+        }
+        float v = 1 - t;
+        return 3 * v * v * t * y1 + 3 * v * t * t * y2 + t * t * t;
+    }
+
+    /// <summary>
+    /// The cache bursting open (styles.css .loot-burst): a white point in the middle of the screen (10 across, its
+    /// gradient white to a pale blue, glowing 0 0 60 30) swelling from 0.2 to 60 times its size over 0.9s on
+    /// cubic-bezier(.2, .8, .2, 1), whole for 60% of it, then gone; through it (::before, 9 times its size) rays every
+    /// 18deg turning 40deg as they grow from 0.3 to 1.4 and fade, eased out.
+    /// </summary>
+    public class Burst : MonoBehaviour
+    {
+        float from;
+        RectTransform flash, rays;
+        RawImage flashImg, raysImg;
+        static Texture2D flashTex, raysTex;
+
+        public static void On(RectTransform veil, float start)
+        {
+            if (!Application.isPlaying || Time.time - start > 0.9f) return;
+            var b = veil.gameObject.AddComponent<Burst>();
+            b.from = start;
+            b.flash = Hud.Rect(veil, "Burst");
+            b.flash.anchorMin = b.flash.anchorMax = b.flash.pivot = new Vector2(0.5f, 0.5f);
+            // (The point and its glow: 10 and 2 x (30 + 60) about it.)
+            b.flash.sizeDelta = Vector2.one * 190 * Z;
+            b.flashImg = b.flash.gameObject.AddComponent<RawImage>();
+            b.flashImg.texture = FlashTex();
+            b.flashImg.raycastTarget = false;
+            b.rays = Hud.Rect(b.flash, "Rays");
+            b.rays.anchorMin = b.rays.anchorMax = b.rays.pivot = new Vector2(0.5f, 0.5f);
+            // (inset -400% of the 10 point: 90 across, inside the flash's 190.)
+            b.rays.sizeDelta = Vector2.one * 90 * Z;
+            b.raysImg = b.rays.gameObject.AddComponent<RawImage>();
+            b.raysImg.texture = RaysTex();
+            b.raysImg.raycastTarget = false;
+            b.Update();
+        }
+
+        void Update()
+        {
+            float k = Mathf.Clamp01((Time.time - from) / 0.9f);
+            float a = k < 0.6f ? 1 : 1 - Bezier(0.2f, 0.8f, 0.2f, 1, (k - 0.6f) / 0.4f);
+            flash.localScale = Vector3.one * Mathf.Lerp(0.2f, 60, Bezier(0.2f, 0.8f, 0.2f, 1, k));
+            flashImg.color = new Color(1, 1, 1, a);
+            float r = Bezier(0, 0, 0.58f, 1, k);
+            rays.localScale = Vector3.one * Mathf.Lerp(0.3f, 1.4f, r);
+            rays.localRotation = Quaternion.Euler(0, 0, -40 * r);
+            raysImg.color = new Color(1, 1, 1, a * (1 - r));
+            if (k >= 1)
+            {
+                Destroy(flash.gameObject);
+                Destroy(this);
+            }
+        }
+
+        static Texture2D FlashTex()
+        {
+            if (flashTex != null) return flashTex;
+            const int S = 128;
+            flashTex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var pale = new Color(226 / 255f, 236 / 255f, 252 / 255f, 0.75f);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    // (In the web's pixels from the middle of its 190.)
+                    float d = new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f).magnitude / S * 190;
+                    // The glow (box-shadow 0 0 60 30 rgba(236, 243, 255, 0.7): the 10 point spread 30, blurred 60).
+                    float g = 0.7f * 0.5f * Erfc((d - 35) / 30 / 1.4142f);
+                    var c = new Color(236 / 255f, 243 / 255f, 255 / 255f, g);
+                    // The point (radial-gradient over its 10, to its corner: white, pale at 40%, gone at 70%).
+                    if (d < 5)
+                    {
+                        float f = d / 7.07f;
+                        var p = f < 0.4f ? Color.Lerp(Color.white, pale, f / 0.4f) : Color.Lerp(pale, new Color(pale.r, pale.g, pale.b, 0), (f - 0.4f) / 0.3f);
+                        if (f >= 0.7f) p = Color.clear;
+                        c = new Color(Mathf.Lerp(c.r, p.r, p.a), Mathf.Lerp(c.g, p.g, p.a), Mathf.Lerp(c.b, p.b, p.a), p.a + c.a * (1 - p.a));
+                    }
+                    flashTex.SetPixel(x, y, c);
+                }
+            flashTex.Apply();
+            return flashTex;
+        }
+
+        static float Erfc(float x)
+        {
+            // (Abramowitz and Stegun 7.1.26.)
+            float z = Mathf.Abs(x), t = 1 / (1 + 0.3275911f * z);
+            float r = t * (0.254829592f + t * (-0.284496736f + t * (1.421413741f + t * (-1.453152027f + t * 1.061405429f)))) * Mathf.Exp(-z * z);
+            return x >= 0 ? r : 2 - r;
+        }
+
+        static Texture2D RaysTex()
+        {
+            if (raysTex != null) return raysTex;
+            const int S = 256;
+            raysTex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float dx = x + 0.5f - S / 2f, dy = y + 0.5f - S / 2f;
+                    // (repeating-conic-gradient: white 0.75 for 4deg of every 18; masked by a radial-gradient to the
+                    // corner, whole to 20%, gone by 70%.)
+                    float deg = Mathf.Repeat(Mathf.Atan2(dx, dy) * Mathf.Rad2Deg, 18);
+                    float on = deg < 4 ? 0.75f : 0;
+                    float f = new Vector2(dx, dy).magnitude / (S / 2f * 1.4142f);
+                    float m = f < 0.2f ? 1 : Mathf.Clamp01(1 - (f - 0.2f) / 0.5f);
+                    raysTex.SetPixel(x, y, new Color(1, 1, 1, on * m));
+                }
+            raysTex.Apply();
+            return raysTex;
+        }
+    }
+
+    /// <summary>A token bobbing (styles.css cmp-token-float: up `Height` half way through each `Period`, eased, from `Delay`).</summary>
+    public class Bob : MonoBehaviour
+    {
+        public float Height, Period = 5, Delay;
+        Vector2 rest;
+        bool set;
+
+        void Update()
+        {
+            var r = (RectTransform)transform;
+            if (!set) { rest = r.anchoredPosition; set = true; }
+            float k = Mathf.Repeat((Time.time - Delay) / Period, 1);
+            // (ease-in-out to the top at half way and back.)
+            float e = k < 0.5f ? Mathf.SmoothStep(0, 1, k * 2) : Mathf.SmoothStep(1, 0, k * 2 - 1);
+            r.anchoredPosition = rest + new Vector2(0, Height * e);
+        }
+    }
+
     /// <summary>The sealed cache floating (styles.css loot-float: up and down over 3.2s).</summary>
     public class Float : MonoBehaviour
     {
@@ -732,16 +965,50 @@ public partial class CampaignView
         }
     }
 
-    static void Token(RectTransform r, string mark, string big, string small)
+    /// <summary>
+    /// An emblem as a reward (.loot-tile.loot-emblem, its tile `r` 1.5 tiles across): from its top, 4 in, its badge 0.54
+    /// of a tile across on its glow, then 6 apart its name in spaced bold capitals (0.62rem; on a phone 0.52rem) and what
+    /// it does (0.72rem soft ink; 0.6rem), both line-height 1.3 and wrapped to the tile. How tall it all is.
+    /// </summary>
+    static float RelicTile(RectTransform r, Relic rel, float lw)
     {
-        var m = Hud.Label(r, mark, 54, Gold, false, 400, 0, TextAlignmentOptions.Top);
-        m.margin = new Vector4(0, 30, 0, 0);
-        var b = Hud.Label(r, big.ToUpperInvariant(), 0.62f * 16 * Z, Look.Ink, true, 700, 12, TextAlignmentOptions.Top);
+        bool phone = Css.MaxHeight(560);
+        float w = 1.5f * lw, d = 0.54f * lw, y = 4 * Z;
+        var glow = WebLook.Centred(r, "Glow", w / 2, y + d / 2, d * 2.3f, d * 2.3f).gameObject.AddComponent<RawImage>();
+        glow.texture = Resources.Load<Texture2D>("Icons/loot-glow");
+        glow.raycastTarget = false;
+        // (.loot-emblem .cmp-relic: its painted badge 0.08 of a tile in from the disc's edge, the disc finished as a
+        // struck emblem; shadowed 0 3 8 rgba(30, 34, 50, 0.3).)
+        var badge = WebLook.Centred(r, "Badge", w / 2, y + d / 2, d, d).gameObject.AddComponent<RawImage>();
+        badge.texture = RelicArt(rel, true);
+        badge.raycastTarget = false;
+        WebLook.Shadow(badge, 3 * Z, 8 * Z, new Color(30 / 255f, 34 / 255f, 50 / 255f, 0.3f), d / 2);
+        y += d + 6 * Z;
+        float bs = (phone ? 0.52f : 0.62f) * 16 * Z, ss = (phone ? 0.6f : 0.72f) * 16 * Z;
+        var b = WebLook.Words(WebLook.Box(r, "Name", 0, y, w, 10), rel.Name.ToUpperInvariant(), bs, 0.12f, Look.Ink, true, 700, TextAlignmentOptions.Top);
         b.textWrappingMode = TextWrappingModes.Normal;
-        b.margin = new Vector4(8, 116, 8, 0);
-        var s = Hud.Label(r, small, 0.72f * 16 * Z, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
-        s.textWrappingMode = TextWrappingModes.Normal;
-        s.margin = new Vector4(10, 150, 10, 0);
+        b.lineSpacing = (1.3f - 1.26f) * 100 / 1.26f;
+        float bh = b.GetPreferredValues(b.text, w, 0).y;
+        b.rectTransform.sizeDelta = new Vector2(w, bh + 2);
+        y += bh + 6 * Z;
+        var t = WebLook.Words(WebLook.Box(r, "What", 0, y, w, 10), Heroes.RelicText(rel), ss, 0, Look.InkSoft, false, 400, TextAlignmentOptions.Top);
+        t.textWrappingMode = TextWrappingModes.Normal;
+        t.lineSpacing = (1.3f - 1.26f) * 100 / 1.26f;
+        float th = t.GetPreferredValues(t.text, w, 0).y;
+        t.rectTransform.sizeDelta = new Vector2(w, th + 2);
+        return y + th;
+    }
+
+    /// <summary>
+    /// A relic's badge (relic-art.ts relicMark, .cmp-relic, baked from the page): its painted badge by its base name (its
+    /// name without its quality word), or its kind's mark on dark enamel; in a loot's tile (`loot`), set in from its disc.
+    /// </summary>
+    public static Texture2D RelicArt(Relic rel, bool loot = false)
+    {
+        string name = rel?.Name ?? "";
+        string slug = System.Text.RegularExpressions.Regex.Replace(name.Substring(name.IndexOf(' ') + 1).ToLowerInvariant().Replace("'", ""), "[^a-z0-9]+", "_").Trim('_');
+        string pre = loot ? "loot-" : "";
+        return Resources.Load<Texture2D>($"Relics/{pre}{slug}") ?? Resources.Load<Texture2D>($"Relics/{pre}glyph-{rel?.Slot}") ?? Resources.Load<Texture2D>($"Relics/{pre}glyph-weapon");
     }
 
     // ---- Choices ----
@@ -803,26 +1070,42 @@ public partial class CampaignView
         });
     }
 
-    /// <summary>Aster's gift: one of the Seren's three emblems, each its mark, its name and what it does.</summary>
+    /// <summary>
+    /// Aster's gift (renderOverlay, .cmp-emblems): one of the Seren's three emblems, each a tile as a loot's emblem is
+    /// (its tile min(150, 26vw), 1.5 of it across, at least 1.4 of it tall, 6 under its words), 18 apart and centred,
+    /// padded 8 above and 4 below; the modal as wide as they need (within its 620 to 900, 94vw).
+    /// </summary>
     void Emblems()
     {
+        var list = state.EmblemChoice;
+        float lw = Mathf.Min(150 * Z, 26 * RawVw), tw = 1.5f * lw, gap = 18 * Z, rw = list.Count * tw + (list.Count - 1) * gap;
+        float padX = Css.Clamp(14 * Z, 3 * Vw, 28 * Z);
         Modal("aster’s gift · choose an emblem", body =>
         {
-            var list = state.EmblemChoice;
-            float tw = 150 * Z * 0.8f, gap = 18 * Z, bw = body.sizeDelta.x, rw = list.Count * tw + (list.Count - 1) * gap;
+            float bw = body.sizeDelta.x, h = 1.4f * lw;
+            // (Wrapping when the row is wider than the modal allows.)
+            int per = Mathf.Max(1, Mathf.Min(list.Count, Mathf.FloorToInt((bw + gap) / (tw + gap))));
+            var tiles = new List<RectTransform>();
             for (int i = 0; i < list.Count; i++)
             {
                 int index = i;
                 var rel = list[i];
-                var r = WebLook.Box(body, rel.Name, (bw - rw) / 2 + i * (tw + gap), 8 * Z, tw, 240);
+                var r = WebLook.Box(body, rel.Name, 0, 0, tw, h);
                 var hit = r.gameObject.AddComponent<Image>();
                 hit.color = new Color(1, 1, 1, 0);
-                LootGlow(r, tw, 120, tw * 0.62f);
-                Token(r, "✧", rel.Name.ToLowerInvariant(), Heroes.RelicText(rel));
+                h = Mathf.Max(h, RelicTile(r, rel, lw) + 6 * Z);
                 r.gameObject.AddComponent<Button>().onClick.AddListener(() => Act(new CampaignAction { Type = "chooseEmblem", Index = index }, "upgrade"));
+                tiles.Add(r);
             }
-            return 8 * Z + 240 + 4 * Z;
-        });
+            int rows = (list.Count + per - 1) / per;
+            for (int i = 0; i < tiles.Count; i++)
+            {
+                int row = i / per, inRow = Mathf.Min(per, list.Count - row * per), j = i % per;
+                float rowW = inRow * tw + (inRow - 1) * gap;
+                WebLook.Box(tiles[i], (bw - rowW) / 2 + j * (tw + gap), 8 * Z + row * (h + gap), tw, h);
+            }
+            return 8 * Z + rows * h + (rows - 1) * gap + 4 * Z;
+        }, Mathf.Max(620 * Z, rw + 2 * padX + 2 * Z));
     }
 
     // ---- Scenes: a companion joining, an encounter, a power struggle, a rival beaten, a dream ----
@@ -880,7 +1163,7 @@ public partial class CampaignView
         glow.rectTransform.offsetMin = new Vector2(-40 * Z, -40 * Z - 10 * Z);
         glow.rectTransform.offsetMax = new Vector2(40 * Z, 40 * Z - 10 * Z);
         glow.transform.SetAsFirstSibling();
-        RiseIn.On(f, t0, 0);
+        RiseIn.On(f, t0, 0, 0.8f);
         y += face + gap;
         WebLook.Words(WebLook.Box(v, "Kicker", 0, y, PW, kH), kicker.ToUpperInvariant(), 0.66f * 16 * Z, 0.32f, rust, true, 400);
         y += kH + gap;
@@ -890,13 +1173,13 @@ public partial class CampaignView
         {
             y += gap;
             WebLook.Box(said.rectTransform, mid - lineW / 2, y, lineW, lH + 2);
-            RiseIn.On(said.rectTransform, t0, 0.4f);
+            RiseIn.On(said.rectTransform, t0, 0.4f, 1);
             y += lH;
         }
         y += gap + 6 * Z;
         var acts = WebLook.Box(v, "Actions", 0, y, PW, actionsH);
         actions(acts, actionsH);
-        RiseIn.On(acts, t0, 1);
+        RiseIn.On(acts, t0, 1, 0.8f);
     }
 
     /// <summary>
@@ -943,7 +1226,7 @@ public partial class CampaignView
         var head = WebLook.Box(v, "Head", 0, Mathf.Max(14 * Z, pad.x), PW, kh + 2 * Z + ts * 1.26f);
         WebLook.Words(WebLook.Box(head, "Kicker", 0, 0, PW, kh), kicker.ToUpperInvariant(), 0.5f * 16 * Z, 0.24f, Look.InkSoft, false, 400);
         WebLook.Words(WebLook.Box(head, "Title", 0, kh + 2 * Z, PW, ts * 1.26f), title.ToUpperInvariant(), ts, 0.2f, Look.Ink, true, 400);
-        RiseIn.On(head, from, 0);
+        RiseIn.On(head, from, 0, 0.8f);
         // (.enc-line p: clamp(0.82rem, 2.2vh, 0.98rem), 1.45 high; the words 44 in, past the face and its gap.)
         float W = Mathf.Min(720 * Z, PW - 32 * Z);
         float fs = Css.Clamp(0.82f * 16 * Z, 2.2f * RawVh, 0.98f * 16 * Z), textX = 44 * Z, textW = W - textX, whoH = 0.48f * 16 * Z * 1.2f;
@@ -1044,17 +1327,30 @@ public partial class CampaignView
         var items = new List<RectTransform>();
         foreach (var (label, primary, why, act) in bs)
         {
-            var b = WebButton(row, label.Replace("⬢", "").ToLowerInvariant(), () => act(), primary, 0, 0, why == null);
+            var plain = label.Replace("⬢", "").ToLowerInvariant();
+            var b = WebButton(row, plain, () => act(), primary, 0, 0, why == null);
+            // (A price at its end: the materials' mark before the number, as the web's " · ⬢8" (campaign.ts encounter acts).)
+            var price = System.Text.RegularExpressions.Regex.Match(plain, @"^(.*) · (\d+)$");
+            if (price.Success)
+            {
+                var t = b.GetComponentInChildren<TextMeshProUGUI>();
+                string words = $"{price.Groups[1].Value.ToUpperInvariant()} · {InlineMark("materials")}{price.Groups[2].Value}";
+                t.text = words;
+                var br = (RectTransform)b.transform;
+                float fs = t.fontSize, bw = Mathf.Max(primary ? 140 * Z : 0, t.GetPreferredValues(words).x + 2 * 16 * Z);
+                br.sizeDelta = new Vector2(bw, br.sizeDelta.y);
+                RuleMarks(t, words, fs);
+            }
             items.Add((RectTransform)b.transform);
         }
         if (purse >= 0)
         {
             // (.enc-purse: the materials token, 4, and how many.)
             var r = Hud.Rect(row, "Purse");
-            var count = WebLook.Words(Hud.Fill(Hud.Rect(r, "Count")), purse.ToString(), 0.8f * 16 * Z, 0, Look.InkSoft, false, 700, TextAlignmentOptions.Left);
+            var count = WebLook.Words(Hud.Fill(Hud.Rect(r, "Count")), purse.ToString(), 0.8f * 16 * Z, 0, Look.InkSoft, false, 400, TextAlignmentOptions.Left);
             float cw = count.GetPreferredValues(count.text).x;
             r.sizeDelta = new Vector2(14 * Z + 4 * Z + cw + 4, items.Count > 0 ? items[0].sizeDelta.y : 24 * Z);
-            var mark = WebLook.Centred(r, "Materials", 7 * Z, r.sizeDelta.y / 2, 14 * Z * 1.4f, 14 * Z * 1.4f).gameObject.AddComponent<RawImage>();
+            var mark = WebLook.Centred(r, "Materials", 7 * Z, r.sizeDelta.y / 2, 14 * Z, 14 * Z).gameObject.AddComponent<RawImage>();
             mark.texture = Resources.Load<Texture2D>("Icons/purse-materials");
             mark.raycastTarget = false;
             WebLook.Box(count.rectTransform, 18 * Z, 0, cw + 4, r.sizeDelta.y);
@@ -1163,8 +1459,9 @@ public partial class CampaignView
         t.margin = new Vector4(0, 0, 0.32f * 1.3f * 16 * Z * 0.78f, 0);
         float t0 = RevealFrom("dream");
         v.gameObject.AddComponent<CanvasGroup>();
-        RiseIn.On(v, t0, 0);
-        RiseIn.On(t.rectTransform, t0, 1.2f);
+        // (dream-in over 3.6s; the line (dream-line) in from a quarter of the way to seven tenths.)
+        RiseIn.On(v, t0, 0, 3.6f);
+        RiseIn.On(t.rectTransform, t0, 0.9f, 1.62f);
         if (!dreamStarting && Application.isPlaying)
         {
             dreamStarting = true;
@@ -1235,12 +1532,102 @@ public partial class CampaignView
                 new SetRow("sound", () => { Sound.Muted = !Sound.Muted; Settings(); }, value: Sound.Muted ? "off" : "on"),
                 new SetRow("music", Sound.Muted ? (System.Action)null : () => { Sound.MusicOn = !Sound.MusicOn; Settings(); }, value: Sound.MusicOn && !Sound.Muted ? "on" : "off"),
                 new SetRow("ai speed", () => { BattleView.NextSpeed(); Settings(); }, value: BattleView.Speed),
-                new SetRow("campaign log", Log),
+                new SetRow("how the loop works", Help),
                 new SetRow("main menu", () => App.Instance.Menu("hub")));
             var note = WebLook.Words(WebLook.Box(body, "Note", 0, h + 12 * Z, body.sizeDelta.x, 0.7f * 16 * Z * 1.4f), "Your run is saved; continue it from the main menu.", 0.7f * 16 * Z, 0, Look.InkFaint, false, 400);
             note.raycastTarget = false;
             return h + 12 * Z + 0.7f * 16 * Z * 1.4f;
         }, 620 * Z, sheetRoot, CloseSheet);
+    }
+
+    /// <summary>
+    /// How the campaign works (renderOverlay's help sheet, opened from the settings' "how the loop works"): the wide
+    /// modal (as wide as its words let it, 94vw at most), the materials' legend (.cmp-legend: the token 1.3em, 8 to its
+    /// words, 0.78rem soft ink, 4 above and 2 below), then the rules (.rules: 0.86rem, line-height 1.55, a bullet each,
+    /// 18 in, 6 between), the stations' and materials' marks in their lines.
+    /// </summary>
+    void Help()
+    {
+        CloseSheet();
+        sheetNow = Help;
+        var T = Campaign.T;
+        string Star(string k) => Campaign.D.StarTypes.TryGetValue(k, out var st) ? $"<b>{st.Name}:</b> {st.Boon} {st.Cost}" : "";
+        string Mark(string icon) => InlineMark(icon);
+        var rules = new[]
+        {
+            $"<b>The loop:</b> each galaxy is a strip of systems, {T.Lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian, a Lost Overlord, to go through, into a harder galaxy (the universe is dying, galaxy by galaxy: each one you reach is younger, and burns hotter). An Overlord fights with its body already in play (limbs, gear, retainers) and takes one great action a day, its best for the board as it stands; the next is always shown, and changes as the board does. The run goes on until your flagship is lost.",
+            $"<b>The collapse:</b> regional stability lasts {T.StabilityTurns} moves in the first universe, {T.StabilityStep} fewer in each one after (never under {T.StabilityMin}). Then the strip gives way from the near end, a whole column with every move, each marked (⚠) a move before. Whatever stands there is lost, your flagship too.",
+            "<b>Every move is a turn.</b> Your flagship flies one route at a time, any way you like, back on itself too. Into a system you hold it simply moves; into a <b>find</b> (a derelict, a depot, an archive) it takes what is there with no fight; into any other, it fights. After each move the collapse comes on. Changing the deck or repairing costs no move. If your flagship has nowhere to go, time moves on by itself.",
+            "<b>Win</b> a system and it is yours: it pays its materials once, your flagship moves in, and it counts for petals. Nothing pays by the move. Some worlds hold extra materials, taken with the system.",
+            "<b>Stellari petals</b> are grabbed at every wormhole: a few for getting there, more for every share of the strip you conquered. They are banked at once and outlive the run. Spend them between runs on a stronger start, a tougher flagship, run perks, and new races. A race's later heroes are earned by conquering stars as it.",
+            $"<b>Its deck</b> starts with {T.ArmySize} cards: your hero and your race's own, with a few neutral cards. It grows with every card you salvage or put in, and never drops below {T.ArmySize}.",
+            "<b>Battles</b> are the card game, by its rules. Your hero is in your deck, played like any card. Each universe's <b>galaxy</b> (a black hole, a pulsar, a meteor shower, a nebula or dark matter) bends every battle fought in it.",
+            $"{Mark("armory")} <b>Space stations</b> sell {T.ArmoryStock} cards each, every one only once. {Mark("research")} <b>Research stations</b> offer {T.ResearchOptions} upgrades each: pick one, free. Both are better deep in the strip. Bring your flagship to one to use it.",
+            "A system with no flagship in it fights as a <b>garrison</b>: more cards, thicker walls and a bigger sun the further along the strip, and the further along the run.",
+            $"<b>Stars</b> differ. {string.Join(" ", new[] { "red", "white", "brown", "neutron" }.Select(Star))}",
+            $"Your sun carries its heat on as <b>damage</b> (it starts battles hotter). Repair it with {Mark("materials")} materials at a space station.",
+        };
+        Modal("how the campaign works", body =>
+        {
+            float W = body.sizeDelta.x, y = 4 * Z;
+            // The legend: the materials' token and what they are for.
+            float ls = 0.78f * 16 * Z, tok = 1.3f * ls;
+            var legend = WebLook.Words(WebLook.Box(body, "Legend", tok + 8 * Z, y, W - tok - 8 * Z, 10), "<color=#3e424a><b>Materials</b></color> pay for everything. Earned: every system you take, finds and battles. Spent: cards at space stations, fusing cards and repairs.", ls, 0, Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
+            legend.textWrappingMode = TextWrappingModes.Normal;
+            float lh = Mathf.Max(tok, legend.GetPreferredValues(legend.text, W - tok - 8 * Z, 0).y);
+            legend.rectTransform.sizeDelta = new Vector2(W - tok - 8 * Z, lh + 2);
+            var mt = WebLook.Box(body, "Token", 0, y, tok, tok).gameObject.AddComponent<RawImage>();
+            mt.texture = Resources.Load<Texture2D>("Icons/materials");
+            mt.raycastTarget = false;
+            y += lh + 2 * Z;
+            // The rules, a bullet each.
+            float fs = 0.86f * 16 * Z, indent = 18 * Z, tw = W - indent;
+            for (int i = 0; i < rules.Length; i++)
+            {
+                if (i > 0) y += 6 * Z;
+                var t = WebLook.Words(WebLook.Box(body, "Rule", indent, y, tw, 10), rules[i], fs, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
+                t.textWrappingMode = TextWrappingModes.Normal;
+                t.lineSpacing = (1.55f - 1.26f) * 100 / 1.26f;
+                float h = t.GetPreferredValues(t.text, tw, 0).y;
+                t.rectTransform.sizeDelta = new Vector2(tw, h + 2);
+                WebLook.Words(WebLook.Box(body, "Bullet", indent - 14 * Z, y, 14 * Z, 1.55f * fs), "•", fs, 0, Look.Ink, false, 400, TextAlignmentOptions.Left);
+                RuleMarks(t, rules[i], fs);
+                y += Mathf.Max(h, 1.55f * fs);
+            }
+            return y;
+        }, 900 * Z, sheetRoot, CloseSheet);
+    }
+
+    /// <summary>A mark in a line of words (the web's inline .cur): room kept for it, 1.15em and 0.18em after it (materials 1.3em), for RuleMarks to draw over.</summary>
+    static string InlineMark(string icon) => $"<mspace={(icon == "materials" ? 0.74f : 0.665f).ToString(System.Globalization.CultureInfo.InvariantCulture)}em><alpha=#00>{icon[0]}{icon[0]}<alpha=#FF></mspace>";
+
+    /// <summary>The marks kept room for in a line (InlineMark): each drawn over its room, on the line's baseline as the web's .cur sits.</summary>
+    static void RuleMarks(TextMeshProUGUI t, string text, float fs)
+    {
+        var marks = new List<(int at, string icon, float size, float drop)>();
+        foreach (var (icon, size, drop) in new[] { ("armory", 1.15f, 0.22f), ("research", 1.15f, 0.22f), ("materials", 1.3f, 0.3f) })
+        {
+            int i = text.IndexOf($"<alpha=#00>{icon[0]}{icon[0]}", System.StringComparison.Ordinal);
+            if (i < 0) continue;
+            // (Its place among the characters drawn: the words before it, their tags left out.)
+            marks.Add((System.Text.RegularExpressions.Regex.Replace(text.Substring(0, i), "<[^>]+>", "").Length, icon, size * fs, drop * fs));
+        }
+        if (marks.Count == 0) return;
+        t.ForceMeshUpdate();
+        var info = t.textInfo;
+        foreach (var (at, icon, size, drop) in marks)
+        {
+            if (info == null || info.characterInfo == null || at >= info.characterCount) continue;
+            var c = info.characterInfo[at];
+            var r = Hud.Rect(t.rectTransform, icon);
+            r.anchorMin = r.anchorMax = t.rectTransform.pivot;
+            r.pivot = new Vector2(0, 0);
+            r.anchoredPosition = new Vector2(c.bottomLeft.x, c.baseLine - drop);
+            r.sizeDelta = new Vector2(size, size);
+            var raw = r.gameObject.AddComponent<RawImage>();
+            raw.texture = Resources.Load<Texture2D>(icon == "materials" ? "Icons/materials" : $"Icons/station-{icon}");
+            raw.raycastTarget = false;
+        }
     }
 
     /// <summary>The campaign's log (renderOverlay's log sheet): what has happened, a line each, the latest last.</summary>
@@ -1306,21 +1693,30 @@ public partial class CampaignView
         group.blocksRaycasts = false;
         group.alpha = 0;
         float mx = PW / 2, my = PH / 2;
-        var glow = WebLook.Centred(v, "Glow", mx, my, PW, 260 * Z).gameObject.AddComponent<RawImage>();
+        // (.turn-banner-glow: across the screen, min(46vh, 260) tall, in its middle.)
+        var glow = WebLook.Centred(v, "Glow", mx, my, PW, Mathf.Min(46 * Vh, 260 * Z)).gameObject.AddComponent<RawImage>();
         glow.texture = BannerGlow();
         glow.raycastTarget = false;
-        var line = WebLook.Centred(v, "Line", mx, my + 2.4f * 16 * Z, Mathf.Min(420 * Z, PW * 0.8f), 1.5f).gameObject.AddComponent<RawImage>();
-        line.texture = BannerLine();
-        line.raycastTarget = false;
+        // (.turn-banner-text: clamp(1.6rem, 9vh, 3.4rem), spaced 0.5em; past 12 letters clamp(1.1rem, min(6.4vh, 4.2vw),
+        // 2.6rem), spaced 0.34em. Under it, 6 apart, .turn-banner-sub: 0.6rem, spaced 0.4em; the two in the middle. No
+        // line under them: the campaign's banners carry nothing more (.turn-banner-line comes only with a day's orbit).)
         bool longer = text.Length > 12;
-        float size = (longer ? 2.6f : 3.4f) * 16 * Z;
-        var words = WebLook.Words(WebLook.Centred(v, "Words", mx, my - 6, PW, size * 1.4f), text.ToUpperInvariant(), size, longer ? 0.34f : 0.5f, WebLook.Hex("#5b5f67"), true, 400);
-        var under = WebLook.Words(WebLook.Centred(v, "Sub", mx, my + size * 0.7f + 6 * Z, PW, 24), sub.ToUpperInvariant(), 0.6f * 16 * Z, 0.4f, Look.InkSoft, true, 500);
-        v.gameObject.AddComponent<BannerLife>().Set(group, words, under, line.rectTransform, longer ? 0.34f : 0.5f);
+        float size = longer ? Css.Clamp(1.1f * 16 * Z, Mathf.Min(6.4f * Vh, 4.2f * Vw), 2.6f * 16 * Z) : Css.Clamp(1.6f * 16 * Z, 9 * Vh, 3.4f * 16 * Z);
+        float subS = 0.6f * 16 * Z, textH = size * 1.26f, subH = subS * 1.26f, top = my - (textH + 6 * Z + subH) / 2;
+        var words = WebLook.Words(WebLook.Box(v, "Words", 0, top, PW, textH), text.ToUpperInvariant(), size, longer ? 0.34f : 0.5f, WebLook.Hex("#5b5f67"), true, 400);
+        var under = WebLook.Words(WebLook.Box(v, "Sub", 0, top + textH + 6 * Z, PW, subH), sub.ToUpperInvariant(), subS, 0.4f, Look.InkSoft, true, 400);
+        v.gameObject.AddComponent<BannerLife>().Set(group, words, under, null, longer ? 0.34f : 0.5f, longer ? 0.6f : 0.9f);
         Sound.Play("turn");
     }
 
-    static Texture2D bannerGlow, bannerLine;
+    /// <summary>A run carried on from the menu (app.ts campaign-continue): CAMPAIGN, and the galaxy and turn under it, 120ms on.</summary>
+    System.Collections.IEnumerator Announce()
+    {
+        yield return new WaitForSeconds(0.12f);
+        if (state != null) Banner("campaign", $"galaxy {state.Universe} · turn {state.Turn}");
+    }
+
+    static Texture2D bannerGlow;
 
     /// <summary>The banner's glow: an ellipse of near-white, solid to 45% of the way out, gone by 75%.</summary>
     static Texture2D BannerGlow()
@@ -1339,20 +1735,10 @@ public partial class CampaignView
         return bannerGlow;
     }
 
-    /// <summary>The line under the banner's words: grey in the middle, fading out to each end.</summary>
-    static Texture2D BannerLine()
-    {
-        if (bannerLine != null) return bannerLine;
-        bannerLine = new Texture2D(64, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
-        var grey = WebLook.Hex("#9ea1a8");
-        for (int x = 0; x < 64; x++) bannerLine.SetPixel(x, 0, new Color(grey.r, grey.g, grey.b, 1 - Mathf.Abs(x + 0.5f - 32) / 32));
-        bannerLine.Apply();
-        return bannerLine;
-    }
-
     /// <summary>
-    /// A banner's two seconds (styles.css bannerLife, bannerText, bannerLine): in over the first 12%, held to 75%, out
-    /// by the end; its words closing from 0.9em apart; the line growing out from the middle; then gone.
+    /// A banner's two seconds (styles.css bannerLife, bannerText): in over the first 12%, held to 75%, out by the end;
+    /// its words closing from 0.9em apart (a long one's from 0.6em); a line, if it has one, growing out from the middle;
+    /// then gone.
     /// </summary>
     public class BannerLife : MonoBehaviour
     {
@@ -1361,8 +1747,12 @@ public partial class CampaignView
         RectTransform line;
         float spacing, t0;
 
-        public void Set(CanvasGroup g, TMP_Text w, TMP_Text s, RectTransform l, float em)
+        float from;
+
+        /// <summary>Its parts, the words' spacing at rest (em) and as they come in (bannerText 0.9em; bannerTextLong 0.6em).</summary>
+        public void Set(CanvasGroup g, TMP_Text w, TMP_Text s, RectTransform l, float em, float fromEm = 0.9f)
         {
+            from = fromEm;
             group = g;
             words = w;
             sub = s;
@@ -1379,13 +1769,13 @@ public partial class CampaignView
             group.alpha = k < 0.12f ? k / 0.12f : k < 0.75f ? 1 : 1 - (k - 0.75f) / 0.25f;
             // (cubic-bezier(.2, .8, .2, 1): quick in, settling.)
             float e = 1 - Mathf.Pow(1 - k, 3);
-            words.characterSpacing = Mathf.Lerp(0.9f, spacing, e) * 100;
+            words.characterSpacing = Mathf.Lerp(from, spacing, e) * 100;
             words.alpha = Mathf.Clamp01(k / 0.3f);
             float ks = Mathf.Clamp01((t - 0.1f) / 2);
             sub.characterSpacing = Mathf.Lerp(0.9f, 0.4f, 1 - Mathf.Pow(1 - ks, 3)) * 100;
             sub.alpha = Mathf.Clamp01(ks / 0.3f);
             float kl = Mathf.Clamp01((t - 0.2f) / 1.6f);
-            line.localScale = new Vector3(1 - Mathf.Pow(1 - kl, 2), 1, 1);
+            if (line != null) line.localScale = new Vector3(1 - Mathf.Pow(1 - kl, 2), 1, 1);
         }
     }
 

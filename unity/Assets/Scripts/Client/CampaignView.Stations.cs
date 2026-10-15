@@ -190,10 +190,11 @@ public partial class CampaignView
                     // (What the two become, beside the way to make it.)
                     // (.ar-fused: 88 across (on a phone 66), 1.4 times as tall.)
                     var fused = Hud.Rect(act, "Fused");
-                    fused.sizeDelta = lay.Phone ? new Vector2(66 * Z, 92 * Z) : new Vector2(88, 124);
+                    fused.sizeDelta = lay.Phone ? new Vector2(66 * Z, 92 * Z) : new Vector2(88 * Z, 124 * Z);
                     var face = fused.gameObject.AddComponent<RawImage>();
                     face.texture = Faces.Of(Builds.FusedId(a, b), false);
                     face.raycastTarget = false;
+                    Kit.Printed(fused, Builds.FusedId(a, b), fused.sizeDelta.x);
                     Kit.Across(act, 14, fused, Kit.Go(act, $"fuse · ⬢{cost}", true, problem, () => StationFuse(nodeId, a, b)), Kit.Hint(act, "for good"));
                 }
             }
@@ -271,6 +272,7 @@ public partial class CampaignView
         Hud.Fill(face);
         var raw = face.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(id, false);
+        Kit.Printed(face, id, Kit.CardW);
         var b = card.gameObject.AddComponent<Button>();
         b.targetGraphic = raw;
         b.onClick.AddListener(() => ArPick(id, inspect));
@@ -438,6 +440,7 @@ public partial class CampaignView
         var raw = f.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(id, false);
         raw.raycastTarget = false;
+        Kit.Printed(f, id, fh / 1.4f);
     }
 
     // ---- The ship tab (the Captain's runs) ----
@@ -466,8 +469,20 @@ public partial class CampaignView
         // The schematic: the hull in blueprint lines, every slot outlined (dashed while empty, filled with its part
         // when fitted); lit where the part in hand could go (not where it already is).
         float colW = (areaW - between) * 1.4f / 2.4f;
-        float sw = Mathf.Min(colW, boxH / 0.6f, Mathf.Max(60, PH - 230 * Z) / 0.6f), sh = sw * 0.6f, k = sw / 400;
-        var plan = Hud.At(Hud.Rect(area, "Schematic"), new Vector2(0, 0.5f), Vector2.zero, new Vector2(sw, sh));
+        // (.hg-ship: its column across, padded 10, rounded 18, a pale blue (#f3f7fc) inside a 1 blue hairline
+        // (rgba(95, 134, 184, 0.18)); the schematic in its middle, as wide as it is inside its padding, at most
+        // 100vh - 230 tall.)
+        float sw = Mathf.Min(colW - 20 * Z, (boxH - 20 * Z) / 0.6f, Mathf.Max(60, PH - 230 * Z) / 0.6f), sh = sw * 0.6f, k = sw / 400;
+        var panel = WebLook.Rounded(area, "Panel", new Color(216 / 255f, 227 / 255f, 240 / 255f), 18 * Z);
+        var pr = panel.rectTransform;
+        pr.anchorMin = pr.anchorMax = pr.pivot = new Vector2(0, 0.5f);
+        pr.anchoredPosition = Vector2.zero;
+        pr.sizeDelta = new Vector2(colW, sh + 20 * Z);
+        var inner = WebLook.Rounded(pr, "Inside", WebLook.Hex("#f3f7fc"), 18 * Z - 1);
+        Hud.Fill(inner.rectTransform);
+        inner.rectTransform.offsetMin = Vector2.one;
+        inner.rectTransform.offsetMax = -Vector2.one;
+        var plan = Hud.At(Hud.Rect(area, "Schematic"), new Vector2(0, 0.5f), new Vector2((colW - sw) / 2, 0), new Vector2(sw, sh));
         Kit.Picture(plan, "ship-hull", Color.white);
         var nodeId = n.Id;
         foreach (var sl in Parts.ShipSlots)
@@ -495,40 +510,50 @@ public partial class CampaignView
         grid.offsetMin = new Vector2(colW + between, 0);
         grid.offsetMax = Vector2.zero;
         var owned = Parts.ShipParts.Where(p => have.Contains(p.Id)).ToList();
-        if (owned.Count == 0) Hud.Label(grid, "No parts yet.", 15, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
+        // (.hg-none: 0.85rem faint ink.)
+        if (owned.Count == 0) Hud.Label(grid, "No parts yet.", 0.85f * 16 * Z, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
         else
         {
-            float gw = areaW - colW - between, gap = 8;
-            int cols = Mathf.Max(1, Mathf.FloorToInt((gw + gap) / (96 + gap)));
-            float tw = (gw - gap * (cols - 1)) / cols, th = 112;
+            // (.hg-parts: columns at least 96 across, 8 apart, padded 2; each part (.hg-part) padded 8 6, its 64 picture,
+            // 4, its name (0.5rem spaced capitals, line-height 1.3), 4, "fitted" (0.6rem faint) if it is aboard; a row as
+            // tall as its tallest.)
+            float gw = areaW - colW - between - 4 * Z, gap = 8 * Z;
+            int cols = Mathf.Max(1, Mathf.FloorToInt((gw + gap) / (96 * Z + gap)));
+            float tw = (gw - gap * (cols - 1)) / cols, ns = 0.5f * 16 * Z, nl = ns * 1.3f, fs = 0.6f * 16 * Z;
+            var probe = WebLook.Words(grid, "", ns, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Top);
+            probe.textWrappingMode = TextWrappingModes.Normal;
+            var nameH = owned.Select(q => Mathf.Max(nl, probe.GetPreferredValues(q.Name.ToUpperInvariant(), tw - 12 * Z, 0).y)).ToList();
+            Mats.Kill(probe.gameObject);
+            float TileH(int i) => (8 + 64 + 4) * Z + nameH[i] + (aboard.Contains(owned[i].Id) ? 4 * Z + fs * 1.2f : 0) + 8 * Z;
             int rows = (owned.Count + cols - 1) / cols;
-            float need = rows * th + (rows - 1) * gap + 6;
+            var rowH = Enumerable.Range(0, rows).Select(r => Enumerable.Range(r * cols, Mathf.Min(cols, owned.Count - r * cols)).Max(TileH)).ToList();
+            float need = rowH.Sum() + (rows - 1) * gap + 4 * Z;
             var content = Kit.Scroller(grid, Mathf.Max(need, boxH));
-            float top = 3 + Mathf.Max(0, (boxH - need) / 2);
+            float top = 2 * Z + Mathf.Max(0, (boxH - need) / 2);
             for (int i = 0; i < owned.Count; i++)
             {
                 var p = owned[i];
-                var spot = new Vector2((i % cols) * (tw + gap) + 3, -(top + (i / cols) * (th + gap)));
+                int r = i / cols;
+                float th = rowH[r], y = top + rowH.Take(r).Sum() + r * gap;
+                var spot = new Vector2((i % cols) * (tw + gap) + 2 * Z, -y);
                 if (pick == p.Id)
                 {
+                    // (Picked: ringed 2.5 in gold.)
                     var ring = Hud.Glass(content, p.Id + " ring", Kit.PickRing, false);
-                    Hud.At((RectTransform)ring.transform, new Vector2(0, 1), spot + new Vector2(-2.5f, 2.5f), new Vector2(tw + 5, th + 5));
+                    Hud.At((RectTransform)ring.transform, new Vector2(0, 1), spot + new Vector2(-2.5f * Z, 2.5f * Z), new Vector2(tw + 5 * Z, th + 5 * Z));
                     ring.raycastTarget = false;
                 }
                 var tile = Hud.Glass(content, p.Id, aboard.Contains(p.Id) ? (Color)new Color32(0xf6, 0xf9, 0xfd, 255) : Color.white, false);
                 Hud.At((RectTransform)tile.transform, new Vector2(0, 1), spot, new Vector2(tw, th));
-                var icon = Hud.At(Hud.Rect(tile.transform, "Icon"), new Vector2(0.5f, 1), new Vector2(0, -8), new Vector2(64, 64));
+                var icon = Hud.At(Hud.Rect(tile.transform, "Icon"), new Vector2(0.5f, 1), new Vector2(0, -8 * Z), new Vector2(64 * Z, 64 * Z));
                 var ii = icon.gameObject.AddComponent<RawImage>();
                 ii.texture = Resources.Load<Texture2D>($"Icons/part-{p.Kind}-{p.Rarity}");
                 ii.raycastTarget = false;
-                var nm = Hud.Label(tile.transform, p.Name.ToUpperInvariant(), 9, Look.Ink, true, 500, 14, TextAlignmentOptions.Top);
+                var nm = WebLook.Words(WebLook.Box(tile.transform, "Name", 6 * Z, (8 + 64 + 4) * Z, tw - 12 * Z, nameH[i] + 2), p.Name.ToUpperInvariant(), ns, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Top);
                 nm.textWrappingMode = TextWrappingModes.Normal;
-                nm.margin = new Vector4(6, 76, 6, 0);
+                nm.lineSpacing = (1.3f - 1.26f) * 100 / 1.26f;
                 if (aboard.Contains(p.Id))
-                {
-                    var fit = Hud.Label(tile.transform, "fitted", 11, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Bottom);
-                    fit.margin = new Vector4(0, 0, 0, 6);
-                }
+                    WebLook.Words(WebLook.Box(tile.transform, "Fitted", 0, (8 + 64 + 4 + 4) * Z + nameH[i], tw, fs * 1.2f), "fitted", fs, 0, Look.InkFaint, false, 400);
                 var b = tile.gameObject.AddComponent<Button>();
                 var id = p.Id;
                 b.onClick.AddListener(() => { Sound.Play("hover"); arPick = arPick == id ? null : id; Station(); });
@@ -704,6 +729,27 @@ static class StationKit
     public static readonly Color SlotLitLine = new Color32(0xb8, 0x89, 0x2f, 255);
     public static readonly Color SlotLitFill = new Color(214 / 255f, 189 / 255f, 122 / 255f, 0.22f);
     public static readonly Color PickRing = new Color32(0xd6, 0xbd, 0x7a, 255);
+
+    /// <summary>
+    /// A card's attack and stability as printed (the web's .cmp-card, cardHtml, shows them on its face; the baked face
+    /// has none), on its face `w` wide: as the battle's inspector draws a card not in play (BattleView.Printed).
+    /// </summary>
+    public static void Printed(RectTransform face, string defId, float w)
+    {
+        var def = Cards.Def(defId);
+        if (def == null || !Game.Persists(defId) || Cards.IsBurst(def)) return;
+        void Badge(Faces.Place at, string kind, int n)
+        {
+            var r = Hud.Rect(face, kind);
+            Hud.Place(r, at.x * w, at.y * w, at.w * w, at.h * w);
+            var img = r.gameObject.AddComponent<RawImage>();
+            img.texture = Faces.Badge(kind, n);
+            img.raycastTarget = false;
+        }
+        int atk = Game.BaseAttack(def);
+        if (atk > 0) Badge(Faces.Where.atk, "atk", atk);
+        Badge(Faces.Where.stab, "stab", Game.BaseHealth(defId));
+    }
 
     /// <summary>A card on the shelf: its width (120 (CSS), on a phone 88), its height, and its cell's (its price beneath it).</summary>
     public static float CardW => (Css.MaxHeight(560) ? 88 : 120) * WebLook.Zoom;

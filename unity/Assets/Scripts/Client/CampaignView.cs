@@ -13,7 +13,7 @@ using UnityEngine.UI;
 /// </summary>
 public partial class CampaignView : MonoBehaviour
 {
-    const string Key = "blue-loop:campaign:v6", MetaKey = "blue-loop:runs:v1";
+    public const string Key = "blue-loop:campaign:v6", MetaKey = "blue-loop:runs:v1";
     // (Map units to the scene's: the strip is a few thousand units long, laid out at 300 to one.)
     const float Scale = 1 / 300f;
 
@@ -102,7 +102,9 @@ public partial class CampaignView : MonoBehaviour
         world.SetParent(transform, false);
         // (In the web's own units, at the size it lays its page out at: each layer the whole screen, laid out as the web
         // lays its page out at that size, clear of the safe area where the web keeps clear of it; again when it changes.)
-        hud = Hud.CssCanvas(Cam);
+        // (Sorted after the map's own see-through things, its rings and glows queued past the UI's, as the web's page
+        // lies over its canvas: a veil and its modal over every ring.)
+        hud = Hud.CssCanvas(Cam, 1);
         hud.transform.SetParent(transform, false);
         // (The overlay's layer, never put away, says when the screen changes.)
         top = RefLayer.Make(hud.transform, "Top").Rect;
@@ -126,6 +128,8 @@ public partial class CampaignView : MonoBehaviour
         distance = distanceGoal = RestDist;
         pitchNow = RestPitch;
         Refresh();
+        // (A run carried on: announced.)
+        if (!fresh && Application.isPlaying) StartCoroutine(Announce());
     }
 
     // (The web's map, laid on its world: MAP_K world units a map pixel, centred; this world is the web's scaled up
@@ -301,12 +305,8 @@ public partial class CampaignView : MonoBehaviour
         if (abyssMat != null) abyssMat.SetFloat("_Gone", goneNow);
     }
 
-    // The camera's heading (yaw -0.95 rad, its eye toward the strip's near end), and text laid flat to read from it.
+    // The camera's heading (yaw -0.95 rad, its eye toward the strip's near end).
     const float CamYaw = -0.95f, CamPitch = 0.62f;
-    static float ViewYaw => -CamYaw * Mathf.Rad2Deg;
-    static Quaternion Facing => Quaternion.Euler(90, ViewYaw, 0);
-    /// <summary>Along the ground toward the camera.</summary>
-    static Vector3 Toward => new Vector3(Mathf.Sin(CamYaw), 0, -Mathf.Cos(CamYaw));
 
     /// <summary>How far off the camera rests (nebula3d.ts's home: the strip's width fitted to the view, a little in).</summary>
     static float HomeDist => Mathf.Max(2.4f, (StripWidth / 2 + 0.3f) / Mathf.Tan(18 * Mathf.Deg2Rad) * 0.6f) * 0.8f * G;
@@ -333,30 +333,6 @@ public partial class CampaignView : MonoBehaviour
     float RestDist => Spinning ? HomeDist * 1.125f : HomeDist;
     float RestYaw => CamYaw + spin;
     float RestPitch => Spinning ? 0.66f : CamPitch;
-
-    /// <summary>Turning with the camera, the systems' names and marks still read from it.</summary>
-    void FaceLabels()
-    {
-        float yaw = yawNow;
-        var rot = Quaternion.Euler(90, -yaw * Mathf.Rad2Deg, 0);
-        var toward = new Vector3(Mathf.Sin(yaw), 0, -Mathf.Cos(yaw));
-        foreach (var t in nodes.Values)
-        {
-            if (t == null) continue;
-            var name = t.Find("Name");
-            if (name != null)
-            {
-                name.localRotation = rot;
-                name.localPosition = toward * 0.45f + Vector3.up * 0.03f;
-            }
-            var mark = t.Find("Mark");
-            if (mark != null)
-            {
-                mark.localRotation = rot;
-                mark.localPosition = -toward * 0.42f + Vector3.up * 0.03f;
-            }
-        }
-    }
 
     Vector3 NodePos(string id)
     {
@@ -407,18 +383,7 @@ public partial class CampaignView : MonoBehaviour
         var col = go.AddComponent<SphereCollider>();
         col.radius = 0.45f;
         go.AddComponent<NodeTag>().Id = n.Id;
-        var name = Mats.FlatText("Name", go.transform, "", 2.2f, Look.InkSoft, true, 500, 14);
-        name.transform.localPosition = Toward * 0.45f + Vector3.up * 0.03f;
-        name.transform.localRotation = Facing;
-        name.gameObject.SetActive(false);
-        // A station or a story waiting there: a mark beside it.
-        string mark = n.Station?.Kind == "armory" ? "STATION" : n.Station?.Kind == "research" ? "LAB" : n.Heart == true ? "WORMHOLE" : null;
-        if (mark != null)
-        {
-            var t = Mats.FlatText("Mark", go.transform, mark, 1.6f, Look.InkFaint, true, 500, 18);
-            t.transform.localPosition = -Toward * 0.42f + Vector3.up * 0.03f;
-            t.transform.localRotation = Facing;
-        }
+        // (No name and no words beside it, as the web's: its badges are hidden on the 3D map, a station is its model.)
     }
 
     /// <summary>The Captain's ship as the map draws it (campaign.ts captainSpec): the parts fitted for this run (and their rarities), the Captain's level, the crew aboard.</summary>
@@ -433,8 +398,10 @@ public partial class CampaignView : MonoBehaviour
     }
 
     /// <summary>
-    /// The galaxy's name and what it does, laid on the floor by the strip's start; a rift's galaxy, its name and what it
-    /// is like (in the Dark Galaxy, in a pale light).
+    /// The galaxy's name and what it does to every battle in it (campaign.ts renderGalaxy, .cmp-galaxy-land): out past
+    /// the systems on the side that is up the screen as the camera rests, standing on the land like a sign running along
+    /// the way, read from the camera's side; its glyph and name large and widely spaced, the words under them. A rift's
+    /// galaxy: its name and what it is like (in the Dark Galaxy, pale on the dark). Measured in the web's map pixels.
     /// </summary>
     void Galaxy()
     {
@@ -442,21 +409,119 @@ public partial class CampaignView : MonoBehaviour
         if (state.Rift != null && Rifts.ByKind != null && Rifts.ByKind.TryGetValue(state.Rift.Kind, out var rift)) { title = rift.Name; words = rift.Text; }
         else if (state.Galaxy != null && Campaign.D.Galaxies != null && Campaign.D.Galaxies.TryGetValue(state.Galaxy, out var g)) { title = g.Name; words = g.Text; }
         if (title == null) return;
-        // (Laid along the strip's near side, reading west to east, from its first system.)
-        var ps = nodes.Values.Select(t => t.localPosition).ToList();
-        if (ps.Count == 0) return;
-        var ink = state.Rift?.Kind == "dark" ? new Color(0.91f, 0.9f, 0.96f) : Look.InkSoft;
-        var at = new Vector3(ps.Min(p => p.x) - 0.6f, 0.03f, ps.Min(p => p.z) - 1.1f);
-        var name = Mats.FlatText("Galaxy", mapRoot, title.ToUpperInvariant(), 3.2f, ink, true, 400, 30, TextAlignmentOptions.TopLeft);
-        name.rectTransform.pivot = new Vector2(0, 1);
-        name.rectTransform.sizeDelta = new Vector2(14, 1);
-        name.transform.localPosition = at;
-        var text = Mats.FlatText("Galaxy words", mapRoot, words, 1.5f, ink, false, 400, 0, TextAlignmentOptions.TopLeft);
-        text.fontStyle = FontStyles.Italic;
+        var all = state.Nodes.Where(n => n.Challenge?.Hidden != true).ToList();
+        if (all.Count == 0) return;
+        // Up the screen, on the land, as the camera rests (its yaw): the side the words go.
+        float upX = Mathf.Sin(-CamYaw), upY = -Mathf.Cos(-CamYaw);
+        // Along the way: a strip runs along x (its first column to its third); any other shape, across the screen.
+        bool strip = state.Layout == "strip";
+        Vector2? ColAt(int c)
+        {
+            var cs = all.Where(n => n.Col == c).ToList();
+            return cs.Count > 0 ? new Vector2((float)cs.Average(n => n.X), (float)cs.Average(n => n.Y)) : (Vector2?)null;
+        }
+        var c1 = strip ? ColAt(1) : null;
+        var c3 = strip ? ColAt(3) : null;
+        float dl = c1 != null && c3 != null ? Vector2.Distance(c1.Value, c3.Value) : 0;
+        var d = c1 != null && c3 != null && dl > 0 ? (c3.Value - c1.Value) / dl : strip ? new Vector2(1, 0) : new Vector2(Mathf.Cos(CamYaw), -Mathf.Sin(CamYaw));
+        var nrm = new Vector2(-d.y, d.x);
+        if (nrm.x * upX + nrm.y * upY < 0) nrm = -nrm;
+        float Along(CampaignNode n) => (float)n.X * d.x + (float)n.Y * d.y;
+        float Out(CampaignNode n) => (float)n.X * nrm.x + (float)n.Y * nrm.y;
+        // (Its size in map units: the name's big letters, and the words under it, wrapped.)
+        const float HalfW = 620;
+        // Where along: a strip's, over its first few columns (in view as a run begins); any other, its middle.
+        var early = strip ? all.Where(n => (n.Col ?? 0) >= 1 && (n.Col ?? 0) <= 3).ToList() : all;
+        var pick = early.Count > 0 ? early : all;
+        float mid = pick.Average(Along);
+        // Out past every system it lies beside (and their rings), so it never covers one.
+        var beside = all.Where(n => Mathf.Abs(Along(n) - mid) < HalfW + 260).ToList();
+        if (strip && beside.Count > 0 && beside.All(n => n.Collapsed == true)) return;
+        var near = beside.Count > 0 ? beside : all;
+        float edge = near.Max(Out);
+        // The sign runs along the way, read from the camera's side: its words along `right`, its face toward the camera.
+        var right = d;
+        if (-right.y * -upX + right.x * -upY < 0) right = -right;
+        var back = new Vector2(right.y, -right.x);
+        // Laid over the scene, it covers whatever falls under it on screen: out past every system, then on out until the
+        // sight line from the camera's resting eye to each system (its foot and the top of whatever stands on it) misses it.
+        const float SignH = 380, PadOut = 130, Tall = 170;
+        Vector3? eye = null;
+        var f = Campaign.Flagship(state, state.PlayerId);
+        if (f != null)
+        {
+            var hm = Home(f.NodeId);
+            float dist = RestDist / G, pitch = RestPitch, yaw = RestYaw;
+            float ex = hm.x / G + Mathf.Sin(yaw) * Mathf.Cos(pitch) * dist, ey = Mathf.Sin(pitch) * dist, ez = -hm.z / G + Mathf.Cos(yaw) * Mathf.Cos(pitch) * dist;
+            eye = new Vector3(ex / MapK + Campaign.T.MapWidth / 2f, ez / MapK + Campaign.T.MapHeight / 2f, ey / MapK);
+        }
+        float Dot(float vx, float vy, Vector2 w) => vx * w.x + vy * w.y;
+        bool Hides(float cx, float cy) => all.Any(n =>
+        {
+            float nx = (float)n.X, ny = (float)n.Y, nh = (float)(n.H ?? 0);
+            if (eye == null) return Mathf.Abs(Dot(nx - cx, ny - cy, right)) < HalfW + PadOut && Dot(nx - cx, ny - cy, back) > -PadOut && Dot(nx - cx, ny - cy, back) < 900;
+            var e = eye.Value;
+            float be = Dot(e.x - cx, e.y - cy, back), bp = Dot(nx - cx, ny - cy, back);
+            if (Mathf.Abs(bp - be) < 1) return false;
+            // (Where the sight line through it meets the sign's plane, and how high: foot and top.)
+            float t = -be / (bp - be);
+            if (t <= 0) return false;
+            float a = Dot(e.x - cx, e.y - cy, right) + t * Dot(nx - e.x, ny - e.y, right);
+            if (Mathf.Abs(a) > HalfW + PadOut) return false;
+            float foot = e.z + t * (nh - e.z), top = e.z + t * (nh + Tall - e.z);
+            return Mathf.Max(foot, top) > -PadOut && Mathf.Min(foot, top) < SignH + PadOut;
+        });
+        float o = edge + 260;
+        for (int i = 0; i < 40 && Hides(d.x * mid + nrm.x * o, d.y * mid + nrm.y * o); i++) o += 80;
+        float x = d.x * mid + nrm.x * o, y = d.y * mid + nrm.y * o;
+        var outmost = near.Aggregate((best, n) => Out(n) > Out(best) ? n : best);
+        // The sign: the middle of its foot there (at the height of the system furthest out beside it), standing up, its
+        // face away from `back`. (A map pixel is Scale of a unit here; TMP's world text is a tenth of a unit a point.)
+        var sign = new GameObject("Galaxy").transform;
+        sign.SetParent(mapRoot, false);
+        sign.localPosition = new Vector3((x - Campaign.T.MapWidth / 2f) * Scale, (float)(outmost.H ?? 0) * Scale, -(y - Campaign.T.MapHeight / 2f) * Scale);
+        sign.localRotation = Quaternion.LookRotation(new Vector3(back.x, 0, -back.y), Vector3.up);
+        bool dark = state.Rift?.Kind == "dark";
+        // (rgba(70, 78, 104, 0.62), the words 0.58; in the Dark Galaxy rgba(214, 220, 238, 0.6).)
+        var ink = dark ? new Color(214 / 255f, 220 / 255f, 238 / 255f, 0.6f) : new Color(70 / 255f, 78 / 255f, 104 / 255f, 0.62f);
+        var inkWords = dark ? ink : new Color(70 / 255f, 78 / 255f, 104 / 255f, 0.58f);
+        const float Px = Scale;
+        // The words (44px, line-height 1.3, letter-spacing 0.03em, at most 1180 across), from the foot up, centred.
+        var text = Mats.FlatText("Galaxy words", sign, words, 44 * Px * 10, inkWords, false, 400, 3, TextAlignmentOptions.Bottom);
+        text.transform.localRotation = Quaternion.identity;
         text.textWrappingMode = TextWrappingModes.Normal;
-        text.rectTransform.pivot = new Vector2(0, 1);
-        text.rectTransform.sizeDelta = new Vector2(9, 2f);
-        text.transform.localPosition = at + new Vector3(0, 0, -0.75f);
+        text.lineSpacing = (1.3f - 1.26f) * 100 / 1.26f;
+        float tw = Mathf.Min(1180 * Px, text.GetPreferredValues(words).x + 0.01f);
+        float th = text.GetPreferredValues(words, tw, 0).y;
+        text.rectTransform.pivot = new Vector2(0.5f, 0);
+        text.rectTransform.sizeDelta = new Vector2(tw, th);
+        text.transform.localPosition = Vector3.zero;
+        // Over them, 18 between: the glyph (76 across, 22 before the name; a rift has none) and the name (70px,
+        // letter-spacing 0.32em, which CSS trails after the last letter too), the two centred.
+        var name = Mats.FlatText("Galaxy name", sign, title.ToUpperInvariant(), 70 * Px * 10, ink, true, 400, 32, TextAlignmentOptions.Left);
+        name.transform.localRotation = Quaternion.identity;
+        float nw = name.GetPreferredValues(name.text).x + 0.32f * 70 * Px, rowH = 70 * 1.26f * Px;
+        var glyphTex = state.Rift != null ? null : Resources.Load<Texture2D>($"Icons/galaxy-{state.Galaxy}");
+        float gw = glyphTex != null ? (76 + 22) * Px : 0, rowW = gw + nw, rowY = th + 18 * Px;
+        name.rectTransform.pivot = new Vector2(0, 0);
+        name.rectTransform.sizeDelta = new Vector2(nw + 0.01f, rowH);
+        name.transform.localPosition = new Vector3(-rowW / 2 + gw, rowY, 0);
+        if (glyphTex != null)
+        {
+            // (A quad in the sign's plane in the project's own Card shader: a SpriteRenderer's default shader isn't in
+            // the web build, and drew as magenta.)
+            var gl = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            gl.name = "Galaxy glyph";
+            Mats.Kill(gl.GetComponent<Collider>());
+            gl.transform.SetParent(sign, false);
+            var gm = Mats.Make("Card", ink);
+            gm.mainTexture = glyphTex;
+            gm.SetFloat("_Radius", 0);
+            gm.SetFloat("_Aspect", 1);
+            gl.GetComponent<MeshRenderer>().sharedMaterial = gm;
+            gl.transform.localScale = new Vector3(76 * Px, 76 * Px * glyphTex.height / glyphTex.width, 1);
+            gl.transform.localPosition = new Vector3(-rowW / 2 + 38 * Px, rowY + rowH / 2, 0);
+        }
     }
 
     // ---- The view: following the ship, the player's drags and zooms ----
@@ -544,7 +609,6 @@ public partial class CampaignView : MonoBehaviour
         yawNow += Wrap(RestYaw - yawNow) * k;
         pitchNow += (RestPitch - pitchNow) * k;
         if (glideRate < 4 && !Spinning && (focus - focusGoal).magnitude < 1e-3f && Mathf.Abs(distance - distanceGoal) < 1e-3f && Mathf.Abs(Wrap(RestYaw - yawNow)) < 1e-4f) glideRate = 4;
-        if (Spinning) FaceLabels();
         Aim(new Pose { X = focus.x / G, Y = focus.y / G, Z = -focus.z / G, Yaw = yawNow, Pitch = pitchNow, Dist = distance / G });
     }
 
@@ -764,8 +828,8 @@ public partial class CampaignView : MonoBehaviour
     }
 
     /// <summary>
-    /// Each system in reach pulsing, rings going out from it, a dashed ring turning round it; its name, and the name of
-    /// the one your ship is at (none through the opening shot, the map's marks hidden till it is over).
+    /// Each system in reach pulsing, rings going out from it, a dashed ring turning round it; no names (the map's marks
+    /// hidden through the opening shot, till it is over).
     /// </summary>
     void Rings()
     {
@@ -773,21 +837,7 @@ public partial class CampaignView : MonoBehaviour
         var reach = army != null && state.Phase == "player" && state.Battle == null && state.Winner == null ? Campaign.ArmyMoves(state, army).Select(m => m.ToId).ToHashSet() : new HashSet<string>();
         foreach (var st in stars3d) st.Reach = reach.Contains(st.Id);
         bool marks = !Cining && !launching;
-        foreach (var kv in nodes)
-        {
-            bool here = army?.NodeId == kv.Key, can = reach.Contains(kv.Key);
-            var name = kv.Value.Find("Name")?.GetComponent<TextMeshPro>();
-            if (name != null)
-            {
-                bool show = (can || here) && marks;
-                name.gameObject.SetActive(show);
-                if (show) name.text = Campaign.NodeById(state, kv.Key).Name.ToUpperInvariant();
-            }
-            kv.Value.Find("Mark")?.gameObject.SetActive(marks);
-        }
-        if (mapRoot != null)
-            foreach (var label in new[] { "Galaxy", "Galaxy words" })
-                mapRoot.Find(label)?.gameObject.SetActive(marks);
+        if (mapRoot != null) mapRoot.Find("Galaxy")?.gameObject.SetActive(marks);
     }
 
     public void Settle()
