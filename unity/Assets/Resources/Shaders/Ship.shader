@@ -79,13 +79,11 @@ Shader "BlueLoop/Ship"
                     float3 slate = float3(0.33, 0.36, 0.4);
                     float amber = saturate((p.r - p.b - 0.22) * 4.0) * (1.0 - p.a);
                     float3 base = lerp(lerp(slate, p.rgb, amber), p.rgb, side);
-                    float grime = n3(i.l * 46.0) * 0.6 + n3(i.l * 110.0) * 0.4;
-                    base *= 0.94 + 0.1 * grime;
-                    float rough = 0.35 + 0.3 * grime;
-                    float spec = pow(max(dot(n, h), 0.0), lerp(90.0, 14.0, rough)) * (1.0 - rough) * 0.9;
-                    c = base * (0.62 + 0.55 * diff) + spec;
-                    c += base * max(-n.y, 0.0) * 0.12;
-                    c = lerp(c, sky, fres * 0.25);
+                    // (The art is drawn shaded already: on its flanks it is shown much as drawn, the light only
+                    // turning it a little; faces away from the side are lit for their form.)
+                    float spec = pow(max(dot(n, h), 0.0), 30.0) * 0.12 * (1.0 - side);
+                    c = base * lerp(0.62 + 0.55 * diff, 0.9 + 0.2 * diff, side) + spec;
+                    c = lerp(c, sky, fres * 0.08);
                     float flick = 0.95 + 0.05 * sin(t * 7.0 + i.l.x * 40.0) * sin(t * 4.3 + i.l.z * 30.0);
                     c = lerp(c, p.rgb * flick * (1.0 + _Burn * 0.1), p.a * lit);
                     return fixed4(min(c, 1) * _Alpha, _Alpha);

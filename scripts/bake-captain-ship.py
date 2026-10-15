@@ -6,8 +6,8 @@ painted after its art (reference.png, the same ship side on):
   unity/Assets/Resources/Models/CaptainShipPaint.png its paint: the art laid over the hull side on (rgb), lit glass (a)
 
 The model comes untextured, so its look is the art's: the art is fitted over the model's own outline seen side on, then
-nudged here and there onto the model's own details (its porthole, windows and plates), and each point of the hull takes
-its colour from the art where it lies (CaptainShip.cs, Ship.shader's painted metal).
+stretched onto the model's own details (its porthole, windows and plates) along the hull and up it apart, so straight
+lines stay straight, and each point of the hull takes its colour from the art where it lies (CaptainShip.cs, Ship.shader's painted metal).
 
     pip install numpy pillow pyfqmr
     python3 scripts/bake-captain-ship.py
@@ -327,25 +327,29 @@ def warp(box, f, art, fit):
                     found.append((xc, zc, (ix - reach) * r, -(iy - reach) * r, min(best - 0.3, 0.5)))
         px, pz, pdx, pdz, conf = np.array(found).T
 
-        def field(qx, qz, val, wt, sg):
-            e = wt * np.exp(-((qx[..., None] - px) ** 2 + (qz[..., None] - pz) ** 2) / (2 * sg * sg))
-            return (e * val).sum(-1) / (e.sum(-1) + 1e-3), e.sum(-1)
+        def curve(pos, val, lo, hi, sg):
+            """A smooth, robust curve of how far the art lies along one axis, by place on that axis, never folding back."""
+            grid = np.arange(lo, hi + 0.25, 0.25)
+            out = np.zeros_like(grid)
+            for i, g in enumerate(grid):
+                wt = conf * np.exp(-(pos - g) ** 2 / (2 * sg * sg))
+                if wt.sum() < 1e-6: continue
+                mid = (wt * val).sum() / wt.sum()
+                for _ in range(4):
+                    w2 = wt / (1 + ((val - mid) / 0.15) ** 2)
+                    mid = (w2 * val).sum() / w2.sum()
+                out[i] = mid * wt.sum() / (wt.sum() + 0.05)
+            y = grid + out
+            for i in range(1, len(y)): y[i] = max(y[i], y[i - 1] + 0.125)
+            return grid, y - grid
 
-        keep = conf > 0
-        for _ in range(2):
-            mx, _ = field(px, pz, pdx, conf * keep, sig * 1.5)
-            mz, _ = field(px, pz, pdz, conf * keep, sig * 1.5)
-            keep &= (np.abs(pdx - mx) < 0.4) & (np.abs(pdz - mz) < 0.4)
-        print(f'art matched to the hull at {keep.sum()} of {len(px)} places (patches {2 * half * r:.1f} wide)')
+        # (Along the hull and up it apart: a straight line on the hull stays straight in the paint.)
+        cx_, cdx = curve(px, pdx, x0, x1, sig)
+        cz_, cdz = curve(pz, pdz, z0, z1, sig * 1.5)
+        print(f'art matched to the hull at {len(px)} places (patches {2 * half * r:.1f} wide)')
 
         def at(qx, qz):
-            out = []
-            for rows in np.array_split(np.arange(qx.shape[0]), max(1, qx.size * len(px) // 4000000)):
-                fx, wsum = field(qx[rows], qz[rows], pdx, conf * keep, sig)
-                fz, _ = field(qx[rows], qz[rows], pdz, conf * keep, sig)
-                k = wsum / (wsum + 0.05)
-                out.append((fx * k, fz * k))
-            return np.concatenate([o[0] for o in out]), np.concatenate([o[1] for o in out])
+            return np.interp(qx, cx_, cdx), np.interp(qz, cz_, cdz)
 
         return at
 
@@ -370,8 +374,6 @@ def warp(box, f, art, fit):
             tx, tz = tx + dx, tz + dz
         return np.clip(tx, -2, 2), np.clip(tz, -2, 2)
 
-    at.relief = eg
-    at.edges = edges
     return at
 
 
@@ -429,11 +431,7 @@ def paint(art, fit, moved):
     u0, v0 = np.floor(ui).astype(int), np.floor(vi).astype(int)
     u1, v1 = np.minimum(u0 + 1, w - 1), np.minimum(v0 + 1, h - 1)
     fu, fv = (ui - u0)[..., None], (vi - v0)[..., None]
-    # (The lights are set apart from the art's colours, which are left as the plating round them: each is put on the
-    # hull by itself below.)
-    lamps = glow > 0.02
-    plating, _ = fill(np.concatenate([art, np.ones_like(glow[..., None])], 2), ~dilate(lamps, 2), rounds=60)
-    rgba = np.concatenate([plating[..., :3], np.zeros_like(glow[..., None])], 2)
+    rgba = np.concatenate([art, glow[..., None]], 2)
 
     def bil(img):
         return (img[v0, u0] * (1 - fu) * (1 - fv) + img[v0, u1] * fu * (1 - fv) + img[v1, u0] * (1 - fu) * fv + img[v1, u1] * fu * fv)
@@ -444,82 +442,9 @@ def paint(art, fit, moved):
     out, filled = fill(out, known)
     out[~filled] = [0.33, 0.36, 0.4, 0]
     out[~known, 3] = 0
-    lights(out, art, glow, fit, moved, gx, gz)
+    # (Nothing is lit on the foredeck's rail: the art's paper glints between its bars.)
+    out[(gx > 22) & (gz > 8.2), 3] = 0
     return out
-
-
-def lights(out, art, glow, fit, moved, gx, gz):
-    """
-    The art's lights (windows, the porthole, lamps, the bells' throats) put on the hull each where the model has it: the
-    lit patch, as the art draws it, sought round where the paint would lay it for the window, porthole or lamp in the
-    model's own relief that it fits best (its outline against the relief's edges), and set there whole, unwarped.
-    """
-    a, s, b, t = fit
-    eg, edges = moved.relief, moved.edges
-    r = 0.04
-    x0, z1 = PAINT_X[0], PAINT_Z[1]
-    hh, ww = eg.shape
-    from PIL import ImageDraw
-    marks = Image.fromarray(((glow > 0.3) * 255).astype(np.uint8)).copy()
-    n_set = n_kept = 0
-    while True:
-        ys, xs = np.nonzero(np.asarray(marks) == 255)
-        if len(ys) == 0: break
-        ImageDraw.floodfill(marks, (int(xs[0]), int(ys[0])), 100)
-        blob = np.asarray(marks) == 100
-        ImageDraw.floodfill(marks, (int(xs[0]), int(ys[0])), 1)
-        by, bx = np.nonzero(blob)
-        if len(by) < 4: continue
-        # Its patch of the art (a margin round it, for its halo), and where it is in the box.
-        pad = 6
-        v0, v1, u0, u1 = max(by.min() - pad, 0), min(by.max() + pad + 1, art.shape[0]), max(bx.min() - pad, 0), min(bx.max() + pad + 1, art.shape[1])
-        cu, cv = bx.mean(), by.mean()
-        cx, cz = (cu - a) / s, (b - cv) / t
-        # (Where the paint would lay it: the hull point the warp sends there, found by stepping back along it.)
-        hx, hz = cx, cz
-        for _ in range(4):
-            dx, dz = moved(np.array([[hx]]), np.array([[hz]]))
-            hx, hz = cx - dx[0, 0], cz - dz[0, 0]
-        # Its outline, on the relief's grid, matched against the relief's edges nearby.
-        reach = int(1.0 / r)
-        half_u, half_v = (u1 - u0) / 2 / s, (v1 - v0) / 2 / t
-        nx, nz = int(np.ceil(half_u / r)) + 2, int(np.ceil(half_v / r)) + 2
-        px, pz = int((hx - x0) / r), int((z1 - hz) / r)
-        best = None
-        if cx > 0 and len(by) >= 12 and pz - nz - reach >= 0 and pz + nz + reach < hh and px - nx - reach >= 0 and px + nx + reach < ww:
-            ox = (np.arange(-nx, nx + 1)) * r
-            oz = -(np.arange(-nz, nz + 1)) * r
-            qx, qz = np.meshgrid(ox, oz)
-            uu = np.clip(cu + qx * s, 0, art.shape[1] - 1).astype(int)
-            vv = np.clip(cv - qz * t, 0, art.shape[0] - 1).astype(int)
-            tpl = edges(dilate(blob, 1)[vv, uu].astype(float))
-            tpl = tpl - tpl.mean()
-            if tpl.std() > 1e-4:
-                scores = np.full((2 * reach + 1, 2 * reach + 1), -1.0)
-                for j in range(-reach, reach + 1):
-                    for i in range(-reach, reach + 1):
-                        q = eg[pz + j - nz:pz + j + nz + 1, px + i - nx:px + i + nx + 1]
-                        q = q - q.mean()
-                        den = np.sqrt((q * q).sum() * (tpl * tpl).sum())
-                        if den > 1e-9: scores[j + reach, i + reach] = (q * tpl).sum() / den - 0.15 * np.hypot(i, j) / reach
-                j, i = np.unravel_index(np.argmax(scores), scores.shape)
-                if scores[j, i] > 0.2:
-                    best = (hx + (i - reach) * r, hz - (j - reach) * r)
-        if best is None: n_kept += 1
-        else: n_set += 1
-        lx, lz = best or (hx, hz)
-        # Set there: each paint point near it takes the art's light at the same place in the patch.
-        sel = (gx >= lx - half_u) & (gx <= lx + half_u) & (gz >= lz - half_v) & (gz <= lz + half_v)
-        uu = np.round(cu + (gx[sel] - lx) * s).astype(int)
-        vv = np.round(cv - (gz[sel] - lz) * t).astype(int)
-        ok = (uu >= u0) & (uu < u1) & (vv >= v0) & (vv < v1)
-        g = glow[vv[ok], uu[ok]]
-        idx = tuple(np.array(np.nonzero(sel))[:, ok])
-        cur = out[idx]
-        cur[:, :3] = np.where((g > cur[:, 3])[:, None], art[vv[ok], uu[ok]], cur[:, :3])
-        cur[:, 3] = np.maximum(cur[:, 3], g)
-        out[idx] = cur
-    print(f'lights set on the hull: {n_set} on its own windows and lamps, {n_kept} where the paint lays them')
 
 
 def main():
