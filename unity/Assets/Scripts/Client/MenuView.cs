@@ -1020,7 +1020,8 @@ public class MenuView : MonoBehaviour
     void SettingsPanel(Transform parent, Frame2 f, Hud.Row[] rows)
     {
         float w = Mathf.Min(380, f.Right - f.Left), minRow = K.Clamp(36, 7 * K.Vh, 46), foot = K.Clamp(80, 18 * K.Vh, 130);
-        var heights = rows.Select(r => Mathf.Max(minRow, r.Label.Contains("\n") ? 12 + 3 + 12 + 4 : 0)).ToArray();
+        // (A label of two lines: its name, 3, the line under it: 14 + 3 + 13.)
+        var heights = rows.Select(r => Mathf.Max(minRow, r.Label.Contains("\n") ? K.LineH(10.56f) + 3 + K.LineH(10.56f, false) : 0)).ToArray();
         float listH = 8 + heights.Sum() + (rows.Length - 1) * 2, h = 14 + listH + foot;
         float x = (f.Left + f.Right - w) / 2, y = f.BodyTop + (f.BodyH - h) / 2;
         var panel = Hud.Box(parent, "Settings", new Color(1, 1, 1, 0.55f), 22);
@@ -1030,7 +1031,8 @@ public class MenuView : MonoBehaviour
         // The flower, turning (one turn in 90 seconds), under the list.
         float fs = K.Clamp(150, 34 * K.Vh, 240);
         var fl = Hud.Rect(panel.transform, "Flower");
-        Hud.At(fl, new Vector2(0.5f, 0), Vector2.zero, new Vector2(fs, fs));
+        // (Its picture baked with a margin of 6% each side for its shadows.)
+        Hud.At(fl, new Vector2(0.5f, 0), Vector2.zero, new Vector2(fs * 1.12f, fs * 1.12f));
         fl.pivot = new Vector2(0.5f, 0.5f);
         var fi = fl.gameObject.AddComponent<RawImage>();
         fi.texture = Resources.Load<Texture2D>("Icons/settings-flower");
@@ -1070,20 +1072,21 @@ public class MenuView : MonoBehaviour
                 li.raycastTarget = false;
             }
             var parts = row.Label.Split('\n');
-            float labelH = parts.Length > 1 ? 27 : 12;
-            var l = K.Words(r.transform, parts[0].ToUpperInvariant(), 16, (rowH - labelH) / 2, rowW - 100, 12, 10.56f, Look.Ink, true, 400, 0.22f, TextAlignmentOptions.Left);
+            float nameH = K.LineH(10.56f), subH = K.LineH(10.56f, false), labelH = parts.Length > 1 ? nameH + 3 + subH : nameH;
+            var l = K.Words(r.transform, parts[0].ToUpperInvariant(), 16, (rowH - labelH) / 2, rowW - 100, nameH, 10.56f, Look.Ink, true, 400, 0.22f, TextAlignmentOptions.Left);
             l.alpha = fade;
             if (parts.Length > 1)
             {
-                var sub = K.Words(r.transform, parts[1], 16, (rowH - labelH) / 2 + 15, rowW - 100, 12, 10.56f, Look.InkFaint, false, 400, 0.02f, TextAlignmentOptions.Left);
+                var sub = K.Words(r.transform, parts[1], 16, (rowH - labelH) / 2 + nameH + 3, rowW - 100, subH, 10.56f, Look.InkFaint, false, 400, 0.02f, TextAlignmentOptions.Left);
                 sub.alpha = fade;
             }
             if (row.Value != null)
             {
                 string v = row.Value.ToUpperInvariant();
-                float vw = Mathf.Max(44, K.TextW(v, 9.6f, 500, 0.16f) + 20);
-                var pill = Hud.Box(r.transform, "Value", Hud.Rgba(240, 242, 246), 9.5f);
-                Hud.Place(pill.rectTransform, rowW - 12 - vw, (rowH - 19) / 2, vw, 19);
+                // (.opt-value: at least 44 across, padded 4 by 10; its spacing after the last letter counted.)
+                float vw = Mathf.Max(44, K.TextW(v, 9.6f, 500, 0.16f) + 0.16f * 9.6f + 20), vh = K.LineH(9.6f) + 8;
+                var pill = Hud.Box(r.transform, "Value", Hud.Rgba(240, 242, 246), vh / 2);
+                Hud.Place(pill.rectTransform, rowW - 12 - vw, (rowH - vh) / 2, vw, vh);
                 pill.color = new Color(pill.color.r, pill.color.g, pill.color.b, fade);
                 var vl = K.Fill(pill.transform, v, 9.6f, Look.InkSoft, true, 500, 0.16f);
                 vl.alpha = fade;
