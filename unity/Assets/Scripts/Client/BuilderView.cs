@@ -375,10 +375,10 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         front.Colours[0] = Color.Lerp(c2, Hex("#141822"), 0.12f);
         front.Colours[1] = Color.Lerp(c2, Hex("#141822"), 0.14f);
         var drop = new Hud.Drop(Hud.Rgba(40, 44, 60, 0.25f), 14, 24);
-        // (Picked: the halo round it too.)
-        if (on) Hud.Shadow(front, 3, drop, new Hud.Drop(Hud.Rgba(93, 106, 140, 0.28f), 0, 5, 1));
-        else Hud.Shadow(front, 3, drop);
-        Outline(front.transform, Mix(dc, 0.25f, Hex("#7a8498")), 1);
+        // (Its hairline edge, in its colour, drawn as a ring just round it; picked, the halo round it too.)
+        var edge = new Hud.Drop(Mix(dc, 0.25f, Hex("#7a8498")), 0, 0, 1);
+        if (on) Hud.Shadow(front, 2, edge, drop, new Hud.Drop(Hud.Rgba(93, 106, 140, 0.28f), 0, 5, 1));
+        else Hud.Shadow(front, 2, edge, drop);
         if (act != null)
         {
             front.raycastTarget = true;
@@ -393,7 +393,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         float fi = big ? 0.045f : 0.06f;
         frame.offsetMin = new Vector2(bw * fi, bh * fi);
         frame.offsetMax = -frame.offsetMin;
-        Outline(frame, new Color(1, 1, 1, 0.16f), 1);
+        Lines(frame, new Color(1, 1, 1, 0.16f), 1);
         // The cover: white under it, a ring of its colour, a shadow.
         float cs, coverMid;
         float nameF = K.Clamp(8, 2.1f * K.Vh, 11.52f), raceF = K.Clamp(7.2f, 1.7f * K.Vh, 9.28f);
@@ -661,6 +661,8 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     static float PoolW => K.W - K.PadL - K.PadR - SideW - K.Clamp(8, 1.6f * K.Vw, 16);
     static float PagerH => 34 + Mathf.Max(16, K.SaB + 10);
     static float PoolH => K.H - PoolTop - 8 - PagerH;
+    /// <summary>A pool too short for its rows (the web's db-short: under 300 tall inside its padding and the scrollbar's room).</summary>
+    static bool ShortPool => PoolH - 2 - Mathf.Max(18, K.SaB) - 6 < 300;
     /// <summary>The search's right edge (.db-search: up to 300 across, leaving the rest of the toolbar room).</summary>
     static float SearchR => PoolX + Mathf.Min(300, PoolW - 30 - 8 - 62 - 16);
 
@@ -751,7 +753,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
             K.Fill(dot, set.ToString(), 8, Color.white, true, 700);
         }
         // The card sizes: many small, some medium, a few large.
-        bool shortPool = PoolH < 300;
+        bool shortPool = ShortPool;
         var sizes = shortPool ? new[] { "sm", "lg" } : new[] { "sm", "md", "lg" };
         float segW = 4 + sizes.Length * 28 + (sizes.Length - 1) * 2;
         var seg = K.Inset(root, "Sizes", new Color(1, 1, 1, 0.7f), Hud.Rgba(150, 160, 185, 0.3f), 15);
@@ -858,9 +860,9 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     /// </summary>
     (int cols, int rows, float w, float h) Layout()
     {
-        int rows = Mathf.Max(1, (grid == "sm" ? 3 : grid == "lg" ? 1 : 2) - (PoolH < 300 ? 1 : 0));
+        int rows = Mathf.Max(1, (grid == "sm" ? 3 : grid == "lg" ? 1 : 2) - (ShortPool ? 1 : 0));
         const float gap = 10;
-        float w = Mathf.Floor((PoolH - (rows - 1) * gap) / rows / 1.52f * 10) / 10;
+        float w = Mathf.Floor((PoolH - 2 - Mathf.Max(18, K.SaB) - (rows - 1) * gap) / rows / 1.52f * 10) / 10;
         int cols = Mathf.Max(1, Mathf.FloorToInt((PoolW + gap) / (w + gap)));
         if (cols * w + (cols - 1) * gap > PoolW) w = Mathf.Floor((PoolW - (cols - 1) * gap) / cols * 10) / 10;
         return (cols, rows, w, w * 1.4f);
@@ -1152,11 +1154,10 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         };
         float bw = Mathf.Max(72, K.TextW("SAVE", 9.28f, 700, 0.18f) + 30);
         var save = K.Btn(side.transform, "save", Save, x + inner - bw, actionsY, K.Kind.Primary, bw, 25, 9.28f, 0.18f);
-        var exit = K.Btn(side.transform, "exit", exitAct, x + inner - bw - 6 - bw, actionsY, K.Kind.Btn, bw, 25, 9.28f, 0.18f);
+        var exit = K.Btn(side.transform, "exit", exitAct, x + inner - bw - 6 - bw, actionsY, K.Kind.Btn, bw, 25, 9.28f, 0.18f, ring: new Color(0.753f, 0.337f, 0.239f, 0.45f));
         var el = exit.GetComponentInChildren<TextMeshProUGUI>();
         el.color = Hex("#b23c24");
         el.font = Look.Display(700);
-        Hud.Shadow(exit.targetGraphic, 10, new Hud.Drop(new Color(0.753f, 0.337f, 0.239f, 0.45f), 0, 0, 1));
     }
 
     /// <summary>A row of the deck: its picture (22 across), its name, how many short (if any), how many, and a minus (tap: take one out).</summary>
@@ -1443,6 +1444,25 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     }
 
     /// <summary>A hairline round a panel, just outside its edge (drawn over the panel, under what is on it).</summary>
+    /// <summary>A square frame of hairlines just inside a rect (a deck box's printed frame).</summary>
+    static void Lines(RectTransform r, Color colour, float width)
+    {
+        var sides = new[] { (new Vector2(0, 1), new Vector2(1, 1)), (new Vector2(0, 0), new Vector2(1, 0)), (new Vector2(0, 0), new Vector2(0, 1)), (new Vector2(1, 0), new Vector2(1, 1)) };
+        for (int i = 0; i < 4; i++)
+        {
+            var (a, b) = sides[i];
+            var line = Hud.Rect(r, "Line");
+            line.anchorMin = a;
+            line.anchorMax = b;
+            line.pivot = new Vector2(a.x == b.x ? a.x : 0.5f, a.y == b.y ? a.y : 0.5f);
+            line.anchoredPosition = Vector2.zero;
+            line.sizeDelta = i < 2 ? new Vector2(0, width) : new Vector2(width, 0);
+            var img = line.gameObject.AddComponent<Image>();
+            img.color = colour;
+            img.raycastTarget = false;
+        }
+    }
+
     static void Outline(Transform panel, Color colour, float width)
     {
         var edge = Hud.Rect(panel, "Edge");

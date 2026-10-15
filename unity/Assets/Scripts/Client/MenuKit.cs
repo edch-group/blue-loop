@@ -105,7 +105,7 @@ public static class MenuKit
     /// strong glass, a white hairline and a soft shadow (0 2 10, 12%); .btn-primary white to #eeeff1 (drawn as their
     /// middle), a ring of the line colour and a wider shadow (0 6 20), its word bold. Its width comes back too.
     /// </summary>
-    public static Button Btn(Transform parent, string text, System.Action act, float x, float y, Kind kind = Kind.Btn, float w = 0, float h = 0, float? size = null, float em = 0.14f, float? radius = null)
+    public static Button Btn(Transform parent, string text, System.Action act, float x, float y, Kind kind = Kind.Btn, float w = 0, float h = 0, float? size = null, float em = 0.14f, float? radius = null, Color? ring = null)
     {
         var m = Measure(kind);
         float fs = size ?? m.size;
@@ -115,7 +115,7 @@ public static class MenuKit
         bool primary = kind == Kind.Primary;
         var img = Hud.Box(parent, text, primary ? Hud.Rgba(247, 247, 248) : Look.GlassStrong, rad);
         Hud.Place(img.rectTransform, x, y, w, h);
-        if (primary) Hud.Shadow(img, rad, new Hud.Drop(Look.Line, 0, 0, 1), new Hud.Drop(Hud.Rgba(120, 124, 134, 0.22f), 6, 20));
+        if (primary || ring != null) Hud.Shadow(img, rad, new Hud.Drop(ring ?? Look.Line, 0, 0, 1), new Hud.Drop(Hud.Rgba(120, 124, 134, 0.22f), 6, 20));
         else Hud.Shadow(img, rad, new Hud.Drop(Hud.Rgba(90, 90, 110, 0.12f), 2, 10));
         var b = Pressable(img, act);
         Fill(img.transform, text.ToUpperInvariant(), fs, Look.Ink, true, primary ? 700 : 500, em);
