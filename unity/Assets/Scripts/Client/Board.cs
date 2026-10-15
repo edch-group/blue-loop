@@ -601,6 +601,13 @@ public partial class Board : MonoBehaviour
     /// <summary>Lay the battle out as it stands: every card where it belongs, every sun as hot as it is.</summary>
     public void Sync(GameState s, BattleView ui)
     {
+        // (Who moved, and whether a day ended, as the cards it brought arrive: app.ts animate's delays.)
+        if (synced != null && synced != s)
+        {
+            var was = Game.ActivePlayer(synced);
+            arriveByAI = was.IsAI;
+            arriveAtDawn = was.Id != Game.ActivePlayer(s).Id;
+        }
         synced = s;
         syncedBy = ui;
         dealing = 0;
@@ -613,7 +620,7 @@ public partial class Board : MonoBehaviour
             bool mine = p == me;
             foreach (var c in p.Tableau)
             {
-                var v = Card(c, true, mine);
+                var v = Card(c, true, mine, p.Id);
                 seen.Add(c.Uid);
                 var at = SlotAt(mine, c.Slot ?? 0) + new Vector3(0, 0.03f, 0);
                 v.transform.SetParent(table, false);
@@ -626,7 +633,7 @@ public partial class Board : MonoBehaviour
             // (A trap set face down, beside the row.)
             if (p.Lightspeed != null)
             {
-                var v = Card(p.Lightspeed, true, mine);
+                var v = Card(p.Lightspeed, true, mine, p.Id);
                 seen.Add(p.Lightspeed.Uid);
                 v.transform.SetParent(table, false);
                 v.MoveTo((mine ? MyTrap : RivalTrap) + new Vector3(0, 0.03f, 0), Quaternion.identity);
@@ -849,23 +856,27 @@ public partial class Board : MonoBehaviour
     /// <summary>Whether the board has been laid out once (after that, cards arriving come from somewhere).</summary>
     bool dealt;
 
-    CardView Card(CardInstance c, bool table, bool mine = true)
+    CardView Card(CardInstance c, bool table, bool mine = true, string owner = null)
     {
         if (cards.TryGetValue(c.Uid, out var v) && v.Table != table)
         {
-            // (From the hand to the table: a new view, as its face is the table's, flying from where the old one was.)
+            // (From the hand to the table, or back: a new view, as its face is the other's, flying from where the old one
+            // was (app.ts animate: flyFrom(el, old.rect), 420 ms, unfaded; a card flung back to hand by a removal waits
+            // in its slot until the arc reaches it).)
             var at = v.transform;
             var nv = CardView.Make(table ? this.table : handRoot, c.Uid, c.DefId, table, table ? L.Tcw : L.HandCard);
-            nv.StartFrom(at.position, at.rotation, at.lossyScale);
+            float wait = linger.TryGetValue(c.Uid, out var lt) ? Mathf.Max(0, lt - Time.time) : 0;
+            if (Application.isPlaying) nv.FlyFrom(at.position, at.rotation, at.lossyScale, wait, 0.42f, false);
+            else nv.StartFrom(at.position, at.rotation, at.lossyScale);
             Mats.Kill(v.gameObject);
             cards[c.Uid] = nv;
-            return nv;
+            v = nv;
         }
-        if (v == null)
+        else if (v == null)
         {
             v = CardView.Make(table ? this.table : handRoot, c.Uid, c.DefId, table, table ? L.Tcw : L.HandCard);
             cards[c.Uid] = v;
-            if (dealt && Application.isPlaying) Arrive(v, table, mine);
+            if (dealt && Application.isPlaying) Arrive(v, table, owner);
         }
         v.SetCard(c.DefId);
         // (Its face the web's at the width it is drawn: in play --tcw, in the hand --hw.)
@@ -873,31 +884,55 @@ public partial class Board : MonoBehaviour
         return v;
     }
 
+    /// <summary>Whether the last move was the AI's, and whether it ended a day (set as each new state is synced).</summary>
+    bool arriveByAI, arriveAtDawn;
+
     /// <summary>
-    /// Where a card arriving comes from: drawn, from your deck; your rival's, shown large on the stage a moment (so you
-    /// see what they played: the web's stage, a card min(250 px, 44vh) wide in the screen's middle) before it lands;
-    /// anything else, from just above its place.
+    /// A card arriving that wasn't on screen (app.ts animate): drawn, it flies from your deck pile to its place in the
+    /// fan, fading in (dealCard: 520 ms, (a day's end ? 420 : 60) ms + 110 ms a card after the last), with the draw's
+    /// sound as it leaves; in a tableau, it flies in from its owner's sun, fading in (560 ms, 350 ms late after the AI's
+    /// move).
     /// </summary>
-    void Arrive(CardView v, bool table, bool mine)
+    void Arrive(CardView v, bool table, string owner)
     {
         if (!table)
         {
-            // (Drawn: from the deck pile on the board to its place in the fan, one after another: app.ts dealCard,
-            // DEAL_STEP_MS apart.)
             var deck = this.table.TransformPoint(PileAt(true, 0));
-            v.StartFrom(deck + Vector3.up * 0.1f, this.table.rotation, Vector3.one * PileScale);
-            v.Hold(0.06f + dealing++ * 0.11f);
+            float delay = (arriveAtDawn ? 0.42f : 0.06f) + dealing++ * 0.11f;
+            v.FlyFrom(deck + Vector3.up * 0.1f, this.table.rotation, Vector3.one * PileScale, delay, 0.52f, true);
+            Sound.Play("draw", delay);
             return;
         }
-        if (!mine)
+        SunView sun = null;
+        if (owner != null) suns.TryGetValue(owner, out sun);
+        var from = sun != null ? sun.transform.position : this.table.TransformPoint(PileAt(owner == Viewer, 0));
+        // (At the sun's size on the page: fx.ts orbRect.)
+        v.FlyFrom(from + Vector3.up * 0.1f, this.table.rotation, Vector3.one * 0.3f, arriveByAI ? 0.35f : 0, 0.56f, true);
+    }
+
+    /// <summary>When the opening deal is over (until then the hand can't be raised: app.ts dealtAt).</summary>
+    public float DealtAt { get; private set; }
+
+    /// <summary>
+    /// app.ts dealOpening: the shuffle, then your opening hand dealt in from your deck one by one (350 ms, then 110 ms
+    /// apart, 520 ms each, fading in), each with the draw's sound.
+    /// </summary>
+    public void DealOpening(GameState s)
+    {
+        if (!Application.isPlaying) return;
+        Sound.Play("shuffle");
+        var me = s.Players.FirstOrDefault(p => p.Id == Viewer);
+        if (me == null) return;
+        var deck = this.table.TransformPoint(PileAt(true, 0));
+        int i = 0;
+        foreach (var c in me.Hand)
         {
-            // (A card arriving in a tableau without having been on screen flies in from its owner's sun.)
-            var sun = suns.Where(kv => kv.Key != Viewer).Select(kv => kv.Value).FirstOrDefault();
-            var from = sun != null ? sun.transform.position : this.table.TransformPoint(PileAt(false, 0));
-            v.StartFrom(from + Vector3.up * 0.1f, this.table.rotation, Vector3.one * 0.3f);
-            v.Hold(0.35f);
-            return;
+            if (!cards.TryGetValue(c.Uid, out var v) || v == null || v.Table || !v.gameObject.activeSelf) continue;
+            float delay = 0.35f + i++ * 0.11f;
+            v.FlyFrom(deck + Vector3.up * 0.1f, this.table.rotation, Vector3.one * PileScale, delay, 0.52f, true);
+            Sound.Play("draw", delay);
         }
+        DealtAt = Time.time + 0.35f + i * 0.11f + 0.52f;
     }
 
     /// <summary>How many cards have been dealt into the hand this sync (each a little after the last).</summary>

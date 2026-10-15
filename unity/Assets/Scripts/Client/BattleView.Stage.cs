@@ -88,7 +88,9 @@ public partial class BattleView
         if (stage != null && stage.Confirm)
         {
             landing = Land;
+            // (A rival's card arriving on the stage to be read sounds as it comes: app.ts stageEntrance.)
             Sound.Play("play");
+            entranceHeard = true;
             Refresh();
             return;
         }
@@ -108,6 +110,9 @@ public partial class BattleView
         }
         Land();
     }
+
+    /// <summary>The card landing has sounded already, as it came onto the stage (app.ts entranceHeard).</summary>
+    bool entranceHeard;
 
     float strikeLand;
     string struckBy;
@@ -357,6 +362,19 @@ public partial class BattleView
                 held.Delay = 0.64f;
             }
         }
+        // A card shown there once a move has landed (a trap sprung, a card played at lightspeed in reply): it flies in
+        // from its player's sun, fading in (app.ts animate: flyFrom(stageCard, orbRect(actor), fade, 520 ms)).
+        else if (stage != null && !stage.Own && !now.faceDown)
+        {
+            var sun = SunRect(stage.ActorId);
+            if (sun != null)
+            {
+                var fly = main.gameObject.AddComponent<FlyIn>();
+                fly.From = sun.Value;
+                fly.To = new Rect(right - pairW, top, scw, ch);
+                fly.Seconds = 0.52f;
+            }
+        }
     }
 
     /// <summary>
@@ -571,14 +589,15 @@ public partial class BattleView
         void Step()
         {
             float p = Mathf.Clamp01((Time.time - t0) / Seconds);
-            float t = 1 - Mathf.Pow(1 - p, 3), u = 1 - t;
+            // (Along its arc eased out; straight, fx.ts flyFrom's cubic-bezier(.2,.8,.2,1).)
+            float t = Arc > 0 ? 1 - Mathf.Pow(1 - p, 3) : CubicBezier(0.2f, 0.8f, 0.2f, 1, p), u = 1 - t;
             float dx = From.center.x - To.center.x, dy = From.center.y - To.center.y;
             float cx = dx / 2, cy = dy / 2 - Arc;
             float x = u * u * dx + 2 * u * t * cx, y = u * u * dy + 2 * u * t * cy;
             float s = Mathf.Min(From.width / To.width, From.height / To.height);
             r.anchoredPosition = home + new Vector2(x, -y);
             r.localScale = Vector3.one * (s + (1 - s) * t);
-            if (g != null) { var c = g.color; c.a = Mathf.Min(1, t * 2.5f); g.color = c; }
+            if (g != null) { var c = g.color; c.a = Arc > 0 ? Mathf.Min(1, t * 2.5f) : t; g.color = c; }
             if (p >= 1) Destroy(this);
         }
     }

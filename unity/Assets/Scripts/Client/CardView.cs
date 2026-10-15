@@ -117,9 +117,13 @@ public class CardView : MonoBehaviour
     {
         var col = c ?? new Color(0, 0, 0, 0);
         if (c != null) col.a = 0.85f * strength;
+        rimA = col.a;
+        // (Flying in faded, its rim fades in with it.)
+        if (flying && flyFade) col.a *= face.sharedMaterial.color.a;
         rim.sharedMaterial.color = col;
     }
 
+    float rimA;
     MeshRenderer flash;
     float flashAt = -1, flashFor, flashBright;
     bool flashHit;
@@ -225,6 +229,74 @@ public class CardView : MonoBehaviour
 
     /// <summary>Stay where it is for a while before going on (a card shown on the stage).</summary>
     public void Hold(float seconds) => holdUntil = Time.time + seconds;
+
+    // A flight in (fx.ts flyFrom): from a pose, after a delay, onto where it is going.
+    bool flying, flyFade;
+    float flyAt, flyFor;
+    Vector3 flyPos, flyScale;
+    Quaternion flyRot;
+
+    /// <summary>
+    /// fx.ts flyFrom: from where another object stands (world space), `delay` seconds from now, over `seconds`
+    /// (cubic-bezier(.2,.8,.2,1)), onto where it is told to be; faded in from nothing as it goes if `fade` (held unseen
+    /// where it starts until then: fill backwards), else whole from the start.
+    /// </summary>
+    public void FlyFrom(Vector3 worldPos, Quaternion worldRot, Vector3 worldScale, float delay, float seconds, bool fade)
+    {
+        StartFrom(worldPos, worldRot, worldScale);
+        flyPos = transform.localPosition;
+        flyRot = transform.localRotation;
+        flyScale = transform.localScale;
+        applied = Vector3.zero;
+        holdUntil = 0;
+        flying = true;
+        flyFade = fade;
+        flyAt = Time.time + Mathf.Max(0, delay);
+        flyFor = Mathf.Max(0.01f, seconds);
+        Fade(fade ? 0 : 1);
+    }
+
+    /// <summary>Whether it is still flying in.</summary>
+    public bool Flying => flying;
+
+    float shadowA = -1;
+
+    /// <summary>The whole card faded to `k` (its face, shadow and badges) as it flies in.</summary>
+    void Fade(float k)
+    {
+        var f = face.sharedMaterial.color;
+        f.a = k;
+        face.sharedMaterial.color = f;
+        if (shadowA < 0) shadowA = shadow.sharedMaterial.color.a;
+        var sc = shadow.sharedMaterial.color;
+        sc.a = shadowA * k;
+        shadow.sharedMaterial.color = sc;
+        foreach (var b in badges.Values)
+        {
+            var c = b.sharedMaterial.color;
+            c.a = k;
+            b.sharedMaterial.color = c;
+        }
+        var r = rim.sharedMaterial.color;
+        r.a = rimA * k;
+        rim.sharedMaterial.color = r;
+    }
+
+    void Fly()
+    {
+        float t = Mathf.Clamp01((Time.time - flyAt) / flyFor);
+        float e = Ease(0.2f, 0.8f, 0.2f, 1, t);
+        transform.localPosition = Vector3.LerpUnclamped(flyPos, goalPos, e);
+        transform.localRotation = Quaternion.SlerpUnclamped(flyRot, goalRot, e);
+        transform.localScale = Vector3.LerpUnclamped(flyScale, goalScale, e);
+        if (flyFade) Fade(Mathf.Clamp01(e));
+        if (t < 1) return;
+        flying = false;
+        if (flyFade) Fade(1);
+        baseRot = goalRot;
+        baseScale = goalScale;
+        based = true;
+    }
 
     /// <summary>Lunge toward a point (in world space) and back: an attack.</summary>
     public void Lunge(Vector3 worldTarget, float distance = 0.75f)
@@ -361,6 +433,7 @@ public class CardView : MonoBehaviour
     void Update()
     {
         Flashing();
+        if (flying) { Fly(); return; }
         if (Time.time < holdUntil) return;
         float k = 1 - Mathf.Exp(-Time.deltaTime * 12);
         var at = transform.localPosition - applied;
@@ -407,6 +480,7 @@ public class CardView : MonoBehaviour
     {
         applied = Vector3.zero;
         holdUntil = 0;
+        if (flying) { flying = false; if (flyFade) Fade(1); }
         transform.localPosition = goalPos;
         transform.localRotation = goalRot;
         transform.localScale = goalScale;

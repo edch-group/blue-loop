@@ -94,6 +94,8 @@ public partial class BattleView : MonoBehaviour
         Clear();
         Refresh();
         Sound.Scene("battle");
+        // (The opening hand: shuffled, then dealt in from the deck: app.ts begin, dealOpening.)
+        Board.DealOpening(state);
         DawnBanner(state, 0.4f);
     }
 
@@ -129,6 +131,8 @@ public partial class BattleView : MonoBehaviour
         Clear();
         Refresh();
         Sound.Scene("battle");
+        // (The opening hand: shuffled, then dealt in from the deck: app.ts begin, dealOpening.)
+        Board.DealOpening(state);
         DawnBanner(state, 0.4f);
     }
 
@@ -154,7 +158,7 @@ public partial class BattleView : MonoBehaviour
         if (!touch && !Dragging)
         {
             bool up = Board.HandUp ? Board.InHandColumn(page) : Board.InHandColumn(page) && !OverHud();
-            up &= !inspector.gameObject.activeSelf && sheet == null;
+            up &= !inspector.gameObject.activeSelf && sheet == null && Time.time >= Board.DealtAt;
             string over = up ? HandCardAt(Input.mousePosition) : null;
             if (up != Board.HandUp || over != Board.HandHover) RaiseHand(up, over);
         }
@@ -492,7 +496,9 @@ public partial class BattleView : MonoBehaviour
         switch (a.Type)
         {
             case "playCard":
-                Sound.Play("play");
+                // (A rival's card already sounded as it arrived on the stage: app.ts entranceHeard.)
+                if (!entranceHeard) Sound.Play("play");
+                entranceHeard = false;
                 var played = actor.Hand.FirstOrDefault(c => c.Uid == a.CardUid);
                 if (played != null && Cards.Def(played.DefId).Kind == "command")
                 {
@@ -522,10 +528,8 @@ public partial class BattleView : MonoBehaviour
                 }
                 break;
         }
-        // Cards drawn into your hand, one after another.
+        // (Cards drawn into your hand sound as each is dealt in from the deck: Board.Arrive, app.ts dealCard.)
         var mine = next.Players.First(p => p.Id == you);
-        int drawn = mine.Hand.Count(c => !Was(mine).Hand.Any(x => x.Uid == c.Uid));
-        for (int i = 0; i < drawn; i++) Sound.Play("draw", 0.35f + i * 0.12f);
         // Supernovas not shown by a dawn replay go off as the blow that caused them lands.
         if (!replaying)
             foreach (var p in next.Players)
