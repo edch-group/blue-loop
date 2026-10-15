@@ -58,7 +58,7 @@ public partial class CampaignView
     }
 
     /// <summary>The row a station's one action sits in (.ar-act), across the middle of the page.</summary>
-    RectTransform ActRow(RectTransform page, ArLayout l) => WebLook.Box(page, "Act", PW / 2 - 500, l.ActY, 1000, l.ActH);
+    RectTransform ActRow(RectTransform page, ArLayout l) => WebLook.Box(page, "Act", PW / 2 - Mathf.Min(500, PW / 2), l.ActY, Mathf.Min(1000, PW), l.ActH);
 
     // ---- In and out ----
 
