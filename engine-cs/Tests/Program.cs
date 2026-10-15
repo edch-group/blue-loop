@@ -40,7 +40,7 @@ void Check(string name, bool ok, string detail = "")
 // with the arguments the TypeScript engine was (npx vite-node scripts/record-growth.ts), returning the same.
 {
     var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/growth.json");
-    if (!System.IO.File.Exists(path)) Console.WriteLine("skip growth (no engine-cs/traces/growth.json: npx vite-node scripts/record-growth.ts)");
+    if (!System.IO.File.Exists(path)) Repo.Missing(Check, "growth", "engine-cs/traces/growth.json", "npx vite-node scripts/record-growth.ts");
     else
     {
         var (total, bad, shown) = Growth.Check(Newtonsoft.Json.Linq.JArray.Parse(System.IO.File.ReadAllText(path)));
@@ -55,7 +55,7 @@ void Check(string name, bool ok, string detail = "")
 // into them (npx vite-node scripts/record-meta.ts), returning the same.
 {
     var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/meta.json");
-    if (!System.IO.File.Exists(path)) Console.WriteLine("skip meta (no engine-cs/traces/meta.json: npx vite-node scripts/record-meta.ts)");
+    if (!System.IO.File.Exists(path)) Repo.Missing(Check, "meta", "engine-cs/traces/meta.json", "npx vite-node scripts/record-meta.ts");
     else
     {
         var (total, bad, shown) = MetaChecks.Check(Newtonsoft.Json.Linq.JArray.Parse(System.IO.File.ReadAllText(path)));
@@ -67,7 +67,7 @@ void Check(string name, bool ok, string detail = "")
 // Built cards: fused, marked, the Captain's builds and the crew's, each as the TypeScript engine builds it.
 {
     var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/builds.json");
-    if (!System.IO.File.Exists(path)) Console.WriteLine("skip built cards (no engine-cs/traces/builds.json: npx tsx scripts/record-builds.ts)");
+    if (!System.IO.File.Exists(path)) Repo.Missing(Check, "built cards", "engine-cs/traces/builds.json", "npx vite-node scripts/record-builds.ts");
     else
     {
         var built = Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(path));
@@ -172,7 +172,7 @@ WorldChecks.Run(Check);
 // TypeScript engine's (npx vite-node scripts/record-runs.ts).
 {
     var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/runs.json");
-    if (!System.IO.File.Exists(path)) Console.WriteLine("skip campaign runs (no engine-cs/traces/runs.json: npm run record-runs)");
+    if (!System.IO.File.Exists(path)) Repo.Missing(Check, "campaign runs", "engine-cs/traces/runs.json", "npm run record-runs");
     else
     {
         var runs = Newtonsoft.Json.Linq.JArray.Parse(System.IO.File.ReadAllText(path));

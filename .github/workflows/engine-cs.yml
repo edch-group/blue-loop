@@ -1,9 +1,13 @@
 # The C# engine (unity/Assets/Scripts/Engine) checked against the TypeScript one: games recorded from the TS engine,
-# replayed in C#, every state after every move the same.
+# replayed in C#, every state after every move the same. Needs no secrets and no Unity; with CI=true a recording
+# that was not made fails the run rather than being skipped.
 name: C# engine
 
 on:
+  workflow_dispatch:
   push:
+    paths: ['src/engine/**', 'unity/Assets/Scripts/Engine/**', 'unity/Assets/Resources/Engine/**', 'engine-cs/**', 'scripts/record-battles.ts', 'scripts/record-builds.ts', 'scripts/record-growth.ts', 'scripts/record-meta.ts', 'scripts/record-world.ts', 'scripts/record-runs.ts', 'scripts/record-models.ts', 'unity/Assets/Scripts/Models/**', 'src/ui/ship3d.ts', 'src/ui/captain-ship.ts', 'src/ui/captain-model.ts', 'src/ui/companion-models.ts', 'src/ui/nebula-geometry.ts', 'scripts/export-engine.ts', '.github/workflows/engine-cs.yml']
+  pull_request:
     paths: ['src/engine/**', 'unity/Assets/Scripts/Engine/**', 'unity/Assets/Resources/Engine/**', 'engine-cs/**', 'scripts/record-battles.ts', 'scripts/record-builds.ts', 'scripts/record-growth.ts', 'scripts/record-meta.ts', 'scripts/record-world.ts', 'scripts/record-runs.ts', 'scripts/record-models.ts', 'unity/Assets/Scripts/Models/**', 'src/ui/ship3d.ts', 'src/ui/captain-ship.ts', 'src/ui/captain-model.ts', 'src/ui/companion-models.ts', 'src/ui/nebula-geometry.ts', 'scripts/export-engine.ts', '.github/workflows/engine-cs.yml']
 
 jobs:

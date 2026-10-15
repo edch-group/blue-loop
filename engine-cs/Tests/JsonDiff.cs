@@ -14,6 +14,14 @@ public static class Repo
             return d?.FullName ?? Directory.GetCurrentDirectory();
         }
     }
+
+    /// <summary>A recording not made: skipped on a dev machine, a failure in CI (CI=true), where every one is made
+    /// first and a missing one means the checks did not run.</summary>
+    public static void Missing(System.Action<string, bool, string> check, string name, string file, string record)
+    {
+        if (System.Environment.GetEnvironmentVariable("CI") == "true") check(name, false, $"no {file}: {record}");
+        else System.Console.WriteLine($"skip {name} (no {file}: {record})");
+    }
 }
 
 /// <summary>

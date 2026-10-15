@@ -23,7 +23,7 @@ public static class WorldChecks
         var path = System.IO.Path.Combine(Repo.Root, "engine-cs/traces/world.json");
         if (!System.IO.File.Exists(path))
         {
-            Console.WriteLine("skip world calls (no engine-cs/traces/world.json: npx vite-node scripts/record-world.ts)");
+            Repo.Missing(check, "world calls", "engine-cs/traces/world.json", "npx vite-node scripts/record-world.ts");
             return;
         }
         var cases = JArray.Parse(System.IO.File.ReadAllText(path));
