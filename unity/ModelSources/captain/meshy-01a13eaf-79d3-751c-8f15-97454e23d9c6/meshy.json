@@ -1,0 +1,17 @@
+{
+  "id": "01a13eaf-79d3-751c-8f15-97454e23d9c6",
+  "mode": "preview",
+  "name": "stylized_dark_veteran_highdetail",
+  "seed": 0,
+  "prompt": "",
+  "texture_prompt": "",
+  "status": "SUCCEEDED",
+  "created_at": 1792053051291,
+  "progress": 100,
+  "started_at": 1792053051304,
+  "finished_at": 1792053107926,
+  "task_error": null,
+  "consumed_credits": 0,
+  "_kind": "v2/text-to-3d",
+  "_release": "model-captain-01a13eaf"
+}

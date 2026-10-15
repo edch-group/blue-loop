@@ -18,5 +18,6 @@
   "hd_texture": true,
   "texture_resolution": "4k",
   "consumed_credits": 0,
-  "_kind": "v1/image-to-3d"
+  "_kind": "v1/image-to-3d",
+  "_release": "model-captain-ship-f851b5cc"
 }
