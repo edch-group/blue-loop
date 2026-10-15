@@ -94,6 +94,7 @@ public partial class BattleView : MonoBehaviour
         Clear();
         Refresh();
         Sound.Scene("battle");
+        DawnBanner(state, 0.4f);
     }
 
     /// <summary>The names the AI plays under in quickplay (app.ts BOT_NAMES).</summary>
@@ -119,6 +120,7 @@ public partial class BattleView : MonoBehaviour
         Clear();
         Refresh();
         Sound.Scene("battle");
+        DawnBanner(state, 0.4f);
     }
 
     // ---- The loop ----

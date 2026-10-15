@@ -62,6 +62,8 @@ public partial class BattleView
             // (Skip all lasts the rival's day: as yours begins, it is back to auto.)
             if (turnPassed && confirmMode == "skip" && Game.ActivePlayer(next).Id == you) confirmMode = "auto";
             Refresh();
+            // (The next day's dawn: its banner, after the dusk's tick if the dusk did anything.)
+            if (turnPassed) DawnBanner(next, next.LastDusk != null && next.LastDusk.PlayerId == actor.Id && next.LastDusk.Acted ? 0.35f : 0);
         }
         if (stage != null && stage.Confirm)
         {
