@@ -3,7 +3,8 @@
  * (Assets/Resources/Badges/<kind>-<n>.png): attack, stability (and its low look), defence and a Guard's defence.
  * And the defence shields as a small card wears them (<kind>-s-<n>: on a card under about 77 px the shield is at its
  * floor, 20 px (a Guard's 23) and its number at its 8 px floor, larger for the shield than on a big card's).
- * Usage: node scripts/bake-badges.mjs [--small]  (--small: only the small card's shields)
+ * Usage: node scripts/bake-badges.mjs [--small | --extra]  (--small: only the small card's shields; --extra: only the
+ * worn and previewed looks, below)
  */
 import { mkdirSync, writeFileSync, globSync } from 'node:fs';
 import { createServer } from 'vite';
@@ -29,6 +30,35 @@ const shot = async (sel, name) => {
   const el = await page.$(sel);
   if (el) writeFileSync(`${out}/${name}.png`, await el.screenshot({ type: 'png', omitBackground: true }));
 };
+// --extra: the looks a card in play's badges take beyond these: a worn shield (<def|guard>-dent-<n>), and the numbers
+// heat aimed at it would leave, shown hovered (<def|guard>[-dent]-pv-<n>, stab[-low]-pv-<n>); the shields at a small
+// card's size too (-s-).
+if (process.argv.includes('--extra')) {
+  const tinyX = await browser.newPage({ deviceScaleFactor: 6, viewport: { width: 400, height: 300 } });
+  await tinyX.goto(`http://localhost:${port}/bake/index.html`);
+  await tinyX.waitForFunction(() => window.ready === true);
+  await tinyX.addStyleTag({ content: 'html,body,#stage{background:transparent!important} .card::before,.card::after{display:none!important}' });
+  for (let v = 0; v <= 30; v++) {
+    for (const [opts, suffix] of [[{ dent: true }, '-dent'], [{ pv: true }, '-pv'], [{ dent: true, pv: true }, '-dent-pv'], [{ pv: true, low: true }, '-low-pv']]) {
+      for (const [pg, width, s] of [[page, 200, ''], [tinyX, 56, '-s']]) {
+        await pg.evaluate(([v, w, o]) => window.badges(v, w, o), [v, width, opts]);
+        await pg.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+        const take = async (sel, name) => {
+          const el = await pg.$(sel);
+          if (el) writeFileSync(`${out}/${name}.png`, await el.screenshot({ type: 'png', omitBackground: true }));
+        };
+        if (suffix === '-low-pv' || (suffix === '-pv' && !s)) { if (!s) await take('.b-jewels .jewels-br .jewel', `stab${suffix}-${v}`); }
+        if (suffix !== '-low-pv') {
+          await take('.b-def .stat-def', `def${suffix}${s}-${v}`);
+          await take('.b-guard .stat-def', `guard${suffix}${s}-${v}`);
+        }
+      }
+    }
+  }
+  await browser.close();
+  await server.close();
+  process.exit(0);
+}
 let n = 0;
 for (let v = 0; v <= 30 && !small; v++) {
   for (const [opts, suffix] of [[{}, ''], [{ low: true, dim: true }, '-low']]) {
