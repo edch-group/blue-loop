@@ -981,6 +981,23 @@ public class Board : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// The cards' rims and dimming done again for what is being chosen (a drag over a new spot), nothing else: a whole
+    /// Sync each time the pointer crossed into a slot or onto a card dropped frames while dragging.
+    /// </summary>
+    public void Redress(GameState s, BattleView ui)
+    {
+        foreach (var p in s.Players)
+        {
+            bool mine = p.Id == Viewer;
+            foreach (var c in p.Tableau)
+                if (cards.TryGetValue(c.Uid, out var v) && v != null) ui.Dress(v, p, c, true);
+            if (mine)
+                foreach (var c in p.Hand)
+                    if (cards.TryGetValue(c.Uid, out var v) && v != null) ui.Dress(v, p, c, false);
+        }
+    }
+
     /// <summary>The sun of a player, as drawn.</summary>
     public SunView SunOf(string playerId) => suns.TryGetValue(playerId, out var s) ? s : null;
 
