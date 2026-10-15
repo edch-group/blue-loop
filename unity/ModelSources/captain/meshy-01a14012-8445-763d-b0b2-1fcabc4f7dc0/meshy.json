@@ -1,0 +1,18 @@
+{
+  "id": "01a14012-8445-763d-b0b2-1fcabc4f7dc0",
+  "type": "rig",
+  "name": "",
+  "status": "SUCCEEDED",
+  "created_at": 1792076345339,
+  "progress": 100,
+  "started_at": 1792076345344,
+  "finished_at": 1792076418264,
+  "expires_at": 1792335618264,
+  "task_error": null,
+  "result": {
+    "basic_animations": {}
+  },
+  "consumed_credits": 5,
+  "_kind": "v1/rigging",
+  "_release": "model-captain-01a14012"
+}
