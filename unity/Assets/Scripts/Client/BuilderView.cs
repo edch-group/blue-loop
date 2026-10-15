@@ -1294,8 +1294,8 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     {
         var (cols, rows, w, h) = Layout();
         var shown = PageCards();
-        // (None: .muted, Exo 2 16 at the pool's top left, inside its padding.)
-        if (shown.Count == 0) K.Words(poolArea, "No cards match these filters.", 4, PoolPadT + 16, PoolW - 8, 19.2f, 16, Look.InkFaint, false, 400, 0, TextAlignmentOptions.TopLeft);
+        // (None: p.muted, Exo 2 12.8 in ink-faint at the pool's top left, inside its padding and a paragraph's 1em margin.)
+        if (shown.Count == 0) K.Words(poolArea, "No cards match these filters.", 4, PoolPadT + 12.8f, PoolW - 8, 15.4f, 12.8f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.TopLeft);
         int used = Mathf.Max(1, (shown.Count + cols - 1) / cols);
         float gap = ColGap, rowGap = RowGap;
         // (The page's cards in the middle of the pool inside its padding: .db-editor .db-pool's justify- and align-content.)
