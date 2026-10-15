@@ -180,7 +180,11 @@ async function bakeEffect(method: string, args: unknown[], seconds: number): Pro
  * One whole pass of a score (as the reversed scores are made: its form's length, the tails ringing past its end
  * folded back onto its start), so it loops seamlessly.
  */
-async function bakeScore(scene: 'ambient' | 'battle' | 'boss' | 'voyage', loop: number): Promise<string> {
+/**
+ * A score's one pass, `loop` seconds. Folded (for looping): what rings on past its end laid back over its start, so
+ * the loop is seamless. Not folded: its first pass as the web plays it from silence (the intro, before the loop).
+ */
+async function bakeScore(scene: 'ambient' | 'battle' | 'boss' | 'voyage', loop: number, fold = true): Promise<string> {
   const tail = 6;
   const { r, ctx } = await offlineBoard(loop + tail);
   r.scene = scene;
@@ -190,10 +194,11 @@ async function bakeScore(scene: 'ambient' | 'battle' | 'boss' | 'voyage', loop: 
   tick(r, ctx, loop + tail, loop);
   const buf = await ctx.startRendering();
   const length = Math.round(RATE * loop);
-  for (let c = 0; c < 2; c++) {
-    const d = buf.getChannelData(c);
-    for (let i = length; i < d.length; i++) d[i - length] += d[i];
-  }
+  if (fold)
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = length; i < d.length; i++) d[i - length] += d[i];
+    }
   return wav(buf, length);
 }
 import { HEROES } from '../src/ui/voice';

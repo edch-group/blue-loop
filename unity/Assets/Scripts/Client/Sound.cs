@@ -14,6 +14,8 @@ public class Sound : MonoBehaviour
     readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
     readonly List<AudioSource> voices = new List<AudioSource>();
     AudioSource musicA, musicB;
+    /// <summary>The loop to go on with once the score's first pass (its intro) has played.</summary>
+    AudioClip afterIntro;
     string scene;
     float fadeIn = 3;
 
@@ -108,24 +110,59 @@ public class Sound : MonoBehaviour
         if (s == null || name == s.scene) return;
         s.scene = name;
         if (!MusicOn) return;
+        // (The page's audio only runs from the first tap, click or key: until then the score waits, and starts from its
+        // beginning then, as the web's unlock does. Started before, it ran on unheard and came in partway through.)
+        if (!unlocked) return;
+        s.StartScene(name);
+    }
+
+    /// <summary>Whether the player has tapped, clicked or pressed a key yet (the browser's audio allowed).</summary>
+    static bool unlocked = !Application.isPlaying || Application.platform != RuntimePlatform.WebGLPlayer;
+
+    void StartScene(string name)
+    {
+        var s = this;
         var clip = s.Clip("music-" + name);
         if (clip == null) return;
         // (The one fading out swaps to the back; the new one starts from silence.)
         (s.musicA, s.musicB) = (s.musicB, s.musicA);
-        s.musicA.clip = clip;
+        // (Its first pass from silence, then the pass that loops: the looping one has its end's ringing folded back
+        // over its start, which, played first, layered the end's chords over the score's opening.)
+        var intro = s.Clip("music-" + name + "-intro");
+        s.afterIntro = intro != null ? clip : null;
+        s.musicA.clip = intro ?? clip;
+        s.musicA.loop = intro == null;
         s.musicA.volume = 0;
+        s.musicA.time = 0;
         s.musicA.Play();
-        s.fadeIn = name == "battle" ? 3 : name == "ambient" ? 6 : 0.6f;
+        // (sound.ts faders: the battle theme in over 3 s, the ambient over 6, the voyage and the boss's at once.)
+        s.fadeIn = name == "battle" ? 3 : name == "ambient" ? 6 : 0.05f;
     }
 
     void StopMusic()
     {
+        afterIntro = null;
         musicA.Stop();
         musicB.Stop();
     }
 
     void Update()
     {
+        // The first tap, click or key: the score starts, from its beginning.
+        if (!unlocked && (Input.GetMouseButtonUp(0) || Input.anyKeyDown || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Ended)))
+        {
+            unlocked = true;
+            if (scene != null && MusicOn) StartScene(scene);
+        }
+        // (The intro over: the loop, from its start, without a break.)
+        if (afterIntro != null && musicA.clip != afterIntro && (!musicA.isPlaying || musicA.time >= musicA.clip.length - Time.unscaledDeltaTime))
+        {
+            musicA.clip = afterIntro;
+            musicA.loop = true;
+            musicA.time = 0;
+            musicA.Play();
+            afterIntro = null;
+        }
         float level = 0.9f;
         if (musicA.isPlaying) musicA.volume = Mathf.MoveTowards(musicA.volume, level, Time.unscaledDeltaTime * level / Mathf.Max(0.05f, fadeIn));
         if (musicB.isPlaying)
