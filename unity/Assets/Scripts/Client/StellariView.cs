@@ -759,41 +759,69 @@ public class StellariView : MonoBehaviour
         var (skill, race) = aff.Value;
         bool primary = skill == Meta.AffinitySkill["primary"];
         int? other = primary ? meta.Affinity?.Secondary : meta.Affinity?.Primary;
+        // (.aff-pop-wrap: the page washed in its paper at 0.55, the popover in the middle; a tap outside cancels.)
         var veil = Hud.Rect(root, "Affinity");
         Hud.Fill(veil);
         var vi = veil.gameObject.AddComponent<Image>();
-        vi.color = new Color(0.97f, 0.97f, 0.96f, 0.6f);
+        vi.color = new Color(251 / 255f, 251 / 255f, 252 / 255f, 0.55f);
         veil.gameObject.AddComponent<Button>().onClick.AddListener(() => { aff = null; Draw(); });
-        var pop = Hud.Glass(veil, "Pop", Look.GlassStrong);
-        Hud.At((RectTransform)pop.transform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(560, 330));
-        pop.gameObject.AddComponent<Button>();
         var u = Meta.MetaUpgrade(skill);
-        var h = Hud.Label(pop.transform, $"{u.Name.ToUpperInvariant()}\n<size=70%><color=#737780>{(primary ? "Which race do you favour?" : "And which race besides?")}</color></size>", 22, Look.Ink, true, 500, 20, TextAlignmentOptions.Top);
-        h.margin = new Vector4(0, 24, 0, 0);
+        var why = Meta.BuyUpgradeProblem(meta, skill);
+        bool can = race != null && why == null;
+        // (.aff-race: 84 across, padded 10 6 8, 5 between its emblem (40), its name (0.5rem) and, taken by the other
+        // skill, which (0.58rem); all as tall as the tallest.)
+        bool anyTaken = Modes.CoreRaces.Any(r => other == r);
+        float raceW = 84 * Z, raceH = (10 + 40 + 5 + 0.5f * 16 * 1.25f + (anyTaken ? 5 + 0.58f * 16 * 1.25f : 0) + 8) * Z;
+        float racesW = Modes.CoreRaces.Length * raceW + (Modes.CoreRaces.Length - 1) * 10 * Z;
+        // (.aff-pop: padded 18 20 16, its rows 12 apart: the name (0.8rem), the question (0.82rem, 4 up), the races, the
+        // buttons (34).)
+        float h4 = 0.8f * 16 * Z * 1.25f, pH = 0.82f * 16 * Z * 1.25f, btnH = (0.66f * 16 * 1.25f + 2 * 9 + 2) * Z;
+        float popW = racesW + 2 * 20 * Z, popH = 18 * Z + h4 + 12 * Z - 4 * Z + pH + 12 * Z + raceH + 12 * Z + btnH + 16 * Z;
+        var pop = WebLook.Rounded(veil, "Pop", Color.white, 18 * Z);
+        pop.raycastTarget = true;
+        Hud.At(pop.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(popW, popH));
+        WebLook.Shadow(pop, 14 * Z, 40 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.18f), 18 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
+        pop.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;
+        float y = 18 * Z;
+        WebLook.Words(WebLook.Box(pop.transform, "Name", 0, y, popW, h4), u.Name.ToUpperInvariant(), 0.8f * 16 * Z, 0.3f, Look.Ink, true, 500).margin = new Vector4(0.3f * 0.8f * 16 * Z, 0, 0, 0);
+        y += h4 + 12 * Z - 4 * Z;
+        WebLook.Words(WebLook.Box(pop.transform, "Ask", 0, y, popW, pH), primary ? "Which race do you favour?" : "And which race besides?", 0.82f * 16 * Z, 0, Look.InkSoft, false, 400);
+        y += pH + 12 * Z;
         for (int i = 0; i < Modes.CoreRaces.Length; i++)
         {
             int r = Modes.CoreRaces[i];
-            bool taken = other == r;
-            var cell = Hud.Rect(pop.transform, "Race " + r);
-            Hud.At(cell, new Vector2(0.5f, 0.5f), new Vector2(-195 + i * 130, 0), new Vector2(110, 120));
-            var hit = cell.gameObject.AddComponent<Image>();
-            hit.color = race == r ? new Color(0.23f, 0.26f, 0.34f, 0.08f) : new Color(1, 1, 1, 0);
+            bool taken = other == r, on = race == r;
+            var cell = WebLook.Rounded(pop.transform, "Race " + r, on ? Color.white : WebLook.Hex("#f6f7fa"), 14 * Z);
+            cell.raycastTarget = true;
+            WebLook.Box(cell.rectTransform, 20 * Z + i * (raceW + 10 * Z), y, raceW, raceH);
+            var rc = WebLook.Hex(BuilderFactionColour(r));
+            if (on) WebLook.Shadow(cell, 4 * Z, 12 * Z, new Color(70 / 255f, 76 / 255f, 100 / 255f, 0.12f), 14 * Z, 2 * Z, rc);
+            else WebLook.Shadow(cell, 0, 0, Color.clear, 14 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.08f));
             var b = cell.gameObject.AddComponent<Button>();
+            b.transition = Selectable.Transition.None;
             b.interactable = !taken;
             b.onClick.AddListener(() => { aff = (skill, r); Sound.Play("hover"); Draw(); });
-            var em = Hud.Rect(cell, "Emblem");
-            Hud.At(em, new Vector2(0.5f, 1), new Vector2(0, -6), new Vector2(64, 64));
-            var ei = em.gameObject.AddComponent<RawImage>();
+            if (taken) cell.gameObject.AddComponent<CanvasGroup>().alpha = 0.4f;
+            // Its emblem: the race's mark (32) on a white disc (40) ringed faintly.
+            var disc = WebLook.Rounded(cell.transform, "Emblem", Color.white, 999);
+            WebLook.Box(disc.rectTransform, (raceW - 40 * Z) / 2, 10 * Z, 40 * Z, 40 * Z);
+            WebLook.Shadow(disc, 0, 0, Color.clear, 999, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.12f));
+            var ei = WebLook.Box(disc.transform, "Mark", 4 * Z, 4 * Z, 32 * Z, 32 * Z).gameObject.AddComponent<RawImage>();
             ei.texture = Resources.Load<Texture2D>($"Icons/faction-f{r + 1}");
-            ei.color = taken ? new Color(1, 1, 1, 0.35f) : Color.white;
             ei.raycastTarget = false;
-            var nm = Hud.Label(cell, Races.RaceNames[r].ToLowerInvariant() + (taken ? $"\n<size=70%><color=#b0b5c0>{(primary ? "fellowship" : "kinship")}</color></size>" : ""), 13, race == r ? Look.Ink : Look.InkSoft, true, 500, 6, TextAlignmentOptions.Bottom);
-            nm.margin = new Vector4(0, 0, 0, 4);
+            float ty = 10 * Z + 40 * Z + 5 * Z;
+            WebLook.Words(WebLook.Box(cell.transform, "Name", 0, ty, raceW, 0.5f * 16 * Z * 1.25f), Races.RaceNames[r].ToUpperInvariant(), 0.5f * 16 * Z, 0.16f, Look.Ink, true, 500).raycastTarget = false;
+            if (taken)
+                WebLook.Words(WebLook.Box(cell.transform, "Taken", 0, ty + 0.5f * 16 * Z * 1.25f + 5 * Z, raceW, 0.58f * 16 * Z * 1.25f), primary ? "fellowship" : "kinship", 0.58f * 16 * Z, 0, Look.InkFaint, false, 400).raycastTarget = false;
         }
-        var cancel = Hud.Pill(pop.transform, "cancel", () => { aff = null; Draw(); }, 14);
-        Hud.At((RectTransform)cancel.transform, new Vector2(0.5f, 0), new Vector2(-110, 26), new Vector2(170, 48));
-        var why = Meta.BuyUpgradeProblem(meta, skill);
-        var ok = Hud.Pill(pop.transform, $"confirm · {Meta.PriceOf(u, 0)} petals", () =>
+        y += raceH + 12 * Z;
+        // The buttons (.aff-acts, 10 apart, in the middle): cancel (.btn), and confirm with its price (.btn-primary, the
+        // petal and how many 4 apart after its words); faded to 0.4 until a race is picked.
+        float fs = 0.66f * 16 * Z;
+        var cancel = WebLook.Button(pop.transform, "cancel", () => { aff = null; Draw(); }, false, fs, 0.14f);
+        var ct = cancel.GetComponentInChildren<TextMeshProUGUI>();
+        float cw = ct.GetPreferredValues(ct.text).x + 2 * 16 * Z + 2 * Z;
+        var ok = WebLook.Button(pop.transform, "", () =>
         {
             var m = CampaignView.LoadMeta();
             if (aff?.race == null || Meta.BuyUpgradeProblem(m, skill) != null) { Sound.Play("error"); return; }
@@ -804,10 +832,33 @@ public class StellariView : MonoBehaviour
             aff = null;
             Sound.Play("upgrade");
             Draw();
-        }, 14, race != null && why == null ? Look.Ink : Look.GlassStrong, race != null && why == null ? Color.white : Look.InkFaint);
-        ok.interactable = race != null && why == null;
-        Hud.At((RectTransform)ok.transform, new Vector2(0.5f, 0), new Vector2(110, 26), new Vector2(210, 48));
+        }, true, fs, 0.14f);
+        ok.interactable = can;
+        // (Faded whole, words and all, by the group below; not twice over by the button's own tint.)
+        var okColours = ok.colors;
+        okColours.disabledColor = Color.white;
+        ok.colors = okColours;
+        var okT = ok.GetComponentInChildren<TextMeshProUGUI>();
+        okT.text = "CONFIRM ·";
+        okT.alignment = TextAlignmentOptions.Left;
+        var price = WebLook.Words(ok.transform, Meta.PriceOf(u, 0).ToString(), fs, 0.14f, Look.Ink, true, 700, TextAlignmentOptions.Left);
+        float w1 = okT.GetPreferredValues(okT.text).x + 0.14f * fs, w2 = price.GetPreferredValues(price.text).x + 0.14f * fs;
+        float okW = 2 * 16 * Z + 2 * Z + w1 + 4 * Z + fs + 4 * Z + w2;
+        WebLook.Box(okT.rectTransform, 17 * Z, 0, w1 + 4, btnH);
+        okT.margin = Vector4.zero;
+        var petal = WebLook.Box(ok.transform, "Petal", 17 * Z + w1 + 4 * Z, (btnH - fs) / 2, fs, fs).gameObject.AddComponent<RawImage>();
+        petal.texture = Resources.Load<Texture2D>("Icons/purse-petal");
+        petal.raycastTarget = false;
+        WebLook.Box(price.rectTransform, 17 * Z + w1 + 4 * Z + fs + 4 * Z, 0, w2 + 4, btnH);
+        float bx = (popW - (cw + 10 * Z + okW)) / 2;
+        WebLook.Box((RectTransform)cancel.transform, bx, y, cw, btnH);
+        WebLook.Box((RectTransform)ok.transform, bx + cw + 10 * Z, y, okW, btnH);
+        if (!can) ok.gameObject.AddComponent<CanvasGroup>().alpha = 0.4f;
     }
+
+    /// <summary>A race's colour (factions.ts FACTION_COLOUR).</summary>
+    static string BuilderFactionColour(int r) => r >= 0 && r < FactionColours.Length ? FactionColours[r] : "#8a93a6";
+    static readonly string[] FactionColours = { "#6f9fd8", "#d48a7c", "#c9a95e", "#a08bcb", "#5d5398", "#c7783e", "#8fa6c4", "#d9503a" };
 
     // ---- Sprites: a ring (a level's arc), half an ellipse (a petal's lobe), a dash ----
 
