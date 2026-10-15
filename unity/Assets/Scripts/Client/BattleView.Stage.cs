@@ -61,6 +61,10 @@ public partial class BattleView
             if (stage != null && stage.Own && stage.Uid != null && stageCardRect != null) Board.PutAtPage(stage.Uid, stageCardRect.Value);
             if (stage != null && stage.Own) stage = null;
             state = next;
+            // An AI's attacks bring its target's tableau onto the table (app.ts land).
+            if (actor.IsAI && a.Type == "setTarget" && a.TargetId != you) viewRivalId = a.TargetId;
+            // (The view follows the human whose day it is now: BattleView.Seats.)
+            SyncViewer();
             StarSpin.Burst();
             if (next.WinnerId != null && prev.WinnerId == null && Application.isPlaying && !Autoplay) HoldResult(next, a);
             // A day's start replays its effects one by one (app.ts replayPulses), on the day's timeline (dayTimeline).
@@ -289,7 +293,7 @@ public partial class BattleView
         if (hud == null) return;
         // (While an answer is being chosen, the pane is the answer's.)
         var r = state?.Reaction;
-        if (r != null && r.PlayerId == you && !Autoplay && state.WinnerId == null)
+        if (r != null && Answering(r) && !Autoplay && state.WinnerId == null)
         {
             DrawReact(r);
             return;
@@ -456,7 +460,7 @@ public partial class BattleView
     /// </summary>
     void DrawReact(Reaction r)
     {
-        var who = Me;
+        var who = Player(r.PlayerId);
         var enemy = state.Players.First(p => p.Id == r.EnemyId);
         string Name(string uid) => Cards.Def(who.Tableau.FirstOrDefault(c => c.Uid == uid)?.DefId ?? "").Name ?? "";
         string moveId = null, what;
@@ -631,8 +635,8 @@ public partial class BattleView
         return new Rect(x0, (pa.y + pb.y) / 2 - hgt / 2, x1 - x0, hgt);
     }
 
-    /// <summary>Whether a card of your hand is on the stage instead (picked, or just played and hanging there).</summary>
-    public bool OffHand(string uid) => uid == picked || (stage != null && stage.Own && stage.Uid == uid);
+    /// <summary>Whether a card of your hand is on the stage instead (picked, or just played and hanging there), or the hand hidden for a hot seat's handoff.</summary>
+    public bool OffHand(string uid) => uid == picked || (stage != null && stage.Own && stage.Uid == uid) || NeedsHandoff();
 
     /// <summary>The pill's mode chosen (app.ts setConfirmMode): a card waiting now goes, skipping lets a reply waiting pass.</summary>
     void SetConfirmMode(string mode)
