@@ -90,7 +90,9 @@ void Promise.all(['400 1em Orbitron', '500 1em Orbitron', '700 1em Orbitron', '3
 
 import { registeredCardDefs } from '../src/engine/cards';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from '../src/ui/menu-icon';
-Object.assign(window, { allIds: () => registeredCardDefs().map((d) => d.id) });
+// (And the built heroes' own cards, outside the pool: the Captain and the crew, each at its start.)
+const BUILT_IDS = ['human_captain', 'companion_lancer', 'companion_engineer', 'companion_defector', 'companion_shade', 'companion_seer'];
+Object.assign(window, { allIds: () => [...registeredCardDefs().map((d) => d.id), ...BUILT_IDS.filter((id) => !registeredCardDefs().some((d) => d.id === id))] });
 
 // ---- Sound: the web game's own effects and scores, rendered offline (scripts/bake-sound.mjs) ----
 
