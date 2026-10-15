@@ -42,7 +42,7 @@ namespace BlueLoop.Models
     /// The Captain's ship, as one model wherever it is seen: on the campaign's menu (CampaignBackdrop, large, the Captain on
     /// its deck) and on the map (flying between systems) [direction: the hero's ship on the map the same model as the
     /// campaign menu's]. Its hull is a made model (Resources/Models/CaptainShip.bytes, baked by scripts/bake-captain-ship.py
-    /// from unity/ModelSources/captain-ship), painted after its art (CaptainShipPaint.png, Ship.shader's painted metal); the
+    /// from unity/ModelSources/captain-ship), repainted part by part in its art's colours (Ship.shader's painted metal); the
     /// parts fitted, its wounds while the Captain is low, and the engines' glow are built onto it here. Box units as the
     /// ships' (ship3d.ts): 40 to the model's 1, x along, y across, z up.
     /// </summary>
@@ -60,10 +60,9 @@ namespace BlueLoop.Models
         public static readonly Rgb HullDeep = C(0.26, 0.27, 0.31);
         static readonly Rgb Rust = C(0.52, 0.41, 0.36);
         static readonly Rgb Scorch = C(0.14, 0.12, 0.11);
-        static readonly Rgb Engine = C(1, 0.8, 0.52);
+        static readonly Rgb Engine = C(1, 0.62, 0.22);
         static readonly Rgb Ember = C(1, 0.55, 0.22);
         static readonly Rgb LampCyan = C(0.55, 0.88, 1);
-        static readonly Rgb LampAmber = C(1, 0.86, 0.4);
         static readonly Dictionary<string, Rgb> PartTint = new Dictionary<string, Rgb> { ["dwarf"] = C(0.62, 0.7, 0.82), ["stellar"] = C(0.93, 0.75, 0.38), ["anomaly"] = C(0.72, 0.56, 0.98) };
 
         /// <summary>The ship's slots, in the hangar's order.</summary>
@@ -92,8 +91,8 @@ namespace BlueLoop.Models
         {
             public float[] Pos, Nor;
             public byte[] Mat;
+            public float[] Col;
             public int[] Tris;
-            public double PaintX0, PaintX1, PaintZ0, PaintZ1;
         }
 
         static HullData hull;
@@ -105,18 +104,16 @@ namespace BlueLoop.Models
             using (var r = new System.IO.BinaryReader(new System.IO.MemoryStream(bytes)))
             {
                 if (new string(r.ReadChars(4)) != "BLCS") throw new InvalidOperationException("not the Captain's ship's hull");
-                r.ReadInt32();
+                if (r.ReadInt32() != 2) throw new InvalidOperationException("the Captain's ship's hull is an old bake (scripts/bake-captain-ship.py)");
                 int nv = r.ReadInt32(), nt = r.ReadInt32();
                 float q = r.ReadSingle();
-                var h = new HullData { PaintX0 = r.ReadSingle(), PaintX1 = r.ReadSingle(), PaintZ0 = r.ReadSingle(), PaintZ1 = r.ReadSingle() };
-                h.Pos = new float[nv * 3];
-                h.Nor = new float[nv * 3];
-                h.Mat = new byte[nv];
+                var h = new HullData { Pos = new float[nv * 3], Nor = new float[nv * 3], Mat = new byte[nv], Col = new float[nv * 3] };
                 for (int i = 0; i < nv; i++)
                 {
                     for (int c = 0; c < 3; c++) h.Pos[i * 3 + c] = r.ReadInt16() / q;
                     for (int c = 0; c < 3; c++) h.Nor[i * 3 + c] = r.ReadSByte() / 127f;
                     h.Mat[i] = r.ReadByte();
+                    for (int c = 0; c < 3; c++) h.Col[i * 3 + c] = r.ReadByte() / 255f;
                 }
                 h.Tris = new int[nt * 3];
                 for (int i = 0; i < nt * 3; i++) h.Tris[i] = nv > 65535 ? (int)r.ReadUInt32() : r.ReadUInt16();
@@ -176,9 +173,9 @@ namespace BlueLoop.Models
         // Where things are on the made hull (box units).
         /// <summary>The foredeck's floor, between its rails; the rails' tops and how far out they run.</summary>
         const double DeckFloor = 8.07, RailTop = 8.95, RailOut = 3.0;
-        /// <summary>The engine block's three bells: their mouths' centres (across, up), where they open astern, how wide.</summary>
-        static readonly (double Y, double Z)[] Bells = { (9.96, 5.3), (14.08, 5.3), (11.9, 2.5) };
-        const double BellX = -2.6, BellR = 1.7;
+        /// <summary>The engine block's four bells: their mouths' centres (across, up), and where they open astern.</summary>
+        static readonly (double Y, double Z)[] Bells = { (9.96, 5.3), (14.08, 5.3), (10.9, 3.1), (13.2, 3.1) };
+        const double BellX = -2.6;
         /// <summary>The bridge's roof.</summary>
         const double BridgeTop = 9.4;
 
@@ -230,12 +227,11 @@ namespace BlueLoop.Models
             var smoke = new List<V3>();
             var engines = new List<V3>();
 
-            // The hull, each corner where its paint is (its colour: the paint's place, each side its own half; Ship.shader):
-            // painted metal (8), or lit (9): the engines' throats burning, the lamps.
+            // The hull, each corner in its colour as painted (Ship.shader): painted metal (8), or lit (9): the windows, the
+            // porthole, the lamps, the bells' throats.
             {
                 var o = m.Out;
                 o.Capacity = h.Tris.Length * Ship3d.ShipStride + 60000;
-                double pw = h.PaintX1 - h.PaintX0, ph = h.PaintZ1 - h.PaintZ0;
                 foreach (var i in h.Tris)
                 {
                     double x = h.Pos[i * 3], y = h.Pos[i * 3 + 1], z = h.Pos[i * 3 + 2];
@@ -248,22 +244,10 @@ namespace BlueLoop.Models
                     o.Add((float)n.X);
                     o.Add((float)n.Y);
                     o.Add((float)n.Z);
-                    var mat = h.Mat[i];
-                    if (mat == 9 || mat == 11 || mat == 12)
-                    {
-                        // (Lit: the engines' throats, the dish's cyan lamp, the mast's amber one.)
-                        var glow = mat == 9 ? Engine : mat == 11 ? LampCyan : LampAmber;
-                        o.Add((float)glow.R);
-                        o.Add((float)glow.G);
-                        o.Add((float)glow.B);
-                        o.Add(9);
-                        continue;
-                    }
-                    // (Plain plating hidden from either side's paint, or the bells' amber lips: the paint's corner patches.)
-                    o.Add(mat == 13 ? 0.001f : mat == 14 ? 0.0035f : (float)((x - h.PaintX0) / pw));
-                    o.Add(mat == 13 || mat == 14 ? 0.999f : (float)((mat == 10 ? 0.5 : 0) + 0.5 * (z - h.PaintZ0) / ph));
-                    o.Add(0);
-                    o.Add(8);
+                    o.Add(h.Col[i * 3]);
+                    o.Add(h.Col[i * 3 + 1]);
+                    o.Add(h.Col[i * 3 + 2]);
+                    o.Add(h.Mat[i]);
                 }
             }
 
@@ -274,7 +258,7 @@ namespace BlueLoop.Models
                     // The bells burning in their throats (the right one sputtering embers while the ship is a wreck).
                     foreach (var (y, z) in Bells)
                     {
-                        m.Orb(BellX + 0.7, y, z - 1.0, 0.3, 1.0, 1.0, worn && y > 12 && z > 4 ? Ember : Engine, 2, false, 20, 10);
+                        m.Orb(BellX + 0.8, y, z - 0.8, 0.25, 0.8, 0.8, worn && y > 12 && z > 4 ? Ember : Engine, 2, false, 20, 10);
                         engines.Add(SB(BellX, y, z));
                     }
 

@@ -1,8 +1,8 @@
 // A model (nebula-objects.ts SHIP_FRAG): its look worked out from each part's material and colour. Plated metal:
 // panels of slightly differing tone, seams cut in, wear and grime, a stripe in its holder's colour; glass and crystal,
 // deep and bright at the edge; glowing parts white-hot at heart and flickering; living hide, mottled; dark gloss;
-// molten; pearl; the Captain's ship's made hull, painted after its art. Lit by a key light with a sharp highlight and the
-// paper's light caught at its edges.
+// molten; pearl; the Captain's ship's made hull, painted part by part, and its lights. Lit by a key light with a sharp
+// highlight and the paper's light caught at its edges.
 Shader "BlueLoop/Ship"
 {
     Properties { _Color ("Holder's colour", Color) = (0.36,0.56,0.86,1) _Alpha ("Alpha", Range(0,1)) = 1 _Burn ("Burn", Float) = 0 _Flip ("Z flip (a scene in the web's own axes)", Float) = 1 }
@@ -18,8 +18,6 @@ Shader "BlueLoop/Ship"
             #include "UnityCG.cginc"
             fixed4 _Color;
             float _Alpha, _Burn, _Flip;
-            // (The Captain's ship's paint: ModelMesh sets it for all.)
-            sampler2D _CaptainPaint;
             struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; float4 color : COLOR; float2 uv : TEXCOORD0; };
             struct v2f { float4 pos : SV_POSITION; float3 n : TEXCOORD0; float3 w : TEXCOORD1; float3 l : TEXCOORD2; float3 ln : TEXCOORD3; float m : TEXCOORD4; float3 c : TEXCOORD5; };
             v2f vert (appdata v)
@@ -64,31 +62,24 @@ Shader "BlueLoop/Ship"
                 float3 c;
                 if (m > 8.5)
                 {
-                    // The Captain's ship's engines' throats, deep in the bells, burning.
-                    float flick = 0.9 + 0.1 * sin(t * 23.0 + i.l.x * 30.0) * sin(t * 13.0 + i.l.z * 20.0);
-                    c = lerp(i.c, float3(1, 1, 1), 0.25) * flick * (1.0 + _Burn * 0.15);
+                    // The Captain's ship's lights, each in its own colour: its windows and porthole, its lamps, the
+                    // bells' fiery throats; hotter where seen square on, flickering a little.
+                    float flick = 0.92 + 0.08 * sin(t * 23.0 + i.l.x * 30.0) * sin(t * 13.0 + i.l.z * 20.0);
+                    c = lerp(i.c, float3(1, 0.95, 0.8), 0.18 * ndv * ndv * ndv) * flick * (1.0 + _Burn * 0.15);
                     return fixed4(min(c, 1) * _Alpha, _Alpha);
                 }
                 if (m > 7.5)
                 {
-                    // The Captain's ship's made hull, painted after its art (CaptainShip.cs): each side's paint seen
-                    // square, piece by piece of the hull, where the vertex's colour says. Its flanks wear it as drawn,
-                    // its panes and lamps glowing; faces turned up or down from the side take the slate of its plating,
-                    // keeping only its amber bands.
-                    float4 p = tex2D(_CaptainPaint, i.c.rg);
-                    float3 ln = normalize(i.ln);
-                    float side = smoothstep(0.2, 0.5, abs(ln.z)), lit = smoothstep(0.05, 0.3, abs(ln.z));
-                    float3 slate = float3(0.33, 0.36, 0.4);
-                    // (Amber only on faces turned up or down: a band's top, not the engine block's back.)
-                    float amber = saturate((p.r - p.b - 0.22) * 4.0) * (1.0 - p.a) * (1.0 - smoothstep(0.4, 0.7, abs(ln.x)));
-                    float3 base = lerp(lerp(slate, p.rgb, amber), p.rgb, side);
-                    // (The art is drawn shaded already: on its flanks it is shown much as drawn, the light only
-                    // turning it a little; faces away from the side are lit for their form.)
-                    float spec = pow(max(dot(n, h), 0.0), 30.0) * 0.12 * (1.0 - side);
-                    c = base * lerp(0.62 + 0.55 * diff, 0.9 + 0.2 * diff, side) + spec;
-                    c = lerp(c, sky, fres * 0.08);
-                    float flick = 0.95 + 0.05 * sin(t * 7.0 + i.l.x * 40.0) * sin(t * 4.3 + i.l.z * 30.0);
-                    c = lerp(c, p.rgb * flick * (1.0 + _Burn * 0.1), p.a * lit);
+                    // The Captain's ship's made hull, painted part by part (CaptainShip.cs): lit as metal, a little worn,
+                    // light bouncing up from below, and darkening where it turns away from the eye, as the art inks its
+                    // outlines.
+                    float3 base = i.c;
+                    float grime = n3(i.l * 46.0) * 0.6 + n3(i.l * 110.0) * 0.4;
+                    base *= 0.95 + 0.08 * grime;
+                    float spec = pow(max(dot(n, h), 0.0), 48.0) * 0.35;
+                    c = base * (0.42 + 0.78 * diff) + spec * (0.6 + 0.4 * base);
+                    c += base * max(-n.y, 0.0) * 0.1;
+                    c = lerp(c, base * 0.25, smoothstep(0.62, 0.9, 1.0 - ndv) * 0.75);
                     return fixed4(min(c, 1) * _Alpha, _Alpha);
                 }
                 if (m > 1.5 && m < 2.5)
