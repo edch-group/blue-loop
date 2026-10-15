@@ -15,9 +15,17 @@ public class ShopView : MonoBehaviour, MenuView.IRedraw
 {
     RectTransform root;
     MenuView menu;
-    // The booster just opened: its kind (null: the general one) and its cards.
-    int? openedKind;
-    List<BoosterCard> opened;
+    // The booster just opened: its kind (null: the general one) and its cards. (Kept while the game runs, as the web's
+    // app keeps it: back at the shop, it is still open until done.)
+    static int? openedKind;
+    static List<BoosterCard> opened;
+
+    /// <summary>The booster open let go (the game read afresh: MenuView.Reload).</summary>
+    public static void Forget()
+    {
+        opened = null;
+        openedKind = null;
+    }
     // (A booster asked of the server, not yet answered.)
     bool buying;
 
@@ -135,6 +143,8 @@ public class ShopView : MonoBehaviour, MenuView.IRedraw
     void Buy(int? kind)
     {
         if (buying) return;
+        // (Bought from the server, which keeps the collection: never without a connection.)
+        if (Connection.Lost) { menu.Toast("Offline."); return; }
         buying = true;
         EconomyCalls.Booster(kind, (cards, why) =>
         {
@@ -161,7 +171,8 @@ public class ShopView : MonoBehaviour, MenuView.IRedraw
         // The foot (.setup-foot): what was opened, quiet, on the left; done, the primary button (its line 14 tall,
         // padded 12 above and below: 38), on the right.
         float doneH = 14 + 24;
-        var f = menu.Setup(root, "shop", () => { opened = null; Draw(); }, false, doneH);
+        // (Its back is the page's own: to the hub, the booster left open.)
+        var f = menu.Setup(root, "shop", () => menu.Show("hub"), false, doneH);
         float footY = f.FootTop + (f.FootH - f.FootPad) / 2;
         K.Words(root, $"{PackName(openedKind)} booster", f.Left, footY - 8, 300, 16, 12.8f, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
         float dw = Mathf.Max(160, K.BtnW("done", K.Kind.Primary, 10.56f, 0.24f, 24));
@@ -191,7 +202,11 @@ public class ShopView : MonoBehaviour, MenuView.IRedraw
             Hud.At(face, new Vector2(0.5f, 1), Vector2.zero, new Vector2(fw, fh));
             var raw = face.gameObject.AddComponent<RawImage>();
             raw.texture = Faces.Of(c.Id, Faces.Look.Card, fw);
-            raw.raycastTarget = false;
+            // (Read large by a right-click, or a press held on a touch screen; it rustles under a mouse.)
+            raw.raycastTarget = true;
+            var id = c.Id;
+            CardPress.On(face.gameObject, () => menu.Zoom(id));
+            MenuHover.Rustle(face.gameObject);
             // (Spare when it came as flux (none: not), new, or another copy: .bc-flux #6d6fd0, .bc-new #3a9e6a bold, ink-soft.)
             bool spare = (c.Flux ?? 0) > 0, isNew = !spare && c.IsNew == true;
             var tag = spare ? $"SPARE · +⟁{c.Flux}" : isNew ? "NEW" : "ANOTHER COPY";

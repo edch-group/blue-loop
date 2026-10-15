@@ -174,6 +174,10 @@ public static class Account
     public static void RequestReset(string email, System.Action<string> done) =>
         Net.Api("reset/request", "POST", new JObject { ["email"] = email }, r => done(r.Error));
 
+    /// <summary>Set a new password from a reset link's token (and sign in).</summary>
+    public static void ConfirmReset(string token, string password, System.Action<AuthResult> done) =>
+        Session("reset/confirm", new JObject { ["token"] = token, ["password"] = password }, done);
+
     /// <summary>What the server offers: password reset by email (Apple and Google sign-in are the web's).</summary>
     public static void Config(System.Action<bool> reset) => Net.Api("config", "GET", null, r => reset(r.Ok && ((bool?)r.Data["reset"] ?? false)));
 

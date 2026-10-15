@@ -3,6 +3,7 @@ using System.Linq;
 using BlueLoop.Engine;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using K = MenuKit;
 
@@ -23,24 +24,95 @@ public class MenuView : MonoBehaviour
     string current;
     GameObject backdrop;
     CampaignBackdrop scene;
-    // Quickplay's seats: whose deck, and whether the AI plays it.
-    readonly string[] seatDeck = new string[2];
-    readonly bool[] seatAI = { false, true };
     // (The size and safe area the page was laid out for: a change lays it out again.)
     Vector2 laidSize;
     Vector4 laidInsets;
     bool profileOpen;
 
+    /// <summary>The menu on screen (there is one at a time).</summary>
+    public static MenuView Live { get; private set; }
+
     public static MenuView Make(Camera cam, string page)
     {
         var v = new GameObject("Menu").AddComponent<MenuView>();
+        Live = v;
         v.cam = cam;
         v.canvas = Hud.CssCanvas(cam);
         v.canvas.transform.SetParent(v.transform, false);
         v.Background();
+        Account.Replaced += v.Replaced;
+        string room = null;
+        if (page == "title" && !opened) page = v.Opening(out room);
+        opened = true;
         v.Show(page);
+        // (Into the room once its page is up: your deck as it shows it.)
+        if (room != null) Online.Go(room);
         Sound.Scene("voyage");
         return v;
+    }
+
+    void OnDestroy()
+    {
+        // (Another screen now: the menu, come back to, rises in. A menu that has already taken over keeps its own.)
+        if (Live == this)
+        {
+            Live = null;
+            if (shownPage != null) shownPage = "elsewhere";
+        }
+        Account.Replaced -= Replaced;
+    }
+
+    static bool opened;
+
+    /// <summary>Menu pages the game comes back to when it reads the account's progress again (app.ts RESUMABLE).</summary>
+    static readonly string[] Resumable = { "hub", "quickplay", "options", "collection", "shop" };
+
+    void Replaced() => Reload();
+
+    /// <summary>
+    /// Another device's newer progress taken up (account.ts onProgressReplaced, checkIn): the web reloads the page to
+    /// read it, coming back to the menu page you were on if it is one to come back to (and you are signed in; the shop,
+    /// without a connection, the hub), else to the title page. So here: the menu read again from the start, the
+    /// session's choices (quickplay's seats, the pages' picks) forgotten as a reload forgets them.
+    /// </summary>
+    public void Reload()
+    {
+        if (this == null || page == null) return;
+        string to = System.Array.IndexOf(Resumable, current) >= 0 && !AccountView.Needed ? current : "title";
+        seatAI = null;
+        GlossaryView.Tab = "basics";
+        TutorialView.Picked = null;
+        ChallengesView.Picked = null;
+        ShopView.Forget();
+        shownPage = null;
+        Show(to);
+    }
+
+    /// <summary>
+    /// The game opened (app.ts start): at the title page; or, from a password-reset link (?reset=TOKEN), at choosing a
+    /// new password; or, from an invite link (?room=CODE), straight into the room's lobby (signed in, or back to a seat
+    /// this device holds in it), else signing in first and then on into it.
+    /// </summary>
+    string Opening(out string room)
+    {
+        room = null;
+        string first = "title";
+        var reset = AccountView.TakeReset();
+        if (reset != null)
+        {
+            AccountView.Reset(reset);
+            first = "signin";
+        }
+        var invite = Online.TakeInvite();
+        if (invite == null) return first;
+        if (!AccountView.Needed || Online.HasSeat(invite))
+        {
+            room = invite;
+            return "online";
+        }
+        AccountView.Begin();
+        AccountView.ThenRoom = invite;
+        return "signin";
     }
 
     /// <summary>The campaign's own pages, still laid out at the 1600 × 1000 reference and fitted whole (Frame).</summary>
@@ -197,8 +269,32 @@ public class MenuView : MonoBehaviour
     {
         // (The outer ring clockwise, as the web turns it, two degrees a second; the inner the other way, at 0.6 of it.)
         ringAngle = (ringAngle + 2 * Time.deltaTime) % 1800;
-        if (outerRing != null) outerRing.localRotation = Quaternion.Euler(0, 0, -ringAngle);
-        if (innerRing != null) innerRing.localRotation = Quaternion.Euler(0, 0, ringAngle * 0.6f);
+        // (A burst's turn eased along; a finished one folded into the angle: backdrop.ts frame.)
+        float extra = 0;
+        for (int i = bursts.Count - 1; i >= 0; i--)
+        {
+            float t = (Time.time - bursts[i]) / BurstLength;
+            if (t >= 1)
+            {
+                ringAngle = (ringAngle + BurstTurn) % 1800;
+                bursts.RemoveAt(i);
+                continue;
+            }
+            extra += BurstTurn * (0.5f - Mathf.Cos(Mathf.PI * Mathf.Max(0, t)) / 2);
+        }
+        float a = ringAngle + extra;
+        if (outerRing != null) outerRing.localRotation = Quaternion.Euler(0, 0, -a);
+        if (innerRing != null) innerRing.localRotation = Quaternion.Euler(0, 0, a * 0.6f);
+    }
+
+    /// <summary>The Stellari's bursts of speed under way (when each began): 30° more over 1.8 s, eased in and out (backdrop.ts spin).</summary>
+    readonly List<float> bursts = new List<float>();
+    const float BurstTurn = 30, BurstLength = 1.8f;
+
+    /// <summary>The Stellari spins faster for a moment (at most three bursts at once, so a flurry does not whirl it).</summary>
+    void Spin()
+    {
+        if (bursts.Count < 3) bursts.Add(Time.time);
     }
 
     // ---- The title block (app.ts titleBlock): the pearl sun over BLUE LOOP ----
@@ -241,12 +337,19 @@ public class MenuView : MonoBehaviour
 
     public void Show(string name)
     {
+        // (The shop needs the server: without a connection, the hub instead.)
+        if (name == "shop" && Connection.Offline) name = "hub";
         // (The Stellari's tree opened from the campaign's menu (campaign.ts cmp-shop): its scene kept, the camera gliding
         // down to the Stellari on the horizon, the menu's options fading; the tree coming in over it once it is there.)
         bool glide = name == "stellari" && scene != null;
         if (page != null && !(glide && CampaignMenuPage.FadeOut(page))) Mats.Kill(page.gameObject);
         sheet = null;
         profileOpen = false;
+        leaving = false;
+        tweens.Clear();
+        parts.Clear();
+        framed = null;
+        CloseZoom();
         page = Hud.Rect(canvas.transform, name);
         Hud.Fill(page);
         current = name;
@@ -282,10 +385,16 @@ public class MenuView : MonoBehaviour
             default: Title(); break;
         }
         if (glide) CampaignMenuPage.TreeIn(page, backdrop);
+        // (A new page rises in; the campaign's own pages are its screen's, not the menu's.)
+        else if (shownPage != null && name != shownPage && !Legacy(name)) Enter();
+        shownPage = name;
     }
 
     /// <summary>The page's own light and the Stellari over it (laid over the campaign's scene as it fades in).</summary>
     public GameObject Backdrop => backdrop;
+
+    /// <summary>The page drawn again where it stands (what it shows has changed: the connection, your picture).</summary>
+    public void Redraw() => Relayout();
 
     /// <summary>The screen changed size (turned, resized): the page laid out again for it.</summary>
     void Relayout()
@@ -329,9 +438,14 @@ public class MenuView : MonoBehaviour
         float gap = K.Clamp(18, 6 * K.Vh, 40), bh = K.LineH(12.8f) + 26;
         float top = Mathf.Max(6, K.SaT), stack = t.H + gap + bh;
         float y = top + (K.H - top - 12 * K.Vh - stack) / 2;
+        // (Its parts come and go one by one: the block, start, the studio's name.)
+        int mark = page.childCount;
         TitleBlock(page, MidX, y, false);
+        PartFrom(mark);
         float bw = Mathf.Max(180, K.TextW("START", 12.8f, 700, 0.3f) + 58);
-        K.Btn(page, "Start", Begin, MidX - bw / 2, y + t.H + gap, K.Kind.Primary, bw, bh, 12.8f, 0.3f);
+        mark = page.childCount;
+        K.Btn(page, "Start", () => Nav(Begin), MidX - bw / 2, y + t.H + gap, K.Kind.Primary, bw, bh, 12.8f, 0.3f);
+        PartFrom(mark);
         Studio();
     }
 
@@ -363,18 +477,25 @@ public class MenuView : MonoBehaviour
     {
         // (The web's .studio: 8 across, spaced 0.3em, ink-faint, max(10px, the safe area) off the foot.)
         // (Centred with the spacing after its last letter, as the browser centres it: half of it to the left.)
+        int mark = page.childCount;
         K.Words(page, "CORONAL MASS GAMES", -0.15f * 8, K.H - Mathf.Max(10, K.SaB) - K.LineH(8), K.W, K.LineH(8), 8, Look.InkFaint, true, 400, 0.3f);
+        PartFrom(mark);
     }
 
     // ---- The hub ----
 
+    /// <summary>The fullscreen button's mark as it was drawn (it follows fullscreen as it changes: app.ts fullscreenchange).</summary>
+    bool drawnFullscreen;
+
     void Hub()
     {
+        bool offline = Connection.Offline;
         // Shop, collection and glossary as plain links, top left (.hub-links: max(12px, top) down, max(18px, left)
         // in, 46 tall, clamp(14px, 2.4vw, 28px) apart; each its mark 22 across, 7 on, its name 10.24 bold spaced 0.2em).
         float top = Mathf.Max(12, K.SaT);
         var links = new[] { ("shop", "Shop"), ("collection", "Collection"), ("glossary", "Glossary") };
         float linkX = Mathf.Max(18, K.SaL), linkGap = K.Clamp(14, 2.4f * K.Vw, 28);
+        int mark = page.childCount;
         foreach (var (icon, name) in links)
         {
             // (The browser counts the spacing after the last letter too.)
@@ -384,22 +505,32 @@ public class MenuView : MonoBehaviour
             Hud.Place((RectTransform)b.transform, linkX, top + 8, linkW, 30);
             linkX += linkW + linkGap;
             string to = icon;
-            b.onClick.AddListener(() => { Sound.Play("click"); Show(to); });
-            // (The shop needs the server, as online play does: without one it fades to 45% and takes no taps.)
-            if (to == "shop" && !Net.Available)
+            b.onClick.AddListener(() => { Sound.Play("click"); Nav(() => Go(to)); });
+            // (The shop needs the server, as online play does: without it (.hub-offline) faded to 45%, taking no taps.)
+            if (to == "shop" && offline)
             {
                 b.interactable = false;
                 b.gameObject.AddComponent<CanvasGroup>().alpha = 0.45f;
             }
             Picture(b.transform, $"Icons/{icon}-small", 2, 4, 22, 22);
-            K.Words(b.transform, name.ToUpperInvariant(), 31, 0, nameW + 4, 30, 10.24f, Look.Ink, true, 700, 0.2f, TextAlignmentOptions.Left);
+            var word = K.Words(b.transform, name.ToUpperInvariant(), 31, 0, nameW + 4, 30, 10.24f, Look.Ink, true, 700, 0.2f, TextAlignmentOptions.Left);
+            // (Under a mouse, its name in the blue of the marks: .hub-link:hover.)
+            if (b.interactable) MenuHover.On(b.gameObject, on => word.color = on ? Hud.Rgba(63, 111, 168) : Look.Ink);
         }
-        // You, then options and full screen: white pills top right (.hub-corner: max(18px, right) in, 8 apart; each
-        // button 46 by 40, its mark 20 across).
+        PartFrom(mark);
+        // You, then options and full screen (where the browser offers it): white pills top right (.hub-corner:
+        // max(18px, right) in, 8 apart; each button 46 by 40, its mark 20 across).
         float right = K.W - Mathf.Max(18, K.SaR);
-        RoundButton(page, right - 46, top, Screen.fullScreen ? "Icons/hud-exit-fullscreen" : "Icons/hud-fullscreen", () => { Screen.fullScreen = !Screen.fullScreen; });
-        RoundButton(page, right - 100, top, "Icons/options-small", () => Show("options"));
-        Chip(page, right - 108, top);
+        mark = page.childCount;
+        drawnFullscreen = Connection.FullscreenOn;
+        if (Connection.FullscreenOffered)
+        {
+            RoundButton(page, right - 46, top, drawnFullscreen ? "Icons/hud-exit-fullscreen" : "Icons/hud-fullscreen", () => { Screen.fullScreen = !Connection.FullscreenOn; });
+            right -= 46 + 8;
+        }
+        RoundButton(page, right - 46, top, "Icons/options-small", () => Nav(() => Show("options")));
+        Chip(page, right - 46 - 8, top);
+        PartFrom(mark);
 
         // The title and the five ways to play, centred above the foot's 12vh (.hub: tiles --ht across, clamp(84px,
         // min(30vh, 15vw), 150px), 1.05 as tall, clamp(10px, 2vw, 20px) apart; clamp(10px, 3.5vh, 26px) under the title).
@@ -410,7 +541,9 @@ public class MenuView : MonoBehaviour
         float colH = cardH + (anyCont ? 8 + 26 : 0), gap = K.Clamp(10, 3.5f * K.Vh, 26);
         float padT = Mathf.Max(6, K.SaT), stack = t.H + gap + colH;
         float y = padT + (K.H - padT - 12 * K.Vh - stack) / 2;
+        mark = page.childCount;
         TitleBlock(page, MidX, y, true);
+        PartFrom(mark);
         float cardY = y + t.H + gap, x0 = MidX - (5 * ht + 4 * gapX) / 2;
         // (.hub-card: its mark clamp(26px, 8vh, 42px) over its name, clamp(8.96px, 2.3vh, 12.48px) bold spaced 0.2em,
         // clamp(6px, 2vh, 12px) between, centred in the card; corners 16; two soft shadows.)
@@ -418,11 +551,13 @@ public class MenuView : MonoBehaviour
         for (int i = 0; i < tiles.Length; i++)
         {
             var (key, name) = tiles[i];
-            bool offline = key == "online" && !Net.Available;
+            bool off = key == "online" && offline;
             float x = x0 + i * (ht + gapX);
+            // (Each tile and its continue come and go as one: .hub-col.)
+            mark = page.childCount;
             // (Offline, the tile, its shadows and all fade to 45% as one: .hub-offline's opacity.)
             Transform under = page;
-            if (offline)
+            if (off)
             {
                 var col = Hud.Rect(page, "Faded");
                 Hud.Fill(col);
@@ -433,7 +568,7 @@ public class MenuView : MonoBehaviour
             // (.hub-card: white fading to #f5f5f3 down it, in a white hairline.)
             var tile = Hud.Box(under, name, Color.white, 16);
             Hud.Place(tile.rectTransform, x, cardY, ht, cardH);
-            Hud.Shadow(tile, 16, new Hud.Drop(Hud.Rgba(80, 84, 100, 0.14f), 14, 34), new Hud.Drop(Hud.Rgba(80, 84, 100, 0.08f), 2, 6));
+            var shades = Hud.Shadow(tile, 16, new Hud.Drop(Hud.Rgba(80, 84, 100, 0.14f), 14, 34), new Hud.Drop(Hud.Rgba(80, 84, 100, 0.08f), 2, 6));
             tile.raycastTarget = true;
             var shade = Hud.Box(tile.transform, "Fill", Color.white, 15);
             Hud.Fill(shade.rectTransform);
@@ -447,40 +582,105 @@ public class MenuView : MonoBehaviour
             gi.texture = K.Down(Color.white, Hud.Rgba(245, 245, 243));
             gi.raycastTarget = false;
             var b = tile.gameObject.AddComponent<Button>();
-            var colors = b.colors;
-            colors.highlightedColor = new Color(0.99f, 0.99f, 1f);
-            colors.pressedColor = new Color(0.95f, 0.96f, 0.98f);
-            colors.disabledColor = Color.white;
-            b.colors = colors;
-            // (Online play needs the server: without one its tile reads offline, faded.)
-            b.interactable = !offline;
+            // (No tint: under a mouse its shadow deepens and its contents lift; pressed, it shrinks a little.)
+            b.transition = Selectable.Transition.None;
+            // (Online play needs the server: without it, its tile reads offline, faded, and takes no taps.)
+            b.interactable = !off;
             string target = key;
-            b.onClick.AddListener(() => { Sound.Play("click"); Show(target); });
-            string shown = (offline ? "offline" : name).ToUpperInvariant();
+            b.onClick.AddListener(() => { Sound.Play("click"); Nav(() => Go(target)); });
+            string shown = (off ? "offline" : name).ToUpperInvariant();
             // (Two lines when the name is wider than the card's inside.)
             float innerW = ht - 22;
             bool twoLines = K.TextW(shown, nameF, 700, 0.2f) > innerW;
             float nameH = K.LineH(nameF) * (twoLines ? 2 : 1), top2 = (cardH - (iconS + inner + nameH)) / 2;
-            Picture(tile.transform, $"Icons/{key}", (ht - iconS) / 2, top2, iconS, iconS);
-            var label = K.Words(tile.transform, shown, 11, top2 + iconS + inner, innerW, nameH, nameF, Look.Ink, true, 700, 0.2f);
+            var contents = Hud.Rect(tile.transform, "Contents");
+            Hud.Fill(contents);
+            Picture(contents, $"Icons/{key}", (ht - iconS) / 2, top2, iconS, iconS);
+            var label = K.Words(contents, shown, 11, top2 + iconS + inner, innerW, nameH, nameF, Look.Ink, true, 700, 0.2f);
             label.textWrappingMode = TextWrappingModes.Normal;
             label.lineSpacing = -8;
+            if (!off) HubCard(tile, shades, contents);
             // (A run or a game against the AI left part way: continue it, a small button 8 under its card.)
             System.Action cont = target == "campaign" && CampaignView.HasSave ? () => App.Instance.Run(CampaignView.Saved())
                 : target == "quickplay" && BattleView.HasSave ? () => App.Instance.Continue() : (System.Action)null;
             if (cont != null)
             {
                 float cw = K.BtnW("continue", K.Kind.Small);
-                K.Btn(page, "continue", cont, x + (ht - cw) / 2, cardY + cardH + 8, K.Kind.Small, cw);
+                var cb = K.Btn(page, "continue", () => Nav(cont), x + (ht - cw) / 2, cardY + cardH + 8, K.Kind.Small, cw);
+                MenuHover.On(cb.gameObject, null);
             }
+            PartFrom(mark, true);
         }
         Studio();
+    }
+
+    /// <summary>On to a menu page (app.ts menu-page): online play and the shop need the server, and say so without a connection.</summary>
+    public void Go(string to)
+    {
+        if ((to == "online" || to == "shop") && Connection.Offline) { Toast("Offline."); return; }
+        Show(to);
+    }
+
+    /// <summary>
+    /// A hub tile's feel (.hub-card): under a mouse, its shadow deepens (0 20px 40px at 18%) and its contents lift 3
+    /// (0.18 s, ease); pressed, it shrinks to 0.98; and it chimes softly as the pointer comes onto it.
+    /// </summary>
+    static void HubCard(Image tile, Shades shades, RectTransform contents)
+    {
+        var feel = tile.gameObject.AddComponent<HubFeel>();
+        feel.Shades = shades;
+        feel.Contents = contents;
+        MenuHover.On(tile.gameObject, on => feel.Over = on, down => feel.Down = down);
     }
 
     // ---- Quickplay: the game mode, then two seats, each a deck and who plays it ----
 
     static readonly string[] BotNames = { "Unit Parhelion", "Kepler-9", "Null Vector", "Coronabot", "Tycho Engine", "Sentinel K4", "Orrery", "Halo Mk II", "Lagrange", "Umbra-7", "Perihelion", "Quasar Drone", "Brightwire", "Heliostat", "Ember Logic", "Cold Fusion" };
-    readonly string[] seatBot = new string[2];
+
+    /// <summary>
+    /// Quickplay's seats (app.ts seats), kept while the game runs: whether the AI plays it, its deck (by id: the seat's
+    /// last played, else a starter), a second human's name, and the bot's name the AI plays under (each picked at random).
+    /// </summary>
+    static bool[] seatAI;
+    static string[] seatDeck, seatName, seatBot;
+
+    static void Seats()
+    {
+        if (seatAI != null) return;
+        var presets = Decks.Presets;
+        seatAI = new[] { false, true };
+        seatDeck = new[] { LastDeck(0) ?? presets[0].Id, LastDeck(1) ?? presets[1 % presets.Count].Id };
+        seatName = new[] { string.IsNullOrEmpty(Profile.Me.Name) ? "Commander" : Profile.Me.Name, "Player 2" };
+        seatBot = new[] { BotName(), BotName() };
+    }
+
+    /// <summary>Each quickplay seat's last played deck (blue-loop:recent-decks, app.ts lastDeck), if it still exists.</summary>
+    const string RecentKey = "blue-loop:recent-decks";
+
+    static string LastDeck(int seat)
+    {
+        try
+        {
+            var all = Newtonsoft.Json.Linq.JObject.Parse(Store.Get(RecentKey) ?? "{}");
+            var id = all[seat.ToString()] is Newtonsoft.Json.Linq.JArray list && list.Count > 0 ? (string)list[0] : null;
+            return id != null && Decks.ById(id) != null ? id : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>A seat's deck, played: the one it starts with next time (app.ts noteRecentDeck).</summary>
+    static void NoteRecentDeck(int seat, string deckId)
+    {
+        Newtonsoft.Json.Linq.JObject all;
+        try { all = Newtonsoft.Json.Linq.JObject.Parse(Store.Get(RecentKey) ?? "{}"); }
+        catch { all = new Newtonsoft.Json.Linq.JObject(); }
+        all[seat.ToString()] = new Newtonsoft.Json.Linq.JArray(deckId);
+        Store.Set(RecentKey, all.ToString(Newtonsoft.Json.Formatting.None));
+    }
+
     const string PlayModeKey = "blue-loop:play-mode";
     /// <summary>The mode quickplay and online games are played in (the decks on offer are that mode's).</summary>
     public static string PlayMode => Store.Get(PlayModeKey) == "lost" ? "lost" : "core";
@@ -494,18 +694,50 @@ public class MenuView : MonoBehaviour
         return pool[UnityEngine.Random.Range(0, pool.Count)];
     }
 
-    /// <summary>The decks a seat can take in the mode played: its starters (as the battle plays them).</summary>
-    static List<Decks.Saved> ModeDecks() => Decks.Presets.Where(d => d.Mixed != true && Modes.ModeOf(d) == PlayMode).ToList();
-
-    /// <summary>A seat's deck, if it is one of the mode's (else that mode's starter for the seat).</summary>
+    /// <summary>A seat's deck, if it is one for the mode played (a starter or one of yours), else that mode's starter for the seat (app.ts seatDeck).</summary>
     public Decks.Saved SeatDeck(int seat)
     {
-        var decks = ModeDecks();
-        return decks.FirstOrDefault(d => d.Name == seatDeck[seat]) ?? decks[seat % decks.Count];
+        Seats();
+        var d = Decks.ById(seatDeck[seat]);
+        if (d != null && Modes.ModeOf(d) == PlayMode) return d;
+        var starters = Decks.Presets.Where(x => x.Mixed != true && Modes.ModeOf(x) == PlayMode).ToList();
+        return starters[seat % starters.Count];
+    }
+
+    /// <summary>
+    /// Launch (app.ts newGame): each seat as set, a human under their name (you under yours; a name with profanity in it
+    /// plays as "Player n"), the AI under its bot's; each seat's deck noted as its last played.
+    /// </summary>
+    void Launch()
+    {
+        var players = new List<PlayerSetup>();
+        for (int i = 0; i < 2; i++)
+        {
+            var deck = SeatDeck(i);
+            NoteRecentDeck(i, deck.Id);
+            string typed = seatAI[i] ? seatBot[i] : i == 0 ? (string.IsNullOrEmpty(Profile.Me.Name) ? seatName[i] : Profile.Me.Name) : seatName[i];
+            string name = (AccountView.Profane(typed) ? $"Player {i + 1}" : typed ?? "").Trim();
+            if (name.Length == 0) name = "Unnamed";
+            // (Your own picture is your account's; anyone else's is dealt by their name.)
+            string avatar = (!seatAI[i] && i == 0 ? Account.Current?.Avatar : null) ?? PictureFor(name);
+            players.Add(new PlayerSetup { Name = name, IsAI = seatAI[i], Deck = deck.Cards.ToList(), DeckName = deck.Name, Avatar = avatar });
+        }
+        App.Instance.Battle(players, PlayMode);
+    }
+
+    /// <summary>A picture for a name (glyphs.ts pictureFor): a card's, the same for the same name.</summary>
+    static string PictureFor(string name)
+    {
+        var pool = CardData.All.Where(c => c.Token != true).ToList();
+        if (pool.Count == 0) return null;
+        uint h = 0;
+        foreach (char ch in name.ToLowerInvariant()) h = unchecked(h * 31 + ch);
+        return pool[(int)(h % (uint)pool.Count)].Id;
     }
 
     void Quickplay()
     {
+        Seats();
         ModePane("quickplay");
         // (The page beside the pane; launch at its foot: the primary button, at least 160 across, padded 11 by 24,
         // spaced 0.24em.)
@@ -517,17 +749,17 @@ public class MenuView : MonoBehaviour
         for (int seat = 0; seat < 2; seat++)
         {
             int s = seat;
-            if (seatAI[s] && seatBot[s] == null) seatBot[s] = BotName(seatBot[1 - s]);
-            string name = seatAI[s] ? seatBot[s] : s == 0 ? (string.IsNullOrEmpty(Profile.Me.Name) ? "Commander" : Profile.Me.Name) : "Player 2";
+            // (Only a second human types a name: you play as yourself, and the AI as its bot.)
+            string name = seatAI[s] ? seatBot[s] : s == 0 ? (string.IsNullOrEmpty(Profile.Me.Name) ? seatName[0] : Profile.Me.Name) : seatName[s];
             Seat(page, sx + s * (sw + gap), sy, sw, rowH, name, seatAI[s] ? "ai" : "human", () =>
             {
                 seatAI[s] = !seatAI[s];
                 if (seatAI[s]) seatBot[s] = BotName(seatBot[1 - s]);
                 Show("quickplay");
-            }, null, false, s);
+            }, null, false, s, typed: !seatAI[s] && s > 0 ? v => seatName[s] = v : (System.Action<string>)null);
         }
         float lw = Mathf.Max(160, K.BtnW("launch", K.Kind.Primary, 10.56f, 0.24f, 24));
-        K.Btn(page, "launch", () => App.Instance.Battle(SeatDeck(0).Name, SeatDeck(1).Name), (f.Left + f.Right - lw) / 2, f.FootTop + (f.FootH - f.FootPad - launchH) / 2, K.Kind.Primary, lw, launchH, 10.56f, 0.24f);
+        K.Btn(page, "launch", () => Leave(Launch), (f.Left + f.Right - lw) / 2, f.FootTop + (f.FootH - f.FootPad - launchH) / 2, K.Kind.Primary, lw, launchH, 10.56f, 0.24f);
     }
 
     /// <summary>A seat's panel (.qp-seat): white fading to #f6f6f4, corners 16, two soft shadows. Placed by its top-left corner.</summary>
@@ -545,8 +777,9 @@ public class MenuView : MonoBehaviour
     /// .ready-tag: green once `tagOn`); in its middle the seat's deck as a deck box (`seat`; or `deck`, not a button),
     /// --bw across (`bw`, else clamp(46px, 19vh, 92px)); at its foot every deck a tap away (or `foot`, quiet words).
     /// Its rows clamp(6px, 2vh, 14px) apart inside padding of clamp(10px, 3vh, 18px) by clamp(10px, 2vw, 18px).
+    /// `typed`: a second human's seat, its name a box to type in (.qp-head input), told of each change.
     /// </summary>
-    public RectTransform Seat(Transform parent, float x, float y, float w, float h, string name, string mode, System.Action flip, string tag, bool tagOn, int seat, float bw = 0, Decks.Saved deck = null, string foot = null)
+    public RectTransform Seat(Transform parent, float x, float y, float w, float h, string name, string mode, System.Action flip, string tag, bool tagOn, int seat, float bw = 0, Decks.Saved deck = null, string foot = null, System.Action<string> typed = null)
     {
         var panel = SeatBox(parent, x, y, w, h);
         var r = panel.rectTransform;
@@ -556,11 +789,15 @@ public class MenuView : MonoBehaviour
         float nameF = K.Clamp(10.56f, 2.8f * K.Vh, 14.4f);
         float pillW = mode != null ? K.BtnW(mode, K.Kind.Pill, 8, 0.14f, 10) : tag != null ? K.BtnW(tag, K.Kind.Pill, 8.96f, 0.16f, 10) - 2 : 0;
         float pillH = mode != null ? K.LineH(8) + 8 : tag != null ? K.LineH(8.96f) + 6 : 0;
-        float headH = Mathf.Max(K.LineH(nameF), pillH);
-        float nameW = Mathf.Min(w - 2 * ph - (pillW > 0 ? pillW + 10 : 0), K.TextW(shown, nameF, 400, 0.16f) + 2);
+        // (The name box: Exo 2 at 1rem on its line, padded 6 by 8, in its hairline: 33 tall.)
+        float boxH = K.LineH(K.Rem, false) + 12 + 2;
+        float headH = Mathf.Max(typed != null ? boxH : K.LineH(nameF), pillH);
+        float room = w - 2 * ph - (pillW > 0 ? pillW + 10 : 0);
+        // (The box grows to the room the pill leaves it, to at most 220.)
+        float nameW = typed != null ? Mathf.Min(220, room) : Mathf.Min(room, K.TextW(shown, nameF, 400, 0.16f) + 2);
         float all = nameW + (pillW > 0 ? 10 + pillW : 0), left = (w - all) / 2;
-        var nl = K.Words(r, shown, left, pv, nameW, headH, nameF, Look.Ink, true, 400, 0.16f, TextAlignmentOptions.Left);
-        Hud.Ellipsis(nl);
+        if (typed != null) NameBox(r, name, left, pv + (headH - boxH) / 2, nameW, boxH, typed);
+        else Hud.Ellipsis(K.Words(r, shown, left, pv, nameW, headH, nameF, Look.Ink, true, 400, 0.16f, TextAlignmentOptions.Left));
         if (mode != null) K.Btn(r, mode, flip, left + nameW + 10, pv + (headH - pillH) / 2, K.Kind.Pill, pillW, pillH, 8, 0.14f);
         else if (tag != null)
         {
@@ -591,6 +828,40 @@ public class MenuView : MonoBehaviour
             BuilderView.DeckBoxMini(r, (w - bw) / 2, by, d, true, act, bw);
         }
         return r;
+    }
+
+    /// <summary>
+    /// A seat's name to type (.qp-head input): white at 80% in a hairline of #eceae6, corners 8, a faint shade inside
+    /// its top (inset 0 1px 3px rgba(90, 90, 110, 0.1)); its words Exo 2 at 1rem in ink, centred, padded 6 by 8; at
+    /// most 18 letters. Placed by its top-left corner.
+    /// </summary>
+    static TMP_InputField NameBox(Transform parent, string text, float x, float y, float w, float h, System.Action<string> typed)
+    {
+        var edge = K.Inset(parent, "Name", new Color(1, 1, 1, 0.8f), Hud.Rgba(236, 234, 230), 8);
+        Hud.Place(edge.rectTransform, x, y, w, h);
+        edge.raycastTarget = true;
+        var inside = (RectTransform)edge.transform.GetChild(0);
+        inside.gameObject.AddComponent<RectMask2D>();
+        var shade = Hud.Rect(inside, "Shade");
+        Hud.Place(shade, 0, 0, w - 2, 4);
+        var si = shade.gameObject.AddComponent<RawImage>();
+        si.texture = K.Down(Hud.Rgba(90, 90, 110, 0.1f), new Color(90 / 255f, 90 / 255f, 110 / 255f, 0));
+        si.raycastTarget = false;
+        var area = Hud.Rect(edge.transform, "Text Area");
+        Hud.Fill(area);
+        area.offsetMin = new Vector2(9, 1);
+        area.offsetMax = new Vector2(-9, -1);
+        area.gameObject.AddComponent<RectMask2D>();
+        var t = K.Fill(area, text ?? "", K.Rem, Look.Ink, false, 400);
+        t.richText = false;
+        var input = edge.gameObject.AddComponent<TMP_InputField>();
+        input.textViewport = area;
+        input.textComponent = t;
+        input.characterLimit = 18;
+        input.richText = false;
+        input.text = text ?? "";
+        input.onValueChanged.AddListener(v => typed(v));
+        return input;
     }
 
     /// <summary>
@@ -654,7 +925,7 @@ public class MenuView : MonoBehaviour
         pane.raycastTarget = true;
         float top = Mathf.Max(14, K.SaT);
         // (Back from online play leaves its search too.)
-        K.Btn(pane.transform, "‹ back", () => { if (from == "online") Online.Leave(); Show("hub"); }, sa + 18, top, K.Kind.Small, pw - 36);
+        K.Btn(pane.transform, "‹ back", () => Nav(() => { if (from == "online") Online.Leave(); Show("hub"); }), sa + 18, top, K.Kind.Small, pw - 36);
         float cardsTop = top + K.Measure(K.Kind.Small).h + 14, cardH = (K.H - cardsTop - 1) / 2;
         var split = Hud.Box(pane.transform, "Between", Hud.Rgba(150, 156, 172, 0.25f), 0.5f);
         Hud.Place(split.rectTransform, sa, cardsTop, pw, K.H - cardsTop);
@@ -711,6 +982,9 @@ public class MenuView : MonoBehaviour
                 if (PlayMode == m) return;
                 Sound.Play("click");
                 Store.Set(PlayModeKey, m);
+                // (Each seat keeps its deck if it is of the new mode, else takes that mode's starter for it.)
+                Seats();
+                for (int i = 0; i < 2; i++) seatDeck[i] = SeatDeck(i).Id;
                 Show(from);
             });
         }
@@ -718,33 +992,54 @@ public class MenuView : MonoBehaviour
 
     /// <summary>
     /// Choosing a seat's deck (app.ts renderPickDeck): every deck of the mode played as a deck box, by kind; tap one to
-    /// take it. (.db-list: at most 980 across, centred, scrolling under the header to the screen's foot.)
+    /// take it; the starters, then (with any) your own decks of the mode, one not finished yet greyed and not to be taken
+    /// (.db-deck-bad 70%, [aria-disabled] 45%). (.db-list: at most 980 across, centred, scrolling under the header to
+    /// the screen's foot; its parts 8 apart, a label 4 below what is above it.)
     /// </summary>
     void PickDeck()
     {
-        var f = Setup(page, "choose a deck", () => Show(pickFrom), false, -1);
-        var presets = Decks.Presets.Where(d => Modes.ModeOf(d) == PlayMode && d.Mixed != true).ToList();
+        Seats();
+        var f = Setup(page, "choose a deck", () => Show(pickFrom), false, -1, nav: false);
+        var presets = Decks.Presets.Where(d => Modes.ModeOf(d) == PlayMode).ToList();
+        var mine = Decks.Custom().Where(d => Modes.ModeOf(d) == PlayMode).ToList();
+        var groups = new List<(string label, List<Decks.Saved> decks)> { ($"{Modes.GameModes[PlayMode].Name.ToLowerInvariant()}: race starters", presets.Where(d => d.Mixed != true).ToList()) };
+        if (presets.Any(d => d.Mixed == true)) groups.Add(("mechanic starters", presets.Where(d => d.Mixed == true).ToList()));
+        if (mine.Count > 0) groups.Add(("your decks", mine));
         float listW = Mathf.Min(980, f.Right - f.Left), lx = (f.Left + f.Right - listW) / 2;
         float bw = BuilderView.ListBw, colGap = K.Clamp(16, 2.6f * K.Vw, 28), rowGap = K.Clamp(12, 3.5f * K.Vh, 22);
         float avail = listW - 26;
-        int cols = Mathf.Max(1, Mathf.Min(presets.Count, Mathf.FloorToInt((avail + colGap) / (bw + colGap))));
         float labelF = K.Big ? 8.96f : 8, boxH = bw / 0.72f + bw * 0.08f;
-        int rows = (presets.Count + cols - 1) / cols;
-        float contentH = 4 + K.LineH(labelF) + 8 + 14 + rows * boxH + (rows - 1) * rowGap + 16 + 8 + Mathf.Max(18, K.SaB);
-        var content = K.Scroller(page, "List", 0, f.BodyTop, K.W, K.H - f.BodyTop, contentH);
-        K.Words(content, $"{Modes.GameModes[PlayMode].Name.ToLowerInvariant()}: race starters".ToUpperInvariant(), lx, 4, listW, K.LineH(labelF), labelF, Look.InkSoft, true, 400, 0.3f, TextAlignmentOptions.Left);
-        float top = 4 + K.LineH(labelF) + 8 + 14;
-        for (int i = 0; i < presets.Count; i++)
+        string current = seatDeck[pickSeat];
+        // (Measured first, to size the scroller; then laid out into it.)
+        float Lay(RectTransform content)
         {
-            int row = i / cols, col = i % cols, inRow = Mathf.Min(cols, presets.Count - row * cols);
-            float x = lx + 10 + (avail - (cols * bw + (cols - 1) * colGap)) / 2 + col * (bw + colGap);
-            var d = presets[i];
-            BuilderView.DeckBoxMini(content, x, top + row * (boxH + rowGap) + bw * 0.08f, d, d.Name == SeatDeck(pickSeat).Name, () =>
+            float y = 0;
+            foreach (var (label, decks) in groups)
             {
-                seatDeck[pickSeat] = d.Name;
-                Show(pickFrom);
-            }, bw, true);
+                y += 4;
+                if (content != null) K.Words(content, label.ToUpperInvariant(), lx, y, listW, K.LineH(labelF), labelF, Look.InkSoft, true, 400, 0.3f, TextAlignmentOptions.Left);
+                y += K.LineH(labelF) + 8 + 14;
+                int cols = Mathf.Max(1, Mathf.Min(decks.Count, Mathf.FloorToInt((avail + colGap) / (bw + colGap))));
+                int rows = (decks.Count + cols - 1) / cols;
+                for (int i = 0; i < decks.Count && content != null; i++)
+                {
+                    int row = i / cols, col = i % cols;
+                    float x = lx + 10 + (avail - (cols * bw + (cols - 1) * colGap)) / 2 + col * (bw + colGap);
+                    var d = decks[i];
+                    bool legal = DeckRules.DeckProblems(d.Cards, Modes.ModeOf(d)).Count == 0;
+                    var box = BuilderView.DeckBoxMini(content, x, y + row * (boxH + rowGap) + bw * 0.08f, d, d.Id == current, legal ? () =>
+                    {
+                        seatDeck[pickSeat] = d.Id;
+                        Show(pickFrom);
+                    } : (System.Action)null, bw, true);
+                    if (!legal) box.gameObject.AddComponent<CanvasGroup>().alpha = 0.7f * 0.45f;
+                }
+                y += rows * boxH + (rows - 1) * rowGap + 16 + 8;
+            }
+            return y + Mathf.Max(18, K.SaB);
         }
+        var list = K.Scroller(page, "List", 0, f.BodyTop, K.W, K.H - f.BodyTop, Lay(null));
+        Lay(list);
     }
 
     RectTransform sheet;
@@ -764,10 +1059,12 @@ public class MenuView : MonoBehaviour
     {
         var b = Hud.Box(parent, icon, new Color(1, 1, 1, 0.92f), 20);
         Hud.Place(b.rectTransform, x, y, 46, 40);
-        Hud.Shadow(b, 20, new Hud.Drop(Hud.Rgba(80, 84, 100, 0.12f), 4, 14));
+        var shades = Hud.Shadow(b, 20, new Hud.Drop(Hud.Rgba(80, 84, 100, 0.12f), 4, 14));
         b.raycastTarget = true;
         var button = b.gameObject.AddComponent<Button>();
         button.onClick.AddListener(() => { Sound.Play("click"); act(); });
+        // (Under a mouse, its shadow deepens: 0 6px 18px at 18%.)
+        MenuHover.On(b.gameObject, on => shades.Set(0, on ? new Hud.Drop(Hud.Rgba(80, 84, 100, 0.18f), 6, 18) : new Hud.Drop(Hud.Rgba(80, 84, 100, 0.12f), 4, 14)));
         // (The fullscreen mark is .log-icon's, 20 across here: its baked picture holds it at half its width.)
         float s = icon.Contains("hud-") ? 40 : 20;
         Picture(b.transform, icon, (46 - s) / 2, (40 - s) / 2, s, s);
@@ -824,9 +1121,11 @@ public class MenuView : MonoBehaviour
         float curX = 1 + 4 + 30 + 8 + whoW + 8, w = ChipW();
         var chip = Hud.Box(parent, "You", new Color(1, 1, 1, 0.92f), 20);
         Hud.Place(chip.rectTransform, right - w, y, w, 40);
-        Hud.Shadow(chip, 20, new Hud.Drop(Hud.Rgba(80, 84, 100, 0.12f), 4, 14));
+        var shades = Hud.Shadow(chip, 20, new Hud.Drop(Hud.Rgba(80, 84, 100, 0.12f), 4, 14));
         chip.raycastTarget = true;
         chip.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); profileOpen = true; ProfileView(); });
+        // (Under a mouse, its shadow deepens: 0 6px 18px at 18%; and it chimes softly.)
+        MenuHover.On(chip.gameObject, on => shades.Set(0, on ? new Hud.Drop(Hud.Rgba(80, 84, 100, 0.18f), 6, 18) : new Hud.Drop(Hud.Rgba(80, 84, 100, 0.12f), 4, 14)));
         Avatar(chip.transform, 5, 5, 30);
         K.Words(chip.transform, name, 43, 9.7f, whoW + 4, 10.9f, 9.92f, Look.Ink, true, 700, 0.1f, TextAlignmentOptions.Left);
         K.Words(chip.transform, level, 43, 20.6f, whoW + 4, 9.7f, 8.8f, Look.InkFaint, false, 400, 0.08f, TextAlignmentOptions.Left);
@@ -839,8 +1138,11 @@ public class MenuView : MonoBehaviour
         K.Words(chip.transform, flux, curX + 9 + dustW + 8, 14, fluxW + 2, 12, 9.6f, Hud.Rgba(109, 111, 208), true, 400, 0, TextAlignmentOptions.Left);
     }
 
-    /// <summary>The web's small back button (.btn.btn-small "‹ back"), placed by its top-left corner.</summary>
-    public static Button BackButton(Transform parent, System.Action back, float x, float y) => K.Btn(parent, "‹ back", back, x, y, K.Kind.Small);
+    /// <summary>
+    /// The web's small back button (.btn.btn-small "‹ back"), placed by its top-left corner. `nav`: back to another
+    /// menu page (data-act menu-page), the page played out first (Leave); not so a builder's or a deck pick's own back.
+    /// </summary>
+    public static Button BackButton(Transform parent, System.Action back, float x, float y, bool nav = true) => K.Btn(parent, "‹ back", nav ? () => Nav(back) : back, x, y, K.Kind.Small);
 
     /// <summary>A setup page's frame, as the web's grid lays it out: its edges, its body's top and height, its foot.</summary>
     public struct Frame2
@@ -858,13 +1160,24 @@ public class MenuView : MonoBehaviour
     /// <summary>Setup's `foot` for a foot taking no room at all (min-height 0, no padding).</summary>
     public const float Footless = -2;
 
-    public Frame2 Setup(Transform parent, string title, System.Action back, bool pane = false, float foot = 0, bool chip = true)
+    public Frame2 Setup(Transform parent, string title, System.Action back, bool pane = false, float foot = 0, bool chip = true, bool nav = true)
+    {
+        // (Kept, for the page's parts to come and go by: its header, body and foot (enterMenu).)
+        var f = SetupFrame(parent, title, back, pane, foot, chip, nav);
+        framed = f;
+        return f;
+    }
+
+    /// <summary>The setup page's frame last laid out for the page shown (none: it has none).</summary>
+    Frame2? framed;
+
+    Frame2 SetupFrame(Transform parent, string title, System.Action back, bool pane, float foot, bool chip, bool nav)
     {
         var f = new Frame2();
         f.Left = pane ? PaneW + K.SaL + 32 : K.PadL;
         f.Right = K.W - K.PadR;
         f.Top = K.PadT;
-        if (!pane) BackButton(parent, back, f.Left, f.Top + 13);
+        if (!pane) BackButton(parent, back, f.Left, f.Top + 13, nav);
         float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = K.LineH(hf);
         K.Words(parent, title.ToUpperInvariant(), f.Left, f.Top + (52 - hh) / 2, f.Right - f.Left, hh, hf, Hud.Rgba(85, 90, 99), true, 500, 0.3f);
         if (chip) Chip(parent, f.Right, f.Top + 6);
@@ -941,10 +1254,261 @@ public class MenuView : MonoBehaviour
         toast.anchoredPosition = new Vector2(0, 10 * (1 - k));
     }
 
+    // ---- Coming and going (app.ts leaveMenu, enterMenu, MENU_NAV) ----
+
+    /// <summary>The menu page last shown (across menus: another screen in between counts as a change).</summary>
+    static string shownPage;
+    /// <summary>A page is playing out (Leave): further ways out wait.</summary>
+    bool leaving;
+    /// <summary>The page's parts as laid out, each what comes and goes together (PartFrom), and whether it is a hub column.</summary>
+    readonly List<(List<Transform> items, bool col)> parts = new List<(List<Transform>, bool)>();
+
+    /// <summary>What has been laid on the page since `mark` (its child count then) comes and goes as one part (`col`: a hub tile's column).</summary>
+    public void PartFrom(int mark, bool col = false) => PartFrom(page, mark, col);
+
+    /// <summary>These come and go as one part of the page.</summary>
+    public void Part(List<Transform> items)
+    {
+        if (items.Count > 0) parts.Add((items, false));
+    }
+
+    /// <summary>As PartFrom, for what was laid in `parent` (a view's own layer over the page).</summary>
+    public void PartFrom(Transform parent, int mark, bool col = false)
+    {
+        var items = new List<Transform>();
+        for (int i = mark; i < parent.childCount; i++) items.Add(parent.GetChild(i));
+        if (items.Count > 0) parts.Add((items, col));
+    }
+
+    /// <summary>
+    /// The page's parts, in order, as the web's menuParts finds them: the parts laid out as such (the title page's,
+    /// the hub's: its links, its corner, the title, each tile's column, the studio's name); on a setup page, the game
+    /// modes' pane, its header, its body and its foot; else the page as one. (A box's shadows go with it.)
+    /// </summary>
+    List<(List<Transform> items, bool col)> PageParts()
+    {
+        var found = new List<(List<Transform>, bool)>();
+        foreach (var p in parts) if (p.items.Any(t => t != null)) found.Add(p);
+        if (found.Count > 0) return found;
+        // (A view drawn in a layer of its own over the page: its parts are that layer's.)
+        Transform root = page;
+        if (root.childCount == 1) root = root.GetChild(0);
+        if (framed == null)
+        {
+            var all = new List<Transform>();
+            foreach (Transform c in root) all.Add(c);
+            if (all.Count > 0) found.Add((all, false));
+            return found;
+        }
+        var f = framed.Value;
+        var pane = new List<Transform>();
+        var top = new List<Transform>();
+        var body = new List<Transform>();
+        var foot = new List<Transform>();
+        var shades = new List<Transform>();
+        foreach (Transform c in root)
+        {
+            // (Shadows are laid just before their box: they go where it goes.)
+            if (c.name == "Shade" && c.GetComponent<Shades>() == null) { shades.Add(c); continue; }
+            var into = c.name == "Modes" ? pane : Band(c, f) < 0 ? top : Band(c, f) > 0 ? foot : body;
+            into.AddRange(shades);
+            into.Add(c);
+            shades.Clear();
+        }
+        foreach (var part in new[] { pane, top, body, foot }) if (part.Count > 0) found.Add((part, false));
+        return found;
+    }
+
+    /// <summary>Where on a setup page a thing stands by its middle: its header (-1), its body (0), or its foot (1).</summary>
+    int Band(Transform t, Frame2 f)
+    {
+        if (!(t is RectTransform r)) return 0;
+        var corners = new Vector3[4];
+        r.GetWorldCorners(corners);
+        float mid = (page.InverseTransformPoint(corners[0]).y + page.InverseTransformPoint(corners[1]).y) / 2;
+        float y = page.rect.yMax - mid;
+        return y < f.BodyTop ? -1 : f.FootTop < K.H && y >= f.FootTop ? 1 : 0;
+    }
+
+    /// <summary>
+    /// Leave the page for another (a menu button that leads somewhere: MENU_NAV), then `then`: the button pressed lifts
+    /// 34 and fades (0.3 s, a quick rise that eases off; a hub tile with its column), the rest of the page drifts up 14
+    /// after it, a part at a time (0.26 s, each 15 ms after the last, at most 60), and the Stellari spins faster.
+    /// </summary>
+    public void Leave(System.Action then)
+    {
+        if (leaving) return;
+        leaving = true;
+        Spin();
+        Spin();
+        var all = PageParts();
+        var pressed = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+        var hit = pressed != null && pressed.transform.IsChildOf(page) ? pressed.transform : null;
+        if (hit != null)
+        {
+            var col = all.FirstOrDefault(p => p.col && p.items.Any(t => t != null && hit.IsChildOf(t)));
+            foreach (var t in col.items ?? WithShades(hit)) Tween(t, 0, -34, 1, 0, 0.3f, 0, 0.1f, 0.75f, 0.3f, 1, true);
+        }
+        for (int i = 0; i < all.Count; i++)
+        {
+            if (hit != null && all[i].items.Any(t => t != null && hit.IsChildOf(t))) continue;
+            foreach (var t in all[i].items) Tween(t, 0, -14, 1, 0, 0.26f, Mathf.Min(0.06f, i * 0.015f), 0.1f, 0.75f, 0.3f, 1, true);
+        }
+        StartCoroutine(Then(then));
+    }
+
+    System.Collections.IEnumerator Then(System.Action then)
+    {
+        var was = page;
+        yield return new WaitForSeconds(0.3f);
+        leaving = false;
+        then();
+        // (Nowhere to go after all, the page stays: back as it was.)
+        if (this != null && page == was) Settle();
+    }
+
+    /// <summary>Go on by `then` with the menu's page played out first (Leave); with no menu showing, at once.</summary>
+    public static void Nav(System.Action then)
+    {
+        if (Live != null) Live.Leave(then);
+        else then();
+    }
+
+    /// <summary>A new page rises gently into place, a part at a time (0.42 s each, 45 ms apart, from 16 below and clear).</summary>
+    void Enter()
+    {
+        var all = PageParts();
+        for (int i = 0; i < all.Count; i++)
+            foreach (var t in all[i].items) Tween(t, 16, 0, 0, 1, 0.42f, i * 0.045f, 0.2f, 0.8f, 0.2f, 1, false);
+    }
+
+    /// <summary>A thing with the shadows laid just before it.</summary>
+    static List<Transform> WithShades(Transform t)
+    {
+        var list = new List<Transform> { t };
+        var parent = t.parent;
+        for (int i = t.GetSiblingIndex() - 1; i >= 0 && parent.GetChild(i).name == "Shade" && parent.GetChild(i).GetComponent<Shades>() == null; i--) list.Add(parent.GetChild(i));
+        return list;
+    }
+
+    /// <summary>One thing moving: from `fromY` to `toY` down (CSS px) and from `fromA` to `toA` of its own opacity, over `length` after `delay`, on a cubic-bezier; `hold` it at its end (else back at rest).</summary>
+    class Motion
+    {
+        public RectTransform R;
+        public CanvasGroup G;
+        public Vector2 Rest;
+        public float Alpha, FromY, ToY, FromA, ToA, Start, Length, X1, Y1, X2, Y2;
+        public bool Hold, Shadow;
+    }
+
+    readonly List<Motion> tweens = new List<Motion>();
+
+    void Tween(Transform t, float fromY, float toY, float fromA, float toA, float length, float delay, float x1, float y1, float x2, float y2, bool hold)
+    {
+        if (!(t is RectTransform r)) return;
+        // (A thing already moving keeps its place at rest.)
+        var old = tweens.Find(m => m.R == r);
+        if (old != null) tweens.Remove(old);
+        var g = r.GetComponent<CanvasGroup>() ?? r.gameObject.AddComponent<CanvasGroup>();
+        var m = new Motion
+        {
+            R = r, G = g, Rest = old?.Rest ?? r.anchoredPosition, Alpha = old?.Alpha ?? g.alpha, FromY = fromY, ToY = toY, FromA = fromA, ToA = toA,
+            Start = Time.time + delay, Length = length, X1 = x1, Y1 = y1, X2 = x2, Y2 = y2, Hold = hold,
+            // (A box's shadow layer is placed by its box: only faded.)
+            Shadow = r.name == "Shade" && r.GetComponent<Shades>() == null,
+        };
+        tweens.Add(m);
+        Step(m);
+    }
+
+    /// <summary>A motion at this moment (before it starts, held at its start: fill backwards); whether it has ended.</summary>
+    bool Step(Motion m)
+    {
+        if (m.R == null) return true;
+        float k = Mathf.Clamp01((Time.time - m.Start) / m.Length);
+        float e = Bezier(m.X1, m.Y1, m.X2, m.Y2, k);
+        float y = Mathf.Lerp(m.FromY, m.ToY, e);
+        if (!m.Shadow) m.R.anchoredPosition = m.Rest - new Vector2(0, y);
+        m.G.alpha = m.Alpha * Mathf.Lerp(m.FromA, m.ToA, e);
+        if (k < 1 || m.Hold) return false;
+        if (!m.Shadow) m.R.anchoredPosition = m.Rest;
+        m.G.alpha = m.Alpha;
+        return true;
+    }
+
+    /// <summary>Every motion stopped, each thing back at rest.</summary>
+    void Settle()
+    {
+        foreach (var m in tweens)
+        {
+            if (m.R == null) continue;
+            if (!m.Shadow) m.R.anchoredPosition = m.Rest;
+            m.G.alpha = m.Alpha;
+        }
+        tweens.Clear();
+    }
+
+    /// <summary>A CSS cubic-bezier timing function at `x`.</summary>
+    public static float Bezier(float x1, float y1, float x2, float y2, float x)
+    {
+        if (x <= 0) return 0;
+        if (x >= 1) return 1;
+        float t = x;
+        for (int i = 0; i < 10; i++)
+        {
+            float u = 1 - t;
+            float bx = 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t - x;
+            float dx = 3 * u * u * x1 + 6 * u * t * (x2 - x1) + 3 * t * t * (1 - x2);
+            if (Mathf.Abs(dx) < 1e-5f) break;
+            t = Mathf.Clamp01(t - bx / dx);
+        }
+        float v = 1 - t;
+        return 3 * v * v * t * y1 + 3 * v * t * t * y2 + t * t * t;
+    }
+
+    // ---- A card read large over the menus (app.ts zoom, renderZoom) ----
+
+    RectTransform zoomView;
+
+    /// <summary>Read a card large over the page (a right-click or a long press on it, or its ⤢): tap anywhere to close.</summary>
+    public void Zoom(string defId)
+    {
+        CloseZoom();
+        Sound.Play("hover");
+        zoomView = BuilderView.ZoomView(canvas.transform, defId, CloseZoom);
+    }
+
+    public void CloseZoom()
+    {
+        if (zoomView != null) Mats.Kill(zoomView.gameObject);
+        zoomView = null;
+    }
+
+    /// <summary>
+    /// Escape (app.ts onKey; a phone's back button too): closes a card read large; at the hub, with nothing open, brings
+    /// up the options.
+    /// </summary>
+    void Escape()
+    {
+        if (zoomView != null) { CloseZoom(); return; }
+        if (current == "hub" && !profileOpen && !leaving) Show("options");
+    }
+
     void Update()
     {
         TurnRings();
         if (Css.Size != laidSize || Css.SafeInsets != laidInsets) Relayout();
+        for (int i = tweens.Count - 1; i >= 0; i--) if (Step(tweens[i])) tweens.RemoveAt(i);
+        if (Input.GetKeyDown(KeyCode.Escape)) Escape();
+        // The connection lost or back: what needs it (online play, the shop) shows as offline, or not (an open shop
+        // gives way to the hub).
+        if (Connection.Changed() && !Legacy(current) && !leaving)
+        {
+            if (current == "shop" && Connection.Offline) Show("hub");
+            else Relayout();
+        }
+        // (The fullscreen button's mark follows fullscreen as it changes: by the button, Escape or the browser.)
+        if (current == "hub" && !leaving && Connection.FullscreenOn != drawnFullscreen) Relayout();
         // (The settings' flower: a turn in 90 seconds.)
         if (flower != null) flower.localRotation = Quaternion.Euler(0, 0, -(Time.time * 4) % 360);
         if (toast != null && Time.realtimeSinceStartup > toastBorn + 2.9f)

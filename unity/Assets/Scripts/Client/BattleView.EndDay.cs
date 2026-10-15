@@ -85,6 +85,8 @@ public partial class BattleView
     /// <summary>Each frame: Enter, and the day ending by itself once settled for a moment.</summary>
     void EndDayTick()
     {
+        // (While Oriel's tour shows, its keys are its own and the day never ends by itself: tour.ts, canAutoEnd.)
+        if (Tour.Showing) { settledSince = -1; return; }
         if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
         {
             if (stage != null && stage.Confirm) ConfirmStage();

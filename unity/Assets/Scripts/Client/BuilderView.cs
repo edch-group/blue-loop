@@ -50,7 +50,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     bool confirmExit;
     Filters filters = new Filters();
     /// <summary>A card opened to craft or break down; the filters popover and which of its dropdowns is open; a card read large.</summary>
-    string focus, dropOpen, zoomed;
+    string focus, dropOpen;
     bool filtersOpen;
     int pageAt;
     /// <summary>How big the pool's cards are ("sm", "md", "lg"), and the game mode the list shows: both remembered on this device.</summary>
@@ -146,7 +146,6 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         else List();
         if (editing != null) Dialogs();
         if (panel != null) Panel();
-        if (zoomed != null) Zoom();
     }
 
     // ---- The decks ----
@@ -165,7 +164,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         // (The community is the server's: with none, a word that it's offline.)
         HeadButton("community", "db-people", right - iw - 8, () =>
         {
-            if (!Net.Available) { menu.Toast("Offline."); return; }
+            if (Connection.Offline) { menu.Toast("Offline."); return; }
             community = true;
             csort = "popular";
             cq = cqText = "";
@@ -189,7 +188,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     void Header(string title, System.Action back)
     {
         float left = K.PadL, right = K.W - K.PadR, top = K.PadT;
-        MenuView.BackButton(root, back, left, top + 13);
+        MenuView.BackButton(root, back, left, top + 13, false);
         float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = hf * 1.16f;
         K.Words(root, title, left, top + (52 - hh) / 2, right - left, hh, hf, Hud.Rgba(85, 90, 99), true, 500, 0.3f);
     }
@@ -450,11 +449,10 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         var edge = new Hud.Drop(Mix(dc, 0.25f, Hex("#7a8498")), 0, 0, 1);
         if (on) Hud.Shadow(front, 2, edge, drop, new Hud.Drop(Hud.Rgba(93, 106, 140, 0.28f), 0, 5, 1));
         else Hud.Shadow(front, 2, edge, drop);
-        if (act != null)
-        {
-            front.raycastTarget = true;
-            front.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); act(); });
-        }
+        if (act != null) front.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); act(); });
+        // (A deck box rustles like paper under a mouse: app.ts onHover.)
+        front.raycastTarget = true;
+        MenuHover.Rustle(front.gameObject);
         // A band of its colour just under the lid, and a thin printed frame inside the edge (6%; a big box's 4.5%).
         var band = Hud.Rect(front.transform, "Band");
         Hud.Place(band, 0, bh * 0.022f, bw, bh * 0.01f);
@@ -1056,6 +1054,17 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         Toolbar();
         poolArea = Hud.Rect(root, "Pool");
         Hud.Place(poolArea, PoolX, PoolTop, PoolW, PoolH);
+        // (A swipe across the pool turns its page, left to the next: builder.ts swipe.)
+        Swipe.On(poolArea.gameObject, dx =>
+        {
+            int pages = Mathf.Max(1, Pages().Count);
+            if (pages <= 1) return;
+            int to = Mathf.Clamp(pageAt + (dx < 0 ? 1 : -1), 0, pages - 1);
+            if (to == pageAt) return;
+            Sound.Play("click");
+            pageAt = to;
+            RefreshPool();
+        });
         pagerArea = Hud.Rect(root, "Pager");
         Hud.Place(pagerArea, PoolX, K.H - PagerH + 4, PoolW, 30);
         Pool();
@@ -1336,7 +1345,9 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         var colours = b.colors;
         colours.highlightedColor = new Color(0.97f, 0.97f, 1f);
         b.colors = colours;
-        b.onClick.AddListener(() => Add(id));
+        // (Read large by a right-click, or a press held on a touch screen: the tap that ends that adds nothing.)
+        var press = CardPress.On(face.gameObject, () => menu.Zoom(id));
+        b.onClick.AddListener(() => { if (!press.Swallow()) Add(id); });
         Printed(cell, id, w, true);
         if (have <= 0)
         {
@@ -1354,14 +1365,22 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         badge.raycastTarget = true;
         badge.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); focus = focus == id ? null : id; Draw(); });
         K.Fill(badge.transform, badgeText, fs, n > 0 ? Color.white : have > 0 ? Look.InkFaint : Hex("#6d6fd0"), true, 400, 0.04f);
-        // Read it large (⤢: a stroke corner to corner, an arrowhead at each end).
-        var zoom = Hud.Rect(cell, "Zoom");
+        // Read it large (⤢: a stroke corner to corner, an arrowhead at each end). Shown with the pointer over the card
+        // (0.15 s), and always on a touch screen, which has no hover (.db-zoom).
+        // (In a layer of its own, so its shadow fades with it; faded out, it still takes a tap, as opacity 0 does.)
+        var layer = Hud.Rect(cell, "Corner");
+        Hud.Fill(layer);
+        var fade = Fade.On(layer.gameObject, Hoverless);
+        var zoom = Hud.Rect(layer, "Zoom");
         Hud.Place(zoom, w * 0.95f - 22, h * 0.05f, 22, 22);
         var zi = zoom.gameObject.AddComponent<Image>();
         zi.sprite = Hud.Circle;
         zi.color = new Color(1, 1, 1, 0.92f);
         Hud.Shadow(zi, 11, new Hud.Drop(Hud.Rgba(80, 84, 100, 0.25f), 1, 4));
-        zoom.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("hover"); zoomed = id; Draw(); });
+        zoom.gameObject.AddComponent<Button>().onClick.AddListener(() => menu.Zoom(id));
+        // (The card rustles as the pointer comes onto it.)
+        MenuHover.Rustle(face.gameObject, on => fade.Shown = on || Hoverless);
+        MenuHover.On(zoom.gameObject, on => fade.Shown = on || Hoverless, null, null);
         Stroke(zoom, new Vector2(11, 11), 9.5f, 1, 45, Look.InkSoft);
         foreach (var (corner, dir) in new[] { (new Vector2(14.4f, 7.6f), 1), (new Vector2(7.6f, 14.4f), -1) })
         {
@@ -1369,6 +1388,47 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
             Stroke(zoom, corner + new Vector2(-dir * 1.6f, 0), 3.2f, 1, 0, Look.InkSoft);
             Stroke(zoom, corner + new Vector2(0, dir * 1.6f), 3.2f, 1, 90, Look.InkSoft);
         }
+    }
+
+    /// <summary>A screen with no hover, a phone's or a tablet's (@media (hover: none)): the corners to read a card large always shown.</summary>
+    static bool Hoverless => Application.isMobilePlatform;
+
+    RectTransform peek;
+
+    /// <summary>
+    /// A deck row under a mouse (app.ts onHover, showPeek): its card shown large (--pw: 0.7 × min(420px, the page less
+    /// 24), 0.714 of that across) left of the deck's panel, 14 off it, level with the row (kept 8 inside the page), what
+    /// it carries explained to its left (.card-preview .kw-wrap: 220 across, 12 off, no taller than the card); easing
+    /// in (0.12 s, from 95%). Taking no taps. `id` null: none.
+    /// </summary>
+    void Peek(string id, RectTransform row)
+    {
+        if (peek != null) Mats.Kill(peek.gameObject);
+        peek = null;
+        if (id == null || row == null || root == null) return;
+        float pw = Mathf.Min(420, K.H - 24) * 0.7f * 0.714f, ph = pw * 1.4f;
+        var c = new Vector3[4];
+        row.GetWorldCorners(c);
+        float mid = root.rect.yMax - (root.InverseTransformPoint(c[0]).y + root.InverseTransformPoint(c[1]).y) / 2;
+        float x = Mathf.Max(8, K.W - K.PadR - SideW - pw - 14), y = Mathf.Max(8, Mathf.Min(K.H - ph - 8, mid - ph / 2));
+        peek = Hud.Rect(root, "Peek");
+        Hud.Place(peek, x, y, pw, ph);
+        var g = peek.gameObject.AddComponent<CanvasGroup>();
+        g.blocksRaycasts = false;
+        g.interactable = false;
+        var face = Hud.Rect(peek, "Card");
+        Hud.Fill(face);
+        var img = face.gameObject.AddComponent<RawImage>();
+        img.texture = Faces.Of(id, false);
+        img.raycastTarget = false;
+        Printed(face, id, pw);
+        var rows = Explain(id);
+        if (rows.Count > 0)
+        {
+            var (panel, eh) = ExplainPanel(peek, rows, 220, ph, true);
+            Hud.Place(panel, -12 - 220, 0, 220, eh);
+        }
+        peek.gameObject.AddComponent<PopIn>();
     }
 
     /// <summary>A straight stroke `length` long and `width` thick, its middle at (x, y) from its parent's top left, turned `degrees` (anticlockwise as drawn).</summary>
@@ -1489,16 +1549,24 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     }
 
     /// <summary>Craft a copy of a card with flux (builder.ts db-craft): asked of the server, or made here with no server (EconomyCalls).</summary>
-    void Craft(string id) => EconomyCalls.Craft(id, why => Crafted(why, "upgrade"));
+    void Craft(string id)
+    {
+        // (The server's to do, which keeps the collection: never without a connection.)
+        if (Connection.Lost) { menu.Toast("Offline."); return; }
+        EconomyCalls.Craft(id, Crafted);
+    }
 
     /// <summary>Break a copy of a card down for flux (builder.ts db-break): starter cards can't be.</summary>
-    void BreakDown(string id) => EconomyCalls.BreakDown(id, why => Crafted(why, "crack"));
+    void BreakDown(string id)
+    {
+        if (Connection.Lost) { menu.Toast("Offline."); return; }
+        EconomyCalls.BreakDown(id, Crafted);
+    }
 
-    void Crafted(string why, string sound)
+    void Crafted(string why)
     {
         if (this == null) return;
         if (why != null) menu.Toast(why);
-        else Sound.Play(sound);
         Draw();
     }
 
@@ -1646,7 +1714,10 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         }
         row.raycastTarget = true;
         var id = c.Id;
-        row.gameObject.AddComponent<Button>().onClick.AddListener(() => Remove(id));
+        var press = CardPress.On(row.gameObject, () => menu.Zoom(id));
+        row.gameObject.AddComponent<Button>().onClick.AddListener(() => { if (!press.Swallow()) Remove(id); });
+        // (Under a mouse, the card shown large beside the deck's panel, level with its row: app.ts onHover, showPeek.)
+        MenuHover.Rustle(row.gameObject, on => Peek(on ? id : null, row.rectTransform));
         var art = Hud.Rect(row.transform, "Art");
         Hud.Place(art, 3, 3, 22, 22);
         var ring = art.gameObject.AddComponent<Image>();
@@ -1908,12 +1979,12 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
     /// page's height, 80vw)) and beside it, 16 off, what it carries explained (.kw-list: at most 260 across, as tall
     /// as the card); under them, 10 down, "tap anywhere to close" (12.8, muted); all in the page's middle.
     /// </summary>
-    void Zoom()
+    public static RectTransform ZoomView(Transform parent, string zoomed, System.Action close)
     {
-        var veil = Hud.Rect(root, "Zoom");
+        var veil = Hud.Rect(parent, "Zoom");
         Hud.Fill(veil);
         veil.gameObject.AddComponent<Image>().color = new Color(244 / 255f, 244 / 255f, 242 / 255f, 0.8f);
-        veil.gameObject.AddComponent<Button>().onClick.AddListener(() => { zoomed = null; Draw(); });
+        veil.gameObject.AddComponent<Button>().onClick.AddListener(() => close());
         float cw = Mathf.Min(340, 0.62f * K.H, 0.8f * K.W), ch = cw * 1.4f;
         var rows = Explain(zoomed);
         float ew = rows.Count > 0 ? Mathf.Min(260, K.W - cw - 16 - 24) : 0;
@@ -1930,12 +2001,16 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
             Hud.Place(panel, left + cw + 16, top + (ch - ph) / 2, ew, ph);
         }
         K.Words(veil, "tap anywhere to close", 0, top + ch + 10, K.W, 16, 12.8f, Look.InkFaint, false, 400);
+        // (The card rises in: rise, 0.2 s ease-out.)
+        RiseIn.On(face, Time.time, 0, 0.2f, 10 / WebLook.Zoom, true);
+        return veil;
     }
 
     /// <summary>The explanations' panel (.kw-list): white at 96%, corners 16, padded 12 by 14, rows 8 apart, `w` wide, at most `most` tall.</summary>
-    static (RectTransform, float) ExplainPanel(Transform parent, List<ExplainRow> rows, float w, float most)
+    /// <remarks>Beside a card held up to read (.card-preview .kw-list): padded 10 by 12, rows 6 apart, 12.48 and 10.88.</remarks>
+    static (RectTransform, float) ExplainPanel(Transform parent, List<ExplainRow> rows, float w, float most, bool small = false)
     {
-        const float padX = 14, padY = 12, head = 13.76f, bodySize = 11.84f;
+        float padX = small ? 12 : 14, padY = small ? 10 : 12, head = small ? 12.48f : 13.76f, bodySize = small ? 10.88f : 11.84f, between = small ? 6 : 8;
         float inner = w - 2 * padX;
         var p = Hud.Box(parent, "Explain", new Color(1, 1, 1, 0.96f), 16);
         var panel = (RectTransform)p.transform;
@@ -1944,7 +2019,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         for (int i = 0; i < rows.Count; i++)
         {
             var r = rows[i];
-            if (i > 0) y += 8;
+            if (i > 0) y += between;
             float x = padX;
             if (r.icon >= 0)
             {

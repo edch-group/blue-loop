@@ -24,7 +24,8 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
 
     RectTransform root;
     MenuView menu;
-    string picked;
+    /// <summary>The one picked (app.ts tutPick, chPick): kept while the game runs.</summary>
+    public static string Picked;
 
     public static TutorialView Make(RectTransform parent, MenuView menu)
     {
@@ -123,7 +124,7 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
         for (int i = 0; i < Lessons.All.Count; i++)
         {
             var l = Lessons.All[i];
-            bool isDone = done.Contains(l.Id), open = Lessons.LessonOpen(l.Id, done), on = picked == l.Id;
+            bool isDone = done.Contains(l.Id), open = Lessons.LessonOpen(l.Id, done), on = Picked == l.Id;
             var p = pt(l.Id);
             var node = Hud.Rect(root, l.Id);
             Hud.At(node, new Vector2(0.5f, 0.5f), p, new Vector2(160, nodeH));
@@ -169,7 +170,7 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
                 var id = l.Id;
                 var b = dot.gameObject.AddComponent<Button>();
                 b.targetGraphic = di;
-                b.onClick.AddListener(() => { Sound.Play("hover"); picked = picked == id ? null : id; Draw(); });
+                b.onClick.AddListener(() => { Sound.Play("hover"); Picked = Picked == id ? null : id; Draw(); });
             }
         }
 
@@ -187,7 +188,7 @@ public class TutorialView : MonoBehaviour, MenuView.IRedraw
         raw.texture = Resources.Load<Texture2D>("Portraits/oriel");
 
         // The lesson picked, waiting to begin, or Oriel's word.
-        var lesson = picked != null ? Lessons.LessonById(picked) : null;
+        var lesson = Picked != null ? Lessons.LessonById(Picked) : null;
         var hint = coreDone ? "The lost races await, above." : done.Count > 0 ? "The lost races open once the core is learnt." : "Walk with me. Start at the root.";
         if (lesson != null)
         {

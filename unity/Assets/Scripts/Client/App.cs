@@ -16,8 +16,17 @@ public class App : MonoBehaviour
         var go = new GameObject("App");
         var app = go.AddComponent<App>();
         Instance = app;
-        // (The account's session checked, and its economy and any newer progress taken up: Account.)
-        if (Application.isPlaying) Account.CheckIn();
+        // (The account's session checked, and its economy and any newer progress taken up: Account. Progress from
+        // another device taken up, the menu reads it afresh (app.ts start: reloadHere); a picture just dealt shows.)
+        var avatar = Account.Current?.Avatar;
+        if (Application.isPlaying)
+            Account.CheckIn(replaced =>
+            {
+                var menu = MenuView.Live;
+                if (menu == null) return;
+                if (replaced) menu.Reload();
+                else if (Account.Current?.Avatar != avatar) menu.Redraw();
+            });
         return app;
     }
 
@@ -141,13 +150,27 @@ public class App : MonoBehaviour
     /// <summary>A battle between two decks (by name; unset: chosen at random), you against the AI.</summary>
     public BattleView Battle(string myDeck = null, string theirDeck = null, int? seed = null)
     {
+        var battle = NewScreen();
+        battle.NewBattle(seed ?? Random.Range(1, 100000), myDeck, theirDeck);
+        return battle;
+    }
+
+    /// <summary>Quickplay's battle (app.ts newGame): its seats as set, each a human or the AI, in the mode played.</summary>
+    public BattleView Battle(System.Collections.Generic.List<PlayerSetup> players, string mode, int? seed = null)
+    {
+        var battle = NewScreen();
+        battle.NewBattle(seed ?? Random.Range(1, 100000), players, mode);
+        return battle;
+    }
+
+    BattleView NewScreen()
+    {
         Clear();
         var battle = BattleView.Make();
         current = battle.gameObject;
         // (The battle's camera, board and HUD go when it does.)
         battle.Cam.transform.SetParent(current.transform, true);
         battle.Board.transform.SetParent(current.transform, true);
-        battle.NewBattle(seed ?? Random.Range(1, 100000), myDeck, theirDeck);
         return battle;
     }
 }

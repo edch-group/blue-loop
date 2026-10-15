@@ -18,7 +18,8 @@ public class GlossaryView : MonoBehaviour, MenuView.IRedraw
     RectTransform root, pane;
     MenuView menu;
     Section[] sections;
-    string tab = "basics";
+    /// <summary>The section open (app.ts rulesTab): kept while the game runs.</summary>
+    public static string Tab = "basics";
 
     public static GlossaryView Make(RectTransform parent, MenuView menu)
     {
@@ -51,7 +52,7 @@ public class GlossaryView : MonoBehaviour, MenuView.IRedraw
         for (int i = 0; i < sections.Length; i++)
         {
             var s = sections[i];
-            bool on = s.id == tab;
+            bool on = s.id == Tab;
             var img = Hud.Box(tabs, s.id, Color.white, 12);
             var r = img.rectTransform;
             Hud.Place(r, 6, 6 + i * (tabH + 4), navW - 12, tabH);
@@ -69,7 +70,7 @@ public class GlossaryView : MonoBehaviour, MenuView.IRedraw
                 b.colors = colors;
             }
             var id = s.id;
-            b.onClick.AddListener(() => { Sound.Play("click"); tab = id; Draw(); });
+            b.onClick.AddListener(() => { Sound.Play("click"); Tab = id; Draw(); });
             var l = K.Fill(r, s.name.ToUpperInvariant(), 10.24f, on ? Look.Ink : Look.InkSoft, true, 400, 0.22f, TextAlignmentOptions.Left);
             l.margin = new Vector4(14, 0, 4, 0);
             Hud.Ellipsis(l);
@@ -90,10 +91,10 @@ public class GlossaryView : MonoBehaviour, MenuView.IRedraw
         viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
         // (The page as the web lays it out at the width nearest this panel's: the web reflows its words and pictures to
         // the page, so each was baked at several screens' sizes.)
-        var section = System.Array.Find(sections, x => x.id == tab);
+        var section = System.Array.Find(sections, x => x.id == Tab);
         var variant = section?.variants != null && section.variants.Length > 0
             ? section.variants.OrderBy(v => Mathf.Abs(v.width - pw)).First()
-            : new Variant { file = tab, width = 1078.4f };
+            : new Variant { file = Tab, width = 1078.4f };
         var tex = Pictures.Load("Glossary/" + variant.file);
         float bakedW = variant.width, pad = 0;
         float scale = (pw - 2 * Mathf.Max(0, pad)) / bakedW, iw = bakedW * scale;

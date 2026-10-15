@@ -14,7 +14,8 @@ public class ChallengesView : MonoBehaviour, MenuView.IRedraw
     static readonly string[] Roman = { "", "I", "II", "III", "IV", "V", "VI", "VII", "VIII" };
     RectTransform root;
     MenuView menu;
-    string picked;
+    /// <summary>The one picked (app.ts tutPick, chPick): kept while the game runs.</summary>
+    public static string Picked;
 
     public static ChallengesView Make(RectTransform parent, MenuView menu)
     {
@@ -74,7 +75,7 @@ public class ChallengesView : MonoBehaviour, MenuView.IRedraw
                 {
                     var c = line[i];
                     int n = all.IndexOf(c) + 1;
-                    bool on = picked == c.Id, isSolved = solved.Contains(c.Id);
+                    bool on = Picked == c.Id, isSolved = solved.Contains(c.Id);
                     var tile = Hud.Box(content, c.Id, isSolved ? Hud.Rgba(255, 247, 230) : Color.white, 14);
                     var tr = tile.rectTransform;
                     Hud.Place(tr, x + i * (tw + gap), y - (on ? 3 : 0), tw, th);
@@ -96,7 +97,7 @@ public class ChallengesView : MonoBehaviour, MenuView.IRedraw
                     var cb = tb.colors;
                     cb.highlightedColor = new Color(0.98f, 0.98f, 1f);
                     tb.colors = cb;
-                    tb.onClick.AddListener(() => { Sound.Play("hover"); picked = picked == id ? null : id; Draw(); });
+                    tb.onClick.AddListener(() => { Sound.Play("hover"); Picked = Picked == id ? null : id; Draw(); });
                 }
                 y += th + (start + perLine < row.Count ? gap : 0);
             }
@@ -105,7 +106,7 @@ public class ChallengesView : MonoBehaviour, MenuView.IRedraw
 
         // The one picked, waiting to begin (as the tutorial's: what, which, and begin beside them); or how many are
         // solved.
-        var pick = picked != null ? Puzzles.ChallengeById(picked) : null;
+        var pick = Picked != null ? Puzzles.ChallengeById(Picked) : null;
         if (pick != null)
         {
             string goal = pick.Goal == "win" ? ((pick.Days ?? 1) > 1 ? $"win within {pick.Days} days" : "win this day") : "survive their day";

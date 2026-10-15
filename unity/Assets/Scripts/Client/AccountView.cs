@@ -6,14 +6,16 @@ using K = MenuKit;
 
 /// <summary>
 /// Signing in (app.ts renderSignIn): to your account with an email and a password, creating one (agreeing to the Terms
-/// and the Privacy Policy), or asking for a new password by email; then the name you go by, beside the picture the
-/// account was dealt. Also the account's part of your profile (accountRow): where your progress is saved, signing out,
-/// and deleting the account.
+/// and the Privacy Policy), asking for a new password by email, or choosing one from the email's link; then the name
+/// you go by, beside the picture the account was dealt. Enter sends the form. Also the account's part of your profile
+/// (accountRow): where your progress is saved, signing out, and deleting the account.
 /// </summary>
 public static class AccountView
 {
-    /// <summary>signin, signup, forgot, or name.</summary>
+    /// <summary>signin, signup, forgot, reset, or name.</summary>
     public static string Mode = "signin";
+    /// <summary>A password-reset link's token (?reset=TOKEN), for choosing a new password.</summary>
+    static string resetToken;
     static string email = "", password = "", name, error = "", note = "";
     static bool agreeTerms, agreePrivacy, busy, resetOffered, appleOffered, googleOffered, asked;
     /// <summary>A room to go on into once signed in (an invite link opened before signing in).</summary>
@@ -21,6 +23,38 @@ public static class AccountView
 
     /// <summary>Whether starting the game asks you to sign in first (everyone plays with an account, where there is a server).</summary>
     public static bool Needed => Net.Available && !(Account.SignedIn && !string.IsNullOrEmpty(Profile.Me.Name));
+
+    /// <summary>A password-reset link's token (?reset=, 64 hex digits) the game was opened with, once (app.ts start).</summary>
+    public static string TakeReset()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        var url = Application.absoluteURL ?? "";
+        int q = url.IndexOf('?');
+        if (q < 0) return null;
+        foreach (var part in url.Substring(q + 1).Split('&', '#'))
+            if (part.StartsWith("reset="))
+            {
+                var token = part.Substring(6);
+                return System.Text.RegularExpressions.Regex.IsMatch(token, "^[a-f0-9]{64}$") ? token : null;
+            }
+#endif
+        return null;
+    }
+
+    /// <summary>Choose a new password, by a reset link's token.</summary>
+    public static void Reset(string token)
+    {
+        resetToken = token;
+        Mode = "reset";
+        error = note = "";
+    }
+
+    /// <summary>The native app (a phone's own build, not the browser's): app.ts isNativeApp.</summary>
+#if UNITY_ANDROID || UNITY_IOS
+    static bool NativeApp => true;
+#else
+    static bool NativeApp => false;
+#endif
 
     /// <summary>The page to begin at: signing in, or, signed in without a name, naming yourself.</summary>
     public static void Begin()
@@ -52,6 +86,15 @@ public static class AccountView
         parts.Add((MenuView.TitleMeasures(true).H, (p, y) => MenuView.TitleBlock(p, cx, y, true)));
         // (.menu-heading: clamp(0.9rem, 4vh, 1.3rem), spaced 0.3em, #555a63, on Orbitron's line.)
         float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = Line(hf);
+        // (A note in the form: .auth-note, ink-soft 11.52, at most 300 across, centred.)
+        System.Action<string> quiet = said =>
+        {
+            float tw = Mathf.Min(300, K.W - 36);
+            var probe = K.Fill(page, said, 11.52f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
+            probe.textWrappingMode = TextWrappingModes.Normal;
+            float th = probe.GetPreferredValues(said, tw, 0).y;
+            parts.Add((th, (p, y) => { probe.transform.SetParent(p, false); Hud.Place(probe.rectTransform, cx - tw / 2, y, tw, th); }));
+        };
         System.Action<RectTransform, float, string> heading = (p, y, text) => K.Words(p, text.ToUpperInvariant(), 0, y, K.W, hh, hf, Hud.Rgba(85, 90, 99), true, 500, 0.3f);
         if (Mode == "name")
         {
@@ -75,11 +118,12 @@ public static class AccountView
         }
         else
         {
-            parts.Add((hh, (p, y) => heading(p, y, Mode == "signup" ? "create account" : Mode == "forgot" ? "reset password" : "sign in")));
+            parts.Add((hh, (p, y) => heading(p, y, Mode == "signup" ? "create account" : Mode == "forgot" ? "reset password" : Mode == "reset" ? "new password" : "sign in")));
             // (Apple and Google where the server offers them (.auth-social: fieldW across, 8 apart), then "or"
             // between two hairlines (.auth-or). They sign in on the web game's own page, on this same site: its session
-            // is then this game's too, taken up when it is next opened.)
-            if ((Mode == "signin" || Mode == "signup") && (appleOffered || googleOffered))
+            // is then this game's too, taken up when it is next opened. Not in the native app, as the web's isn't: its
+            // web view doesn't allow them.)
+            if ((Mode == "signin" || Mode == "signup") && !NativeApp && (appleOffered || googleOffered))
             {
                 parts.Add((appleOffered && googleOffered ? 34 + 8 + 34 : 34, (p, y) =>
                 {
@@ -88,10 +132,19 @@ public static class AccountView
                 }));
                 parts.Add((Line(8), (p, y) => Or(p, cx - fieldW / 2, y, fieldW)));
             }
-            parts.Add((40, (p, y) => Field(p, email, cx - fieldW / 2, y, fieldW, 40, "email", false, 120).onValueChanged.AddListener(v => email = v)));
+            // (No connection: signing in waits for one.)
+            if (Connection.Lost) quiet("Offline. Connect once to sign in; after that, play offline.");
+            // (Enter in a box sends the form, as a form's own submit does.)
+            System.Action<TMP_InputField, System.Action<string>> keep = (field, set) =>
+            {
+                field.onValueChanged.AddListener(v => set(v));
+                field.onSubmit.AddListener(_ => Submit(menu));
+            };
+            if (Mode != "reset")
+                parts.Add((40, (p, y) => keep(Field(p, email, cx - fieldW / 2, y, fieldW, 40, "email", false, 120), v => email = v)));
             // (What was typed stays through a redraw, as the web's form keeps it: the busy one as it is sent, too.)
             if (Mode != "forgot")
-                parts.Add((40, (p, y) => Field(p, password, cx - fieldW / 2, y, fieldW, 40, Mode == "signin" ? "password" : "password (8+ characters)", true, 200).onValueChanged.AddListener(v => password = v)));
+                parts.Add((40, (p, y) => keep(Field(p, password, cx - fieldW / 2, y, fieldW, 40, Mode == "signin" ? "password" : "password (8+ characters)", true, 200), v => password = v)));
             if (Mode == "signup")
                 parts.Add((51.3f, (p, y) =>
                 {
@@ -109,7 +162,7 @@ public static class AccountView
                 float th = probe.GetPreferredValues(said, tw, 0).y;
                 parts.Add((th, (p, y) => { probe.transform.SetParent(p, false); Hud.Place(probe.rectTransform, cx - tw / 2, y, tw, th); }));
             }
-            var action = Mode == "signup" ? "create account" : Mode == "forgot" ? "send link" : "sign in";
+            var action = Mode == "signup" ? "create account" : Mode == "forgot" ? "send link" : Mode == "reset" ? "set password" : "sign in";
             parts.Add((34, (p, y) => Primary(p, busy ? "…" : action, y, () => Submit(menu)).interactable = !busy));
             // (The web's .auth-alt: its links on a line, 18 apart.)
             var links = new System.Collections.Generic.List<(string, System.Action)>();
@@ -121,6 +174,12 @@ public static class AccountView
             else links.Add((Mode == "signup" ? "I have an account: sign in" : "back to sign in", () => { Mode = "signin"; error = note = ""; redraw(); }));
             parts.Add((20, (p, y) => Links(p, y, links)));
         }
+        // (The page comes and goes as the web's does: its back, then the form.)
+        int mark = page.childCount;
+        var back = MenuView.BackButton(page, () => menu.Show("title"), Mathf.Max(18, K.SaL), Mathf.Max(12, K.SaT) + 9);
+        menu.PartFrom(mark);
+        var backParts = new System.Collections.Generic.List<Transform>();
+        for (int i = mark; i < page.childCount; i++) backParts.Add(page.GetChild(i));
         float total = -14;
         foreach (var part in parts) total += part.h + 14;
         float top = Mathf.Max(6, K.SaT), room = K.H - top - 12 * K.Vh;
@@ -137,8 +196,12 @@ public static class AccountView
             part.draw(into, at);
             at += part.h + 14;
         }
-        // (The web's .menu-back: its small back button, calc(max(12px, top) + 9px) down, max(18px, left) in.)
-        MenuView.BackButton(page, () => menu.Show("title"), Mathf.Max(18, K.SaL), Mathf.Max(12, K.SaT) + 9);
+        // (The form: all the rest.)
+        var form = new System.Collections.Generic.List<Transform>();
+        foreach (Transform c in page) if (!backParts.Contains(c)) form.Add(c);
+        menu.Part(form);
+        // (The web's .menu-back: its small back button, calc(max(12px, top) + 9px) down, max(18px, left) in; over the form.)
+        back.transform.SetAsLastSibling();
     }
 
     /// <summary>Signed in and named: on to the hub, or into the room an invite link named.</summary>
@@ -201,6 +264,7 @@ public static class AccountView
             });
         }
         else if (Mode == "signup") Account.SignUp(sentEmail, sentPassword, agreeTerms, agreePrivacy, done);
+        else if (Mode == "reset") Account.ConfirmReset(resetToken, sentPassword, done);
         else Account.LogIn(sentEmail, sentPassword, done);
     }
 

@@ -79,17 +79,24 @@ public partial class BattleView : MonoBehaviour
         // (As the web's quickplay: you under your profile's name, the AI under a bot's name picked at random.)
         string myName = string.IsNullOrEmpty(Profile.Me?.Name) ? "Commander" : Profile.Me.Name;
         string botName = BotNames[(seed * 13 + 5) % BotNames.Length];
-        statsRec = null;
-        state = Game.Create(new GameSetup
+        NewBattle(seed, new List<PlayerSetup>
         {
-            Seed = seed,
-            Mode = mine.Mode,
-            Players = new List<PlayerSetup>
-            {
-                new PlayerSetup { Name = myName, IsAI = Autoplay, Deck = mine.Cards, DeckName = mine.Name },
-                new PlayerSetup { Name = botName, IsAI = true, Deck = theirs.Cards, DeckName = theirs.Name },
-            },
-        });
+            new PlayerSetup { Name = myName, IsAI = Autoplay, Deck = mine.Cards, DeckName = mine.Name },
+            new PlayerSetup { Name = botName, IsAI = true, Deck = theirs.Cards, DeckName = theirs.Name },
+        }, mine.Mode);
+    }
+
+    /// <summary>
+    /// A battle of the seats given (app.ts newGame), in `mode`: each a human or the AI as set (a human against the AI,
+    /// two humans taking turns at one screen, or the AI against itself). You are the first human seat (none: the
+    /// first seat, watched).
+    /// </summary>
+    public void NewBattle(int seed, List<PlayerSetup> players, string mode)
+    {
+        statsRec = null;
+        state = Game.Create(new GameSetup { Seed = seed, Mode = mode, Players = players });
+        int human = players.FindIndex(p => !p.IsAI);
+        you = state.Players[Mathf.Max(0, human)].Id;
         Board.Viewer = you;
         Clear();
         Refresh();
@@ -366,7 +373,7 @@ public partial class BattleView : MonoBehaviour
             new Hud.Row("sound", () => { Sound.Muted = !Sound.Muted; Settings(); }, Sound.Muted ? "off" : "on"),
             new Hud.Row("music", Sound.Muted ? (System.Action)null : () => { Sound.MusicOn = !Sound.MusicOn; Settings(); }, Sound.MusicOn && !Sound.Muted ? "on" : "off"),
             new Hud.Row("ai speed", () => { Store.Set(SpeedKey, Speeds[(System.Array.IndexOf(Speeds, Speed) + 1) % 3]); Settings(); }, Speed),
-            over ? new Hud.Row("main menu", () => { if (online) Online.ToMenu(); else App.Instance?.Menu("hub"); }) : new Hud.Row("quit game", Quit),
+            over ? new Hud.Row("main menu", () => { if (online) Online.ToMenu(); else if (puzzleKind != null) LeavePuzzle(); else App.Instance?.Menu("hub"); }) : new Hud.Row("quit game", Quit),
         }, CloseSheet);
     }
 
