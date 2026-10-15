@@ -3,7 +3,8 @@
 // put out of sight. Each pixel's ray looks down from the eye into the sky beneath, in full colour: stars at several
 // depths (so it has depth as the camera turns) over drifting clouds of colour on the deep blue-black of space, back
 // into the paper toward the horizon. Drawn before the ground (which covers it wherever land still stands), writing no
-// depth. In the web's own units (the object's space).
+// depth. In the web's own units (the object's space). Faded into the paper with the land standing over it (_Fade: the
+// campaign menu's land fading out and back as its flight comes round to its start).
 Shader "BlueLoop/Abyss"
 {
     Properties
@@ -12,6 +13,7 @@ Shader "BlueLoop/Abyss"
         _Gone ("Gone", Float) = -50
         _Soft ("Soft (the campaign menu's land)", Float) = 0
         _SoftBelow ("Soft below (the first map, where the menu broke it)", Float) = -1000000000
+        _Fade ("Come in from the paper", Float) = 1
     }
     SubShader
     {
@@ -26,7 +28,7 @@ Shader "BlueLoop/Abyss"
             #pragma target 3.0
             #include "UnityCG.cginc"
             fixed4 _Paper;
-            float _Gone, _Soft, _SoftBelow;
+            float _Gone, _Soft, _SoftBelow, _Fade;
             struct appdata { float4 vertex : POSITION; float4 shard : TEXCOORD2; float2 prog : TEXCOORD3; };
             struct v2f { float4 pos : SV_POSITION; float3 p : TEXCOORD0; };
             v2f vert (appdata v)
@@ -87,7 +89,7 @@ Shader "BlueLoop/Abyss"
                 }
                 // Toward the horizon, back into the paper.
                 col = lerp(_Paper.rgb, col, smoothstep(0.02, 0.2, -dir.y));
-                return fixed4(col, 1);
+                return fixed4(lerp(_Paper.rgb, col, _Fade), 1);
             }
             ENDCG
         }

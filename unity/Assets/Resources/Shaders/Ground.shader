@@ -4,7 +4,8 @@
 // middles and fall; those next to go (up to _Crack) are marked faintly red, their borders glowing. Land drawn soft (the
 // campaign menu's, _Soft; or the first map's west of _SoftBelow, where the menu broke it) drifts down slowly as it
 // fades. Two passes, as the web draws it: the land standing, then what falls, blended over what lies beneath (the
-// abyss: Abyss.shader), see-through as it fades.
+// abyss: Abyss.shader), see-through as it fades. A new land comes in out of the paper (_Fade, nebula3d.ts's uFade:
+// over 1.2 s, eased; the campaign menu's also fades out and back as its flight comes round to its start).
 // Drawn in the web's own units (the object's space; the object scaled up to the map's, z flipped).
 Shader "BlueLoop/Ground"
 {
@@ -18,6 +19,7 @@ Shader "BlueLoop/Ground"
         _G ("World per unit", Float) = 1
         _Soft ("Soft (the campaign menu's land)", Float) = 0
         _SoftBelow ("Soft below (the first map, where the menu broke it)", Float) = -1000000000
+        _Fade ("Come in from the paper", Float) = 1
     }
     SubShader
     {
@@ -26,7 +28,7 @@ Shader "BlueLoop/Ground"
         CGINCLUDE
             #include "UnityCG.cginc"
             fixed4 _Paper;
-            float _Gone, _Crack, _Galaxy, _G, _Soft, _SoftBelow, _T;
+            float _Gone, _Crack, _Galaxy, _G, _Soft, _SoftBelow, _T, _Fade;
             struct appdata
             {
                 float4 vertex : POSITION;
@@ -209,6 +211,8 @@ Shader "BlueLoop/Ground"
                 float edge = min(min(w.x + 7.0, 7.0 - w.x), min(w.z + 5.5, 4.0 - w.z));
                 float away = max(1.0 - smoothstep(0.0, 1.8, edge), smoothstep(7.0, 20.0, dist));
                 if (fall <= 0.0) c = lerp(c, _Paper.rgb, away);
+                // (Coming in, out of the paper: mix(uPaper, c, uFade).)
+                c = lerp(_Paper.rgb, c, _Fade);
                 return fixed4(c * keep, keep);
             }
             fixed4 frag (v2f i) : SV_Target { return shade(i, 0.0); }

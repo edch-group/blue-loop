@@ -1691,14 +1691,90 @@ public partial class CampaignView
         var t = WebLook.Words(v, "you drift into a sorrowful slumber", 1.3f * 16 * Z * 0.78f, 0.32f, WebLook.Hex("#d9d4f0"), true, 400);
         t.margin = new Vector4(0, 0, 0.32f * 1.3f * 16 * Z * 0.78f, 0);
         float t0 = RevealFrom("dream");
-        v.gameObject.AddComponent<CanvasGroup>();
-        // (dream-in over 3.6s; the line (dream-line) in from a quarter of the way to seven tenths.)
-        RiseIn.On(v, t0, 0, 3.6f);
-        RiseIn.On(t.rectTransform, t0, 0.9f, 1.62f);
+        // (The line (dream-line) rising 10 in from a quarter of the way to seven tenths, coming clear as it does.)
+        RiseIn.On(t.rectTransform, t0, 0.9f, 1.62f, 10);
+        // (dream-in over 3.6s, ease-in, the screen behind it blurring; the map wavering beneath it all.)
+        var wave = v.gameObject.AddComponent<Dreaming>();
+        wave.From = t0;
+        wave.Group = v.gameObject.AddComponent<CanvasGroup>();
+        wave.Line = t;
+        wave.Wave = DreamWave();
+        wave.Apply();
         if (!dreamStarting && Application.isPlaying)
         {
             dreamStarting = true;
             Invoke(nameof(BeginDream), 4.2f);
+        }
+    }
+
+    RawImage dreamWave;
+
+    /// <summary>
+    /// The map's wavering under a dream (DreamWave.shader): the screen as the map has drawn it, drawn again displaced and
+    /// blurred, the HUD's first image (so all the HUD comes over it as it is); made once, shown while a dream is.
+    /// </summary>
+    RawImage DreamWave()
+    {
+        if (dreamWave != null) return dreamWave;
+        var r = Hud.Rect(hud.transform, "Dream wave");
+        Hud.Fill(r);
+        r.SetAsFirstSibling();
+        dreamWave = r.gameObject.AddComponent<RawImage>();
+        dreamWave.raycastTarget = false;
+        dreamWave.material = Mats.Make("DreamWave");
+        r.gameObject.SetActive(false);
+        return dreamWave;
+    }
+
+    /// <summary>
+    /// A dream coming on (styles.css .dream-fade, .dream-line; campaign.ts's #dream-wave): the dark fading in over 3.6 s,
+    /// ease-in, the screen behind it blurring to 6; the map displaced by turbulence, by nothing to 60 over 4 s, its
+    /// frequency going from 0.006 0.02 to 0.01 0.035 and back every 6 s; the line, blurred by 4 until a quarter of the
+    /// way, coming clear by seven tenths (eased). Gone with the dream's overlay, the wave with it.
+    /// </summary>
+    class Dreaming : MonoBehaviour
+    {
+        public float From;
+        public CanvasGroup Group;
+        public TMPro.TextMeshProUGUI Line;
+        public RawImage Wave;
+        Material lineMat;
+        // (The overlays drawn again make a new one before the old is gone: the wave put away only with the last.)
+        static int live;
+
+        void Awake() => live++;
+
+        void Update() => Apply();
+
+        public void Apply()
+        {
+            float t = Application.isPlaying ? Time.time - From : 3.6f;
+            float k = CampaignMenuPage.EaseIn(Mathf.Clamp01(t / 3.6f));
+            if (Group != null) Group.alpha = k;
+            if (Wave != null)
+            {
+                if (!Wave.gameObject.activeSelf) Wave.gameObject.SetActive(true);
+                var m = Wave.material;
+                float c = (t % 6) / 3;
+                float w = c < 1 ? c : 2 - c;
+                m.SetVector("_Freq", new Vector4(0.006f + 0.004f * w, 0.02f + 0.015f * w, 0, 0));
+                m.SetFloat("_Scale", 60 * Mathf.Clamp01(t / 4));
+                m.SetFloat("_Blur", 6 * k);
+                m.SetFloat("_Px", Css.PixelRatio * Css.Zoom);
+            }
+            // (The line's blur: its edges softened, as near as a line of text can be.)
+            if (Line != null)
+            {
+                if (lineMat == null) lineMat = Line.fontMaterial;
+                float b = 4 * (1 - CampaignMenuPage.Ease(Mathf.Clamp01((t / 3.6f - 0.25f) / 0.45f)));
+                if (lineMat.HasProperty("_OutlineSoftness")) lineMat.SetFloat("_OutlineSoftness", b / 4);
+            }
+        }
+
+        void OnDestroy()
+        {
+            if (--live <= 0 && Wave != null) Wave.gameObject.SetActive(false);
+            Mats.Kill(lineMat);
         }
     }
 

@@ -47,8 +47,12 @@ public class CampaignBackdrop : MonoBehaviour
         zone = section;
         // (Opened afresh in the editor's pictures: settled at once.)
         if (!Application.isPlaying) calm = zone == "hangar" ? 1 : 0;
+        // (A section opened from the menu: no longer opening afresh.)
+        if (zone != null) introPending = false;
+        // (Enlightenment, out on the land: the camera glides there, as it does for the ship tab.)
+        if (!Application.isPlaying) toward = research = zone == "research" ? 1 : 0;
         // (The Captain or one of the crew, alone: everything else covered.)
-        bool alone = zone != null && zone != "hangar";
+        bool alone = zone != null && zone != "hangar" && zone != "research";
         if (landCam != null) landCam.enabled = !alone;
         shipCam.clearFlags = alone ? CameraClearFlags.SolidColor : CameraClearFlags.Depth;
         shipCam.backgroundColor = Look.Paper;
@@ -141,6 +145,7 @@ public class CampaignBackdrop : MonoBehaviour
         uiMask = ui.cullingMask;
         ui.cullingMask &= ~((1 << LandLayer) | (1 << ShipLayer));
         t0 = Time.realtimeSinceStartup;
+        introPending = !story;
         if (!story) BuildLand();
         else
         {
@@ -182,7 +187,97 @@ public class CampaignBackdrop : MonoBehaviour
         landCam = MakeCamera("Land camera", ui.depth - 2, LandLayer, 36);
         landCam.clearFlags = CameraClearFlags.SolidColor;
         landCam.backgroundColor = Look.Paper;
+        // The sunrise on the horizon behind the Stellari: its glow and the bright line along the horizon through it.
+        sunGlow = SunPart("Sunrise", 0);
+        sunLine = SunPart("Sunrise line", 1);
     }
+
+    // ---- The sunrise (campaign.ts showBase, styles.css .cs-sunrise) ----
+
+    /// <summary>Where the sunrise stands (the web's units): on the horizon ahead, at the Stellari, a little over the land.</summary>
+    public static readonly Vector3 SunriseAt = new Vector3(6.2f, 0.3f, -1.2f);
+    /// <summary>Where the Stellari stands on the land's far end (the web's x, z), to the right on the horizon.</summary>
+    static readonly Vector2 Stellari = new Vector2(6.2f, -1.2f);
+    (Transform t, Material m) sunGlow, sunLine;
+
+    (Transform, Material) SunPart(string name, float kind)
+    {
+        var m = Mats.Make("Sunrise");
+        m.SetFloat("_Kind", kind);
+        m.renderQueue = 1000;
+        var go = new GameObject(name) { layer = LandLayer };
+        go.transform.SetParent(transform, false);
+        go.AddComponent<MeshFilter>().sharedMesh = Quad;
+        var r = go.AddComponent<MeshRenderer>();
+        r.sharedMaterial = m;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        r.receiveShadows = false;
+        return (go.transform, m);
+    }
+
+    /// <summary>
+    /// The sunrise as `cam` sees it now, at `at` (a point in this world), `alpha` shown, on `layer` (the land's; the
+    /// run's own camera's while setting out): its glow min(70vmin, 520) CSS pixels across, its line min(150vmin, 1400)
+    /// by 10, both centred on the point wherever it stands on the screen.
+    /// </summary>
+    public void Sunrise(Camera cam, Vector3 at, float alpha, int layer)
+    {
+        if (sunGlow.t == null || cam == null) return;
+        var size = Css.Size;
+        float vmin = Mathf.Min(size.x, size.y) / 100, px = Css.PixelRatio * Css.Zoom;
+        // (World units a screen pixel, at the point's depth.)
+        float depth = Vector3.Dot(at - cam.transform.position, cam.transform.forward);
+        float unit = 2 * Mathf.Max(0.01f, depth) * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, cam.pixelHeight);
+        foreach (var (part, w, h) in new[] { (sunGlow, Mathf.Min(70 * vmin, 520), Mathf.Min(70 * vmin, 520)), (sunLine, Mathf.Min(150 * vmin, 1400), 10f) })
+        {
+            part.t.gameObject.layer = layer;
+            bool on = alpha > 0.001f && depth > 0;
+            if (part.t.gameObject.activeSelf != on) part.t.gameObject.SetActive(on);
+            part.t.position = at;
+            part.t.rotation = cam.transform.rotation;
+            part.t.localScale = new Vector3(w / 2 * px * unit, h / 2 * px * unit, 1);
+            part.m.SetFloat("_Alpha", alpha);
+        }
+    }
+
+    // ---- Opening afresh (campaign.ts showBase's menuIntro, base3d.ts arrive) ----
+
+    // (Made for the menu, and not yet shown: it comes in as the menu opens afresh.)
+    bool introPending;
+    // (Frames drawn of the land so far while hidden; -1: not waiting.)
+    int introFrames = -1;
+    float? shownAt, entryAt;
+    bool entryHeld;
+    /// <summary>How long the ship takes to fly in (seconds).</summary>
+    const float Entry = 9;
+    /// <summary>The menu's fade in (.cs-base's transition, MENU_FADE_MS: 0.9 s, ease-out).</summary>
+    const float FadeIn = 0.9f;
+
+    /// <summary>
+    /// The menu opened afresh: the scene hidden while its land is made and drawn (three frames of it), the ship held off
+    /// to the left from its first frame; then faded in as the ship flies in from the left over nine seconds.
+    /// </summary>
+    public bool BeginIntro()
+    {
+        if (!introPending || !Application.isPlaying) return false;
+        introPending = false;
+        introFrames = 0;
+        entryHeld = true;
+        shownAt = entryAt = null;
+        return true;
+    }
+
+    /// <summary>The scene's own clock (seconds).</summary>
+    public float Clock => Now;
+
+    /// <summary>How far the scene is faded in (0 hidden while its land is made; then the 0.9 s ease-out; 1 shown).</summary>
+    public float Shown => introFrames >= 0 ? 0 : shownAt == null ? 1 : CampaignMenuPage.EaseOut(Mathf.Clamp01((Now - shownAt.Value) / FadeIn));
+
+    /// <summary>
+    /// When the menu's options come in, on the scene's clock: a second after the fade in is done (MENU_FADE_MS + 1000),
+    /// the ship still drifting in behind them; never while it is hidden; null: not held at all.
+    /// </summary>
+    public float? OptionsAt => introFrames >= 0 ? float.MaxValue : shownAt != null ? shownAt.Value + FadeIn + 1 : (float?)null;
 
     void BuildShip()
     {
@@ -203,6 +298,10 @@ public class CampaignBackdrop : MonoBehaviour
         }
         Pose();
     }
+
+    // (How far the land's camera has glided down to the Stellari, and the ship's turned from the ship toward it; when
+    // the scene was last posed.)
+    float toward, research, lastPose;
 
     double level;
     Dictionary<string, V3> slots;
@@ -236,25 +335,32 @@ public class CampaignBackdrop : MonoBehaviour
     /// <summary>A soft disc facing the camera (MapSprite's glow), on the ship's layer.</summary>
     (Transform, Material) Glow(string name, Color c)
     {
-        if (quad == null)
-        {
-            quad = new UMesh { name = "glow" };
-            quad.vertices = new[] { new Vector3(-1, -1, 0), new Vector3(1, -1, 0), new Vector3(1, 1, 0), new Vector3(-1, 1, 0) };
-            quad.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-            quad.bounds = new Bounds(Vector3.zero, Vector3.one * 2);
-        }
         var m = Mats.Make("MapSprite", c);
         m.SetFloat("_Kind", 0);
         m.SetFloat("_Alpha", 0);
         m.renderQueue = 3001;
         var go = new GameObject(name) { layer = ShipLayer };
         go.transform.SetParent(ship, false);
-        go.AddComponent<MeshFilter>().sharedMesh = quad;
+        go.AddComponent<MeshFilter>().sharedMesh = Quad;
         var r = go.AddComponent<MeshRenderer>();
         r.sharedMaterial = m;
         r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         r.receiveShadows = false;
         return (go.transform, m);
+    }
+
+    /// <summary>A quad of corners -1 to 1, stood up to face the eye by its shader.</summary>
+    static UMesh Quad
+    {
+        get
+        {
+            if (quad != null) return quad;
+            quad = new UMesh { name = "glow" };
+            quad.vertices = new[] { new Vector3(-1, -1, 0), new Vector3(1, -1, 0), new Vector3(1, 1, 0), new Vector3(-1, 1, 0) };
+            quad.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+            quad.bounds = new Bounds(Vector3.zero, Vector3.one * 2);
+            return quad;
+        }
     }
 
     /// <summary>Where a part's slot is on the screen now (pixels), as the ship moves.</summary>
@@ -421,6 +527,8 @@ public class CampaignBackdrop : MonoBehaviour
     void OnDestroy()
     {
         Mats.Kill(figureMesh);
+        Mats.Kill(sunGlow.m);
+        Mats.Kill(sunLine.m);
         if (ui == null) return;
         ui.clearFlags = uiClear;
         ui.cullingMask = uiMask;
@@ -428,7 +536,14 @@ public class CampaignBackdrop : MonoBehaviour
 
     void LateUpdate()
     {
-        if (ui != null) Pose();
+        if (ui == null) return;
+        // (Opening afresh: shown once its land has been drawn three times, the ship setting off as it fades in.)
+        if (introFrames >= 0 && ++introFrames > 3)
+        {
+            introFrames = -1;
+            shownAt = entryAt = Now;
+        }
+        Pose();
     }
 
     float Now => At ?? (Application.isPlaying ? Time.realtimeSinceStartup - t0 : 30);
@@ -461,6 +576,9 @@ public class CampaignBackdrop : MonoBehaviour
     void Pose()
     {
         float t = Now;
+        // (Eased by the time since the last pose, as the web's frames are: never more than a tenth of a second.)
+        float step = Application.isPlaying ? Mathf.Clamp(t - lastPose, 0, 0.1f) : 0;
+        lastPose = t;
         // The land: the flight along it, west to east and round again; the land breaking away behind.
         float k = (t % Loop) / Loop;
         float fx = -4.6f + 3 * k;
@@ -469,12 +587,25 @@ public class CampaignBackdrop : MonoBehaviour
             ground.SetFloat("_Gone", fx - 1.1f);
             ground.SetFloat("_Crack", fx - 0.5f);
             abyss.SetFloat("_Gone", fx - 1.1f);
+            // (Faded out and back as the flight comes round to its start: the land whole again; the sunrise with it.)
+            float whole = Mathf.Min(1, Mathf.Min(k, 1 - k) * Loop / 1.5f);
+            ground.SetFloat("_Fade", whole);
+            abyss.SetFloat("_Fade", whole);
+            // Enlightenment open: the camera glides down toward the horizon, where the skill tree's Stellari comes in.
+            toward += ((zone == "research" ? 1 : 0) - toward) * (1 - Mathf.Exp(-step * 2.4f));
+            float e = toward * toward * (3 - 2 * toward);
             // (The ship tab open: the land's camera swings up over the ship as the ship's own does.)
             float h = calm * calm * (3 - 2 * calm);
             float yaw = -0.85f + 0.52f * h, pitch = 0.2f + 1.05f * h, dist = 3.4f - 0.6f * h;
             var target = new Vector3(fx, 0, 0.15f);
+            target += (new Vector3(Stellari.x, 0.42f, Stellari.y) - target) * e;
+            yaw += (-0.85f - yaw) * e;
+            pitch += (0.08f - pitch) * e;
+            dist += (1.5f - dist) * e;
             var dir = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch));
             Aim(landCam, target + dir * dist, target);
+            // The sunrise: on the horizon ahead, wherever it stands on the screen now.
+            Sunrise(landCam, land.TransformPoint(SunriseAt), whole, LandLayer);
         }
 
         // The ship drifts on: rising and falling, rolling and pitching a little.
@@ -483,7 +614,19 @@ public class CampaignBackdrop : MonoBehaviour
         float dt = Application.isPlaying ? Mathf.Min(0.2f, Time.deltaTime) : 1;
         calm += ((zone == "hangar" ? 1 : 0) - calm) * Mathf.Min(1, dt * 2.6f);
         float sway = 1 - 0.8f * calm;
-        var shipM = T(new Vector3(0, 0.05f * Mathf.Sin(t * 0.7f) * sway, 0)) * RX(0.035f * Mathf.Sin(t * 0.5f) * sway) * RZ(0.025f * Mathf.Sin(t * 0.6f + 1) * sway) * S(SS);
+        // (Flying in: off to the left, drifting gently to its place, bobbing as it idles from the first; held there
+        // until the scene is shown.)
+        float ex = 0, ey = 0, tip = 0;
+        if (entryHeld)
+        {
+            float ek = entryAt == null ? 0 : Mathf.Clamp01((t - entryAt.Value) / Entry);
+            float left = 1 - Mathf.Sin(Mathf.PI / 2 * ek);
+            ex = -4 * left;
+            ey = 0.4f * left;
+            tip = -0.03f * left;
+            if (ek >= 1) entryHeld = false;
+        }
+        var shipM = T(new Vector3(ex, ey + 0.05f * Mathf.Sin(t * 0.7f) * sway, 0)) * RZ(tip) * RX(0.035f * Mathf.Sin(t * 0.5f) * sway) * RZ(0.025f * Mathf.Sin(t * 0.6f + 1) * sway) * S(SS);
         shipNow = shipM;
         Place(shipModel, shipM);
         // The engines burning at their bells' mouths, flickering; the worn ship's smoke rising from its wounds, drifting aft.
@@ -563,6 +706,17 @@ public class CampaignBackdrop : MonoBehaviour
             float off = alongside || story ? 0 : cap ? -0.29f : hangar ? -0.15f * narrow : -0.1f;
             var target = alongside ? new Vector3(2.1f, 1.25f, -1.5f) : mate ? crewM[zone].MultiplyPoint(B(20, 12, zone == "engineer" ? 20 : zone == "shade" || zone == "seer" ? 22 : 28)) + new Vector3(0, 0.1f, 0)
                 : cap ? (Vector3)(capM.MultiplyPoint(B(20, 12, 30))) + new Vector3(0, 0.1f, 0) : hangar ? B(20, 12, 5) * SS : new Vector3(-0.3f, 0.74f, 0);
+            // (Enlightenment is the Stellari, out on the land: the camera turns from the ship, which slides away to the
+            // left; eased there and back at the camera's own pace, as base3d.ts eases toward its framing.)
+            research += ((zone == "research" ? 1 : 0) - research) * (1 - Mathf.Exp(-step * 2.6f));
+            if (research > 1e-4f)
+            {
+                target += (new Vector3(7, 1.4f, -2) - target) * research;
+                yaw += (-0.52f + 0.03f * Mathf.Sin(t * 0.17f) - yaw) * research;
+                pitch += (0.1f - pitch) * research;
+                dist += (6 - dist) * research;
+                off += (0 - off) * research;
+            }
             var dir = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch));
             Aim(shipCam, target + dir * dist, target);
             shipCam.ResetProjectionMatrix();

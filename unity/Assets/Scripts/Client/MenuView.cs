@@ -241,7 +241,10 @@ public class MenuView : MonoBehaviour
 
     public void Show(string name)
     {
-        if (page != null) Mats.Kill(page.gameObject);
+        // (The Stellari's tree opened from the campaign's menu (campaign.ts cmp-shop): its scene kept, the camera gliding
+        // down to the Stellari on the horizon, the menu's options fading; the tree coming in over it once it is there.)
+        bool glide = name == "stellari" && scene != null;
+        if (page != null && !(glide && CampaignMenuPage.FadeOut(page))) Mats.Kill(page.gameObject);
         sheet = null;
         profileOpen = false;
         page = Hud.Rect(canvas.transform, name);
@@ -255,8 +258,8 @@ public class MenuView : MonoBehaviour
         // (The skill tree lies on the page's own paper, without the hub's glow.)
         backdrop.transform.Find("Stage/Glow")?.gameObject.SetActive(name != "stellari");
         if (campaign && scene == null) scene = CampaignBackdrop.Make(cam, transform);
-        if (!campaign && scene != null) { Mats.Kill(scene.gameObject); scene = null; }
-        if (scene != null) scene.Focus(name == "captain" || name == "hangar" ? name : null);
+        if (!campaign && !glide && scene != null) { Mats.Kill(scene.gameObject); scene = null; }
+        if (scene != null) scene.Focus(name == "captain" || name == "hangar" ? name : glide ? "research" : null);
         switch (name)
         {
             case "hub": Hub(); break;
@@ -278,7 +281,11 @@ public class MenuView : MonoBehaviour
             case "hangar": HangarView.Make(page, this, scene); break;
             default: Title(); break;
         }
+        if (glide) CampaignMenuPage.TreeIn(page, backdrop);
     }
+
+    /// <summary>The page's own light and the Stellari over it (laid over the campaign's scene as it fades in).</summary>
+    public GameObject Backdrop => backdrop;
 
     /// <summary>The screen changed size (turned, resized): the page laid out again for it.</summary>
     void Relayout()

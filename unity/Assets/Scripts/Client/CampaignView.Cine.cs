@@ -237,6 +237,9 @@ public partial class CampaignView
         launching = true;
         launchPose = start;
         Map();
+        // (The first galaxy carries straight on from the menu's land: there at once, never faded in.)
+        landFade = 1;
+        LandFade();
         // (The menu's own ship stands in for the flagship until the two are one.)
         ShipTrack flag = null;
         if (me != null && tracks.TryGetValue(me.Id, out flag))
@@ -320,6 +323,8 @@ public partial class CampaignView
                 Dist = start.Dist + (to.Dist - start.Dist) * e,
             };
             Aim(launchPose);
+            // The sunrise fading as the camera pans away from it (campaign.ts drive's pan), drawn now by this camera.
+            scene.Sunrise(Cam, world.TransformPoint(U(CampaignBackdrop.SunriseAt)), 1 - e, 0);
             // The menu's ship, seen as this camera sees the flagship (the flagship 0.2 long, the menu's 4.2: its scene
             // scaled to it), eased to from where its own camera was: at the end, exactly so.
             if (shipRoot != null && ShipPose(FlagshipId, out var at, out var heading))

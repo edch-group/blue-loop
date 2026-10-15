@@ -722,7 +722,7 @@ public partial class CampaignView
 
     // ---- The land's sky: the starry abyss under what has fallen, the stars and comets over it ----
 
-    Material abyssMat;
+    Material abyssMat, starsMat, cometsMat;
 
     /// <summary>The abyss under the land, and the stars and comets over it, on the ground (in the web's units).</summary>
     void Sky(GameObject ground, UMesh groundMesh, BlueLoop.Models.NebulaShape shape)
@@ -753,7 +753,7 @@ public partial class CampaignView
         sm.SetUVs(1, data);
         sm.SetTriangles(tris, 0);
         sm.RecalculateBounds();
-        var smat = Mats.Make("Twinkle");
+        var smat = starsMat = Mats.Make("Twinkle");
         smat.SetFloat("_G", G);
         Thing("Stars", ground.transform, sm, smat).gameObject.AddComponent<MeshOwner>();
         // Comets whistling by: a few, each a head and a tail of points, crossing at their own pace; after them, the
@@ -796,7 +796,7 @@ public partial class CampaignView
         cm.SetTriangles(ctris, 0);
         // (They fly far from where they start: never culled.)
         cm.bounds = new Bounds(Vector3.zero, Vector3.one * 80);
-        var cmat = Mats.Make("Comet");
+        var cmat = cometsMat = Mats.Make("Comet");
         cmat.SetFloat("_G", G);
         cmat.SetFloat("_Meteors", state.Galaxy == "meteors" ? 1 : 0);
         Thing("Comets", ground.transform, cm, cmat).gameObject.AddComponent<MeshOwner>();

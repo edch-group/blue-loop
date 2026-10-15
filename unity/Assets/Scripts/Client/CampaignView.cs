@@ -200,6 +200,21 @@ public partial class CampaignView : MonoBehaviour
         // (A new land: no falling to watch, it is simply so.)
         goneTarget = -50;
         Collapse(menuLand);
+        // (A new land comes in out of the paper; carried straight on from the menu's, at once: see Launching.)
+        landFade = Application.isPlaying ? 0 : 1;
+        LandFade();
+    }
+
+    // How far the land has come in out of the paper (nebula3d.ts's fade: over 1.2 s, eased in and out, the gas and the
+    // stars with it): from nothing whenever a new land is shown, or the map is shown afresh.
+    float landFade;
+
+    void LandFade()
+    {
+        float f = landFade * landFade * (3 - 2 * landFade);
+        if (groundMat != null) groundMat.SetFloat("_Fade", f);
+        if (starsMat != null) starsMat.SetFloat("_Fade", f);
+        if (cometsMat != null) cometsMat.SetFloat("_Fade", f);
     }
 
     public static Mesh GroundMesh(float[] g)
@@ -532,13 +547,23 @@ public partial class CampaignView : MonoBehaviour
     // The land's own clock (nebula3d.ts's time): from nothing each time the map is shown, as the web's page is drawn
     // afresh, and only while it is.
     float landClock;
-    void OnEnable() => landClock = 0;
+    void OnEnable()
+    {
+        landClock = 0;
+        landFade = Application.isPlaying ? 0 : 1;
+        LandFade();
+    }
 
     void Update()
     {
         float now = Clock;
         landClock += Mathf.Min(0.1f, Time.deltaTime);
         if (groundMat != null) groundMat.SetFloat("_T", landClock);
+        if (landFade < 1)
+        {
+            landFade = Application.isPlaying ? Mathf.Min(1, landFade + Mathf.Min(0.1f, Time.deltaTime) / 1.2f) : 1;
+            LandFade();
+        }
         // The land breaks away toward the collapse, a column at a time.
         if (goneNow != goneTarget)
         {

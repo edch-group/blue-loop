@@ -25,7 +25,91 @@ public static class CampaignMenuPage
         });
         var zones = layer.Rect.gameObject.AddComponent<Zones>();
         zones.Scene = scene;
+        zones.Menu = menu;
+        zones.Page = page;
+        // Opened afresh (campaign.ts openSetup's menuIntro): the scene hidden while its land is made, then faded in as
+        // the ship flies in, the options after it. Back from one of its sections (.cs-focus taken off): the options
+        // fading back in.
+        if (scene != null && !scene.BeginIntro() && !(scene.OptionsAt > scene.Clock) && Application.isPlaying) zones.BackAt = Time.unscaledTime;
         Lay(layer, menu, scene);
+        zones.Apply();
+    }
+
+    /// <summary>CSS's cubic-bezier(x1, y1, x2, y2) timing at k (0 to 1).</summary>
+    public static float Bezier(float k, float x1, float y1, float x2, float y2)
+    {
+        if (k <= 0) return 0;
+        if (k >= 1) return 1;
+        float B(float t, float a, float b) => 3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t;
+        float D(float t, float a, float b) => 3 * (1 - t) * (1 - t) * a + 6 * (1 - t) * t * (b - a) + 3 * t * t * (1 - b);
+        // (Solve the curve's x for its parameter, by Newton's method, then read its y.)
+        float u = k;
+        for (int i = 0; i < 8; i++)
+        {
+            float dx = D(u, x1, x2);
+            if (Mathf.Abs(dx) < 1e-5f) break;
+            u = Mathf.Clamp01(u - (B(u, x1, x2) - k) / dx);
+        }
+        return B(u, y1, y2);
+    }
+
+    /// <summary>CSS's `ease`.</summary>
+    public static float Ease(float k) => Bezier(k, 0.25f, 0.1f, 0.25f, 1);
+    /// <summary>CSS's `ease-out`.</summary>
+    public static float EaseOut(float k) => Bezier(k, 0, 0, 0.58f, 1);
+    /// <summary>CSS's `ease-in`.</summary>
+    public static float EaseIn(float k) => Bezier(k, 0.42f, 0, 1, 1);
+
+    /// <summary>
+    /// Leaving the menu for the Stellari's tree (.cs-captain-page.cs-focus): its header and foot put away at once, its
+    /// options fading out (0.3 s), the page then taken away. False if `page` is not the campaign's menu.
+    /// </summary>
+    public static bool FadeOut(RectTransform page)
+    {
+        var zones = page != null ? page.GetComponentInChildren<Zones>() : null;
+        if (zones == null || zones.Nodes == null) return false;
+        zones.LeftAt = Time.unscaledTime;
+        foreach (Transform c in zones.transform)
+            if (c != zones.Nodes.transform) c.gameObject.SetActive(false);
+        zones.Nodes.blocksRaycasts = zones.Nodes.interactable = false;
+        return true;
+    }
+
+    /// <summary>
+    /// The Stellari's tree over the menu's scene (styles.css .cs-captain-page .up-shop.up-tree: up-in 0.7 s ease-out,
+    /// 0.9 s on, the camera gliding down to the Stellari first): the page, and the page's own light under it, faded in.
+    /// </summary>
+    public static void TreeIn(RectTransform page, GameObject light)
+    {
+        var f = page.gameObject.AddComponent<Fade>();
+        f.Groups.Add(Group(page.gameObject));
+        if (light != null) f.Groups.Add(Group(light));
+        f.From = Time.unscaledTime;
+        f.Apply();
+    }
+
+    static CanvasGroup Group(GameObject g)
+    {
+        var c = g.GetComponent<CanvasGroup>();
+        return c != null ? c : g.AddComponent<CanvasGroup>();
+    }
+
+    /// <summary>A page coming in after the camera has moved (0.9 s on, over 0.7 s, ease-out); left whole when it goes.</summary>
+    class Fade : MonoBehaviour
+    {
+        public readonly List<CanvasGroup> Groups = new List<CanvasGroup>();
+        public float From;
+        void Update() => Apply();
+        public void Apply()
+        {
+            float a = EaseOut(Mathf.Clamp01((Time.unscaledTime - From - 0.9f) / 0.7f));
+            foreach (var g in Groups) if (g != null) g.alpha = a;
+            if (a >= 1) enabled = false;
+        }
+        void OnDestroy()
+        {
+            foreach (var g in Groups) if (g != null) g.alpha = 1;
+        }
     }
 
     /// <summary>
@@ -43,9 +127,78 @@ public static class CampaignMenuPage
         public string OverLabel;
         string over;
         Vector3 downAt;
+        public MenuView Menu;
+        public RectTransform Page;
+        /// <summary>The options and their half circle (.cs-nodes), faded together.</summary>
+        public CanvasGroup Nodes;
+        /// <summary>When the menu came back from a section (its options fading back in), or was left for the tree.</summary>
+        public float? BackAt, LeftAt;
+        // (The page's light laid over the scene while it fades in.)
+        bool veiled;
+
+        /// <summary>
+        /// The scene fading in (.cs-base: its opacity 0.9 s ease-out, the page's own light showing through until then),
+        /// and the options: hidden while it comes in, then 0.6 s ease-out a second after (.cs-nodes-wait), not to be
+        /// touched until then; back from a section, 0.6 s ease-out (.cs-nodes) with their own 0.3 s (.cs-base-label);
+        /// leaving for the tree, 0.3 s out, both.
+        /// </summary>
+        public void Apply()
+        {
+            float a = 1;
+            bool wait = false;
+            if (Scene != null && Scene.OptionsAt is float at)
+            {
+                wait = Scene.Clock < at;
+                a = EaseOut(Mathf.Clamp01((Scene.Clock - at) / 0.6f));
+            }
+            if (BackAt is float back)
+            {
+                float k = Time.unscaledTime - back;
+                a *= EaseOut(Mathf.Clamp01(k / 0.6f)) * Ease(Mathf.Clamp01(k / 0.3f));
+            }
+            if (LeftAt is float left)
+            {
+                float k = Ease(Mathf.Clamp01((Time.unscaledTime - left) / 0.3f));
+                a = (1 - k) * (1 - k);
+                if (k >= 1 && Page != null)
+                {
+                    Mats.Kill(Page.gameObject);
+                    Page = null;
+                }
+            }
+            if (Nodes != null)
+            {
+                Nodes.alpha = a;
+                if (LeftAt == null) Nodes.blocksRaycasts = Nodes.interactable = !wait;
+            }
+            // (The scene behind the page's own light until it is shown: the light laid over it, fading.)
+            var light = Menu != null ? Menu.Backdrop : null;
+            if (Scene == null || light == null || LeftAt != null) return;
+            float shown = Scene.Shown;
+            if (shown < 1)
+            {
+                if (!light.activeSelf) light.SetActive(true);
+                Group(light).alpha = 1 - shown;
+                veiled = true;
+            }
+            else if (veiled)
+            {
+                veiled = false;
+                Group(light).alpha = 1;
+                light.SetActive(false);
+            }
+        }
+
+        void OnDestroy()
+        {
+            if (veiled && Menu != null && Menu.Backdrop != null) Group(Menu.Backdrop).alpha = 1;
+        }
 
         void Update()
         {
+            Apply();
+            // (Left for the tree: nothing here answers any more.)
+            if (LeftAt != null) return;
             bool overControl = OverControl();
             string zone = OverLabel;
             if (zone == null && !overControl && Scene != null && Input.mousePresent)
@@ -154,8 +307,17 @@ public static class CampaignMenuPage
             return q != null ? new Vector2(q.Value.x * W, q.Value.y * H) : (Vector2?)null;
         }
 
+        // (.cs-nodes: the options and their half circle, faded together.)
+        var nodes = Hud.Rect(page, "Nodes");
+        Hud.Fill(nodes);
+        if (zoneKeeper != null)
+        {
+            zoneKeeper.Nodes = nodes.gameObject.AddComponent<CanvasGroup>();
+            zoneKeeper.Apply();
+        }
+
         // The half circle round the bow: a fine dotted ink line (stroke 1.2, dashes 2 and 5, in CSS pixels).
-        var arc = Hud.Rect(page, "Arc");
+        var arc = Hud.Rect(nodes, "Arc");
         Hud.Fill(arc);
         var lines = arc.gameObject.AddComponent<UiLines>();
         var pts = new List<Vector2>();
@@ -173,7 +335,7 @@ public static class CampaignMenuPage
             // (Without the ship's camera, where the web's have them at 1600 x 1000, as fractions of the screen.)
             var at = On((1 - i) * 52) ?? new Vector2(new[] { 0.709f, 0.748f, 0.701f }[i] * W, new[] { 0.313f, 0.505f, 0.702f }[i] * H);
             // (Its disc 42 across, its words 10 to the right of it: the whole a button; kept on the screen, its words and all.)
-            var node = WebLook.Box(page, title, 0, 0, 52 * Z + 150 * Z, 42 * Z);
+            var node = WebLook.Box(nodes, title, 0, 0, 52 * Z + 150 * Z, 42 * Z);
             var hit = node.gameObject.AddComponent<Image>();
             hit.color = new Color(1, 1, 1, 0);
             var disc = WebLook.Centred(node, "Disc", 21 * Z, 21 * Z, 84 * Z, 84 * Z);
