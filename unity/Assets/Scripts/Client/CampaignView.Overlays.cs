@@ -1303,17 +1303,30 @@ public partial class CampaignView
         var items = new List<RectTransform>();
         foreach (var (label, primary, why, act) in bs)
         {
-            var b = WebButton(row, label.Replace("⬢", "").ToLowerInvariant(), () => act(), primary, 0, 0, why == null);
+            var plain = label.Replace("⬢", "").ToLowerInvariant();
+            var b = WebButton(row, plain, () => act(), primary, 0, 0, why == null);
+            // (A price at its end: the materials' mark before the number, as the web's " · ⬢8" (campaign.ts encounter acts).)
+            var price = System.Text.RegularExpressions.Regex.Match(plain, @"^(.*) · (\d+)$");
+            if (price.Success)
+            {
+                var t = b.GetComponentInChildren<TextMeshProUGUI>();
+                string words = $"{price.Groups[1].Value.ToUpperInvariant()} · {InlineMark("materials")}{price.Groups[2].Value}";
+                t.text = words;
+                var br = (RectTransform)b.transform;
+                float fs = t.fontSize, bw = Mathf.Max(primary ? 140 * Z : 0, t.GetPreferredValues(words).x + 2 * 16 * Z);
+                br.sizeDelta = new Vector2(bw, br.sizeDelta.y);
+                RuleMarks(t, words, fs);
+            }
             items.Add((RectTransform)b.transform);
         }
         if (purse >= 0)
         {
             // (.enc-purse: the materials token, 4, and how many.)
             var r = Hud.Rect(row, "Purse");
-            var count = WebLook.Words(Hud.Fill(Hud.Rect(r, "Count")), purse.ToString(), 0.8f * 16 * Z, 0, Look.InkSoft, false, 700, TextAlignmentOptions.Left);
+            var count = WebLook.Words(Hud.Fill(Hud.Rect(r, "Count")), purse.ToString(), 0.8f * 16 * Z, 0, Look.InkSoft, false, 400, TextAlignmentOptions.Left);
             float cw = count.GetPreferredValues(count.text).x;
             r.sizeDelta = new Vector2(14 * Z + 4 * Z + cw + 4, items.Count > 0 ? items[0].sizeDelta.y : 24 * Z);
-            var mark = WebLook.Centred(r, "Materials", 7 * Z, r.sizeDelta.y / 2, 14 * Z * 1.4f, 14 * Z * 1.4f).gameObject.AddComponent<RawImage>();
+            var mark = WebLook.Centred(r, "Materials", 7 * Z, r.sizeDelta.y / 2, 14 * Z, 14 * Z).gameObject.AddComponent<RawImage>();
             mark.texture = Resources.Load<Texture2D>("Icons/purse-materials");
             mark.raycastTarget = false;
             WebLook.Box(count.rectTransform, 18 * Z, 0, cw + 4, r.sizeDelta.y);
@@ -1515,8 +1528,7 @@ public partial class CampaignView
         sheetNow = Help;
         var T = Campaign.T;
         string Star(string k) => Campaign.D.StarTypes.TryGetValue(k, out var st) ? $"<b>{st.Name}:</b> {st.Boon} {st.Cost}" : "";
-        // (A mark in a line: room kept for it, 1.15em and 0.18em after it (materials 1.3em), drawn over that room.)
-        string Mark(string icon) => $"<mspace={(icon == "materials" ? 0.74f : 0.665f).ToString(System.Globalization.CultureInfo.InvariantCulture)}em><alpha=#00>{icon[0]}{icon[0]}<alpha=#FF></mspace>";
+        string Mark(string icon) => InlineMark(icon);
         var rules = new[]
         {
             $"<b>The loop:</b> each galaxy is a strip of systems, {T.Lanes} lanes wide, that you cross from the near end to the wormhole past the far end. Beat the wormhole's guardian, a Lost Overlord, to go through, into a harder galaxy (the universe is dying, galaxy by galaxy: each one you reach is younger, and burns hotter). An Overlord fights with its body already in play (limbs, gear, retainers) and takes one great action a day, its best for the board as it stands; the next is always shown, and changes as the board does. The run goes on until your flagship is lost.",
@@ -1562,7 +1574,10 @@ public partial class CampaignView
         }, 900 * Z, sheetRoot, CloseSheet);
     }
 
-    /// <summary>The marks kept room for in a rule (Help's Mark): each drawn over its room, on the line's baseline as the web's .cur sits.</summary>
+    /// <summary>A mark in a line of words (the web's inline .cur): room kept for it, 1.15em and 0.18em after it (materials 1.3em), for RuleMarks to draw over.</summary>
+    static string InlineMark(string icon) => $"<mspace={(icon == "materials" ? 0.74f : 0.665f).ToString(System.Globalization.CultureInfo.InvariantCulture)}em><alpha=#00>{icon[0]}{icon[0]}<alpha=#FF></mspace>";
+
+    /// <summary>The marks kept room for in a line (InlineMark): each drawn over its room, on the line's baseline as the web's .cur sits.</summary>
     static void RuleMarks(TextMeshProUGUI t, string text, float fs)
     {
         var marks = new List<(int at, string icon, float size, float drop)>();
