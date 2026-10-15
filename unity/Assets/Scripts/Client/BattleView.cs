@@ -454,6 +454,7 @@ public partial class BattleView : MonoBehaviour
         if (!Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 100)) { Clear(); Refresh(); return; }
         var card = hit.collider.GetComponentInParent<CardView>();
         var slot = hit.collider.GetComponent<SlotTag>();
+        Debug.Log($"[tap] {hit.collider.name} picked={picked} options={options?.Count ?? -1} slots={(options == null ? "" : string.Join(",", options.Select(o => o.SlotIndex)))}");
         var sun = hit.collider.GetComponentInParent<SunTag>();
         if (card != null) TapCard(card.Uid);
         else if (slot != null) TapSlot(slot);
