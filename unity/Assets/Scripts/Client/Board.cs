@@ -115,6 +115,20 @@ public class Board : MonoBehaviour
         return r;
     }
 
+    /// <summary>
+    /// A card of your hand put where a rectangle of the page is (the stage's card), at its size, at once: the card it
+    /// becomes on the table flies from there (as the web's own card leaves the preview pane for the board).
+    /// </summary>
+    public void PutAtPage(string uid, Rect page)
+    {
+        if (!cards.TryGetValue(uid, out var v) || v.Table) return;
+        const float depth = 3.2f;
+        var l = L;
+        var at = l.Screen(page.center.x, page.center.y, depth);
+        v.gameObject.SetActive(true);
+        v.MoveTo(new Vector3(at.x, -depth + 0.06f, at.y), Quaternion.identity, page.width * l.ScreenScale(depth), true);
+    }
+
     /// <summary>The hand shown, or put away (the result showing).</summary>
     public void ShowHand(bool on)
     {

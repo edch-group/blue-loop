@@ -31,6 +31,8 @@ public partial class BattleView
     string confirmMode = "normal";
     bool AutoConfirms => confirmMode != "normal";
     RectTransform stagePane;
+    /// <summary>Where the stage's card stands on the page.</summary>
+    Rect? stageCardRect;
     Beam stageAim;
     string stageKey;
 
@@ -53,6 +55,8 @@ public partial class BattleView
         bool turnPassed = Game.ActivePlayer(prev).Id != Game.ActivePlayer(next).Id;
         void Land()
         {
+            // (Your own card leaves the stage for the board: from where it hung there.)
+            if (stage != null && stage.Own && stage.Uid != null && stageCardRect != null) Board.PutAtPage(stage.Uid, stageCardRect.Value);
             if (stage != null && stage.Own) stage = null;
             state = next;
             StarSpin.Burst();
@@ -244,6 +248,7 @@ public partial class BattleView
             return img;
         }
         var main = Card(now.defId, 0, now.faceDown);
+        stageCardRect = new Rect(right - pairW, top, scw, ch);
         if (now.against != null) Card(now.against, scw + 8, false);
         float y = ch;
         if (caption)
