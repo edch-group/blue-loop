@@ -16,7 +16,7 @@ import { cardBackFace, cardArtLite, cardBodyHtml, cardJewels, cardStock, fullArt
 import { cardCost } from '../src/engine/game';
 import { GUARD_SHIELD_SVG, GUARD_SVG, HUB_ICONS, SHIELD_SVG } from '../src/ui/app';
 import { shownKind } from '../src/engine/cards';
-import { keywordList, raceTraitTags } from '../src/ui/glyphs';
+import { effectMark, keywordList, raceTraitTags } from '../src/ui/glyphs';
 import { plainText } from '../src/engine/keywords';
 import { SUBRACES, raceTrait } from '../src/engine/races';
 import { baseHealth, persists } from '../src/engine/game';
@@ -347,3 +347,12 @@ function mark(svg: string, colour: string, size: number): void {
   stage.innerHTML = `<div class="kw-list" style="padding:0;background:none;box-shadow:none"><b id="mark" class="kw kw-sym" style="color:${colour};width:${size}px;height:${size}px;display:grid;font-size:${size}px">${svg.replace('<svg ', `<svg style="width:${size}px;height:${size}px;margin:0" `)}</b></div>`;
 }
 Object.assign(window, { explain, mark });
+
+/**
+ * A Hero's pick's mark on its own (app.ts heroPicks: .hero-pick-mark), its effect's symbol in its colour on the white
+ * disc in its gold ring (`atk`: the attack's, in red), without its count (Unity sets that over it).
+ */
+function heroMark(kind: string, atk: boolean): void {
+  stage.innerHTML = `<div style="padding:4px;display:inline-block"><span id="mark" class="hero-pick-mark ${atk ? 'hero-pick-mark-atk' : ''}" style="display:block">${effectMark(kind)}</span></div>`;
+}
+Object.assign(window, { heroMark });
