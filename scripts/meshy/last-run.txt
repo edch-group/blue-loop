@@ -1,56 +1,15 @@
-== rig e831182c-60ef-4380-a4ba-47e56cca2a14 captain nobake
-rigging ['input_task_id']: 400 {"message":"Input task is not an API task"}
-rigging e831182c-60ef-4380-a4ba-47e56cca2a14: 01a14012-8445-763d-b0b2-1fcabc4f7dc0
-  IN_PROGRESS 0%
-  IN_PROGRESS 42%
-  IN_PROGRESS 84%
-  IN_PROGRESS 90%
-  IN_PROGRESS 90%
-  SUCCEEDED 100%
-v2/text-to-3d: 0 tasks
-v1/text-to-3d: 404
-v1/image-to-3d: 19 tasks
-v2/image-to-3d: 404
-v1/multi-image-to-3d: 4 tasks
-v1/retexture: 1 tasks
-v1/remesh: 0 tasks
-v1/text-to-texture: 404
-v1/texture: 404
-v1/texturing: 404
-v1/rigging: 1 tasks
-v1/animations: 0 tasks
-v2/rigging: 404
-  01a14012-8445-763d-b0b2-1fcabc4f7dc0 v1/rigging SUCCEEDED created 1792076345339 untextured  []
-  e233e83a-6896-44f0-aa08-1fad7be1e696 v1/image-to-3d SUCCEEDED created 1792073886896 textured dark_veteran_base_ultra [model_urls, texture_urls]
-  03507b2c-f73f-5579-83f4-c09ab055c80a v1/image-to-3d SUCCEEDED created 1792073616486 untextured dark_veteran_base_character [model_urls]
-  c98525c5-db04-4701-a305-4c9c9f7a7eb1 v1/image-to-3d SUCCEEDED created 1792073485291 textured dark_veteran_base_character [model_urls, texture_urls]
-  b3b7d07c-b2a4-5d77-8f5d-b3e799f10024 v1/image-to-3d SUCCEEDED created 1792071400598 untextured Iron Horizon Clean [model_urls]
-  f851b5cc-b4a7-453b-9863-17e508dbdeb9 v1/image-to-3d SUCCEEDED created 1792071309849 textured Iron Horizon Clean [model_urls, texture_urls]
-  5173abc6-06ec-5326-a610-2b17a5beedc4 v1/multi-image-to-3d SUCCEEDED created 1792070334661 untextured Iron Horizon Multi-View [model_urls]
-  01a13fb5-879c-7078-bed0-c7c9cc71c4c4 v1/multi-image-to-3d SUCCEEDED created 1792070223778 textured Iron Horizon Multi-View [model_urls, texture_urls]
-  0cdda1ae-3dea-5687-a1d9-b13a182659e5 v1/multi-image-to-3d SUCCEEDED created 1792069748764 untextured Iron Horizon Multi-View [model_urls]
-  e3223595-ee88-47d9-ab60-733d86f03570 v1/multi-image-to-3d SUCCEEDED created 1792069607955 textured Iron Horizon Multi-View [model_urls, texture_urls]
-  a71de10e-23be-4f22-a54c-57bd1d137d44 v1/retexture SUCCEEDED created 1792067126549 textured Iron Horizon Textured [model_urls, texture_urls]
-  d5e6370f-3691-5e71-9f55-c4cfb703361f v1/image-to-3d SUCCEEDED created 1792013706151 untextured stylized_dark_veteran [model_urls]
-  e7f3c084-8853-4442-bb95-4c1dccf40020 v1/image-to-3d SUCCEEDED created 1792013570086 textured stylized_dark_veteran [model_urls, texture_urls]
-  57c4810b-7ee9-5efc-88e9-8049236ad459 v1/image-to-3d SUCCEEDED created 1791977549884 untextured dark_warrior_character [model_urls]
-  93e46df3-36a5-58e5-b8e6-c61db2ed405f v1/image-to-3d SUCCEEDED created 1791977494202 untextured dark_tattered_cape [model_urls]
-  5e1596c8-9b61-5268-a925-ec8a0b5f9e4a v1/image-to-3d SUCCEEDED created 1791977423209 untextured dark_weathered_sword [model_urls]
-  5d3ee36b-2da2-4eab-9263-7d442fc0a331 v1/image-to-3d SUCCEEDED created 1791977357857 textured dark_warrior_character [model_urls, texture_urls]
-  67e0852a-16f4-40fc-840a-488217bf1257 v1/image-to-3d SUCCEEDED created 1791977357838 textured dark_tattered_cape [model_urls, texture_urls]
-  2fc18a67-e6e6-43d9-82b8-95e6003bef64 v1/image-to-3d SUCCEEDED created 1791977357715 textured dark_weathered_sword [model_urls, texture_urls]
-  ae5fce22-e328-589c-a440-a1279c59fd11 v1/image-to-3d SUCCEEDED created 1791976920909 untextured anime_warrior_character [model_urls]
-fetching 01a14012-8445-763d-b0b2-1fcabc4f7dc0 (v1/rigging)
-task: {"id": "01a14012-8445-763d-b0b2-1fcabc4f7dc0", "type": "rig", "name": "", "status": "SUCCEEDED", "created_at": 1792076345339, "progress": 100, "started_at": 1792076345344, "finished_at": 1792076418264, "expires_at": 1792335618264, "task_error": null, "consumed_credits": 5, "_kind": "v1/rigging"}
-files: rigged_character.fbx, rigged_character.glb, basic_animations-walking.glb, basic_animations-walking.fbx, basic_animations-walking_armature.glb, basic_animations-running.glb, basic_animations-running.fbx, basic_animations-running_armature.glb
-  rigged_character.fbx: 80442 KB
-  rigged_character.glb: 93134 KB
-  basic_animations-walking.glb: 93115 KB
-  basic_animations-walking.fbx: 80479 KB
-  basic_animations-walking_armature.glb: 87 KB
-  basic_animations-running.glb: 93105 KB
-  basic_animations-running.fbx: 80463 KB
-  basic_animations-running_armature.glb: 77 KB
-FOLDER=/home/runner/work/_temp/meshy/meshy-01a14012-8445-763d-b0b2-1fcabc4f7dc0
-RELEASE=model-captain-01a14012
-https://github.com/edch-group/blue-loop/releases/tag/model-captain-01a14012
+== rebake captain 
+FBX version: 7400
+model (basic_animations-walking.fbx): 148980 corners, 153153 faces, 24 bones
+cut down to 26000 triangles
+36153 corners, 26000 triangles
+pose foot-up: Hips (-0.01, 0.06, 0.97), LeftFoot (0.17, -0.42, 0.44), RightFoot (-0.21, 0.13, 0.13), LeftHand (0.18, -0.22, 0.99), RightHand (-0.25, -0.03, 0.88)
+pose stand: Hips (-0.01, 0.03, 1.0), LeftFoot (0.2, 0.03, 0.16), RightFoot (-0.21, 0.1, 0.16), LeftHand (0.26, -0.01, 0.91), RightHand (-0.26, -0.01, 0.91)
+pose kneel: Hips (-0.01, 0.09, 0.57), LeftFoot (0.2, -0.38, 0.13), RightFoot (-0.19, 0.42, 0.11), LeftHand (0.23, -0.25, 0.64), RightHand (-0.27, -0.06, 0.49)
+Traceback (most recent call last):
+  File "/home/runner/work/blue-loop/blue-loop/scripts/bake-captain.py", line 234, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/runner/work/blue-loop/blue-loop/scripts/bake-captain.py", line 228, in main
+    art = max((p for p in glob.glob(os.path.join(folder, '*.png')) if 'metal' not in p and 'rough' not in p and 'normal' not in p), key=os.path.getsize)
+ValueError: max() iterable argument is empty
