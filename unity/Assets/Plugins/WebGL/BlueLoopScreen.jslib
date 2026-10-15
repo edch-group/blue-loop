@@ -1,6 +1,11 @@
 // The browser's side of Safe.cs: the screen's safe area (clear of a phone's notch, rounded corners and home bar), read
 // from CSS's env(safe-area-inset-*) on a hidden element, as fractions of the page: "top,right,bottom,left".
 mergeInto(LibraryManager.library, {
+  // Screen pixels to a CSS pixel, as the page gives the game (index.html: the device's ratio, at most 2).
+  BlueLoopPixelRatio: function () {
+    return Math.min(window.devicePixelRatio || 1, 2);
+  },
+
   BlueLoopSafeInsets: function () {
     var d = document.getElementById('bl-safe');
     if (!d) {

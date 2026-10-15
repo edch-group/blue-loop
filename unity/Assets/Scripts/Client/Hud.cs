@@ -42,6 +42,14 @@ public static class Hud
         return Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100, 0, SpriteMeshType.FullRect, new Vector4(b, b, b, b));
     }
 
+    /// <summary>A canvas measured in the web's CSS pixels at its layout size, phone first (see Css).</summary>
+    public static Canvas CssCanvas(Camera cam, int order = 0)
+    {
+        var c = Canvas(cam, order);
+        c.gameObject.AddComponent<CssScaler>();
+        return c;
+    }
+
     public static Canvas Canvas(Camera cam, int order = 0)
     {
         var go = new GameObject("Hud", typeof(RectTransform));
