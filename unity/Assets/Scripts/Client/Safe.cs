@@ -50,15 +50,18 @@ public class Frame : MonoBehaviour
     Vector2 lastSize;
     Vector4 lastInsets;
 
-    public static Frame Make(RectTransform page)
+    public static Frame Make(RectTransform page, bool edges = true)
     {
         var f = page.gameObject.AddComponent<Frame>();
         f.me = page;
         f.canvas = (RectTransform)page.parent;
         page.anchorMin = page.anchorMax = page.pivot = new Vector2(0.5f, 0.5f);
         page.sizeDelta = new Vector2(Hud.W, Hud.H);
-        f.Edges = Hud.Rect(page, "Edges");
-        f.Edges.anchorMin = f.Edges.anchorMax = f.Edges.pivot = new Vector2(0.5f, 0.5f);
+        if (edges)
+        {
+            f.Edges = Hud.Rect(page, "Edges");
+            f.Edges.anchorMin = f.Edges.anchorMax = f.Edges.pivot = new Vector2(0.5f, 0.5f);
+        }
         f.Fit();
         return f;
     }
@@ -78,6 +81,7 @@ public class Frame : MonoBehaviour
         float s = Mathf.Min(w / Hud.W, h / Hud.H);
         me.localScale = new Vector3(s, s, 1);
         me.anchoredPosition = new Vector2((left - right) / 2, (bottom - top) / 2);
+        if (Edges == null) return;
         Edges.anchoredPosition = Vector2.zero;
         Edges.sizeDelta = new Vector2(w / s, h / s);
     }

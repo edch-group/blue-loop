@@ -10,14 +10,40 @@
     #unity-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: #f3f2ee; }
     #loading { position: fixed; left: 50%; top: 50%; width: 220px; height: 2px; transform: translate(-50%, -50%); background: rgba(62, 66, 74, 0.12); }
     #loading i { display: block; height: 100%; width: 0; background: #3e424a; transition: width 0.2s; }
+    /* Upright, the game waits for the device to be turned sideways (as the web's viewport.ts .rotate-hint). */
+    @font-face { font-family: 'Orbitron'; font-weight: 400; src: url('orbitron-400.woff2') format('woff2'); }
+    .rotate-hint {
+      position: fixed; inset: 0; z-index: 200; display: none; place-items: center; text-align: center;
+      padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+      background: linear-gradient(180deg, #faf9f6, #f3f2ee 55%, #e0dfdb); font-family: 'Orbitron', system-ui, sans-serif;
+    }
+    @media (orientation: portrait) { .rotate-hint { display: grid; } }
+    .rotate-hint-body { display: grid; justify-items: center; gap: 14px; }
+    .rotate-hint h1 { margin: 6px 0 0; font-size: 1.6rem; font-weight: 400; letter-spacing: 0.32em; padding-left: 0.32em; text-transform: uppercase; color: #555a63; }
+    .rotate-hint p { margin: 0; font-size: 0.6rem; letter-spacing: 0.24em; text-transform: uppercase; color: #6b7080; }
+    .rotate-hint small { margin-top: 14px; font-size: 0.66rem; color: #9aa0ab; letter-spacing: 0.04em; }
+    .rotate-phone { width: 34px; height: 58px; border: 2px solid #8a8f99; border-radius: 8px; position: relative; animation: rotatePhone 2.6s ease-in-out infinite; }
+    .rotate-phone::after { content: ''; position: absolute; left: 50%; bottom: 4px; width: 8px; height: 2px; margin-left: -4px; border-radius: 1px; background: #8a8f99; }
+    @keyframes rotatePhone { 0%, 25% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+    @media (prefers-reduced-motion: reduce) { .rotate-phone { animation: none; transform: rotate(-90deg); } }
   </style>
 </head>
 <body>
   <canvas id="unity-canvas" tabindex="-1"></canvas>
   <div id="loading"><i></i></div>
+  <div class="rotate-hint"><div class="rotate-hint-body">
+    <div class="rotate-phone" aria-hidden="true"></div>
+    <h1>blue loop</h1>
+    <p>turn your device sideways to play</p>
+    <small>screen not turning? switch off rotation lock</small>
+  </div></div>
   <script src="Build/{{{ LOADER_FILENAME }}}"></script>
   <script>
     const bar = document.querySelector('#loading i');
+    // (Lock the screen sideways where that is allowed, Android in full screen; some browsers only after a tap.)
+    const lock = () => screen.orientation?.lock?.('landscape').catch(() => undefined);
+    lock();
+    window.addEventListener('pointerup', lock);
     createUnityInstance(document.querySelector('#unity-canvas'), {
       dataUrl: 'Build/{{{ DATA_FILENAME }}}',
       frameworkUrl: 'Build/{{{ FRAMEWORK_FILENAME }}}',

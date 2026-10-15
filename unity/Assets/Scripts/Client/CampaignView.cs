@@ -102,12 +102,13 @@ public partial class CampaignView : MonoBehaviour
         world.SetParent(transform, false);
         hud = Hud.Canvas(Cam);
         hud.transform.SetParent(transform, false);
+        // (Each drawn whole on any screen, inside its safe area: see Frame.)
         top = Hud.Rect(hud.transform, "Top");
-        Hud.Fill(top);
+        Frame.Make(top, false);
         overlay = Hud.Rect(hud.transform, "Overlay");
-        Hud.Fill(overlay);
+        Frame.Make(overlay, false);
         sheetRoot = Hud.Rect(hud.transform, "Sheet");
-        Hud.Fill(sheetRoot);
+        Frame.Make(sheetRoot, false);
         Sound.Scene("ambient");
         // (A new run's hero has their say first: whatever else the opening brought on waits behind it.)
         if (!(fresh && state.Story.Queue.Count > 0 && state.Story.Queue[0].Id == "intro")) SkipSilentScenes();
@@ -578,8 +579,8 @@ public partial class CampaignView : MonoBehaviour
         var move = Campaign.ArmyMoves(state, army0).FirstOrDefault(m => m.ToId == toId);
         if (move == null) return;
         warpMove = move.Warp == true;
+        // (Only a jump sounds, its warp: a flight is silent, as the web's.)
         if (move.Warp == true) Sound.Play("warp");
-        else Sound.Play("launch");
         StartCoroutine(Fly(armyId, toId, move.Battle));
     }
 
