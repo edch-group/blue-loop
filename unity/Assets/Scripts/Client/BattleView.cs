@@ -833,51 +833,6 @@ public partial class BattleView : MonoBehaviour
     public float HandLift(CardInstance c) => c.Uid == picked || (discarding?.Contains(c.Uid) ?? false) ? 1f : 0;
 
     /// <summary>The card under the pointer, read large: its face, and in play what stands on it now.</summary>
-    void Inspect()
-    {
-        if (!Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 100)) return;
-        var v = hit.collider.GetComponentInParent<CardView>();
-        if (v == null) return;
-        // (A rival's trap stays hidden.)
-        if (state.Players.Any(p => p.Id != you && p.Lightspeed?.Uid == v.Uid)) return;
-        foreach (Transform c in inspector) Mats.Kill(c.gameObject);
-        inspector.gameObject.SetActive(true);
-        var veil = inspector.gameObject.GetComponent<Image>() ?? inspector.gameObject.AddComponent<Image>();
-        veil.color = new Color(240 / 255f, 240 / 255f, 238 / 255f, 0.78f);
-        var btn = inspector.gameObject.GetComponent<Button>() ?? inspector.gameObject.AddComponent<Button>();
-        btn.onClick.RemoveAllListeners();
-        btn.onClick.AddListener(() => inspector.gameObject.SetActive(false));
-        // (Seen whole on any screen: smaller on a phone's.)
-        var box = Whole(inspector, new Vector2(880, 700));
-        var face = Hud.Rect(box, "Face");
-        Hud.At(face, new Vector2(0.5f, 0.5f), new Vector2(-205, 30), new Vector2(406, 568));
-        var raw = face.gameObject.AddComponent<RawImage>();
-        raw.texture = Faces.Of(v.DefId, false);
-        raw.raycastTarget = false;
-        // What stands on it now, for a card in play.
-        var owner = state.Players.FirstOrDefault(p => p.Tableau.Any(c => c.Uid == v.Uid));
-        var card = owner?.Tableau.First(c => c.Uid == v.Uid);
-        var def = Cards.Def(v.DefId);
-        var lines = new List<string> { $"<b>{def.Name.ToUpperInvariant()}</b>" };
-        if (card != null)
-        {
-            int atk = Game.CardAttack(state, owner, card);
-            if (atk > 0 || Game.BaseAttack(def) > 0) lines.Add($"Attack {atk}{(card.Dimmed == true ? " (dimmed: attacked today)" : "")}");
-            lines.Add($"Stability {card.Health ?? 0}");
-            lines.Add($"Defence {Game.CardDefence(owner, card)}{(Game.IsGuard(owner, card) ? " · Guard" : "")}");
-            if ((card.Shields ?? 0) > 0) lines.Add($"Shields {card.Shields}");
-            if ((card.Growth ?? 0) > 0) lines.Add($"Grown {card.Growth}");
-            if (card.Frozen == true) lines.Add("Frozen");
-        }
-        var info = Hud.Glass(box, "Info", Look.GlassStrong);
-        Hud.At((RectTransform)info.transform, new Vector2(0.5f, 0.5f), new Vector2(219, 30 + 145), new Vector2(406, 60 + 40 * lines.Count));
-        var t = Hud.Label(info.transform, string.Join("\n", lines), 24, Look.Ink, false, 500, 0, TextAlignmentOptions.TopLeft);
-        t.margin = new Vector4(24, 20, 24, 20);
-        // (Under it, as the web's inspector sheet: a way to close it.)
-        var close = WhiteButton(box, "Close", () => inspector.gameObject.SetActive(false), 15);
-        Hud.At((RectTransform)close.transform, new Vector2(0.5f, 0.5f), new Vector2(0, -300), new Vector2(150, 50));
-    }
-
     // ---- The screen's own layer ----
 
     /// <summary>A rounded image's corners at `radius` canvas units (Hud.Rounded's own are 22).</summary>
@@ -998,7 +953,8 @@ public partial class BattleView : MonoBehaviour
         refLayer = Hud.Rect(root, "Overlays");
         refLayer.anchorMin = refLayer.anchorMax = refLayer.pivot = new Vector2(0.5f, 0.5f);
         refLayer.localScale = Vector3.one / RefScale;
-        inspector = Hud.Rect(refLayer, "Inspector");
+        // (The card read large: in the page's own pixels, over everything, as the web's .zoom-view.)
+        inspector = Hud.Rect(root, "Inspector");
         Hud.Fill(inspector);
         inspector.gameObject.SetActive(false);
         reactionPanel = Hud.Rect(refLayer, "Reaction");
