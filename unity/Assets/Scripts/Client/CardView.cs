@@ -57,6 +57,15 @@ public class CardView : MonoBehaviour
     /// <summary>A card face down (a set trap, a pile).</summary>
     public void FaceDown() => face.sharedMaterial.mainTexture = Resources.Load<Texture2D>("Board/back");
 
+    /// <summary>Dragged out of the hand: it stays, faint, while its copy flies (.card-dragging).</summary>
+    public void Ghosted(bool on)
+    {
+        var c = face.sharedMaterial.color;
+        c.a = on ? 0.3f : 1;
+        face.sharedMaterial.color = c;
+        shadow.gameObject.SetActive(!on);
+    }
+
     public void Dimmed(bool on) => face.sharedMaterial.SetFloat("_Grey", on ? 0.75f : 0);
 
     /// <summary>Its rim: none, or a colour (playable green, picked blue, aimed red), soft or strong.</summary>

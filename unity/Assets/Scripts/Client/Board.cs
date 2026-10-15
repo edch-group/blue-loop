@@ -113,6 +113,26 @@ public class Board : MonoBehaviour
         return r;
     }
 
+    MeshRenderer dropMark;
+
+    /// <summary>
+    /// The slot of yours a dragged card would land in, outlined (styles.css .tableau-mine .drop-over: 2 px of green
+    /// mixed 70% into white, 3 px off the slot, its corners following); none: no outline.
+    /// </summary>
+    public void MarkDrop(int? slot)
+    {
+        if (slot == null)
+        {
+            if (dropMark != null) dropMark.gameObject.SetActive(false);
+            return;
+        }
+        float k = 1f / L.Tcw;
+        if (dropMark == null)
+            dropMark = Shape("Drop over", table, Rgba(121, 177, 151), 1 + 8 * k, 1.4f + 8 * k, 0.08f + 4 * k, 2990, 0.0008f, 1 * k, 4 * k, true);
+        dropMark.gameObject.SetActive(true);
+        dropMark.transform.localPosition = SlotAt(true, slot.Value) + new Vector3(0, 0.0008f, 0);
+    }
+
     public static Color Rgba(int r, int g, int b, float a = 1) => new Color(r / 255f, g / 255f, b / 255f, a);
 
     void Build()

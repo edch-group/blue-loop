@@ -135,7 +135,7 @@ public partial class BattleView : MonoBehaviour
         var page = Page(Input.mousePosition);
         // With a mouse, the pointer over your hand raises it to be read whole, and lifts the card under it; off the
         // hand's column (or over the screen's own layer), it lowers.
-        if (!touch)
+        if (!touch && !Dragging)
         {
             bool up = Board.HandUp ? Board.InHandColumn(page) : Board.InHandColumn(page) && !OverHud();
             up &= !inspector.gameObject.activeSelf && sheet == null;
@@ -148,7 +148,10 @@ public partial class BattleView : MonoBehaviour
         {
             pressAt = Time.time;
             pressPos = Input.mousePosition;
+            DragPress();
         }
+        if (Dragging && Input.GetMouseButton(0)) DragMove();
+        if (Dragging && Input.GetMouseButtonUp(0)) DragRelease();
         if (pressAt >= 0 && Input.GetMouseButton(0) && Time.time - pressAt > 0.45f && (Input.mousePosition - pressPos).magnitude < 12 * Css.PixelRatio)
         {
             pressAt = -1;
@@ -577,7 +580,14 @@ public partial class BattleView : MonoBehaviour
             return;
         }
         if (!MyDay || picked == null || !slot.Mine) return;
-        var here = options.Where(o => o.SlotIndex == slot.Slot).ToList();
+        PickSlot(slot.Slot);
+    }
+
+    /// <summary>The card picked from hand put in a slot of yours (what lands there; aimed at, if one aim is all it has).</summary>
+    void PickSlot(int slotIndex)
+    {
+        if (picked == null || options == null) return;
+        var here = options.Where(o => o.SlotIndex == slotIndex).ToList();
         if (here.Count == 0) return;
         options = here;
         if (here.All(o => Aims(o) == null) || here.Select(Aims).Distinct().Count() == 1) Finish(here);
@@ -784,6 +794,7 @@ public partial class BattleView : MonoBehaviour
     /// <summary>A card's rim and dimming for what is being chosen.</summary>
     public void Dress(CardView v, PlayerState owner, CardInstance c, bool inPlay)
     {
+        if (DragRim(v, c)) return;
         Color? rim = null;
         float strength = 1;
         if (Dawn != null)
@@ -935,6 +946,7 @@ public partial class BattleView : MonoBehaviour
 
     /// <summary>The HUD's own camera (see BuildHud).</summary>
     Camera hudCam;
+    RectTransform beamLayer;
 
     void BuildHud()
     {
@@ -955,6 +967,9 @@ public partial class BattleView : MonoBehaviour
         hud.gameObject.layer = 5;
         hud.transform.SetParent(transform, false);
         var root = hud.transform;
+        // (Beams lie under the screen's own layer, as .beam-arc.beam-attack under the dock and HUD.)
+        beamLayer = Hud.Rect(root, "Beams");
+        Hud.Fill(beamLayer);
         chrome = Hud.Rect(root, "Chrome");
         Hud.Fill(chrome);
         // (What the board waits on you for lies in the board's middle, over the flower: the web's .mid-hint.)
