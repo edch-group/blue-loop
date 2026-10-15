@@ -1,7 +1,8 @@
 // A model (nebula-objects.ts SHIP_FRAG): its look worked out from each part's material and colour. Plated metal:
 // panels of slightly differing tone, seams cut in, wear and grime, a stripe in its holder's colour; glass and crystal,
 // deep and bright at the edge; glowing parts white-hot at heart and flickering; living hide, mottled; dark gloss;
-// molten; pearl; the Captain's ship's made hull as Meshy textured it, and its bells' burning throats. Lit by a key light
+// molten; pearl; the Captain's ship's made hull as Meshy textured it, and its bells' burning throats; the Captain himself
+// as Meshy made him. Lit by a key light
 // with a sharp highlight and the paper's light caught at its edges.
 Shader "BlueLoop/Ship"
 {
@@ -20,6 +21,8 @@ Shader "BlueLoop/Ship"
             float _Alpha, _Burn, _Flip;
             // (The Captain's ship's texture, as Meshy painted it: ModelMesh sets it for all.)
             sampler2D _CaptainTex;
+            // (The Captain's own, as Meshy painted him: ModelMesh sets it.)
+            sampler2D _CaptainBodyTex;
             struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; float4 color : COLOR; float2 uv : TEXCOORD0; };
             struct v2f { float4 pos : SV_POSITION; float3 n : TEXCOORD0; float3 w : TEXCOORD1; float3 l : TEXCOORD2; float3 ln : TEXCOORD3; float m : TEXCOORD4; float3 c : TEXCOORD5; };
             v2f vert (appdata v)
@@ -62,6 +65,17 @@ Shader "BlueLoop/Ship"
                 float m = i.m;
                 float t = _Time.y;
                 float3 c;
+                if (m > 10.5)
+                {
+                    // The Captain, as Meshy painted him (CaptainFigure.cs): leather, cloth and skin, lit softly, a little
+                    // sheen on the leather, the paper's light at his edges.
+                    float3 base = tex2D(_CaptainBodyTex, i.c.rg).rgb;
+                    float spec = pow(max(dot(n, h), 0.0), 24.0) * 0.18;
+                    c = base * (0.55 + 0.8 * diff) + spec * (0.4 + 0.6 * base);
+                    c += base * max(-n.y, 0.0) * 0.1;
+                    c = lerp(c, sky, fres * 0.22);
+                    return fixed4(min(c, 1) * _Alpha, _Alpha);
+                }
                 if (m > 8.5)
                 {
                     // The Captain's ship's bells' throats, closed and burning.

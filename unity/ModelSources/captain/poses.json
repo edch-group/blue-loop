@@ -1,0 +1,227 @@
+{
+ "_": "The Captain's poses (scripts/bake-captain.py says how one is written). The game uses foot-up; each is baked, its own name.",
+ "foot-up": {
+  "hips": [
+   0,
+   -0.03,
+   -0.03
+  ],
+  "turn": {
+   "Spine02": [
+    7,
+    0,
+    0
+   ],
+   "Spine01": [
+    4,
+    0,
+    0
+   ]
+  },
+  "reach": {
+   "LeftLeg": {
+    "to": [
+     0.17,
+     0.42,
+     0.44
+    ],
+    "toward": [
+     0.2,
+     1.0,
+     1.0
+    ]
+   }
+  },
+  "aim": {
+   "LeftFoot": [
+    0.2,
+    0.55,
+    0.36
+   ],
+   "LeftToeBase": [
+    0.21,
+    0.75,
+    0.36
+   ],
+   "LeftArm": {
+    "from": "LeftLeg",
+    "by": [
+     0.04,
+     -0.06,
+     0.2
+    ]
+   },
+   "LeftForeArm": {
+    "from": "LeftLeg",
+    "by": [
+     -0.1,
+     0.1,
+     0.02
+    ]
+   },
+   "LeftHand": {
+    "from": "LeftLeg",
+    "by": [
+     -0.16,
+     0.2,
+     -0.06
+    ]
+   },
+   "RightArm": [
+    -0.24,
+    -0.03,
+    1.1
+   ],
+   "RightForeArm": [
+    -0.25,
+    0.04,
+    0.86
+   ],
+   "RightHand": [
+    -0.24,
+    0.06,
+    0.72
+   ]
+  }
+ },
+ "stand": {
+  "aim": {
+   "LeftArm": [
+    0.25,
+    -0.03,
+    1.1
+   ],
+   "LeftForeArm": [
+    0.27,
+    0.02,
+    0.85
+   ],
+   "LeftHand": [
+    0.27,
+    0.03,
+    0.7
+   ],
+   "RightArm": [
+    -0.24,
+    -0.03,
+    1.1
+   ],
+   "RightForeArm": [
+    -0.26,
+    0.02,
+    0.85
+   ],
+   "RightHand": [
+    -0.26,
+    0.03,
+    0.7
+   ]
+  }
+ },
+ "kneel": {
+  "hips": [
+   0,
+   -0.06,
+   -0.43
+  ],
+  "turn": {
+   "Spine02": [
+    8,
+    0,
+    0
+   ],
+   "Spine01": [
+    6,
+    0,
+    0
+   ]
+  },
+  "reach": {
+   "RightLeg": {
+    "to": [
+     -0.19,
+     -0.42,
+     0.11
+    ],
+    "toward": [
+     -0.16,
+     1.0,
+     0.1
+    ]
+   },
+   "LeftLeg": {
+    "to": [
+     0.2,
+     0.38,
+     0.13
+    ],
+    "toward": [
+     0.2,
+     1.0,
+     0.6
+    ]
+   }
+  },
+  "aim": {
+   "RightFoot": [
+    -0.2,
+    -0.55,
+    0.035
+   ],
+   "RightToeBase": [
+    -0.2,
+    -0.75,
+    0.02
+   ],
+   "LeftFoot": [
+    0.25,
+    0.52,
+    0.045
+   ],
+   "LeftToeBase": [
+    0.26,
+    0.75,
+    0.045
+   ],
+   "LeftArm": {
+    "from": "LeftLeg",
+    "by": [
+     0.07,
+     -0.03,
+     0.12
+    ]
+   },
+   "LeftForeArm": {
+    "from": "LeftLeg",
+    "by": [
+     -0.06,
+     0.2,
+     0.0
+    ]
+   },
+   "LeftHand": {
+    "from": "LeftLeg",
+    "by": [
+     -0.1,
+     0.3,
+     -0.12
+    ]
+   },
+   "RightArm": [
+    -0.27,
+    0.0,
+    0.66
+   ],
+   "RightForeArm": [
+    -0.28,
+    0.1,
+    0.36
+   ],
+   "RightHand": [
+    -0.28,
+    0.14,
+    0.16
+   ]
+  }
+ }
+}

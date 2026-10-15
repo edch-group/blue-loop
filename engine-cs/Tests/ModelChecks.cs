@@ -104,6 +104,7 @@ public static class ModelChecks
     public static void CaptainShips(Action<string, bool, string> check)
     {
         CaptainShip.HullSource = () => System.IO.File.ReadAllBytes(System.IO.Path.Combine(Repo.Root, "unity/Assets/Resources/Models/CaptainShip.bytes"));
+        CaptainFigure.Source = () => System.IO.File.ReadAllBytes(System.IO.Path.Combine(Repo.Root, "unity/Assets/Resources/Models/Captain.bytes"));
         var all = new Dictionary<string, string> { ["armour"] = "aegis_hull", ["shield"] = "halo_generator", ["port"] = "nova_lance", ["starboard"] = "nova_lance", ["booster"] = "afterburners", ["warp"] = "fold_drive" };
         var specs = new[]
         {
@@ -140,6 +141,46 @@ public static class ModelChecks
             var spots = CaptainShip.SlotSpots(spec.Level);
             if (spots.Count != CaptainShip.Slots.Length || CaptainShip.Slots.Any(k => !spots.ContainsKey(k))) bad ??= $"{spots.Count} slots";
             check($"model Captain's ship (level {spec.Level}, {s.Mesh.Length / 10} vertices, {ms:0.0} ms; on the map {map.Mesh.Length / 10}, {ms2:0.0} ms)", bad == null, bad);
+        }
+    }
+
+    /// <summary>
+    /// The Captain (Resources/Models/Captain.bytes, as Meshy rigged him): every pose stands him whole, upright and his
+    /// height, his feet on the floor; standing him again each frame (breathing, looking about) is quick, and moves him
+    /// only a little. (CAPTAIN_OBJ=folder writes each pose there as an OBJ, to look at.)
+    /// </summary>
+    public static void Captain(Action<string, bool, string> check)
+    {
+        CaptainFigure.Source = () => System.IO.File.ReadAllBytes(System.IO.Path.Combine(Repo.Root, "unity/Assets/Resources/Models/Captain.bytes"));
+        foreach (var pose in CaptainFigure.Poses.ToList())
+        {
+            var f = new CaptainFigure(pose);
+            string bad = null;
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int i = 0; i < f.Count; i++)
+            {
+                for (int c = 0; c < 3; c++)
+                    if (float.IsNaN(f.Pos[i * 3 + c]) || float.IsNaN(f.Nor[i * 3 + c])) bad ??= $"corner {i} not a number";
+                lo = Math.Min(lo, f.Pos[i * 3 + 1]);
+                hi = Math.Max(hi, f.Pos[i * 3 + 1]);
+            }
+            if (Math.Abs(lo) > 0.04) bad ??= $"his feet at {lo}, not on the floor";
+            if (hi < (pose == "kneel" ? 0.55 : 0.85) || hi > 1.05) bad ??= $"{hi} tall";
+            var still = (float[])f.Pos.Clone();
+            var (_, ms) = Timed(() => { for (int k = 1; k <= 10; k++) f.Pose(k * 0.37); return 0; });
+            float most = 0;
+            for (int i = 0; i < still.Length; i++) most = Math.Max(most, Math.Abs(still[i] - f.Pos[i]));
+            if (most > 0.03 || most < 0.001) bad ??= $"moving {most} as he stands";
+            var dir = Environment.GetEnvironmentVariable("CAPTAIN_OBJ");
+            if (dir != null)
+            {
+                f.Pose(0);
+                var o = new System.Text.StringBuilder();
+                for (int i = 0; i < f.Count; i++) o.Append($"v {f.Pos[i * 3]} {f.Pos[i * 3 + 1]} {f.Pos[i * 3 + 2]}\nvt {f.Uv[i * 2]} {1 - f.Uv[i * 2 + 1]}\nvn {f.Nor[i * 3]} {f.Nor[i * 3 + 1]} {f.Nor[i * 3 + 2]}\n");
+                for (int i = 0; i < f.Tris.Length; i += 3) o.Append($"f {f.Tris[i] + 1}/{f.Tris[i] + 1}/{f.Tris[i] + 1} {f.Tris[i + 1] + 1}/{f.Tris[i + 1] + 1}/{f.Tris[i + 1] + 1} {f.Tris[i + 2] + 1}/{f.Tris[i + 2] + 1}/{f.Tris[i + 2] + 1}\n");
+                System.IO.File.WriteAllText(System.IO.Path.Combine(dir, pose + ".obj"), o.ToString());
+            }
+            check($"model the Captain ({pose}: {f.Count} corners, {f.Tris.Length / 3} triangles, {hi:0.00} tall, standing him {ms / 10:0.0} ms)", bad == null, bad);
         }
     }
 

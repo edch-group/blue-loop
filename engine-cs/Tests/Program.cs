@@ -204,6 +204,7 @@ WorldChecks.Run(Check);
 
 // The Captain's ship (a made model in Unity, checked for itself).
 ModelChecks.CaptainShips(Check);
+ModelChecks.Captain(Check);
 
 // The procedural 3D models (ships, stations, the Captain and his crew, the campaign's land), each built here as the
 // TypeScript builds it (npx vite-node scripts/record-models.ts).

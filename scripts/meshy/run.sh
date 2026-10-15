@@ -16,7 +16,8 @@ while read -r first name flag more; do
     set -- $name $flag; first=$(python3 scripts/meshy/rig.py "$1" "$(gh release view "model-$2-${1:0:8}" --json assets -q '.assets[] | select(.name == "model.glb") | .url' 2>/dev/null)") || { echo "rigging failed"; continue; }; name=$2; flag=${3:-}
   fi
   if [ "$first" = rebake ]; then
-    meta=$(ls -td unity/ModelSources/"$name"/meshy-*/ | head -1)
+    # (The newest Meshy made: a checkout's files are all as old as each other.)
+    meta=$(python3 -c "import glob,json,os,sys; print(os.path.dirname(max(glob.glob(f'unity/ModelSources/{sys.argv[1]}/meshy-*/meshy.json'), key=lambda p: json.load(open(p)).get('created_at', 0))))" "$name")
     release=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['_release'])" "$meta/meshy.json")
     folder="$into/$(basename "$meta")"
     mkdir -p "$folder"

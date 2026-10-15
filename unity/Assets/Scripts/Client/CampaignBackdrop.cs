@@ -23,7 +23,11 @@ public class CampaignBackdrop : MonoBehaviour
     int uiMask;
     Transform land, ship;
     Material ground, abyss;
-    Transform shipModel, captain, tail;
+    Transform shipModel, captain;
+    // The Captain as Meshy made and rigged him (CaptainFigure): stood afresh each frame as he breathes and looks about.
+    CaptainFigure figure;
+    UMesh figureMesh;
+    Vector3[] figurePos, figureNor;
     readonly List<(string id, CompanionPlace place, Transform t)> crew = new List<(string, CompanionPlace, Transform)>();
     CaptainShipBuild build;
     float t0;
@@ -46,7 +50,6 @@ public class CampaignBackdrop : MonoBehaviour
         shipCam.backgroundColor = Look.Paper;
         shipModel.gameObject.SetActive(!alone);
         captain.gameObject.SetActive(!alone || zone == "captain");
-        tail.gameObject.SetActive(!alone || zone == "captain");
         foreach (var c in crew) c.t.gameObject.SetActive(!alone || zone == c.id);
         Pose();
     }
@@ -182,8 +185,7 @@ public class CampaignBackdrop : MonoBehaviour
         var meta = CampaignView.LoadMeta();
         shipModel = Model("Ship", null);
         Refit();
-        captain = Model("Captain", ModelMesh.Of("captain", CaptainModels.CaptainModel));
-        tail = Model("Tails", ModelMesh.Of("captain-tails", CaptainModels.StreamerModel));
+        captain = Model("Captain", FigureMesh());
         foreach (var id in fixedCrew ?? Meta.ActiveCrew(meta))
             if (CompanionModels.Places.TryGetValue(id, out var pl))
                 crew.Add((id, pl, Model(id, ModelMesh.Of("companion:" + id, () => CompanionModels.CompanionModel(id)))));
@@ -293,8 +295,47 @@ public class CampaignBackdrop : MonoBehaviour
         Pose();
     }
 
+    /// <summary>The Captain's mesh: his corners as he stands, his place in his texture, material 11 (the ship shader paints him).</summary>
+    UMesh FigureMesh()
+    {
+        figure = new CaptainFigure("foot-up");
+        int n = figure.Count;
+        figurePos = new Vector3[n];
+        figureNor = new Vector3[n];
+        var col = new Color[n];
+        var uv = new Vector2[n];
+        for (int i = 0; i < n; i++)
+        {
+            col[i] = new Color(figure.Uv[i * 2], figure.Uv[i * 2 + 1], 0, 1);
+            uv[i] = new Vector2(11, 0);
+        }
+        figureMesh = new UMesh { name = "captain", indexFormat = n > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16 };
+        figureMesh.MarkDynamic();
+        Stand(Now);
+        figureMesh.colors = col;
+        figureMesh.uv = uv;
+        figureMesh.triangles = figure.Tris;
+        return figureMesh;
+    }
+
+    /// <summary>The Captain as he stands at this moment: breathing, his weight shifting, looking about.</summary>
+    void Stand(float t)
+    {
+        figure.Pose(t);
+        var p = figure.Pos;
+        var q = figure.Nor;
+        for (int i = 0; i < figurePos.Length; i++)
+        {
+            figurePos[i] = new Vector3(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]);
+            figureNor[i] = new Vector3(q[i * 3], q[i * 3 + 1], q[i * 3 + 2]);
+        }
+        figureMesh.vertices = figurePos;
+        figureMesh.normals = figureNor;
+    }
+
     void OnDestroy()
     {
+        Mats.Kill(figureMesh);
         if (ui == null) return;
         ui.clearFlags = uiClear;
         ui.cullingMask = uiMask;
@@ -365,9 +406,7 @@ public class CampaignBackdrop : MonoBehaviour
         var foot = B(20, 12, 0);
         var capM = shipM * T(at) * RY(1.3f) * S(0.7f / SS) * T(new Vector3(-foot.x, 0, -foot.z));
         Place(captain, capM);
-        float gust = 0.08f * Mathf.Sin(t * 2.3f) + 0.04f * Mathf.Sin(t * 5.1f + 1);
-        var pivot = B(20, 11, 23);
-        Place(tail, capM * T(pivot) * RZ(-gust) * RX(gust * 0.5f) * T(-pivot));
+        if (captain.gameObject.activeSelf) Stand(t);
         // The companions, each in their place: on the near rail, over the sensor dish, or flying alongside.
         foreach (var (id, pl, tr) in crew)
         {

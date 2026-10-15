@@ -21,6 +21,9 @@ public static class ModelMesh
     {
         BlueLoop.Models.CaptainShip.HullSource = () => Resources.Load<TextAsset>("Models/CaptainShip").bytes;
         Shader.SetGlobalTexture("_CaptainTex", Resources.Load<Texture2D>("Models/CaptainShipColour"));
+        // (And the Captain himself, as Meshy rigged him (scripts/bake-captain.py): his figure and his texture, material 11.)
+        BlueLoop.Models.CaptainFigure.Source = () => Resources.Load<TextAsset>("Models/Captain").bytes;
+        Shader.SetGlobalTexture("_CaptainBodyTex", Resources.Load<Texture2D>("Models/CaptainColour"));
     }
 
     /// <summary>A model's vertex array (stride 10) as a mesh, made once under its name.</summary>

@@ -25,12 +25,13 @@ jobs:
       - uses: actions/setup-python@v5
         if: steps.req.outputs.lines != '0'
         with:
-          python-version: '3.12'
+          # (Blender's own module, which bakes the Captain, is made for 3.13.)
+          python-version: '3.13'
       - name: Tools
         if: steps.req.outputs.lines != '0'
         run: |
-          sudo apt-get install -y -q libopengl0 libglu1-mesa > /dev/null
-          pip install -q numpy pillow trimesh pymeshlab scipy
+          sudo apt-get install -y -q libopengl0 libglu1-mesa libxi6 libxxf86vm1 libxfixes3 libxrender1 libxkbcommon0 libsm6 libgl1 > /dev/null
+          pip install -q numpy pillow trimesh pymeshlab scipy bpy
       - name: Fetch, keep and bake
         if: steps.req.outputs.lines != '0'
         env:
