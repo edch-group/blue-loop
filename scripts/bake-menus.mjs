@@ -21,6 +21,30 @@ for (const k of ['0', '1', '2', '3', '4', '5', '6', '7', 'general']) {
   await settle();
   await page.waitForTimeout(150);
   await shoot(`pack-${k}`);
+  // (Torn open, facing straight on: its body, and its strip that flies off; and too dear to buy.)
+  for (const part of ['open', 'tear', 'off']) {
+    await page.evaluate(([kind, p]) => window.pack(kind, 132, p), [k, part]);
+    await settle();
+    await page.waitForTimeout(150);
+    await shoot(`pack-${k}-${part}`);
+  }
+}
+// The packs again as a phone held sideways shows them (932 by 430: 62 across, their words sized by the window's
+// height), four times over; the game takes these for packs drawn under 97 across.
+{
+  const phone = await browser.newPage({ deviceScaleFactor: 1, viewport: { width: 932, height: 430 } });
+  await phone.goto('http://localhost:5207/bake/index.html');
+  await phone.waitForFunction(() => window.ready === true);
+  await phone.addStyleTag({ content: 'html,body,#stage{background:transparent!important}' });
+  for (const k of ['0', '1', '2', '3', '4', '5', '6', '7', 'general'])
+    for (const part of ['', 'open', 'tear', 'off']) {
+      // (Zoomed four times rather than shot at four times the pixels: a turned pack is drawn at its own size, blurred.)
+      await phone.evaluate(([kind, p]) => { window.pack(kind, 62, p); document.getElementById('piece').style.zoom = '4'; }, [k, part]);
+      await phone.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      await phone.waitForTimeout(150);
+      writeFileSync(`${out}/pack-${k}${part ? `-${part}` : ''}-m.png`, await (await phone.$('#piece')).screenshot({ type: 'png', omitBackground: true }));
+    }
+  await phone.close();
 }
 // The game modes' pictures, picked and not (their paintings loaded first).
 for (const m of ['core', 'lost'])
