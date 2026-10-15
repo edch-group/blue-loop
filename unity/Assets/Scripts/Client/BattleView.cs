@@ -441,6 +441,8 @@ public partial class BattleView : MonoBehaviour
                 else sunView.Pulse(dHeat >= 0, a.Type == "attack" ? 0.15f : at);
             }
             if (!flown) StartCoroutine(After(at, Land));
+            // (Until then, the sun keeps showing its old heat and shields.)
+            if (dHeat != 0 || p.Shields != w.Shields || p.Eliminated != w.Eliminated) Board?.HoldSun(p.Id, prev, w, flown ? Mathf.Max(0, at - 0.4f) + 0.62f : at);
             if (dHeat > 0)
             {
                 if (p.Id == you && byEnemy) Sound.Play("hurt", dHeat);

@@ -45,15 +45,19 @@ public partial class BattleView
                 StartCoroutine(Projectile(from.Value, () => CardRect(uid) ?? land, Hot, delay, 30, 0.56f, null));
                 // (The card struck glows as it lands; a Hero's heat shows what it did.)
                 Board.View(uid)?.Flash(true, delay + 0.56f);
+                Board.HoldCard(uid, prev, delay + 0.56f);
+                if (nowC == null) Board.Linger(uid, delay + 0.56f);
                 if (heroMove) CardShiftNumbers(CardShift(prev, next, uid), to.Value, delay + 0.56f);
                 continue;
             }
             StartCoroutine(Arc(from.Value, to.Value, Beam.Kind.Plain, 0.36f, delay, 0.42f, 0.52f, 0.26f));
             // (A Hero's: what it did to the card shown as the arc reaches it.)
             float reach = delay + 0.42f + 0.52f * 0.7f;
+            if (nowC == null) Board.Linger(uid, reach);
             if (heroMove && nowC != null)
             {
                 Board.View(uid)?.Flash(true, reach);
+                Board.HoldCard(uid, prev, reach);
                 CardShiftNumbers(CardShift(prev, next, uid), to.Value, reach);
             }
         }
@@ -77,6 +81,7 @@ public partial class BattleView
                 }
                 bool bad = shift.Any(x => x.Bad);
                 Board.View(c.Uid)?.Flash(bad, land);
+                Board.HoldCard(c.Uid, prev, land);
                 CardShiftNumbers(shift, to.Value, land);
                 Sound.Play(bad ? "clash-1" : "shield", land);
             }

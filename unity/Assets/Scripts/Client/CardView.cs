@@ -242,6 +242,18 @@ public class CardView : MonoBehaviour
         foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
     }
 
+    /// <summary>
+    /// app.ts lingerInSlot: taken by a blow, it stays in its slot until the blow reaches it (`after`), then dissolves
+    /// where it stands (0.52 s, ease-in: brightening and swelling to 1.06 by 35%, then burning out to nothing at 0.7).
+    /// </summary>
+    public void Dissolve(float after)
+    {
+        enabled = false;
+        var d = gameObject.AddComponent<Dissolving>();
+        d.After = after;
+        foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
+    }
+
     /// <summary>Its end: it lifts, fades and shrinks away, then is gone.</summary>
     public void Die(float after = 0)
     {
@@ -420,5 +432,60 @@ public class Dying : MonoBehaviour
             }
         }
         if (t >= 1) Mats.Kill(gameObject);
+    }
+}
+
+/// <summary>A card dissolving in its slot (app.ts lingerInSlot).</summary>
+public class Dissolving : MonoBehaviour
+{
+    public float After;
+    float age;
+    Vector3 scale0;
+    Renderer[] parts;
+    Color[] colour0;
+
+    void Start()
+    {
+        scale0 = transform.localScale;
+        parts = GetComponentsInChildren<Renderer>();
+        colour0 = parts.Select(r => r.sharedMaterial != null && r.sharedMaterial.HasProperty("_Color") ? r.sharedMaterial.color : Color.white).ToArray();
+    }
+
+    void Update()
+    {
+        age += Time.deltaTime;
+        float t = Mathf.Clamp01((age - After) / 0.52f);
+        if (age < After) return;
+        // (ease-in over the whole.)
+        float e = EaseIn(t);
+        float bright, scale, alpha;
+        if (e < 0.35f) { float u = e / 0.35f; bright = Mathf.Lerp(1, 1.6f, u); scale = Mathf.Lerp(1, 1.06f, u); alpha = 1; }
+        else { float u = (e - 0.35f) / 0.65f; bright = Mathf.Lerp(1.6f, 2.2f, u); scale = Mathf.Lerp(1.06f, 0.7f, u); alpha = 1 - u; }
+        transform.localScale = scale0 * scale;
+        for (int i = 0; i < parts.Length; i++)
+        {
+            var r = parts[i];
+            if (r == null || r.sharedMaterial == null || !r.sharedMaterial.HasProperty("_Color")) continue;
+            var c = colour0[i];
+            // (The face brightens; everything fades.)
+            r.sharedMaterial.color = r.name == "Face" ? new Color(c.r * bright, c.g * bright, c.b * bright, c.a * alpha) : new Color(c.r, c.g, c.b, c.a * alpha);
+        }
+        if (t >= 1) Mats.Kill(gameObject);
+    }
+
+    // (cubic-bezier(.42,0,1,1).)
+    static float EaseIn(float x)
+    {
+        float t = x;
+        for (int i = 0; i < 10; i++)
+        {
+            float u = 1 - t;
+            float bx = 3 * u * u * t * 0.42f + 3 * u * t * t + t * t * t - x;
+            float dx = 3 * u * u * 0.42f + 6 * u * t * (1 - 0.42f);
+            if (Mathf.Abs(dx) < 1e-5f) break;
+            t = Mathf.Clamp01(t - bx / dx);
+        }
+        float v = 1 - t;
+        return 3 * v * t * t + t * t * t;
     }
 }

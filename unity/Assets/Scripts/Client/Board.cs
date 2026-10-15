@@ -491,21 +491,6 @@ public class Board : MonoBehaviour
         return t;
     }
 
-    readonly Dictionary<string, int> lastHealth = new Dictionary<string, int>();
-    readonly Dictionary<string, int> lastHeat = new Dictionary<string, int>();
-
-    /// <summary>A number that rises and fades where something changed: heat on a sun, stability on a card.</summary>
-    void Float(Vector3 at, int delta, bool heat)
-    {
-        if (!Application.isPlaying) return;
-        var t = Mats.FlatText("Float", table, (delta > 0 ? "+" : "") + delta, Px(48), heat ? (delta > 0 ? Look.Heat : Look.Cool) : (delta < 0 ? Look.Heat : Look.Good), true, 700, 0);
-        t.transform.localRotation = Quaternion.LookRotation(Cam.transform.forward, Cam.transform.up);
-        t.transform.localPosition = at + new Vector3(0, 1.2f, 0);
-        t.outlineWidth = 0.2f;
-        t.outlineColor = new Color32(255, 255, 255, 200);
-        t.gameObject.AddComponent<Floater>();
-    }
-
     /// <summary>A sun put where the web's stands at this size, at its size.</summary>
     static void PlaceSun(SunView sun, bool mine)
     {
@@ -515,6 +500,8 @@ public class Board : MonoBehaviour
     /// <summary>Lay the battle out as it stands: every card where it belongs, every sun as hot as it is.</summary>
     public void Sync(GameState s, BattleView ui)
     {
+        synced = s;
+        syncedBy = ui;
         dealing = 0;
         if (!Fits) Relayout();
         var me = s.Players.First(p => p.Id == Viewer);
@@ -530,7 +517,9 @@ public class Board : MonoBehaviour
                 var at = SlotAt(mine, c.Slot ?? 0) + new Vector3(0, 0.03f, 0);
                 v.transform.SetParent(table, false);
                 v.MoveTo(at, Quaternion.identity);
-                InPlay(v, s, p, c);
+                // (Until a blow lands on it, it keeps showing what it was: app.ts holdCardStats.)
+                if (cardHold.TryGetValue(c.Uid, out var held) && Time.time < held.until) InPlay(v, held.s, held.p, held.c);
+                else InPlay(v, s, p, c);
                 ui.Dress(v, p, c, true);
             }
             // (A trap set face down, beside the row.)
@@ -545,16 +534,10 @@ public class Board : MonoBehaviour
                 for (int k = 0; k < 3; k++) v.Badge(new[] { "atk", "stab", "def" }[k], "atk", null);
             }
             var sunView = SunFor(p, mine);
-            sunView.Show(s, p);
+            // (Until the blow lands, a sun keeps showing its old heat and shields: app.ts holdUntil.)
+            if (sunHold.TryGetValue(p.Id, out var sh) && Time.time < sh.until) sunView.Show(sh.s, sh.p);
+            else sunView.Show(s, p);
             sunView.Face(Cam);
-            if (lastHeat.TryGetValue(p.Id, out var was) && was != p.Heat) Float(mine ? MySun : RivalSun, p.Heat - was, true);
-            lastHeat[p.Id] = p.Heat;
-            foreach (var c in p.Tableau)
-            {
-                int hp = c.Health ?? 0;
-                if (lastHealth.TryGetValue(c.Uid, out var had) && had != hp) Float(SlotAt(mine, c.Slot ?? 0), hp - had, false);
-                lastHealth[c.Uid] = hp;
-            }
         }
         Hand(me, ui, seen);
         foreach (var uid in cards.Keys.Where(k => !seen.Contains(k)).ToList())
@@ -575,7 +558,9 @@ public class Board : MonoBehaviour
                     else if (p.Deck.Any(c => c.Uid == uid) || p.Hand.Any(c => c.Uid == uid)) to = suns.TryGetValue(p.Id, out var sv) ? sv.transform.position : (Vector3?)null;
                     if (to != null) break;
                 }
-                if (to != null && gone.Table) gone.GoTo(to.Value + Vector3.up * 0.05f, Mathf.Clamp(k, 0.15f, 1));
+                // (Taken by a blow still on its way: it waits in its slot for it, then dissolves there.)
+                if (linger.TryGetValue(uid, out var at) && at > Time.time) gone.Dissolve(at - Time.time);
+                else if (to != null && gone.Table) gone.GoTo(to.Value + Vector3.up * 0.05f, Mathf.Clamp(k, 0.15f, 1));
                 else gone.Die(0.25f);
             }
             cards.Remove(uid);
@@ -802,6 +787,62 @@ public class Board : MonoBehaviour
     /// <summary>How many cards have been dealt into the hand this sync (each a little after the last).</summary>
     int dealing;
 
+    readonly Dictionary<string, (GameState s, PlayerState p, float until)> sunHold = new Dictionary<string, (GameState, PlayerState, float)>();
+    readonly Dictionary<string, (GameState s, PlayerState p, CardInstance c, float until)> cardHold = new Dictionary<string, (GameState, PlayerState, CardInstance, float)>();
+    GameState synced;
+    BattleView syncedBy;
+    float holdEnds;
+
+    readonly Dictionary<string, float> linger = new Dictionary<string, float>();
+
+    /// <summary>A card a blow takes stays in its slot until the blow reaches it, `seconds` from now.</summary>
+    public void Linger(string uid, float seconds) => linger[uid] = Time.time + seconds;
+
+    /// <summary>A sun keeps showing `was` (in the state `before`) for `seconds`, until what strikes it lands.</summary>
+    public void HoldSun(string playerId, GameState before, PlayerState was, float seconds)
+    {
+        if (seconds < 0.15f) return;
+        sunHold[playerId] = (before, was, Time.time + seconds);
+        holdEnds = Mathf.Max(holdEnds, Time.time + seconds);
+    }
+
+    /// <summary>A card in play keeps showing its numbers from `before` for `seconds`, until what strikes it lands.</summary>
+    public void HoldCard(string uid, GameState before, float seconds)
+    {
+        foreach (var p in before.Players)
+            foreach (var c in p.Tableau)
+                if (c.Uid == uid)
+                {
+                    cardHold[uid] = (before, p, c, Time.time + seconds);
+                    holdEnds = Mathf.Max(holdEnds, Time.time + seconds);
+                    return;
+                }
+    }
+
+    void Update()
+    {
+        // (A hold over: shown as it is now.)
+        if (holdEnds > 0 && Time.time >= holdEnds)
+        {
+            holdEnds = 0;
+            sunHold.Clear();
+            cardHold.Clear();
+            if (synced != null && syncedBy != null) Sync(synced, syncedBy);
+        }
+        else if (holdEnds > 0)
+        {
+            bool lapsed = false;
+            foreach (var kv in sunHold) if (Time.time >= kv.Value.until) lapsed = true;
+            foreach (var kv in cardHold) if (Time.time >= kv.Value.until) lapsed = true;
+            if (lapsed && synced != null && syncedBy != null)
+            {
+                foreach (var k in sunHold.Where(kv => Time.time >= kv.Value.until).Select(kv => kv.Key).ToList()) sunHold.Remove(k);
+                foreach (var k in cardHold.Where(kv => Time.time >= kv.Value.until).Select(kv => kv.Key).ToList()) cardHold.Remove(k);
+                Sync(synced, syncedBy);
+            }
+        }
+    }
+
     /// <summary>The sun of a player, as drawn.</summary>
     public SunView SunOf(string playerId) => suns.TryGetValue(playerId, out var s) ? s : null;
 
@@ -938,22 +979,6 @@ public class PileStack : MonoBehaviour
         // (0 depth+3px 8px rgba(80, 84, 100, 0.22), under them all.)
         var sh = Board.Shape("Stack shadow", transform, Board.Rgba(80, 84, 100, 0.22f), 1, 1.4f, radius, 2905, 0.0185f, 8 * px, 10 * px);
         sh.transform.localPosition = new Vector3(0, 0.0185f, faceZ + (depth - depth - 3) * px);
-    }
-}
-
-public class Floater : MonoBehaviour
-{
-    float age;
-    TMPro.TMP_Text text;
-    void Awake() => text = GetComponent<TMPro.TMP_Text>();
-    void Update()
-    {
-        age += Time.deltaTime;
-        transform.localPosition += new Vector3(0, Time.deltaTime * 0.9f, 0);
-        var c = text.color;
-        c.a = Mathf.Clamp01(1.6f - age);
-        text.color = c;
-        if (age > 1.6f) Mats.Kill(gameObject);
     }
 }
 
