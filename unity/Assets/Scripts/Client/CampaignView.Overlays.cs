@@ -620,6 +620,8 @@ public partial class CampaignView
             return;
         }
         float t0 = RevealFrom("loot open");
+        // (Burst open: a white flash swelling from the middle of the screen, rays turning out through it.)
+        Burst.On(v, t0);
         // (Each reward a tile, and how many tiles across it is: an emblem's 1.5 (.loot-emblem), the rest 1.)
         var tiles = new List<System.Action<RectTransform, float>>();
         var wide = new List<float>();
@@ -657,11 +659,11 @@ public partial class CampaignView
             var slot = WebLook.Centred(v, "Reward", cx, cy, wide[i] * lw, lh);
             slot.localRotation = Quaternion.Euler(0, 0, -((i % 2 == 1 ? 1 : -1) * (2 + i % 3)));
             tiles[i](slot, lw);
-            RiseIn.On(slot, t0, 0.45f + (i + first) * 0.42f);
+            LootIn.On(slot, t0, 0.45f + (i + first) * 0.42f);
         }
         y += itemsH - padY + 4 * Z + 6 * Z;
         var ok = WebButton(v, "take it", () => { lootOpen = false; Act(new CampaignAction { Type = "dismissLoot" }, "buy"); }, true, mid, y);
-        RiseIn.On((RectTransform)ok.transform, t0, 0.45f + (count + first) * 0.42f + 0.2f);
+        LootIn.On((RectTransform)ok.transform, t0, 0.45f + (count + first) * 0.42f + 0.2f, true);
     }
 
     /// <summary>The experience a loot brought (campaign.ts xpGauge): LEVEL and the level, its bar filling in gold, +XP.</summary>
@@ -687,7 +689,7 @@ public partial class CampaignView
             WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f6dc94"), true);
         }
         WebLook.Box(gain.rectTransform, x + w - gw, 0, gw + 4, 33);
-        RiseIn.On(g, t0, 0.45f);
+        LootIn.On(g, t0, 0.45f);
     }
 
     /// <summary>Materials or petals: their token on its glow and rays (baked from the page), the number under it.</summary>
@@ -740,6 +742,169 @@ public partial class CampaignView
             }
         cacheHalo.Apply();
         return cacheHalo;
+    }
+
+    /// <summary>
+    /// A reward coming out of the cache (styles.css loot-in): from 18 lower, at 0.6 its size and unseen, springing to its
+    /// place over 0.55s on cubic-bezier(.2, 1.4, .4, 1), `delay` after `start`; the take button (`plain`) over 0.4s, eased out.
+    /// </summary>
+    public class LootIn : MonoBehaviour
+    {
+        float from, delay;
+        bool plain;
+        Vector2 rest;
+        CanvasGroup group;
+
+        public static void On(RectTransform r, float start, float delay, bool plain = false)
+        {
+            var x = r.gameObject.AddComponent<LootIn>();
+            x.from = start;
+            x.delay = delay;
+            x.plain = plain;
+            x.rest = r.anchoredPosition;
+            x.group = r.GetComponent<CanvasGroup>();
+            if (x.group == null) x.group = r.gameObject.AddComponent<CanvasGroup>();
+            x.Apply();
+        }
+
+        void Update() => Apply();
+
+        void Apply()
+        {
+            float k = Application.isPlaying ? Mathf.Clamp01((Time.time - from - delay) / (plain ? 0.4f : 0.55f)) : 1;
+            float e = plain ? Bezier(0, 0, 0.58f, 1, k) : Bezier(0.2f, 1.4f, 0.4f, 1, k);
+            group.alpha = Mathf.Clamp01(e);
+            var r = (RectTransform)transform;
+            r.anchoredPosition = rest - new Vector2(0, 18 * Z * (1 - e));
+            r.localScale = Vector3.one * Mathf.LerpUnclamped(0.6f, 1, e);
+            if (k >= 1) enabled = false;
+        }
+    }
+
+    /// <summary>A CSS cubic-bezier timing function at `x` (its y free to overshoot).</summary>
+    static float Bezier(float x1, float y1, float x2, float y2, float x)
+    {
+        float t = x;
+        for (int i = 0; i < 10; i++)
+        {
+            float u = 1 - t;
+            float bx = 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t - x;
+            float dx = 3 * u * u * x1 + 6 * u * t * (x2 - x1) + 3 * t * t * (1 - x2);
+            if (Mathf.Abs(dx) < 1e-5f) break;
+            t = Mathf.Clamp01(t - bx / dx);
+        }
+        float v = 1 - t;
+        return 3 * v * v * t * y1 + 3 * v * t * t * y2 + t * t * t;
+    }
+
+    /// <summary>
+    /// The cache bursting open (styles.css .loot-burst): a white point in the middle of the screen (10 across, its
+    /// gradient white to a pale blue, glowing 0 0 60 30) swelling from 0.2 to 60 times its size over 0.9s on
+    /// cubic-bezier(.2, .8, .2, 1), whole for 60% of it, then gone; through it (::before, 9 times its size) rays every
+    /// 18deg turning 40deg as they grow from 0.3 to 1.4 and fade, eased out.
+    /// </summary>
+    public class Burst : MonoBehaviour
+    {
+        float from;
+        RectTransform flash, rays;
+        RawImage flashImg, raysImg;
+        static Texture2D flashTex, raysTex;
+
+        public static void On(RectTransform veil, float start)
+        {
+            if (!Application.isPlaying || Time.time - start > 0.9f) return;
+            var b = veil.gameObject.AddComponent<Burst>();
+            b.from = start;
+            b.flash = Hud.Rect(veil, "Burst");
+            b.flash.anchorMin = b.flash.anchorMax = b.flash.pivot = new Vector2(0.5f, 0.5f);
+            // (The point and its glow: 10 and 2 x (30 + 60) about it.)
+            b.flash.sizeDelta = Vector2.one * 190 * Z;
+            b.flashImg = b.flash.gameObject.AddComponent<RawImage>();
+            b.flashImg.texture = FlashTex();
+            b.flashImg.raycastTarget = false;
+            b.rays = Hud.Rect(b.flash, "Rays");
+            b.rays.anchorMin = b.rays.anchorMax = b.rays.pivot = new Vector2(0.5f, 0.5f);
+            // (inset -400% of the 10 point: 90 across, inside the flash's 190.)
+            b.rays.sizeDelta = Vector2.one * 90 * Z;
+            b.raysImg = b.rays.gameObject.AddComponent<RawImage>();
+            b.raysImg.texture = RaysTex();
+            b.raysImg.raycastTarget = false;
+            b.Update();
+        }
+
+        void Update()
+        {
+            float k = Mathf.Clamp01((Time.time - from) / 0.9f);
+            float a = k < 0.6f ? 1 : 1 - Bezier(0.2f, 0.8f, 0.2f, 1, (k - 0.6f) / 0.4f);
+            flash.localScale = Vector3.one * Mathf.Lerp(0.2f, 60, Bezier(0.2f, 0.8f, 0.2f, 1, k));
+            flashImg.color = new Color(1, 1, 1, a);
+            float r = Bezier(0, 0, 0.58f, 1, k);
+            rays.localScale = Vector3.one * Mathf.Lerp(0.3f, 1.4f, r);
+            rays.localRotation = Quaternion.Euler(0, 0, -40 * r);
+            raysImg.color = new Color(1, 1, 1, a * (1 - r));
+            if (k >= 1)
+            {
+                Destroy(flash.gameObject);
+                Destroy(this);
+            }
+        }
+
+        static Texture2D FlashTex()
+        {
+            if (flashTex != null) return flashTex;
+            const int S = 128;
+            flashTex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            var pale = new Color(226 / 255f, 236 / 255f, 252 / 255f, 0.75f);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    // (In the web's pixels from the middle of its 190.)
+                    float d = new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f).magnitude / S * 190;
+                    // The glow (box-shadow 0 0 60 30 rgba(236, 243, 255, 0.7): the 10 point spread 30, blurred 60).
+                    float g = 0.7f * 0.5f * Erfc((d - 35) / 30 / 1.4142f);
+                    var c = new Color(236 / 255f, 243 / 255f, 255 / 255f, g);
+                    // The point (radial-gradient over its 10, to its corner: white, pale at 40%, gone at 70%).
+                    if (d < 5)
+                    {
+                        float f = d / 7.07f;
+                        var p = f < 0.4f ? Color.Lerp(Color.white, pale, f / 0.4f) : Color.Lerp(pale, new Color(pale.r, pale.g, pale.b, 0), (f - 0.4f) / 0.3f);
+                        if (f >= 0.7f) p = Color.clear;
+                        c = new Color(Mathf.Lerp(c.r, p.r, p.a), Mathf.Lerp(c.g, p.g, p.a), Mathf.Lerp(c.b, p.b, p.a), p.a + c.a * (1 - p.a));
+                    }
+                    flashTex.SetPixel(x, y, c);
+                }
+            flashTex.Apply();
+            return flashTex;
+        }
+
+        static float Erfc(float x)
+        {
+            // (Abramowitz and Stegun 7.1.26.)
+            float z = Mathf.Abs(x), t = 1 / (1 + 0.3275911f * z);
+            float r = t * (0.254829592f + t * (-0.284496736f + t * (1.421413741f + t * (-1.453152027f + t * 1.061405429f)))) * Mathf.Exp(-z * z);
+            return x >= 0 ? r : 2 - r;
+        }
+
+        static Texture2D RaysTex()
+        {
+            if (raysTex != null) return raysTex;
+            const int S = 256;
+            raysTex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float dx = x + 0.5f - S / 2f, dy = y + 0.5f - S / 2f;
+                    // (repeating-conic-gradient: white 0.75 for 4deg of every 18; masked by a radial-gradient to the
+                    // corner, whole to 20%, gone by 70%.)
+                    float deg = Mathf.Repeat(Mathf.Atan2(dx, dy) * Mathf.Rad2Deg, 18);
+                    float on = deg < 4 ? 0.75f : 0;
+                    float f = new Vector2(dx, dy).magnitude / (S / 2f * 1.4142f);
+                    float m = f < 0.2f ? 1 : Mathf.Clamp01(1 - (f - 0.2f) / 0.5f);
+                    raysTex.SetPixel(x, y, new Color(1, 1, 1, on * m));
+                }
+            raysTex.Apply();
+            return raysTex;
+        }
     }
 
     /// <summary>A token bobbing (styles.css cmp-token-float: up `Height` half way through each `Period`, eased, from `Delay`).</summary>
