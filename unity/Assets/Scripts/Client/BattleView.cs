@@ -485,13 +485,19 @@ public partial class BattleView : MonoBehaviour
                 if (Game.ActivePlayer(next).Id == you) Sound.Play("turn", 0.6f);
                 break;
             case "attack":
-                Sound.Play("swing");
-                // The attacker lunges at what it strikes; a card struck shudders.
-                var target = a.TargetUid != null ? Board.WorldOf(a.TargetUid) : Board.SunOf(next.Players.FirstOrDefault(p => p.Id != actor.Id)?.Id ?? "")?.transform.position;
-                if (target != null) Board.View(a.AttackerUid)?.Lunge(target.Value);
+                // (The attacker struck already, and the blow lands now: app.ts lunge.) A card struck shudders and flares.
+                bool struck = struckBy == a.AttackerUid;
+                struckBy = null;
+                if (!struck)
+                {
+                    Sound.Play("swing");
+                    var target = a.TargetUid != null ? Board.WorldOf(a.TargetUid) : Board.SunOf(next.Players.FirstOrDefault(p => p.Id != actor.Id)?.Id ?? "")?.transform.position;
+                    if (target != null) Board.View(a.AttackerUid)?.Lunge(target.Value);
+                }
                 if (a.TargetUid != null)
                 {
-                    Board.View(a.TargetUid)?.Shake(0.15f);
+                    Board.View(a.TargetUid)?.Shake(struck ? 0 : 0.15f);
+                    Board.View(a.TargetUid)?.Flash(true, struck ? 0 : 0.15f, 0.42f, 0.9f);
                     CardBlow(prev, next, a.TargetUid);
                 }
                 break;

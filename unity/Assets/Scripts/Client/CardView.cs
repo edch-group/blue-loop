@@ -78,15 +78,16 @@ public class CardView : MonoBehaviour
     }
 
     MeshRenderer flash;
-    float flashAt = -1, flashFor;
+    float flashAt = -1, flashFor, flashBright;
     bool flashHit;
 
     /// <summary>
     /// A card struck (.fx-hit-card: a hot ring and glow, the card brightened, gone over 0.6 s) or given something
     /// (.fx-upgrade: a white ring and glow rising to 30% of 1.2 s and gone), `after` seconds from now.
     /// </summary>
-    public void Flash(bool hit, float after = 0)
+    public void Flash(bool hit, float after = 0, float seconds = 0, float bright = 0.6f)
     {
+        flashBright = bright;
         if (flash == null)
         {
             flash = Mats.Flat("Flash", transform, Mats.Make("Soft", new Color(0, 0, 0, 0)), 1.8f, 2.2f, -0.0005f);
@@ -96,7 +97,7 @@ public class CardView : MonoBehaviour
             flash.sharedMaterial.renderQueue = 2996;
         }
         flashHit = hit;
-        flashFor = hit ? 0.6f : 1.2f;
+        flashFor = seconds > 0 ? seconds : hit ? 0.6f : 1.2f;
         flashAt = Time.time + after;
     }
 
@@ -113,7 +114,7 @@ public class CardView : MonoBehaviour
         if (flashHit)
         {
             var f = face.sharedMaterial.color;
-            float b = 1 + 0.6f * Mathf.Clamp01(k);
+            float b = 1 + flashBright * Mathf.Clamp01(k);
             face.sharedMaterial.color = new Color(b, b, b, f.a);
         }
     }
@@ -166,6 +167,70 @@ public class CardView : MonoBehaviour
     /// <summary>Shudder: a blow landing.</summary>
     public void Shake(float after = 0) => shakeAge = -after;
 
+    // An attack's strike (app.ts lunge): where it smashes into, from where it stands, and how far it lifts first.
+    float strikeAge = -1;
+    Vector3 strikeTo, strikeLift;
+    float strikeSide;
+    public const float StrikeTime = 0.9f, StrikeHit = 0.58f;
+
+    /// <summary>
+    /// app.ts lunge (0.9 s): lifted, tilted back (1.16 by 30%), then into its target just short of its middle (82% of
+    /// the way, by 58%, where the blow lands), rebounding a little (to 90% by 66%), then home. Over everything.
+    /// </summary>
+    public void Strike(Vector3 worldTarget, float liftWorld)
+    {
+        var d = worldTarget - transform.position;
+        d.y = 0;
+        var local = transform.parent != null ? transform.parent.InverseTransformVector(d) : d;
+        strikeTo = local * 0.82f;
+        strikeSide = d.x >= 0 ? 1 : -1;
+        var up = transform.parent != null ? transform.parent.InverseTransformVector(new Vector3(0, 0, liftWorld)) : new Vector3(0, 0, liftWorld);
+        strikeLift = up;
+        strikeAge = 0;
+    }
+
+    /// <summary>The strike's pose at `k` of it: offset (local), its turn about the table's normal (degrees) and scale.</summary>
+    (Vector3 off, float turn, float scale) StrikePose(float k)
+    {
+        // (A screen pixel to the side: the lift's own length over 18.)
+        var side = new Vector3(strikeSide * strikeLift.magnitude / 18 * -8, 0, 0);
+        var p1 = side + strikeLift;
+        if (k < 0.3f)
+        {
+            float e = k / 0.3f;
+            return (Vector3.Lerp(Vector3.zero, p1, e), Mathf.Lerp(0, -strikeSide * 10, e), Mathf.Lerp(1, 1.16f, e));
+        }
+        if (k < 0.58f)
+        {
+            float e = Ease(0.55f, 0, 0.95f, 0.45f, (k - 0.3f) / 0.28f);
+            return (Vector3.Lerp(p1, strikeTo, e), Mathf.Lerp(-strikeSide * 10, strikeSide * 8, e), Mathf.Lerp(1.16f, 1.08f, e));
+        }
+        if (k < 0.66f)
+        {
+            float e = (k - 0.58f) / 0.08f;
+            return (Vector3.Lerp(strikeTo, strikeTo * 0.9f, e), Mathf.Lerp(strikeSide * 8, strikeSide * 3, e), Mathf.Lerp(1.08f, 1.06f, e));
+        }
+        float f = Ease(0.3f, 0.7f, 0.3f, 1, (k - 0.66f) / 0.34f);
+        return (Vector3.Lerp(strikeTo * 0.9f, Vector3.zero, f), Mathf.Lerp(strikeSide * 3, 0, f), Mathf.Lerp(1.06f, 1, f));
+    }
+
+    /// <summary>cubic-bezier(x1, y1, x2, y2) at x.</summary>
+    static float Ease(float x1, float y1, float x2, float y2, float x)
+    {
+        x = Mathf.Clamp01(x);
+        float t = x;
+        for (int i = 0; i < 12; i++)
+        {
+            float u = 1 - t;
+            float bx = 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t - x;
+            float dx = 3 * u * u * x1 + 6 * u * t * (x2 - x1) + 3 * t * t * (1 - x2);
+            if (Mathf.Abs(dx) < 1e-5f) break;
+            t = Mathf.Clamp01(t - bx / dx);
+        }
+        float v = 1 - t;
+        return 3 * v * v * t * y1 + 3 * v * t * t * y2 + t * t * t;
+    }
+
     /// <summary>Gone to a pile (or its owner): it flies there, shrinking to `scale` and fading, then is gone.</summary>
     public void GoTo(Vector3 worldTo, float scale, float after = 0)
     {
@@ -193,9 +258,22 @@ public class CardView : MonoBehaviour
     {
         var o = Vector3.zero;
         if (lungeAge >= 0) o += lunge * Mathf.Sin(Mathf.PI * Mathf.Clamp01(lungeAge / LungeTime));
-        if (shakeAge >= 0) o += new Vector3(Mathf.Sin(shakeAge * 70) * 0.06f * (1 - shakeAge / ShakeTime), 0, 0);
+        if (shakeAge >= 0)
+        {
+            // (translate: 0, (-5px, 2px), (4px, -2px), (-2px, 1px), 0, evenly over 0.32 s; down the screen is toward you.)
+            var keys = new[] { Vector2.zero, new Vector2(-5, 2), new Vector2(4, -2), new Vector2(-2, 1), Vector2.zero };
+            float u = Mathf.Clamp01(shakeAge / ShakeTime) * 4;
+            int i = Mathf.Min(3, (int)u);
+            var px = Vector2.Lerp(keys[i], keys[i + 1], u - i);
+            var w = new Vector3(Board.Px(px.x), 0, -Board.Px(px.y));
+            o += transform.parent != null ? transform.parent.InverseTransformVector(w) : w;
+        }
         return o;
     }
+
+    Quaternion baseRot = Quaternion.identity;
+    Vector3 baseScale = Vector3.one;
+    bool based;
 
     void Update()
     {
@@ -204,11 +282,30 @@ public class CardView : MonoBehaviour
         float k = 1 - Mathf.Exp(-Time.deltaTime * 12);
         var at = transform.localPosition - applied;
         at = Vector3.Lerp(at, goalPos, k);
-        transform.localRotation = Quaternion.Slerp(transform.localRotation, goalRot, k);
-        transform.localScale = Vector3.Lerp(transform.localScale, goalScale, k);
+        if (!based || strikeAge < 0) { baseRot = transform.localRotation; baseScale = transform.localScale; based = true; }
+        baseRot = Quaternion.Slerp(baseRot, goalRot, k);
+        baseScale = Vector3.Lerp(baseScale, goalScale, k);
         if (lungeAge >= 0) { lungeAge += Time.deltaTime; if (lungeAge > LungeTime) lungeAge = -1; }
         if (shakeAge > -10) { shakeAge += Time.deltaTime; if (shakeAge > ShakeTime) shakeAge = -11; }
         applied = Offset();
+        var turn = Quaternion.identity;
+        var grow = 1f;
+        if (strikeAge >= 0)
+        {
+            strikeAge += Time.deltaTime;
+            float sk = strikeAge / StrikeTime;
+            if (sk >= 1) strikeAge = -1;
+            else
+            {
+                var pose = StrikePose(sk);
+                // (Over everything: raised off the table while it flies.)
+                applied += pose.off + new Vector3(0, 0.6f * Mathf.Sin(Mathf.PI * sk), 0);
+                turn = Quaternion.Euler(0, pose.turn, 0);
+                grow = pose.scale;
+            }
+        }
+        transform.localRotation = baseRot * turn;
+        transform.localScale = baseScale * grow;
         transform.localPosition = at + applied;
     }
 

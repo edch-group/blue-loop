@@ -82,7 +82,38 @@ public partial class BattleView
             Refresh();
             return;
         }
+        // An attack lands the moment the attacker strikes (app.ts lunge, landAtStrike).
+        if (a.Type == "attack" && next.Reaction == null && StrikeFor(prev, a))
+        {
+            landing = Land;
+            strikeLand = Time.time + CardView.StrikeTime * CardView.StrikeHit;
+            return;
+        }
         Land();
+    }
+
+    float strikeLand;
+    string struckBy;
+
+    /// <summary>
+    /// app.ts lunge: the attacker lifts off the table, tilts back and smashes into the card it attacks (or its rival's
+    /// sun), then settles back; false when there is nothing to animate.
+    /// </summary>
+    bool StrikeFor(GameState prev, EngineAction a)
+    {
+        if (!Application.isPlaying || Autoplay || Board == null) return false;
+        var view = Board.View(a.AttackerUid);
+        if (view == null) return false;
+        var owner = prev.Players.FirstOrDefault(p => p.Tableau.Any(c => c.Uid == a.AttackerUid));
+        var rival = owner != null ? Game.TargetOf(prev, owner) : null;
+        Vector3? to = a.TargetUid != null ? Board.WorldOf(a.TargetUid) : rival != null ? Board.SunOf(rival.Id)?.transform.position : null;
+        if (to == null) return false;
+        var rect = CardRect(a.AttackerUid);
+        float liftPx = Mathf.Max(18, (rect?.height ?? 0) * 0.18f);
+        view.Strike(to.Value, Board.Px(liftPx));
+        struckBy = a.AttackerUid;
+        Sound.Play("swing");
+        return true;
     }
 
     void FlushLanding()
@@ -106,6 +137,11 @@ public partial class BattleView
     /// <summary>The stage's clock: auto-confirming, your own card's hold, a sprung card's moment.</summary>
     void StageTick()
     {
+        if (strikeLand > 0 && Time.time >= strikeLand)
+        {
+            strikeLand = 0;
+            if (landing != null) FlushLanding();
+        }
         if (stage == null) return;
         if (stage.Confirm && (AutoConfirms || stage.FaceDown) && Time.time - stage.Shown > (stage.FaceDown ? 1.1f : AutoConfirm)) ConfirmStage();
         else if (stage.Own && landing != null && Time.time - landingSince > OwnHold) FlushLanding();
