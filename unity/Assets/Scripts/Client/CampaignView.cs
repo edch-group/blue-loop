@@ -128,6 +128,8 @@ public partial class CampaignView : MonoBehaviour
         distance = distanceGoal = RestDist;
         pitchNow = RestPitch;
         Refresh();
+        // (A run carried on: announced.)
+        if (!fresh && Application.isPlaying) StartCoroutine(Announce());
     }
 
     // (The web's map, laid on its world: MAP_K world units a map pixel, centred; this world is the web's scaled up

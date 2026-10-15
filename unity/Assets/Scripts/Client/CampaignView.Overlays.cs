@@ -1669,21 +1669,30 @@ public partial class CampaignView
         group.blocksRaycasts = false;
         group.alpha = 0;
         float mx = PW / 2, my = PH / 2;
-        var glow = WebLook.Centred(v, "Glow", mx, my, PW, 260 * Z).gameObject.AddComponent<RawImage>();
+        // (.turn-banner-glow: across the screen, min(46vh, 260) tall, in its middle.)
+        var glow = WebLook.Centred(v, "Glow", mx, my, PW, Mathf.Min(46 * Vh, 260 * Z)).gameObject.AddComponent<RawImage>();
         glow.texture = BannerGlow();
         glow.raycastTarget = false;
-        var line = WebLook.Centred(v, "Line", mx, my + 2.4f * 16 * Z, Mathf.Min(420 * Z, PW * 0.8f), 1.5f).gameObject.AddComponent<RawImage>();
-        line.texture = BannerLine();
-        line.raycastTarget = false;
+        // (.turn-banner-text: clamp(1.6rem, 9vh, 3.4rem), spaced 0.5em; past 12 letters clamp(1.1rem, min(6.4vh, 4.2vw),
+        // 2.6rem), spaced 0.34em. Under it, 6 apart, .turn-banner-sub: 0.6rem, spaced 0.4em; the two in the middle. No
+        // line under them: the campaign's banners carry nothing more (.turn-banner-line comes only with a day's orbit).)
         bool longer = text.Length > 12;
-        float size = (longer ? 2.6f : 3.4f) * 16 * Z;
-        var words = WebLook.Words(WebLook.Centred(v, "Words", mx, my - 6, PW, size * 1.4f), text.ToUpperInvariant(), size, longer ? 0.34f : 0.5f, WebLook.Hex("#5b5f67"), true, 400);
-        var under = WebLook.Words(WebLook.Centred(v, "Sub", mx, my + size * 0.7f + 6 * Z, PW, 24), sub.ToUpperInvariant(), 0.6f * 16 * Z, 0.4f, Look.InkSoft, true, 500);
-        v.gameObject.AddComponent<BannerLife>().Set(group, words, under, line.rectTransform, longer ? 0.34f : 0.5f);
+        float size = longer ? Css.Clamp(1.1f * 16 * Z, Mathf.Min(6.4f * Vh, 4.2f * Vw), 2.6f * 16 * Z) : Css.Clamp(1.6f * 16 * Z, 9 * Vh, 3.4f * 16 * Z);
+        float subS = 0.6f * 16 * Z, textH = size * 1.26f, subH = subS * 1.26f, top = my - (textH + 6 * Z + subH) / 2;
+        var words = WebLook.Words(WebLook.Box(v, "Words", 0, top, PW, textH), text.ToUpperInvariant(), size, longer ? 0.34f : 0.5f, WebLook.Hex("#5b5f67"), true, 400);
+        var under = WebLook.Words(WebLook.Box(v, "Sub", 0, top + textH + 6 * Z, PW, subH), sub.ToUpperInvariant(), subS, 0.4f, Look.InkSoft, true, 400);
+        v.gameObject.AddComponent<BannerLife>().Set(group, words, under, null, longer ? 0.34f : 0.5f, longer ? 0.6f : 0.9f);
         Sound.Play("turn");
     }
 
-    static Texture2D bannerGlow, bannerLine;
+    /// <summary>A run carried on from the menu (app.ts campaign-continue): CAMPAIGN, and the galaxy and turn under it, 120ms on.</summary>
+    System.Collections.IEnumerator Announce()
+    {
+        yield return new WaitForSeconds(0.12f);
+        if (state != null) Banner("campaign", $"galaxy {state.Universe} · turn {state.Turn}");
+    }
+
+    static Texture2D bannerGlow;
 
     /// <summary>The banner's glow: an ellipse of near-white, solid to 45% of the way out, gone by 75%.</summary>
     static Texture2D BannerGlow()
@@ -1702,20 +1711,10 @@ public partial class CampaignView
         return bannerGlow;
     }
 
-    /// <summary>The line under the banner's words: grey in the middle, fading out to each end.</summary>
-    static Texture2D BannerLine()
-    {
-        if (bannerLine != null) return bannerLine;
-        bannerLine = new Texture2D(64, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
-        var grey = WebLook.Hex("#9ea1a8");
-        for (int x = 0; x < 64; x++) bannerLine.SetPixel(x, 0, new Color(grey.r, grey.g, grey.b, 1 - Mathf.Abs(x + 0.5f - 32) / 32));
-        bannerLine.Apply();
-        return bannerLine;
-    }
-
     /// <summary>
-    /// A banner's two seconds (styles.css bannerLife, bannerText, bannerLine): in over the first 12%, held to 75%, out
-    /// by the end; its words closing from 0.9em apart; the line growing out from the middle; then gone.
+    /// A banner's two seconds (styles.css bannerLife, bannerText): in over the first 12%, held to 75%, out by the end;
+    /// its words closing from 0.9em apart (a long one's from 0.6em); a line, if it has one, growing out from the middle;
+    /// then gone.
     /// </summary>
     public class BannerLife : MonoBehaviour
     {
@@ -1724,8 +1723,12 @@ public partial class CampaignView
         RectTransform line;
         float spacing, t0;
 
-        public void Set(CanvasGroup g, TMP_Text w, TMP_Text s, RectTransform l, float em)
+        float from;
+
+        /// <summary>Its parts, the words' spacing at rest (em) and as they come in (bannerText 0.9em; bannerTextLong 0.6em).</summary>
+        public void Set(CanvasGroup g, TMP_Text w, TMP_Text s, RectTransform l, float em, float fromEm = 0.9f)
         {
+            from = fromEm;
             group = g;
             words = w;
             sub = s;
@@ -1742,13 +1745,13 @@ public partial class CampaignView
             group.alpha = k < 0.12f ? k / 0.12f : k < 0.75f ? 1 : 1 - (k - 0.75f) / 0.25f;
             // (cubic-bezier(.2, .8, .2, 1): quick in, settling.)
             float e = 1 - Mathf.Pow(1 - k, 3);
-            words.characterSpacing = Mathf.Lerp(0.9f, spacing, e) * 100;
+            words.characterSpacing = Mathf.Lerp(from, spacing, e) * 100;
             words.alpha = Mathf.Clamp01(k / 0.3f);
             float ks = Mathf.Clamp01((t - 0.1f) / 2);
             sub.characterSpacing = Mathf.Lerp(0.9f, 0.4f, 1 - Mathf.Pow(1 - ks, 3)) * 100;
             sub.alpha = Mathf.Clamp01(ks / 0.3f);
             float kl = Mathf.Clamp01((t - 0.2f) / 1.6f);
-            line.localScale = new Vector3(1 - Mathf.Pow(1 - kl, 2), 1, 1);
+            if (line != null) line.localScale = new Vector3(1 - Mathf.Pow(1 - kl, 2), 1, 1);
         }
     }
 
