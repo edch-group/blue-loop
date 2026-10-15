@@ -63,7 +63,8 @@ def main():
             continue
         with open(os.path.join(out, name), 'wb') as f: f.write(data)
         print(f'  {name}: {len(data) >> 10} KB')
-    meta = {k: v for k, v in pick.items() if k not in ('model_urls', 'texture_urls', 'thumbnail_url', 'video_url')}
+    # (Not its links: signed, and soon stale.)
+    meta = {k: v for k, v in pick.items() if 'url' not in k}
     with open(os.path.join(out, 'meshy.json'), 'w') as f: json.dump(meta, f, indent=2)
 
 

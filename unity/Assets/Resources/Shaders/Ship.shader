@@ -1,8 +1,8 @@
 // A model (nebula-objects.ts SHIP_FRAG): its look worked out from each part's material and colour. Plated metal:
 // panels of slightly differing tone, seams cut in, wear and grime, a stripe in its holder's colour; glass and crystal,
 // deep and bright at the edge; glowing parts white-hot at heart and flickering; living hide, mottled; dark gloss;
-// molten; pearl; the Captain's ship's made hull, painted part by part, and its lights. Lit by a key light with a sharp
-// highlight and the paper's light caught at its edges.
+// molten; pearl; the Captain's ship's made hull as Meshy textured it, and its bells' burning throats. Lit by a key light
+// with a sharp highlight and the paper's light caught at its edges.
 Shader "BlueLoop/Ship"
 {
     Properties { _Color ("Holder's colour", Color) = (0.36,0.56,0.86,1) _Alpha ("Alpha", Range(0,1)) = 1 _Burn ("Burn", Float) = 0 _Flip ("Z flip (a scene in the web's own axes)", Float) = 1 }
@@ -18,6 +18,8 @@ Shader "BlueLoop/Ship"
             #include "UnityCG.cginc"
             fixed4 _Color;
             float _Alpha, _Burn, _Flip;
+            // (The Captain's ship's texture, as Meshy painted it: ModelMesh sets it for all.)
+            sampler2D _CaptainTex;
             struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; float4 color : COLOR; float2 uv : TEXCOORD0; };
             struct v2f { float4 pos : SV_POSITION; float3 n : TEXCOORD0; float3 w : TEXCOORD1; float3 l : TEXCOORD2; float3 ln : TEXCOORD3; float m : TEXCOORD4; float3 c : TEXCOORD5; };
             v2f vert (appdata v)
@@ -62,24 +64,23 @@ Shader "BlueLoop/Ship"
                 float3 c;
                 if (m > 8.5)
                 {
-                    // The Captain's ship's lights, each in its own colour: its windows and porthole, its lamps, the
-                    // bells' fiery throats; hotter where seen square on, flickering a little.
-                    float flick = 0.92 + 0.08 * sin(t * 23.0 + i.l.x * 30.0) * sin(t * 13.0 + i.l.z * 20.0);
-                    c = lerp(i.c, float3(1, 0.95, 0.8), 0.18 * ndv * ndv * ndv) * flick * (1.0 + _Burn * 0.15);
+                    // The Captain's ship's bells' throats, closed and burning.
+                    float flick = 0.9 + 0.1 * sin(t * 23.0 + i.l.x * 30.0) * sin(t * 13.0 + i.l.z * 20.0);
+                    c = lerp(i.c, float3(1, 0.85, 0.5), 0.35 * ndv * ndv) * flick * (1.0 + _Burn * 0.15);
                     return fixed4(min(c, 1) * _Alpha, _Alpha);
                 }
                 if (m > 7.5)
                 {
-                    // The Captain's ship's made hull, painted part by part (CaptainShip.cs): lit as metal, a little worn,
-                    // light bouncing up from below, and darkening where it turns away from the eye, as the art inks its
-                    // outlines.
-                    float3 base = i.c;
-                    float grime = n3(i.l * 46.0) * 0.6 + n3(i.l * 110.0) * 0.4;
-                    base *= 0.95 + 0.08 * grime;
-                    float spec = pow(max(dot(n, h), 0.0), 48.0) * 0.35;
-                    c = base * (0.42 + 0.78 * diff) + spec * (0.6 + 0.4 * base);
+                    // The Captain's ship's made hull, as Meshy textured it (CaptainShip.cs): lit as worn metal, a highlight
+                    // and light bouncing up from below; what it painted lit (its windows, the porthole, its lamps) glowing.
+                    float4 p = tex2D(_CaptainTex, i.c.rg);
+                    float3 base = p.rgb;
+                    float spec = pow(max(dot(n, h), 0.0), 40.0) * 0.3;
+                    c = base * (0.5 + 0.75 * diff) + spec * (0.5 + 0.5 * base);
                     c += base * max(-n.y, 0.0) * 0.1;
-                    c = lerp(c, base * 0.25, smoothstep(0.62, 0.9, 1.0 - ndv) * 0.75);
+                    c = lerp(c, sky, fres * 0.15);
+                    float flick = 0.95 + 0.05 * sin(t * 7.0 + i.l.x * 40.0) * sin(t * 4.3 + i.l.z * 30.0);
+                    c = lerp(c, base * 1.15 * flick * (1.0 + _Burn * 0.1), p.a);
                     return fixed4(min(c, 1) * _Alpha, _Alpha);
                 }
                 if (m > 1.5 && m < 2.5)

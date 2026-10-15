@@ -42,7 +42,7 @@ namespace BlueLoop.Models
     /// The Captain's ship, as one model wherever it is seen: on the campaign's menu (CampaignBackdrop, large, the Captain on
     /// its deck) and on the map (flying between systems) [direction: the hero's ship on the map the same model as the
     /// campaign menu's]. Its hull is a made model (Resources/Models/CaptainShip.bytes, baked by scripts/bake-captain-ship.py
-    /// from unity/ModelSources/captain-ship), repainted part by part in its art's colours (Ship.shader's painted metal); the
+    /// from unity/ModelSources/captain-ship, as Meshy textured it: Resources/Models/CaptainShipColour.png); the
     /// parts fitted, its wounds while the Captain is low, and the engines' glow are built onto it here. Box units as the
     /// ships' (ship3d.ts): 40 to the model's 1, x along, y across, z up.
     /// </summary>
@@ -91,7 +91,7 @@ namespace BlueLoop.Models
         {
             public float[] Pos, Nor;
             public byte[] Mat;
-            public float[] Col;
+            public float[] Col, Uv;
             public int[] Tris;
         }
 
@@ -104,16 +104,17 @@ namespace BlueLoop.Models
             using (var r = new System.IO.BinaryReader(new System.IO.MemoryStream(bytes)))
             {
                 if (new string(r.ReadChars(4)) != "BLCS") throw new InvalidOperationException("not the Captain's ship's hull");
-                if (r.ReadInt32() != 2) throw new InvalidOperationException("the Captain's ship's hull is an old bake (scripts/bake-captain-ship.py)");
+                if (r.ReadInt32() != 3) throw new InvalidOperationException("the Captain's ship's hull is an old bake (scripts/bake-captain-ship.py)");
                 int nv = r.ReadInt32(), nt = r.ReadInt32();
                 float q = r.ReadSingle();
-                var h = new HullData { Pos = new float[nv * 3], Nor = new float[nv * 3], Mat = new byte[nv], Col = new float[nv * 3] };
+                var h = new HullData { Pos = new float[nv * 3], Nor = new float[nv * 3], Mat = new byte[nv], Col = new float[nv * 3], Uv = new float[nv * 2] };
                 for (int i = 0; i < nv; i++)
                 {
                     for (int c = 0; c < 3; c++) h.Pos[i * 3 + c] = r.ReadInt16() / q;
                     for (int c = 0; c < 3; c++) h.Nor[i * 3 + c] = r.ReadSByte() / 127f;
                     h.Mat[i] = r.ReadByte();
                     for (int c = 0; c < 3; c++) h.Col[i * 3 + c] = r.ReadByte() / 255f;
+                    for (int c = 0; c < 2; c++) h.Uv[i * 2 + c] = r.ReadUInt16() / 65535f;
                 }
                 h.Tris = new int[nt * 3];
                 for (int i = 0; i < nt * 3; i++) h.Tris[i] = nv > 65535 ? (int)r.ReadUInt32() : r.ReadUInt16();
@@ -227,8 +228,8 @@ namespace BlueLoop.Models
             var smoke = new List<V3>();
             var engines = new List<V3>();
 
-            // The hull, each corner in its colour as painted (Ship.shader): painted metal (8), or lit (9): the windows, the
-            // porthole, the lamps, the bells' throats.
+            // The hull, each corner where it is in the hull's texture (its colour's red and green: Ship.shader's painted metal,
+            // 8), or, the bells' discs and plate, in its own colour (9 burning, 10 plain metal).
             {
                 var o = m.Out;
                 o.Capacity = h.Tris.Length * Ship3d.ShipStride + 60000;
@@ -244,10 +245,12 @@ namespace BlueLoop.Models
                     o.Add((float)n.X);
                     o.Add((float)n.Y);
                     o.Add((float)n.Z);
-                    o.Add(h.Col[i * 3]);
-                    o.Add(h.Col[i * 3 + 1]);
-                    o.Add(h.Col[i * 3 + 2]);
-                    o.Add(h.Mat[i]);
+                    var mat = h.Mat[i];
+                    o.Add(mat == 8 ? h.Uv[i * 2] : h.Col[i * 3]);
+                    o.Add(mat == 8 ? h.Uv[i * 2 + 1] : h.Col[i * 3 + 1]);
+                    o.Add(mat == 8 ? 0 : h.Col[i * 3 + 2]);
+                    // (Plain metal is the ship shader's own, 0.)
+                    o.Add(mat == 10 ? 0 : mat);
                 }
             }
 
