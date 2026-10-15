@@ -174,15 +174,17 @@ public partial class CampaignView
         float textW = bw - 2 * 12 * Z - 34 * Z - 30 * Z - 2 * 12 * Z;
         var words = WebLook.Words(Hud.Fill(Hud.Rect(bubble.transform, "Words")), line.Text, 0.8f * 16 * Z, 0, Look.Ink, false, 400, TextAlignmentOptions.TopLeft);
         words.textWrappingMode = TextWrappingModes.Normal;
-        float textH = words.GetPreferredValues(line.Text, textW, 0).y;
-        float bodyH = 16 + 2 * Z + textH;
+        // (.cmp-guide-text: line-height 1.4; the speaker's name over it 11 high (0.54rem Orbitron), 2 between.)
+        words.lineSpacing = (1.4f - 1.26f) * 100 / 1.26f;
+        float textH = words.GetPreferredValues(line.Text, textW, 0).y, whoH = 11 * Z;
+        float bodyH = whoH + 2 * Z + textH;
         float h = Mathf.Max(34 * Z, bodyH) + 2 * 10 * Z;
         WebLook.Box(bubble.rectTransform, x0, y0, bw, h);
         WebLook.Shadow(bubble, 8 * Z, 24 * Z, new Color(40 / 255f, 46 / 255f, 70 / 255f, 0.12f), 18 * Z);
         Face(bubble.transform, sp?.Card, 12 * Z + 17 * Z, h / 2, 34 * Z, WebLook.Hex("#1a1f2a"), (2 * Z, ring));
         float left = 12 * Z + 34 * Z + 12 * Z, top0 = (h - bodyH) / 2;
-        WebLook.Words(WebLook.Box(bubble.transform, "Who", left, top0, textW, 16), who.ToUpperInvariant(), 0.54f * 16 * Z, 0.14f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
-        WebLook.Box(words.rectTransform, left, top0 + 16 + 2 * Z, textW, textH + 4);
+        WebLook.Words(WebLook.Box(bubble.transform, "Who", left, top0, textW, whoH), who.ToUpperInvariant(), 0.54f * 16 * Z, 0.14f, Look.InkFaint, true, 400, TextAlignmentOptions.Left);
+        WebLook.Box(words.rectTransform, left, top0 + whoH + 2 * Z, textW, textH + 4);
         var next = WebLook.Rounded(bubble.transform, "Next", WebLook.Hex("#f3f2f8"), 999);
         next.raycastTarget = true;
         var nr = next.rectTransform;

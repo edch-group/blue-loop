@@ -766,8 +766,8 @@ public partial class CampaignView : MonoBehaviour
     }
 
     /// <summary>
-    /// Each system in reach pulsing, rings going out from it, a dashed ring turning round it; its name, and the name of
-    /// the one your ship is at (none through the opening shot, the map's marks hidden till it is over).
+    /// Each system in reach pulsing, rings going out from it, a dashed ring turning round it; no names (the map's marks
+    /// hidden through the opening shot, till it is over).
     /// </summary>
     void Rings()
     {
@@ -777,14 +777,8 @@ public partial class CampaignView : MonoBehaviour
         bool marks = !Cining && !launching;
         foreach (var kv in nodes)
         {
-            bool here = army?.NodeId == kv.Key, can = reach.Contains(kv.Key);
-            var name = kv.Value.Find("Name")?.GetComponent<TextMeshPro>();
-            if (name != null)
-            {
-                bool show = (can || here) && marks;
-                name.gameObject.SetActive(show);
-                if (show) name.text = Campaign.NodeById(state, kv.Key).Name.ToUpperInvariant();
-            }
+            // (No names on the map, as the web's (styles.css: systems are their stars).)
+            kv.Value.Find("Name")?.gameObject.SetActive(false);
             kv.Value.Find("Mark")?.gameObject.SetActive(marks);
         }
         if (mapRoot != null)
