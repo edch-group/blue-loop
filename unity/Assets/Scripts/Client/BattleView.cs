@@ -142,7 +142,8 @@ public partial class BattleView : MonoBehaviour
             string over = up ? HandCardAt(Input.mousePosition) : null;
             if (up != Board.HandUp || over != Board.HandHover) RaiseHand(up, over);
         }
-        // A tap acts; a press held (or a right click) reads the card under it, large.
+        // A tap acts; a press held on a touch screen (or a right click) reads the card under it, large (as the web's
+        // onPressStart, never for a mouse).
         if (Input.GetMouseButtonDown(1) && !OverHud()) Inspect();
         if (Input.GetMouseButtonDown(0) && !OverHud())
         {
@@ -152,7 +153,7 @@ public partial class BattleView : MonoBehaviour
         }
         if (Dragging && Input.GetMouseButton(0)) DragMove();
         if (Dragging && Input.GetMouseButtonUp(0)) DragRelease();
-        if (pressAt >= 0 && Input.GetMouseButton(0) && Time.time - pressAt > 0.45f && (Input.mousePosition - pressPos).magnitude < 12 * Css.PixelRatio)
+        if (pressAt >= 0 && touch && !Dragging && Input.GetMouseButton(0) && Time.time - pressAt > 0.45f && (Input.mousePosition - pressPos).magnitude < 12 * Css.PixelRatio)
         {
             pressAt = -1;
             Inspect();
