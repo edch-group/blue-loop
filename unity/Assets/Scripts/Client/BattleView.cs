@@ -94,6 +94,7 @@ public partial class BattleView : MonoBehaviour
         Clear();
         Refresh();
         Sound.Scene("battle");
+        DawnBanner(state, 0.4f);
     }
 
     /// <summary>The names the AI plays under in quickplay (app.ts BOT_NAMES).</summary>
@@ -119,6 +120,7 @@ public partial class BattleView : MonoBehaviour
         Clear();
         Refresh();
         Sound.Scene("battle");
+        DawnBanner(state, 0.4f);
     }
 
     // ---- The loop ----
@@ -128,7 +130,11 @@ public partial class BattleView : MonoBehaviour
         if (FitScreen() && state != null) Refresh();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
         if (state == null || state.WinnerId != null) return;
-        if (!busy && AiToMove()) StartCoroutine(AiMove());
+        StageTick();
+        DreamTick();
+        if (!busy && StageClear && AiToMove()) StartCoroutine(AiMove());
+        // (Skip all: a reply waiting on you is let pass.)
+        if (!busy && confirmMode == "skip" && state.Reaction != null && state.Reaction.PlayerId == you && !online) StartCoroutine(PassReply());
         if (Autoplay) return;
         // (A touch screen has no hover: a first tap on the hand raises it, a tap away lowers it, as the web's.)
         if (Input.touchCount > 0) touch = true;
@@ -224,6 +230,15 @@ public partial class BattleView : MonoBehaviour
 
     bool HumanDawnChoice() => state.Reaction == null && Game.ActivePlayer(state).Id == you && (Game.ActivePlayer(state).DawnChoices?.Count ?? 0) > 0;
 
+    IEnumerator PassReply()
+    {
+        busy = true;
+        var s = state;
+        yield return new WaitForSeconds(0.25f);
+        busy = false;
+        if (state == s && confirmMode == "skip") Do(new EngineAction { Type = "react" });
+    }
+
     IEnumerator AiMove()
     {
         busy = true;
@@ -239,10 +254,7 @@ public partial class BattleView : MonoBehaviour
         try
         {
             var a = HumanDawnChoice() ? AI.DawnChoiceFor(state) : AI.Choose(state);
-            var was = state;
-            state = Game.Apply(state, a);
-            StarSpin.Burst();
-            Hear(was, state, a);
+            Commit(a);
         }
         catch (System.Exception e)
         {
@@ -271,10 +283,7 @@ public partial class BattleView : MonoBehaviour
         }
         try
         {
-            var was = state;
-            state = Game.Apply(state, a);
-            StarSpin.Burst();
-            Hear(was, state, a);
+            Commit(a);
         }
         catch (GameError e)
         {
@@ -400,7 +409,14 @@ public partial class BattleView : MonoBehaviour
             var sunView = Board.SunOf(p.Id);
             if (sunView != null && (dHeat != 0 || p.Shields != w.Shields))
             {
-                if (byEnemy && a.Type != "attack" && dHeat > 0) Shot.Fire(Board.transform, origin, sunView.transform.position, sunView, true, Mathf.Max(0, at - 0.42f));
+                if (byEnemy && a.Type != "attack" && dHeat > 0)
+                {
+                    // (Heat flies from the card played, or the striking sun, to the sun it strikes: fx.ts projectile.)
+                    var fromRect = (a.CardUid != null ? CardRect(a.CardUid) : null) ?? SunRect(source.Id);
+                    var pid = p.Id;
+                    if (fromRect != null) StartCoroutine(Projectile(fromRect.Value, () => SunRect(pid) ?? fromRect.Value, Hot, Mathf.Max(0, at - 0.4f), 34, 0.62f, () => sunView.Pulse(true)));
+                    else sunView.Pulse(true, at);
+                }
                 else sunView.Pulse(dHeat >= 0, a.Type == "attack" ? 0.15f : at);
             }
             int lost = byEnemy ? Mathf.Max(0, w.Shields - p.Shields) : 0;
@@ -773,6 +789,12 @@ public partial class BattleView : MonoBehaviour
             MidHint(ask, ("cancel", () => { Clear(); Refresh(); }));
             return;
         }
+        if (d == null && puzzleKind == null && state.Challenge?.Kind == "dream" && state.WinnerId == null)
+        {
+            dawnPick = null;
+            DreamHint();
+            return;
+        }
         if (d == null) { dawnPick = null; return; }
         // Skip (or, aiming heat, their sun: it has to go somewhere); moving a card, back.
         System.Action skip = () => Do(new EngineAction { Type = "dawnChoice" });
@@ -827,51 +849,6 @@ public partial class BattleView : MonoBehaviour
     public float HandLift(CardInstance c) => c.Uid == picked || (discarding?.Contains(c.Uid) ?? false) ? 1f : 0;
 
     /// <summary>The card under the pointer, read large: its face, and in play what stands on it now.</summary>
-    void Inspect()
-    {
-        if (!Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 100)) return;
-        var v = hit.collider.GetComponentInParent<CardView>();
-        if (v == null) return;
-        // (A rival's trap stays hidden.)
-        if (state.Players.Any(p => p.Id != you && p.Lightspeed?.Uid == v.Uid)) return;
-        foreach (Transform c in inspector) Mats.Kill(c.gameObject);
-        inspector.gameObject.SetActive(true);
-        var veil = inspector.gameObject.GetComponent<Image>() ?? inspector.gameObject.AddComponent<Image>();
-        veil.color = new Color(240 / 255f, 240 / 255f, 238 / 255f, 0.78f);
-        var btn = inspector.gameObject.GetComponent<Button>() ?? inspector.gameObject.AddComponent<Button>();
-        btn.onClick.RemoveAllListeners();
-        btn.onClick.AddListener(() => inspector.gameObject.SetActive(false));
-        // (Seen whole on any screen: smaller on a phone's.)
-        var box = Whole(inspector, new Vector2(880, 700));
-        var face = Hud.Rect(box, "Face");
-        Hud.At(face, new Vector2(0.5f, 0.5f), new Vector2(-205, 30), new Vector2(406, 568));
-        var raw = face.gameObject.AddComponent<RawImage>();
-        raw.texture = Faces.Of(v.DefId, false);
-        raw.raycastTarget = false;
-        // What stands on it now, for a card in play.
-        var owner = state.Players.FirstOrDefault(p => p.Tableau.Any(c => c.Uid == v.Uid));
-        var card = owner?.Tableau.First(c => c.Uid == v.Uid);
-        var def = Cards.Def(v.DefId);
-        var lines = new List<string> { $"<b>{def.Name.ToUpperInvariant()}</b>" };
-        if (card != null)
-        {
-            int atk = Game.CardAttack(state, owner, card);
-            if (atk > 0 || Game.BaseAttack(def) > 0) lines.Add($"Attack {atk}{(card.Dimmed == true ? " (dimmed: attacked today)" : "")}");
-            lines.Add($"Stability {card.Health ?? 0}");
-            lines.Add($"Defence {Game.CardDefence(owner, card)}{(Game.IsGuard(owner, card) ? " · Guard" : "")}");
-            if ((card.Shields ?? 0) > 0) lines.Add($"Shields {card.Shields}");
-            if ((card.Growth ?? 0) > 0) lines.Add($"Grown {card.Growth}");
-            if (card.Frozen == true) lines.Add("Frozen");
-        }
-        var info = Hud.Glass(box, "Info", Look.GlassStrong);
-        Hud.At((RectTransform)info.transform, new Vector2(0.5f, 0.5f), new Vector2(219, 30 + 145), new Vector2(406, 60 + 40 * lines.Count));
-        var t = Hud.Label(info.transform, string.Join("\n", lines), 24, Look.Ink, false, 500, 0, TextAlignmentOptions.TopLeft);
-        t.margin = new Vector4(24, 20, 24, 20);
-        // (Under it, as the web's inspector sheet: a way to close it.)
-        var close = WhiteButton(box, "Close", () => inspector.gameObject.SetActive(false), 15);
-        Hud.At((RectTransform)close.transform, new Vector2(0.5f, 0.5f), new Vector2(0, -300), new Vector2(150, 50));
-    }
-
     // ---- The screen's own layer ----
 
     /// <summary>A rounded image's corners at `radius` canvas units (Hud.Rounded's own are 22).</summary>
@@ -940,6 +917,19 @@ public partial class BattleView : MonoBehaviour
     RectTransform chrome;
     RectTransform rivalHand;
     Image[] paceOn;
+    readonly TextMeshProUGUI[] paceWords = new TextMeshProUGUI[3];
+
+    /// <summary>The pill's chosen mode, a dark pill under its name.</summary>
+    void PaceShown()
+    {
+        if (paceOn == null) return;
+        int k = confirmMode == "auto" ? 1 : confirmMode == "skip" ? 2 : 0;
+        for (int i = 0; i < 3; i++)
+        {
+            paceOn[i].color = i == k ? Look.Ink : new Color(1, 1, 1, 0);
+            if (paceWords[i] != null) paceWords[i].color = i == k ? Color.white : Look.InkSoft;
+        }
+    }
     const float RefScale = 1.45f;
 
     /// <summary>The overlays' layer (see refLayer).</summary>
@@ -979,7 +969,8 @@ public partial class BattleView : MonoBehaviour
         refLayer = Hud.Rect(root, "Overlays");
         refLayer.anchorMin = refLayer.anchorMax = refLayer.pivot = new Vector2(0.5f, 0.5f);
         refLayer.localScale = Vector3.one / RefScale;
-        inspector = Hud.Rect(refLayer, "Inspector");
+        // (The card read large: in the page's own pixels, over everything, as the web's .zoom-view.)
+        inspector = Hud.Rect(root, "Inspector");
         Hud.Fill(inspector);
         inspector.gameObject.SetActive(false);
         reactionPanel = Hud.Rect(refLayer, "Reaction");
@@ -1053,8 +1044,13 @@ public partial class BattleView : MonoBehaviour
             on.color = i == 0 ? Look.Ink : new Color(1, 1, 1, 0);
             Corners(on, bh / 2);
             paceOn[i] = on;
-            Hud.Label(seg, names[i].ToUpperInvariant(), font, i == 0 ? Color.white : Look.InkSoft, true, 400, spacing);
+            paceWords[i] = Hud.Label(seg, names[i].ToUpperInvariant(), font, i == 0 ? Color.white : Look.InkSoft, true, 400, spacing);
+            string mode = names[i].ToLowerInvariant();
+            var pb = seg.gameObject.AddComponent<Button>();
+            pb.transition = Selectable.Transition.None;
+            pb.onClick.AddListener(() => SetConfirmMode(mode));
         }
+        PaceShown();
 
         // The corner buttons (the web's .hud .icon-btn, round, clamp(36px, 8vh, 44px), 6 px apart, at the page's top
         // right padding): the log, fullscreen, settings.
@@ -1234,12 +1230,16 @@ public partial class BattleView : MonoBehaviour
         ShowHint();
         PuzzleTag();
         GameOver();
+        DrawStage();
+        PaceShown();
+        SyncBossAim();
     }
 
     void Reaction()
     {
         foreach (Transform c in reactionPanel) Mats.Kill(c.gameObject);
-        bool show = state.Reaction != null && state.Reaction.PlayerId == you && !Autoplay;
+        // (Drawn on the stage now, as the web's .stage-react: see DrawReact.)
+        bool show = false;
         reactionPanel.gameObject.SetActive(show);
         if (!show) return;
         var r = state.Reaction;
@@ -1262,28 +1262,25 @@ public partial class BattleView : MonoBehaviour
     void GameOver()
     {
         foreach (Transform c in overPanel) Mats.Kill(c.gameObject);
+        overPanel.gameObject.SetActive(false);
         bool over = state.WinnerId != null && !Autoplay;
-        overPanel.gameObject.SetActive(over);
-        if (!over) return;
+        // (body:has(.game-result) .dock: the hand put away while the result shows.)
+        Board.ShowHand(!over);
+        if (!over) { ClearResult(); return; }
+        if (resultCard != null) return;
         if (puzzleKind != null) { PuzzleResult(); return; }
-        // (As the web's: a white card a little above the middle, the result, why, and the way out.)
-        Hud.At(overPanel, new Vector2(0.5f, 0.55f), Vector2.zero, new Vector2(560, 230));
-        var card = Hud.Glass(overPanel, "Result", Color.white);
-        Hud.Fill((RectTransform)card.transform);
         bool draw = Game.IsDraw(state);
         bool won = state.WinnerId == you;
         var quitter = state.ConcededBy != null ? Player(state.ConcededBy) : null;
-        var t = Hud.Label(card.transform, draw ? "DRAW" : won ? "VICTORY" : "DEFEAT", 48.7f, draw ? Look.Ink : won ? new Color(0.76f, 0.48f, 0.12f) : new Color(0.42f, 0.46f, 0.56f), true, 500, 32, TextAlignmentOptions.Top);
-        t.margin = new Vector4(0, 34, 0, 0);
-        string why = draw ? $"Every sun went supernova together in round {state.Round}."
+        string title = draw ? "draw" : won ? "victory" : "defeat";
+        string why = draw ? $"Every sun went supernova together in round {state.Round}.{(campaignOf != null ? " Your flagship pulls back, unbroken." : "")}"
             : quitter != null ? $"{(quitter.Id == you ? "You" : "Your rival")} conceded in round {state.Round}."
             : $"The last sun standing after {state.Round} round{(state.Round == 1 ? "" : "s")}.";
-        var w = Hud.Label(card.transform, why, 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
-        w.margin = new Vector4(20, 96, 20, 0);
-        if (online) { OnlineEnd(card.transform, quitter != null); return; }
+        int tone = draw ? 0 : won ? 1 : -1;
+        if (online) { OnlineEnd(title, tone, why, quitter != null); return; }
         // (A battle of the run's goes back to the map, what it won waiting there.)
-        var menu = campaignOf != null ? WhiteButton(card.transform, "Continue", BackToCampaign, 15) : WhiteButton(card.transform, "Return to menu", () => App.Instance?.Menu("hub"), 15);
-        Hud.At((RectTransform)menu.transform, new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(250, 56));
+        var act = campaignOf != null ? new ResultAction("continue", BackToCampaign, true) : new ResultAction("return to menu", () => App.Instance?.Menu("hub"), true);
+        ResultCard(title, tone, why, null, new[] { act }, false);
     }
 
     /// <summary>Everything settled where it is going (for a still picture).</summary>

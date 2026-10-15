@@ -217,39 +217,14 @@ public partial class BattleView
         bool won = state.WinnerId == state.Players[0].Id;
         if (won) { if (lesson != null) Puzzles.MarkLesson(puzzleId); else Puzzles.MarkChallenge(puzzleId); }
         string next = won ? (lesson != null ? Puzzles.NextLesson(puzzleId)?.Id : Puzzles.NextChallenge(puzzleId)?.Id) : null;
-        Hud.At(overPanel, new Vector2(0.5f, 0.55f), Vector2.zero, new Vector2(560, 250));
-        var card = Hud.Glass(overPanel, "Result", Color.white);
-        Hud.Fill((RectTransform)card.transform);
-        var t = Hud.Label(card.transform, won ? (lesson != null ? "LEARNT" : "SOLVED") : "NOT YET", 38, won ? new Color(0.76f, 0.48f, 0.12f) : new Color(0.42f, 0.46f, 0.56f), true, 500, 32, TextAlignmentOptions.Top);
-        t.margin = new Vector4(0, 30, 0, 0);
+        string title = won ? (lesson != null ? "learnt" : "solved") : "not yet";
         string why = won ? (lesson != null ? lesson.Done : "The dream gives way.") : lesson != null ? "Try again: the answer is there." : "The dream holds. Try again.";
-        var w = Hud.Label(card.transform, why, 16, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
-        w.textWrappingMode = TextWrappingModes.Normal;
-        w.margin = new Vector4(won && lesson != null ? 84 : 30, 92, 30, 0);
-        if (won && lesson != null)
-        {
-            var face = Hud.Rect(card.transform, "Oriel");
-            Hud.At(face, new Vector2(0, 1), new Vector2(26, -88), new Vector2(46, 46));
-            face.gameObject.AddComponent<Image>().sprite = Hud.Circle;
-            face.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-            var pic = Hud.Rect(face, "Picture");
-            Hud.Fill(pic);
-            pic.gameObject.AddComponent<RawImage>().texture = Resources.Load<Texture2D>("Portraits/oriel");
-        }
         var kind = puzzleKind;
-        string backName = kind == "lesson" ? "Tutorial" : "Challenges";
-        if (won && next != null)
-        {
-            var go = Hud.Pill(card.transform, "Next", () => App.Instance.Puzzle(kind, next), 17, Look.Ink, Color.white);
-            Hud.At((RectTransform)go.transform, new Vector2(0.5f, 0), new Vector2(-105, 26), new Vector2(190, 54));
-        }
-        else if (!won)
-        {
-            var id = puzzleId;
-            var again = Hud.Pill(card.transform, "Try again", () => App.Instance.Puzzle(kind, id), 17, Look.Ink, Color.white);
-            Hud.At((RectTransform)again.transform, new Vector2(0.5f, 0), new Vector2(-105, 26), new Vector2(190, 54));
-        }
-        var back = Hud.Pill(card.transform, backName, LeavePuzzle, 17);
-        Hud.At((RectTransform)back.transform, new Vector2(0.5f, 0), new Vector2(won && next == null ? 0 : 105, 26), new Vector2(190, 54));
+        var id = puzzleId;
+        var back = new ResultAction(kind == "lesson" ? "tutorial" : "challenges", LeavePuzzle, false);
+        var actions = won
+            ? (next != null ? new[] { new ResultAction("next", () => App.Instance.Puzzle(kind, next), true), back } : new[] { back })
+            : new[] { new ResultAction("try again", () => App.Instance.Puzzle(kind, id), true), back };
+        ResultCard(title, won ? 1 : -1, why, null, actions, true, won && lesson != null);
     }
 }

@@ -16,6 +16,10 @@ import { cardBackFace, cardArtLite, cardBodyHtml, cardJewels, cardStock, fullArt
 import { cardCost } from '../src/engine/game';
 import { GUARD_SHIELD_SVG, GUARD_SVG, HUB_ICONS, SHIELD_SVG } from '../src/ui/app';
 import { shownKind } from '../src/engine/cards';
+import { effectMark, keywordList, raceTraitTags } from '../src/ui/glyphs';
+import { plainText } from '../src/engine/keywords';
+import { SUBRACES, raceTrait } from '../src/engine/races';
+import { baseHealth, persists } from '../src/engine/game';
 
 const stage = document.getElementById('stage')!;
 document.body.style.background = '#ffffff';
@@ -299,3 +303,56 @@ function settingsFlower(size: number): void {
   (stage.querySelector('.stellaria-flower') as SVGElement).style.animation = 'none';
 }
 Object.assign(window, { settingsFlower });
+
+/**
+ * A card's explanations as the web's inspector lists them beside it (app.ts explainCard, for a card not in play):
+ * its race and what that gives it, its traits, a boss card's action, and each keyword and rule it carries. Drawn
+ * into a zoom view, then read back row by row with the colours the page gives them, and each mark's picture.
+ */
+function explain(id: string): { race: boolean; head: string; colour: string; icon: string | null; body: string }[] {
+  const def = cardDef(id);
+  const first = [raceNoteOf(id), ...raceTraitTags(def).map((g) => `<div><b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}">${g.name}</b><span>${g.text}</span></div>`)].filter(Boolean);
+  if (def.bossAction && def.overlordPart !== 'lost lord') {
+    const words = def.bossAction.say ?? plainText(def.text.includes('Action:') ? def.text.slice(def.text.indexOf('Action:') + 7) : def.text).trim();
+    first.push(`<div><b class="kw kw-removal">${def.bossAction.name}</b><span>${'Its action, when its turn comes: ' + words}</span></div>`);
+  }
+  stage.innerHTML = `<div class="zoom-card">${keywordList(def.text, persists(id) ? { health: baseHealth(id) } : {}, first)}</div>`;
+  return [...stage.querySelectorAll<HTMLElement>('.kw-list > div')].map((row) => {
+    const b = row.querySelector<HTMLElement>('b');
+    const svg = b?.querySelector('svg');
+    return {
+      race: row.classList.contains('kw-race-row'),
+      head: (b?.textContent ?? '').trim(),
+      colour: b ? getComputedStyle(b).color : '',
+      icon: svg ? svg.outerHTML : null,
+      body: (row.querySelector('span')?.textContent ?? '').trim(),
+    };
+  });
+}
+
+/** app.ts raceNote: a race card's race (and sub-race), and the theme that rides on every card of it. */
+function raceNoteOf(defId: string): string {
+  const def = cardDef(defId);
+  if (def.race === undefined) return '';
+  const t = raceTrait(def.race);
+  const sub = def.sub && SUBRACES[def.sub] ? ` · ${SUBRACES[def.sub].name}` : '';
+  const head = `<b class="kw kw-race">${RACE_NAMES[def.race]}${sub}</b>`;
+  const theme = def.sub && SUBRACES[def.sub] ? SUBRACES[def.sub].theme : t ? plainText(t.bonus) : '';
+  if (!theme) return `<div class="kw-race-row">${head}</div>`;
+  return `<div class="kw-race-row">${head}<span>${theme.replace(/\.*$/, '.')}</span></div>`;
+}
+
+/** A mark's picture on its own (its SVG as drawn in the list, in its row's colour, `size` px). */
+function mark(svg: string, colour: string, size: number): void {
+  stage.innerHTML = `<div class="kw-list" style="padding:0;background:none;box-shadow:none"><b id="mark" class="kw kw-sym" style="color:${colour};width:${size}px;height:${size}px;display:grid;font-size:${size}px">${svg.replace('<svg ', `<svg style="width:${size}px;height:${size}px;margin:0" `)}</b></div>`;
+}
+Object.assign(window, { explain, mark });
+
+/**
+ * A Hero's pick's mark on its own (app.ts heroPicks: .hero-pick-mark), its effect's symbol in its colour on the white
+ * disc in its gold ring (`atk`: the attack's, in red), without its count (Unity sets that over it).
+ */
+function heroMark(kind: string, atk: boolean): void {
+  stage.innerHTML = `<div style="padding:4px;display:inline-block"><span id="mark" class="hero-pick-mark ${atk ? 'hero-pick-mark-atk' : ''}" style="display:block">${effectMark(kind)}</span></div>`;
+}
+Object.assign(window, { heroMark });
