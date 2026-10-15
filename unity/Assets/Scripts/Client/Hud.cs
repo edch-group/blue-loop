@@ -143,12 +143,14 @@ public static class Hud
     /// </summary>
     public static TMP_Text Ellipsis(TMP_Text t)
     {
-        Hud.Ellipsis(t);
+        t.overflowMode = TextOverflowModes.Ellipsis;
         float f = t.fontSize;
-        // (Its vertical alignment, from the alignment's high bits: top 0x100, bottom 0x400.)
+        // (Its vertical alignment, from the alignment's high bits: top 0x100, bottom 0x400. Its box's free edges moved
+        // out, not its margins: TMP's ellipsis can recurse without end inside negative margins.)
         int v = (int)t.alignment & 0xFF00;
-        var m = t.margin;
-        t.margin = new Vector4(m.x, v == 0x100 ? m.y : m.y - f, m.z, v == 0x400 ? m.w : m.w - f);
+        var r = t.rectTransform;
+        if (v != 0x400) r.offsetMin -= new Vector2(0, f);
+        if (v != 0x100) r.offsetMax += new Vector2(0, f);
         return t;
     }
 
