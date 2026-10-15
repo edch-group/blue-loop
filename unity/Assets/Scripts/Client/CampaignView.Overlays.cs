@@ -639,8 +639,8 @@ public partial class CampaignView
             {
                 lootOpen = true;
                 Sound.Play("cache-open");
-                int n = new[] { l.Materials, l.Xp, l.Petals }.Count(x => x > 0) + (l.Relics?.Count ?? 0) + (l.Cards?.Count ?? 0) + (l.Parts?.Count ?? 0);
-                for (int i = 0; i < n; i++) Sound.Play($"loot-{Mathf.Min(i, 5)}", 0.5f + i * 0.35f);
+                int n = new[] { l.Materials, l.Xp, l.Petals }.Count(x => x > 0) + (l.Relics?.Count ?? 0) + (l.Cards?.Count ?? 0);
+                for (int i = 0; i < n; i++) Sound.Play($"loot-{Mathf.Min(i, 5)}", 0.45f + i * 0.42f);
                 Refresh();
             });
             return;
@@ -1380,7 +1380,8 @@ public partial class CampaignView
         row.sizeDelta = new Vector2(rowW, Mathf.Max(0, y - gap));
     }
 
-    List<string> Crew() => (Campaign.Player(state).Reserve ?? new List<string>()).Where(id => id.StartsWith("companion_")).Select(id => id.Substring("companion_".Length)).ToList();
+    /// <summary>Who is aboard to speak in a scene (campaign.ts sceneCrew: the Captain's companions on this run).</summary>
+    List<string> Crew() => Companions.All.Select(c => c.Id).Where(id => Campaign.HasCompanion(state, id)).ToList();
 
     void Joined(JoinedCompanion joined)
     {
@@ -1392,7 +1393,7 @@ public partial class CampaignView
             // (Three aboard already: one stands down for this run, or the new one waits ashore for another.)
             ShipScene("joins the crew", name, lines, row =>
             {
-                var aboard = Crew().Where(x => x != joined.Id).ToList();
+                var aboard = Campaign.CrewInDeck(state);
                 var bs = aboard.Select(id => ($"{(Companions.All.FirstOrDefault(x => x.Id == id)?.Name ?? id).Split(' ')[0]} stands down", false, (string)null, (System.Action)(() => Act(new CampaignAction { Type = "crewSwap", Out = id }, "hover")))).ToList();
                 bs.Add(($"{name.Split(' ')[0]} waits ashore", false, null, () => Act(new CampaignAction { Type = "crewSwap", Out = null }, "hover")));
                 Buttons(row, bs.ToArray());
@@ -1414,7 +1415,7 @@ public partial class CampaignView
             ShipScene(kicker, title, lines, row =>
             {
                 var choices = Encounters.EncounterChoices(e.Kind, e.Price, e.Stage)
-                    .Select(c => (c.Label, c.Id == "fight" || c.Id == "buy", Campaign.EncounterProblem(state, c.Id), (System.Action)(() => Act(new CampaignAction { Type = "encounter", Choice = c.Id }))))
+                    .Select(c => (c.Label, c.Id == "fight" || c.Id == "buy", Campaign.EncounterProblem(state, c.Id), (System.Action)(() => EncounterChoice(c.Id))))
                     .ToArray();
                 Buttons(row, me.Materials, choices);
             });
@@ -1424,7 +1425,24 @@ public partial class CampaignView
         // (What came of it after what is said, before the choices, as the web puts its .enc-result.)
         if (e.Part != null) closing.Add(("found", ""));
         else if (e.Outcome == "bad" && e.Slot != null) closing.Add(("damage", ""));
-        ShipScene(kicker, title, closing, row => Buttons(row, ("fly on", true, null, () => Act(new CampaignAction { Type = "encounter", Choice = "done" }))));
+        ShipScene(kicker, title, closing, row => Buttons(row, ("fly on", true, null, () => EncounterChoice("done"))));
+    }
+
+    /// <summary>
+    /// A story encounter's choice, or flying on once it is decided (campaign.ts cmp-enc): flying on hovers; what came
+    /// of it chimes good or burns bad; paying, or buying from the merchant, rings the till.
+    /// </summary>
+    void EncounterChoice(string choice)
+    {
+        string kind = state.Encounter?.Kind;
+        if (!Apply(new CampaignAction { Type = "encounter", Choice = choice })) return;
+        string outcome = state.Encounter?.Outcome;
+        if (choice == "done") Sound.Play("hover");
+        else if (outcome == "good") Sound.Play("upgrade");
+        else if (outcome == "bad") Sound.Play("ignite");
+        else if (choice == "pay" || (choice == "buy" && kind == "merchant")) Sound.Play("buy");
+        Map();
+        Refresh();
     }
 
     void Struggle()

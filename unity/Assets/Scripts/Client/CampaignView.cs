@@ -111,7 +111,7 @@ public partial class CampaignView : MonoBehaviour
         overlay = RefLayer.Make(hud.transform, "Overlay", Relayout).Rect;
         sheetRoot = RefLayer.Make(hud.transform, "Sheet").Rect;
         notes = RefLayer.Make(hud.transform, "Notes").Rect;
-        Sound.Scene("ambient");
+        Sound.Scene(Score);
         // (A new run's hero has their say first: whatever else the opening brought on waits behind it.)
         if (!(fresh && state.Story.Queue.Count > 0 && state.Story.Queue[0].Id == "intro")) SkipSilentScenes();
         // A new run: the opening shot, alongside the flagship as it cruises in while its hero speaks.
@@ -672,7 +672,6 @@ public partial class CampaignView : MonoBehaviour
         }
         if (dur > 0) yield return new WaitForSeconds(dur);
         flying = false;
-        if (battle) Sound.Play("thermo");
         int seq = state.Log.Count > 0 ? state.Log[state.Log.Count - 1].Seq : 0;
         if (!Apply(new CampaignAction { Type = "move", ArmyId = armyId, ToId = toId })) { Map(); Refresh(); yield break; }
         if (state.Log.Any(l => l.Seq > seq && l.Text.Contains(" finds "))) Sound.Play("buy");
@@ -801,9 +800,16 @@ public partial class CampaignView : MonoBehaviour
     }
 
     /// <summary>Back from a battle: its result handed to the run (a retreat, a loss, a win, its salvage owed as a choice).</summary>
+    /// <summary>
+    /// The map's score (app.ts render): the ambient one; in Time Dense Space, the home menu's voyage instead (which the
+    /// web also plays backwards there: Sound has no reversed scores yet).
+    /// </summary>
+    string Score => state?.Rift?.Kind == "time" ? "voyage" : "ambient";
+
     public void FinishBattle(GameState game, bool auto = false)
     {
         battleOpening = false;
+        Sound.Scene(Score);
         Apply(new CampaignAction { Type = "finishBattle", Game = game, Auto = auto });
         Map();
         var f = Campaign.Flagship(state, state.PlayerId);

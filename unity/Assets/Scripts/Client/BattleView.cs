@@ -130,16 +130,22 @@ public partial class BattleView : MonoBehaviour
         Board.Viewer = you;
         Clear();
         Refresh();
-        Sound.Scene("battle");
+        // (A match against an Overlord, or a challenge with one, gets the boss track.)
+        Sound.Scene(s.Players.Any(p => p.Boss != null) ? "boss" : "battle");
+        scoreLeft = false;
         // (The opening hand: shuffled, then dealt in from the deck: app.ts begin, dealOpening.)
         Board.DealOpening(state);
         DawnBanner(state, 0.4f);
     }
 
+    /// <summary>Whether the match's score has given way to the voyage, the game being over (app.ts render's inPlay).</summary>
+    bool scoreLeft;
+
     // ---- The loop ----
 
     void Update()
     {
+        if (!scoreLeft && state?.WinnerId != null && Application.isPlaying) { scoreLeft = true; Sound.Scene("voyage"); }
         if (FitScreen() && state != null) Refresh();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
         if (state == null || state.WinnerId != null) return;
