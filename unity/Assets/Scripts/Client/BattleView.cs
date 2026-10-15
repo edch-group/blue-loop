@@ -131,6 +131,7 @@ public partial class BattleView : MonoBehaviour
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
         if (state == null || state.WinnerId != null) return;
         StageTick();
+        DreamTick();
         if (!busy && StageClear && AiToMove()) StartCoroutine(AiMove());
         // (Skip all: a reply waiting on you is let pass.)
         if (!busy && confirmMode == "skip" && state.Reaction != null && state.Reaction.PlayerId == you && !online) StartCoroutine(PassReply());
@@ -786,6 +787,12 @@ public partial class BattleView : MonoBehaviour
                 ask = slots ? "place it" : "choose a target";
             }
             MidHint(ask, ("cancel", () => { Clear(); Refresh(); }));
+            return;
+        }
+        if (d == null && puzzleKind == null && state.Challenge?.Kind == "dream" && state.WinnerId == null)
+        {
+            dawnPick = null;
+            DreamHint();
             return;
         }
         if (d == null) { dawnPick = null; return; }
