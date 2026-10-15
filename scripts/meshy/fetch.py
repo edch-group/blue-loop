@@ -1,7 +1,7 @@
 """
 Fetches a model from Meshy (meshy.ai) into the repository, so its API key stays a repository secret (MESHY_API_KEY)
 and never reaches a dev machine or agent. Run by .github/workflows/meshy.yml: write into scripts/meshy/request.txt
-"latest" (the newest finished model of any kind) or a task id, then a folder under unity/ModelSources to put it in,
+"latest" (the newest finished model of any kind that has its textures) or a task id, then a folder under unity/ModelSources to put it in,
 and push. The model (GLB, and FBX if there is one), its textures and what Meshy says of it are committed back.
 
     MESHY_API_KEY=... python3 scripts/meshy/fetch.py latest captain-ship
@@ -14,7 +14,8 @@ import urllib.request
 
 API = 'https://api.meshy.ai/openapi'
 # Every kind of task that makes a model, newest first.
-KINDS = ['v2/text-to-3d', 'v1/image-to-3d', 'v1/multi-image-to-3d', 'v1/retexture', 'v1/remesh', 'v1/text-to-texture']
+KINDS = ['v2/text-to-3d', 'v1/text-to-3d', 'v1/image-to-3d', 'v2/image-to-3d', 'v1/multi-image-to-3d', 'v1/retexture', 'v1/remesh',
+         'v1/text-to-texture', 'v1/texture', 'v1/texturing', 'v1/rigging']
 # (GitHub refuses a file over 100 MB.)
 LIMIT = 95 * 1024 * 1024
 
@@ -44,9 +45,12 @@ def tasks():
 def main():
     want, folder = (sys.argv[1:] + ['latest', 'captain-ship'])[:2]
     every = tasks()
-    for t in sorted(every, key=lambda t: -(t.get('created_at') or 0))[:15]:
-        print(f"  {t.get('id')} {t['_kind']} {t.get('status')} created {t.get('created_at')} {t.get('name') or t.get('prompt') or ''}"[:160])
-    done = [t for t in every if t.get('status') == 'SUCCEEDED' and t.get('model_urls')]
+    def textured(t): return bool(t.get('texture_urls')) or bool((t.get('model_urls') or {}).get('glb') and t.get('should_texture'))
+    for t in sorted(every, key=lambda t: -(t.get('created_at') or 0))[:20]:
+        print(f"  {t.get('id')} {t['_kind']} {t.get('status')} created {t.get('created_at')} {'textured' if textured(t) else 'untextured'} "
+              f"{t.get('name') or t.get('prompt') or ''} [{', '.join(sorted(k for k, v in t.items() if v and k.endswith('urls')))}]"[:220])
+    # (The newest that has its textures: a bare model, made to be textured, is not what is wanted.)
+    done = [t for t in every if t.get('status') == 'SUCCEEDED' and t.get('model_urls') and textured(t)]
     pick = max(done, key=lambda t: t.get('created_at') or 0) if want == 'latest' else next((t for t in every if t.get('id') == want), None)
     if pick is None: sys.exit(f'no finished task {want}')
     print(f"fetching {pick['id']} ({pick['_kind']})")
