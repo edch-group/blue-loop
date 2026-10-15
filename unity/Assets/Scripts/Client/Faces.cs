@@ -73,7 +73,11 @@ public static class Faces
         return look == Look.Table ? $"CardFaces/table-{(phone ? "p" : "d")}{best}/" : look == Look.Hand ? $"CardFaces/hand-{best}/" : $"CardFaces/card-{best}/";
     }
 
-    /// <summary>A badge for a value: "atk", "atk-dim", "stab", "stab-low", "def", "guard" (values 0–30).</summary>
+    /// <summary>
+    /// A badge for a value: "atk", "atk-dim", "stab", "stab-low", "def", "guard" (values 0–30); a shield worn ("def-dent",
+    /// "guard-dent"), and the numbers heat being aimed would leave ("def-pv", "guard-pv", "def-dent-pv", "guard-dent-pv",
+    /// "stab-pv", "stab-low-pv").
+    /// </summary>
     public static Texture2D Badge(string kind, int n) => Load($"Badges/{kind}-{Mathf.Clamp(n, 0, 30)}");
 
     /// <summary>
@@ -82,7 +86,7 @@ public static class Faces
     /// </summary>
     public static Texture2D Badge(string kind, int n, float css)
     {
-        if (css > 0 && css < 77 && (kind == "def" || kind == "guard"))
+        if (css > 0 && css < 77 && (kind.StartsWith("def") || kind.StartsWith("guard")))
         {
             var t = Load($"Badges/{kind}-s-{Mathf.Clamp(n, 0, 30)}");
             if (t != null) return t;
