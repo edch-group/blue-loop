@@ -209,8 +209,9 @@ public class Board : MonoBehaviour
             phaseGlows[i].transform.localPosition = new Vector3(dotX, 0.009f, z);
             var d = Shape("Dot", table, Rgba(202, 206, 213), dot, dot, dot * 0.6f, 2990, 0.01f);
             d.transform.localPosition = new Vector3(dotX, 0.01f, z);
+            // (Its 1.5 px white ring, round the dot where it stands: it had been left at the board's middle.)
             var halo = Shape("Dot ring", table, Color.white, dot + l.U(3), dot + l.U(3), dot, 2988, 0.0095f);
-            halo.transform.SetParent(d.transform, true);
+            halo.transform.localPosition = new Vector3(dotX, 0.0095f, z);
             phaseDots[i] = d;
             dotScale = d.transform.localScale;
             return t;
@@ -522,7 +523,7 @@ public class Board : MonoBehaviour
         SetName(myLabel, me.Name, true);
         var active = Game.ActivePlayer(s);
         bool mineNow = active == me;
-        // (Whose turn: the one lit dark, the other pale; the day's part lit, its dot amber, larger and glowing.)
+        // (Whose turn: the one lit dark, the other pale; the day's part lit, its dot in the phase's colour and glowing.)
         Color lit = Rgba(47, 58, 82), pale = Rgba(185, 191, 202);
         turnYou.color = mineNow ? lit : pale;
         turnThem.color = mineNow ? pale : lit;
@@ -531,9 +532,11 @@ public class Board : MonoBehaviour
         {
             bool on = new[] { "dawn", "day", "dusk" }[i] == phase;
             phases[i].color = on ? Rgba(49, 60, 84) : Rgba(161, 168, 179);
-            phaseDots[i].sharedMaterial.color = on ? Rgba(239, 161, 67) : Rgba(202, 206, 213);
-            phaseDots[i].transform.localScale = dotScale * (on ? 1.25f : 1);
-            phaseGlows[i].sharedMaterial.color = Rgba(240, 160, 64, on ? 0.79f : 0);
+            // (.phase-step.on i: each phase in its own colour, dawn amber, day gold, dusk violet, glowing; the rest grey.)
+            var pc = i == 0 ? Rgba(240, 160, 64) : i == 1 ? Rgba(232, 194, 58) : Rgba(138, 106, 208);
+            phaseDots[i].sharedMaterial.color = on ? pc : Rgba(201, 206, 216);
+            phaseDots[i].transform.localScale = dotScale;
+            phaseGlows[i].sharedMaterial.color = new Color(pc.r, pc.g, pc.b, on ? 0.8f : 0);
         }
         // The round, and regional stability's ticks: one drains each round; gone, the track reddens and every sun
         // takes the round's heat at its dawn.
