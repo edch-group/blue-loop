@@ -13,7 +13,7 @@ while read -r first name flag more; do
   [ -z "${first:-}" ] && continue
   echo "== $first $name $flag"
   if [ "$first" = rig ]; then
-    set -- $name $flag; first=$(python3 scripts/meshy/rig.py "$1") || { echo "rigging failed"; continue; }; name=$2; flag=${3:-}
+    set -- $name $flag; first=$(python3 scripts/meshy/rig.py "$1" "$(gh release view "model-$2-${1:0:8}" --json assets -q '.assets[] | select(.name == "model.glb") | .url' 2>/dev/null)") || { echo "rigging failed"; continue; }; name=$2; flag=${3:-}
   fi
   if [ "$first" = rebake ]; then
     meta=$(ls -td unity/ModelSources/"$name"/meshy-*/ | head -1)
