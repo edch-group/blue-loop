@@ -292,11 +292,11 @@ public class Board : MonoBehaviour
         {
             var pivot = new GameObject(ring).transform;
             pivot.SetParent(spin.transform, false);
-            var r = Mats.Flat("Ring", pivot, Mats.Make("Card"), star, star, ring == "outer" ? 0.001f : 0.0012f);
+            // (Baked with the petals' colour white and black, mixed by the colour backdrop.ts gives them: StarSpin.)
+            var r = Mats.Flat("Ring", pivot, Mats.Make("Petals"), star, star, ring == "outer" ? 0.001f : 0.0012f);
             r.sharedMaterial.mainTexture = Resources.Load<Texture2D>("Board/star-" + ring);
-            r.sharedMaterial.SetFloat("_Radius", 0);
-            r.sharedMaterial.SetFloat("_Aspect", 1);
-            r.sharedMaterial.color = Color.white;
+            r.sharedMaterial.SetTexture("_Dark", Resources.Load<Texture2D>("Board/star-" + ring + "-k"));
+            r.sharedMaterial.color = StarSpin.PetalColour;
             r.sharedMaterial.renderQueue = ring == "outer" ? 2920 : 2921;
             if (ring == "outer") spin.Outer = pivot;
             else spin.Inner = pivot;
@@ -647,7 +647,10 @@ public class Board : MonoBehaviour
         myHandN.text = me.Hand.Count.ToString();
         SetName(rivalLabel, rival.Name, false);
         SetName(myLabel, me.Name, true);
-        StarSpin.Heat(me.Heat >= 0 ? me.Heat / (float)Game.SupernovaThreshold(me) : -me.Heat / (float)Balance.MinHeat);
+        // (The petals follow the region's stability (app.ts render): blue while it holds, whitening as it drains, then
+        // redder the more unstable it grows.)
+        int stable = Balance.InstabilityStartsRound - 1, instab = Game.InstabilityHeat(s);
+        StarSpin.Heat(instab > 0 ? Mathf.Min(1, instab / 5f) : -Mathf.Max(0, stable - (s.Round - 1)) / (float)stable);
         var active = Game.ActivePlayer(s);
         bool mineNow = active == me;
         // (Whose turn: the one lit dark, the other pale; the day's part lit, its dot in the phase's colour and glowing.)
@@ -986,20 +989,21 @@ public class Board : MonoBehaviour
 public class StarSpin : MonoBehaviour
 {
     public Transform Outer, Inner;
-    float angle, tint, tintTarget;
+    float angle;
+    // (As backdrop.ts's, one for the page: kept when the board is laid out again.)
+    static float tint, tintTarget;
+    /// <summary>The petals' colour now (backdrop.ts applyTint's rgb), for the Petals shader to mix by.</summary>
+    public static Color PetalColour = Color.white;
     readonly System.Collections.Generic.List<float> bursts = new System.Collections.Generic.List<float>();
     static StarSpin current;
 
     void Awake() => current = this;
 
     /// <summary>
-    /// Your sun's heat, as backdrop.ts setHeat: -1 as cold as a sun can be, 0 neutral, 1 on the edge of supernova. The
-    /// petals take a light wash of red (or icy blue), eased toward it.
+    /// The region's stability, as backdrop.ts setHeat: -1 fully stable (blue), 0 drained, up to 1 the more unstable it
+    /// grows (red). The petals take a light wash of it, eased toward it.
     /// </summary>
-    public static void Heat(float t)
-    {
-        if (current != null) current.tintTarget = Mathf.Clamp(t, -1, 1);
-    }
+    public static void Heat(float t) => tintTarget = Mathf.Clamp(t, -1, 1);
 
     /// <summary>A move was made: spin faster for a moment (at most three at once).</summary>
     public static void Burst()
@@ -1068,9 +1072,9 @@ public class StarSpin : MonoBehaviour
         {
             var b = tint >= 0 ? new Color(226 / 255f, 84 / 255f, 66 / 255f) : new Color(74 / 255f, 142 / 255f, 226 / 255f);
             b = Color.Lerp(b, new Color(222 / 255f, 52 / 255f, 38 / 255f), rage);
-            var c = Color.Lerp(Color.white, b, Mathf.Max(Mathf.Abs(tint) * 0.35f, rage * 0.9f));
+            PetalColour = Color.Lerp(Color.white, b, Mathf.Max(Mathf.Abs(tint) * 0.35f, rage * 0.9f));
             foreach (var t in new[] { Outer, Inner })
-                if (t != null) t.GetComponentInChildren<MeshRenderer>().sharedMaterial.color = c;
+                if (t != null) t.GetComponentInChildren<MeshRenderer>().sharedMaterial.color = PetalColour;
         }
         // (Clockwise as the page sees it, from above the board.)
         if (Outer != null) Outer.localRotation = Quaternion.Euler(0, a, 0);
