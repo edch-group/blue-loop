@@ -29,9 +29,34 @@ v1/rigging: 0 tasks
   8b80e185-dba1-5663-9189-d9a4620711d8 v1/image-to-3d SUCCEEDED created 1791976799856 untextured anime_stormblade_sword [model_urls]
   d850505d-1902-40d2-a5e8-e7ec72367f18 v1/image-to-3d SUCCEEDED created 1791976729379 textured anime_warrior_cape [model_urls, texture_urls]
   3d638579-6903-4748-a504-3d6393e83194 v1/image-to-3d SUCCEEDED created 1791976729359 textured anime_warrior_character [model_urls, texture_urls]
-fetching f851b5cc-b4a7-453b-9863-17e508dbdeb9 (v1/image-to-3d)
-  model.glb: 41219 KB
-  texture-base_color.png: 21376 KB
-  texture-metallic.png: 1670 KB
-  texture-roughness.png: 1552 KB
-  texture-normal.png: 16705 KB
+01a13eaf-79d3-751c-8f15-97454e23d9c6: found as v2/text-to-3d
+fetching 01a13eaf-79d3-751c-8f15-97454e23d9c6 (v2/text-to-3d)
+task: {"id": "01a13eaf-79d3-751c-8f15-97454e23d9c6", "mode": "preview", "name": "stylized_dark_veteran_highdetail", "seed": 0, "prompt": "", "texture_prompt": "", "texture_image_url": "\u2026", "status": "SUCCEEDED", "created_at": 1792053051291, "progress": 100, "started_at": 1792053051304, "finished_at": 1792053107926, "task_error": null, "model_urls": ["fbx", "glb", "obj", "stl", "usdz"], "thumbnail_url": "\u2026", "texture_urls": "\u2026", "consumed_credits": 0, "_kind": "v2/text-to-3d"}
+  model.glb: 31630 KB
+Traceback (most recent call last):
+  File "/home/runner/work/blue-loop/blue-loop/scripts/meshy/fetch.py", line 88, in <module>
+    main()
+  File "/home/runner/work/blue-loop/blue-loop/scripts/meshy/fetch.py", line 76, in main
+    data = get(url, raw=True)
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/blue-loop/blue-loop/scripts/meshy/fetch.py", line 25, in get
+    with urllib.request.urlopen(req, timeout=300) as r:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 215, in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 521, in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 630, in http_response
+    response = self.parent.error(
+               ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 559, in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 639, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 403: Forbidden
