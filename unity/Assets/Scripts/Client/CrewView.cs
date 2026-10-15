@@ -243,7 +243,7 @@ public class CrewView : MonoBehaviour
         bool wallOn = (c.Sing ?? "wall") == "wall", braceOn = c.Equipped.Contains(Captain.CaptainStartAbility);
         var known = new List<Known>
         {
-            new Known { arg = "start:brace", title = brace.Name.ToLowerInvariant(), what = BattleView.Words(brace.Text), colour = "#4fae9b", on = braceOn, sub = braceOn ? "carried" : "tap to carry" },
+            new Known { arg = "start:brace", title = brace.Name.ToLowerInvariant(), what = brace.Text, colour = "#4fae9b", on = braceOn, sub = braceOn ? "carried" : "tap to carry" },
             new Known { arg = "start:wall", title = wall.Name.ToLowerInvariant(), what = SingWords(wall), colour = "#6f8fd8", on = wallOn, sub = wallOn ? "carried" : "tap to carry" },
         };
         var names = Ascent.CaptainTitles.Select(t => t.Replace("The ", "").ToLowerInvariant()).ToList();
@@ -274,12 +274,12 @@ public class CrewView : MonoBehaviour
         var parts = title.Split(new[] { ", " }, System.StringSplitOptions.None);
         Who(parts.Length > 1 ? parts[1] : title, left, $"skill point{(left == 1 ? "" : "s")} · level {lv.Level} · {lv.Into}/{lv.Need}", d.LearnsText);
         var first = d.Traits.First(k => k.Id == d.Start);
-        var known = new List<Known> { new Known { arg = "", title = first.Name.ToLowerInvariant(), what = BattleView.Words(first.Text), colour = "#4fae9b", on = true, sub = "known" } };
+        var known = new List<Known> { new Known { arg = "", title = first.Name.ToLowerInvariant(), what = first.Text, colour = "#4fae9b", on = true, sub = "known" } };
         var names = d.Titles.Select(t => { var p = t.Split(new[] { ", " }, System.StringSplitOptions.None); return (p.Length > 1 ? p[1] : t).ToLowerInvariant(); }).ToList();
         Tree(Ascent.CompanionTrees[id], a, left, names, (n, owned) =>
         {
             var tr = n.Give.Trait != null ? d.Traits.FirstOrDefault(k => k.Id == n.Give.Trait) : null;
-            return tr != null ? new Look_ { title = tr.Name.ToLowerInvariant(), what = BattleView.Words(tr.Text), colour = "#4fae9b", owned = "" } : StatLook(n);
+            return tr != null ? new Look_ { title = tr.Name.ToLowerInvariant(), what = tr.Text, colour = "#4fae9b", owned = "" } : StatLook(n);
         }, known);
     }
 
@@ -291,11 +291,12 @@ public class CrewView : MonoBehaviour
         var parts = new List<string>();
         if ((a.Cost ?? 0) > 0) parts.Add($"{a.Cost} energy");
         if ((a.Pay?.Stability ?? 0) > 0) parts.Add($"−{a.Pay.Stability} stability");
-        if ((a.Pay?.SelfHeat ?? 0) > 0) parts.Add($"{a.Pay.SelfHeat} heat to your sun");
+        if ((a.Pay?.SelfHeat ?? 0) > 0) parts.Add($"{{heat:{a.Pay.SelfHeat}}} to your sun");
         return string.Join(", ", parts);
     }
 
-    static string SingWords(Singularity k) => $"{k.Name} · {BattleView.ChargeWords(k.Charge, k.Need)}: {BattleView.Words(k.Text)}";
+    /// <summary>A singularity as its card text has it (singularities.ts singularityLine): its name, what charges it, what it does.</summary>
+    static string SingWords(Singularity k) => $"{{sing:{k.Name}}}{BattleView.ChargeWords(k.Charge, k.Need)}: {k.Text}";
 
     Look_ Describe(AscentNode x, bool owned, CaptainMeta c, CaptainGifts g)
     {
@@ -305,13 +306,13 @@ public class CrewView : MonoBehaviour
             var a = Captain.CaptainAbility(x.Give.Ability).Ability;
             bool on = c.Equipped.Contains(x.Give.Ability);
             var pay = Pay(x.Give.Ability);
-            return new Look_ { title = a.Name.ToLowerInvariant(), what = (pay != "" ? pay + ": " : "") + BattleView.Words(a.Text), colour = "#4fae9b", on = owned && on, owned = owned ? (on ? "carried" : full ? "slots full" : "tap to carry") : "" };
+            return new Look_ { title = a.Name.ToLowerInvariant(), what = (pay != "" ? pay + ": " : "") + a.Text, colour = "#4fae9b", on = owned && on, owned = owned ? (on ? "carried" : full ? "slots full" : "tap to carry") : "" };
         }
         if (x.Give.Lead != null)
         {
             var l = Captain.CaptainLead(x.Give.Lead);
             bool on = c.Lead == x.Give.Lead;
-            return new Look_ { title = l.Name.ToLowerInvariant(), what = "leads: " + BattleView.Words(l.Text), colour = "#c98a4b", on = owned && on, owned = owned ? (on ? "leading" : "tap to lead") : "" };
+            return new Look_ { title = l.Name.ToLowerInvariant(), what = "leads: " + l.Text, colour = "#c98a4b", on = owned && on, owned = owned ? (on ? "leading" : "tap to lead") : "" };
         }
         if (x.Give.Sing != null)
         {
@@ -584,10 +585,9 @@ public class CrewView : MonoBehaviour
         y += nh + 1 * Z;
         if (what != "")
         {
-            var body = WebLook.Words(words, what, 0.68f * 16 * Z, 0, Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
-            body.textWrappingMode = TextWrappingModes.Normal;
-            float bh = body.GetPreferredValues(what, textW, 0).y;
-            WebLook.Box(body.rectTransform, 0, y, textW, bh + 2);
+            var body = WebLook.Box(words, "What", 0, y, textW, 10);
+            float bh = What(body, what, textW, Look.InkSoft);
+            body.sizeDelta = new Vector2(textW, bh);
             y += bh + 1 * Z;
         }
         var small = WebLook.Words(words, sub, 0.6f * 16 * Z, 0.06f, afford ? WebLook.Hex("#3a7a55") : Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
@@ -651,6 +651,237 @@ public class CrewView : MonoBehaviour
         label.sizeDelta = new Vector2(lw, h);
         WebLook.Box(t.rectTransform, 0, 1 * Z, lw, th + 2);
         WebLook.Box(w.rectTransform, 0, 1 * Z + th + 1 * Z, lw, wh + 2);
+    }
+
+    // ---- What an upgrade does, set as the web sets card text (glyphs.ts cardTextHtml, in .cx-label .hp-what) ----
+
+    /// <summary>A run of what it does: plain words, or a keyword (its words, its symbol, its energy dots).</summary>
+    class Piece { public string text, icon; public bool kw; public int dots; }
+
+    /// <summary>Each keyword's name as a card reads it (keywords.ts KEYWORDS).</summary>
+    static readonly Dictionary<string, string> KwNames = new Dictionary<string, string>
+    {
+        ["dawn"] = "dawn", ["dusk"] = "dusk", ["vigil"] = "vigil", ["heat"] = "heat", ["splash"] = "splash", ["pierce"] = "pierce", ["cool"] = "cool",
+        ["shield"] = "shields", ["guard"] = "guard", ["sturdy"] = "sturdy", ["repair"] = "repair", ["bulwark"] = "bulwark", ["resonance"] = "resonance",
+        ["forge"] = "forge", ["brittle"] = "brittle", ["anchor"] = "anchor", ["offering"] = "offering", ["rootbreak"] = "rootbreak", ["erode"] = "erode",
+        ["decay"] = "decay", ["restore"] = "restore", ["renew"] = "renew", ["recover"] = "recover", ["consume"] = "consume", ["chosen"] = "chosen",
+        ["recall"] = "recall", ["shift"] = "shift", ["displace"] = "displace", ["destroy"] = "destroy", ["eject"] = "eject", ["sting"] = "sting",
+        ["attack"] = "attack", ["dimmed"] = "dimmed", ["soothe"] = "soothe", ["fusion"] = "fusion", ["plant"] = "plant", ["catalyst"] = "catalyst",
+        ["tidewall"] = "tidewall", ["hold"] = "hold", ["thermosiphon"] = "thermosiphon", ["overheated"] = "overheated", ["grows"] = "grow",
+        ["plays"] = "industry", ["spend"] = "spend all", ["energy"] = "gain", ["darkspeed"] = "darkspeed", ["cost"] = "energy",
+        ["abilities"] = "each turn, one of:", ["abundance"] = "abundance", ["orbit"] = "orbit", ["act"] = "act", ["sing"] = "singularity",
+        ["lightspeed"] = "lightspeed", ["trap"] = "trap", ["global"] = "global",
+    };
+
+    /// <summary>A keyword's words (keywords.ts rawLabel): its name, and its value as the card says it.</summary>
+    static string KwLabel(string id, string value)
+    {
+        if (!KwNames.TryGetValue(id, out var name)) return value ?? id;
+        if (string.IsNullOrEmpty(value)) return name;
+        if (id == "grows") return $"{name} 1 (max {value})";
+        if (id == "plays" || id == "abundance") return $"{name} +{value}";
+        if (id == "attune") return value == "1" ? name : $"{name} ×{value}";
+        if (id == "energy") return $"gain {value} energy";
+        if (id == "cost") return $"({value} energy)";
+        if (id == "resonance" || id == "bulwark" || id == "forge" || id == "sting" || id == "soothe" || id == "restore" || id == "renew" || id == "erode" || id == "decay")
+            return $"{name} {value.Split('/')[0]}";
+        return $"{name} {value}";
+    }
+
+    static readonly System.Text.RegularExpressions.Regex Token = new System.Text.RegularExpressions.Regex(@"\{([a-z]+)(?::([^}]+))?\}");
+
+    /// <summary>
+    /// What it does (.cx-label .hp-what, from its card text): plain words in the body face (0.68rem, lines 1.3, soft
+    /// ink); each keyword as .cx-label b sets it, spaced capitals of the display face (0.64rem, 0.16em) in ink, never
+    /// broken across lines: heat, cool, shields and repair as their symbol (11 square) and number, energy gained as GAIN
+    /// and a green dot each; each sentence a paragraph of its own (0.55em between, the last full stop dropped); a
+    /// singularity a block of its own under a rule, its name (✦ NAME) on a line of its own. Laid out `width` across;
+    /// its height returned.
+    /// </summary>
+    float What(RectTransform parent, string raw, float width, Color ink)
+    {
+        float fs = 0.68f * 16 * Z, ks = 0.64f * 16 * Z, lineH = fs * 1.3f, iconS = 11 * Z;
+        // The parts, as textParts makes them; each sentence's full stop a paragraph (the very last one dropped).
+        var parts = new List<(string text, string kw, string value)>();
+        int last = 0;
+        foreach (System.Text.RegularExpressions.Match m in Token.Matches(raw))
+        {
+            if (m.Index > last) parts.Add((raw.Substring(last, m.Index - last), null, null));
+            parts.Add((null, m.Groups[1].Value, m.Groups[2].Success ? m.Groups[2].Value : null));
+            last = m.Index + m.Length;
+        }
+        if (last < raw.Length) parts.Add((raw.Substring(last), null, null));
+        // (Atoms: what can't be broken across a line (words, a keyword and what is written hard against it), a space
+        // between each two; null marks a paragraph's end; a string alone, a singularity's name.)
+        var flow = new List<object>();
+        var atom = new List<Piece>();
+        void Close() { if (atom.Count > 0) flow.Add(atom); atom = new List<Piece>(); }
+        for (int i = 0; i < parts.Count; i++)
+        {
+            var (text, kw, value) = parts[i];
+            if (text != null)
+            {
+                var t = System.Text.RegularExpressions.Regex.Replace(text, @"\.(\s+|$)", mm =>
+                    mm.Groups[1].Value.Length > 0 || (mm.Index + 1 == text.Length && i < parts.Count - 1) ? "\u0001" : "");
+                var paras = t.Split('\u0001');
+                for (int p = 0; p < paras.Length; p++)
+                {
+                    if (p > 0) { Close(); flow.Add(null); }
+                    var words = paras[p].Split(' ');
+                    for (int w = 0; w < words.Length; w++)
+                    {
+                        if (w > 0) Close();
+                        if (words[w].Length > 0) atom.Add(new Piece { text = words[w] });
+                    }
+                }
+                continue;
+            }
+            if (kw == "sing") { Close(); flow.Add("✦ " + (value ?? "").ToUpperInvariant()); continue; }
+            // (An unknown token reads as its value; an ability's opening mark shows nothing.)
+            if (!KwNames.ContainsKey(kw)) { atom.Add(new Piece { text = value ?? kw }); continue; }
+            if (kw == "act") continue;
+            if (kw == "energy" && value != null) atom.Add(new Piece { kw = true, text = "GAIN", dots = Mathf.Max(1, int.TryParse(value, out var e) ? e : 1) });
+            else if (kw == "cost" && value != null) atom.Add(new Piece { kw = true, text = "", dots = Mathf.Max(1, int.TryParse(value, out var e2) ? e2 : 1) });
+            else if (kw == "heat" || kw == "cool" || kw == "shield" || kw == "repair") atom.Add(new Piece { kw = true, icon = kw, text = value ?? "" });
+            else atom.Add(new Piece { kw = true, text = KwLabel(kw, value).ToUpperInvariant() });
+        }
+        Close();
+        // Measured in each face (the display face's letter-spacing trailing its last letter too, as CSS spaces it).
+        var bodyM = WebLook.Words(parent, "", fs, 0, ink, false, 400, TextAlignmentOptions.Left);
+        var kwM = WebLook.Words(parent, "", ks, 0.16f, Look.Ink, true, 400, TextAlignmentOptions.Left);
+        float space = bodyM.GetPreferredValues("a a").x - bodyM.GetPreferredValues("aa").x;
+        float Wide(Piece p)
+        {
+            if (!p.kw) return bodyM.GetPreferredValues(p.text).x;
+            float w = p.text.Length > 0 ? kwM.GetPreferredValues(p.text).x + 0.16f * ks : 0;
+            if (p.icon != null) w += iconS + 0.08f * ks;
+            if (p.dots > 0) w += (p.text.Length > 0 ? 0.3f * ks : 0) + p.dots * 0.72f * ks + (p.dots - 1) * 0.18f * ks;
+            return w;
+        }
+        float x = 0, y = 0;
+        void EndLine() { if (x > 0) { y += lineH; x = 0; } }
+        foreach (var f in flow)
+        {
+            if (f == null) { EndLine(); y += 0.55f * fs; continue; }
+            if (f is string sing)
+            {
+                // (.card-sing: 0.3em down, a rule in its ink, 0.3em more; its name a block of its own.)
+                EndLine();
+                y += 0.3f * fs;
+                var rule = WebLook.Box(parent, "Rule", 0, y, width, Z).gameObject.AddComponent<Image>();
+                rule.color = ink;
+                rule.raycastTarget = false;
+                y += Z + 0.3f * fs;
+                var nm = WebLook.Words(parent, sing, ks, 0.16f, Look.Ink, true, 400, TextAlignmentOptions.TopLeft);
+                nm.textWrappingMode = TextWrappingModes.Normal;
+                float nh = nm.GetPreferredValues(sing, width, 0).y;
+                WebLook.Box(nm.rectTransform, 0, y, width, nh + 2);
+                y += nh;
+                continue;
+            }
+            var pieces = (List<Piece>)f;
+            float aw = pieces.Sum(Wide);
+            if (x > 0 && x + space + aw > width) EndLine();
+            else if (x > 0) x += space;
+            foreach (var p in pieces)
+            {
+                float pw = Wide(p), px = x;
+                if (p.icon != null)
+                {
+                    var ic = WebLook.Box(parent, "Symbol", px, y + (lineH - iconS) / 2 + 0.04f * ks, iconS, iconS).gameObject.AddComponent<RawImage>();
+                    ic.texture = Symbol(p.icon);
+                    ic.color = Look.Ink;
+                    ic.raycastTarget = false;
+                    px += iconS + 0.08f * ks;
+                }
+                if (p.text.Length > 0)
+                {
+                    var t = p.kw ? WebLook.Words(parent, p.text, ks, 0.16f, Look.Ink, true, 400, TextAlignmentOptions.Left) : WebLook.Words(parent, p.text, fs, 0, ink, false, 400, TextAlignmentOptions.Left);
+                    t.textWrappingMode = TextWrappingModes.NoWrap;
+                    t.raycastTarget = false;
+                    float tw = p.kw ? kwM_Width(t) : t.GetPreferredValues(p.text).x;
+                    WebLook.Box(t.rectTransform, px, y, tw + 4, lineH);
+                    px += tw;
+                }
+                for (int d = 0; d < p.dots; d++)
+                {
+                    // (.gain-dots: each 0.72em, green ringed white, 0.18em apart, 0.3em after GAIN.)
+                    float ds = 0.72f * ks;
+                    if (d == 0 && p.text.Length > 0) px += 0.3f * ks;
+                    var dot = WebLook.Rounded(parent, "Dot", Color.white, 999);
+                    WebLook.Box(dot.rectTransform, px, y + (lineH - ds) / 2 + 0.05f * ks, ds, ds);
+                    var green = WebLook.Rounded(dot.transform, "Green", WebLook.Hex("#7cc79a"), 999);
+                    Hud.Fill(green.rectTransform);
+                    green.rectTransform.offsetMin = Vector2.one * 0.1f * ks;
+                    green.rectTransform.offsetMax = -Vector2.one * 0.1f * ks;
+                    px += ds + 0.18f * ks;
+                }
+                x += pw;
+            }
+        }
+        EndLine();
+        Mats.Kill(bodyM.gameObject);
+        Mats.Kill(kwM.gameObject);
+        return y;
+    }
+
+    /// <summary>A display-face keyword's width as CSS lays it: its letters, and the spacing trailing its last.</summary>
+    static float kwM_Width(TextMeshProUGUI t) => t.GetPreferredValues(t.text).x + 0.16f * t.fontSize;
+
+    static readonly Dictionary<string, Texture2D> symbols = new Dictionary<string, Texture2D>();
+
+    /// <summary>
+    /// A keyword's symbol (glyphs.ts SYMBOL_SVG, its 12-square drawn in lines 2.1 wide, round at their ends), white to
+    /// tint: heat two chevrons up, cool two down, shields a hexagon washed at 0.22 (its line 1.6) round a smaller one
+    /// (0.9), repair a wrench.
+    /// </summary>
+    static Texture2D Symbol(string id)
+    {
+        if (symbols.TryGetValue(id, out var have)) return have;
+        const int S = 64;
+        const float K = S / 12f;
+        var strokes = new List<(Vector2[] pts, float w)>();
+        Vector2[] fill = null;
+        Vector2[] V(params float[] xy) { var v = new Vector2[xy.Length / 2]; for (int i = 0; i < v.Length; i++) v[i] = new Vector2(xy[2 * i], xy[2 * i + 1]); return v; }
+        if (id == "heat") { strokes.Add((V(2, 6.5f, 6, 2.5f, 10, 6.5f), 2.1f)); strokes.Add((V(2, 10.5f, 6, 6.5f, 10, 10.5f), 2.1f)); }
+        else if (id == "cool") { strokes.Add((V(2, 1.5f, 6, 5.5f, 10, 1.5f), 2.1f)); strokes.Add((V(2, 5.5f, 6, 9.5f, 10, 5.5f), 2.1f)); }
+        else if (id == "shield")
+        {
+            fill = V(6, 1.2f, 10.2f, 3.6f, 10.2f, 8.4f, 6, 10.8f, 1.8f, 8.4f, 1.8f, 3.6f, 6, 1.2f);
+            strokes.Add((fill, 1.6f));
+            strokes.Add((V(6, 3.9f, 7.8f, 4.95f, 7.8f, 7.05f, 6, 8.1f, 4.2f, 7.05f, 4.2f, 4.95f, 6, 3.9f), 0.9f));
+        }
+        else
+            strokes.Add((V(8.40f, 1.40f, 7.89f, 1.36f, 7.39f, 1.42f, 6.91f, 1.59f, 6.48f, 1.86f, 6.11f, 2.21f, 5.83f, 2.63f, 5.64f, 3.10f, 5.55f, 3.60f, 5.57f, 4.11f,
+                5.70f, 4.60f, 1.60f, 8.70f, 1.29f, 9.24f, 1.29f, 9.86f, 1.60f, 10.40f, 2.14f, 10.71f, 2.76f, 10.71f, 3.30f, 10.40f, 7.40f, 6.30f, 7.89f, 6.43f,
+                8.40f, 6.45f, 8.90f, 6.36f, 9.37f, 6.17f, 9.79f, 5.89f, 10.14f, 5.52f, 10.41f, 5.09f, 10.58f, 4.61f, 10.64f, 4.11f, 10.60f, 3.60f, 9.00f, 5.20f,
+                7.50f, 4.50f, 6.80f, 3.00f, 8.40f, 1.40f), 2.1f));
+        var t = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int py = 0; py < S; py++)
+            for (int px = 0; px < S; px++)
+            {
+                // (In the SVG's units, y down.)
+                var p = new Vector2((px + 0.5f) / K, (S - py - 0.5f) / K);
+                float a = 0;
+                foreach (var (pts, w) in strokes)
+                    for (int i = 1; i < pts.Length; i++)
+                    {
+                        Vector2 s0 = pts[i - 1], d = pts[i] - s0;
+                        float k = Mathf.Clamp01(Vector2.Dot(p - s0, d) / Mathf.Max(1e-6f, d.sqrMagnitude));
+                        float dist = (p - (s0 + d * k)).magnitude * K;
+                        a = Mathf.Max(a, Mathf.Clamp01(w * K / 2 - dist + 0.5f));
+                    }
+                if (fill != null)
+                {
+                    bool inside = false;
+                    for (int i = 0, j = fill.Length - 1; i < fill.Length; j = i++)
+                        if ((fill[i].y > p.y) != (fill[j].y > p.y) && p.x < (fill[j].x - fill[i].x) * (p.y - fill[i].y) / (fill[j].y - fill[i].y) + fill[i].x) inside = !inside;
+                    if (inside) a = Mathf.Max(a, 0.22f);
+                }
+                t.SetPixel(px, py, new Color(1, 1, 1, a));
+            }
+        t.Apply();
+        return symbols[id] = t;
     }
 
     // ---- Learning, carrying, undoing ----
