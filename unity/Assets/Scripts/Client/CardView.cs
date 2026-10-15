@@ -310,6 +310,12 @@ public class CardView : MonoBehaviour
     /// <summary>Shudder: a blow landing.</summary>
     public void Shake(float after = 0) => shakeAge = -after;
 
+    /// <summary>A card that can't be played now shakes its head (app.ts startPlay refuse).</summary>
+    public void Refuse() => refuseAge = 0;
+
+    float refuseAge = -1;
+    const float RefuseTime = 0.38f;
+
     // An attack's strike (app.ts lunge): where it smashes into, from where it stands, and how far it lifts first.
     float strikeAge = -1;
     Vector3 strikeTo, strikeLift;
@@ -423,6 +429,19 @@ public class CardView : MonoBehaviour
             var w = new Vector3(Board.Px(px.x), 0, -Board.Px(px.y));
             o += transform.parent != null ? transform.parent.InverseTransformVector(w) : w;
         }
+        if (refuseAge >= 0)
+        {
+            // (translate: 0, -7px, 6px, -4px, 2px, 0 across the screen, over 0.38 s eased out; a CSS px of it, its own
+            // width over the width the web draws it.)
+            var keys = new[] { 0f, -7, 6, -4, 2, 0 };
+            float u = BattleView.CubicBezier(0, 0, 0.58f, 1, Mathf.Clamp01(refuseAge / RefuseTime)) * 5;
+            int i = Mathf.Min(4, (int)u);
+            var col = GetComponentInChildren<Collider>();
+            float css = Table ? BoardLayout.Current.Tcw : BoardLayout.Current.HandCard;
+            float px = col != null ? col.bounds.size.x / css : 0;
+            var w = Vector3.right * Mathf.Lerp(keys[i], keys[i + 1], u - i) * px;
+            o += transform.parent != null ? transform.parent.InverseTransformVector(w) : w;
+        }
         return o;
     }
 
@@ -443,6 +462,7 @@ public class CardView : MonoBehaviour
         baseScale = Vector3.Lerp(baseScale, goalScale, k);
         if (lungeAge >= 0) { lungeAge += Time.deltaTime; if (lungeAge > LungeTime) lungeAge = -1; }
         if (shakeAge > -10) { shakeAge += Time.deltaTime; if (shakeAge > ShakeTime) shakeAge = -11; }
+        if (refuseAge >= 0) { refuseAge += Time.deltaTime; if (refuseAge > RefuseTime) refuseAge = -1; }
         applied = Offset();
         var turn = Quaternion.identity;
         var grow = 1f;

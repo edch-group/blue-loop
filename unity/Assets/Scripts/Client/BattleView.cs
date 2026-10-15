@@ -22,9 +22,7 @@ public partial class BattleView : MonoBehaviour
     string you = "p1";
     bool busy;
 
-    // What is being chosen: a card from hand (its plays still possible), or an attacker.
-    string picked;
-    List<EngineAction> options;
+    // What is being chosen: an attacker's target (a card from hand, or a Hero's ability: BattleView.Play's pending).
     string attacker;
 
     Canvas hud;
@@ -318,8 +316,7 @@ public partial class BattleView : MonoBehaviour
 
     void Clear()
     {
-        picked = null;
-        options = null;
+        pending = null;
         attacker = null;
         if (heroPanel != null) heroPanel.gameObject.SetActive(false);
     }
@@ -327,7 +324,8 @@ public partial class BattleView : MonoBehaviour
     void Say(string text, bool fresh = true)
     {
         toast.text = text;
-        if (fresh) toastUntil = Time.time + 3.5f;
+        // (app.ts TOAST_MS: 2.6 s.)
+        if (fresh) toastUntil = Time.time + 2.6f;
         // (As wide as its words, at most min(440px, 100vw − 32px), padded 7 × 16 px; its lines 1.35 apart.)
         var box = (RectTransform)toast.transform.parent;
         float most = Mathf.Min(440, BoardLayout.Current.W - 32);
@@ -472,7 +470,8 @@ public partial class BattleView : MonoBehaviour
             if (dHeat != 0 || p.Shields != w.Shields || p.Eliminated != w.Eliminated) Board?.HoldSun(p.Id, next, WithSun(p, new SunAt { Heat = w.Heat, Shields = w.Shields, Eliminated = w.Eliminated }), flown ? Mathf.Max(0, at - 0.4f) + 0.62f : at);
             if (dHeat > 0)
             {
-                if (p.Id == you && byEnemy) Sound.Play("hurt", dHeat);
+                // (Yours, by them: as the blow lands, as the web's.)
+                if (p.Id == you && byEnemy) Sound.Play($"hurt-{Mathf.Clamp(dHeat, 1, 5)}", at);
                 else if (byEnemy) Sound.Play($"strike-{Mathf.Clamp(dHeat, 1, 5)}", at);
                 else Sound.Play("impact-hot", at);
             }
@@ -587,114 +586,41 @@ public partial class BattleView : MonoBehaviour
 
     void Tap()
     {
-        if (!Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 100)) { Clear(); Refresh(); return; }
+        // (Just after the stage's OK, or while a rival's card waits on it to be read, the board takes no taps.)
+        if (Time.time < clickShieldUntil || (stage != null && stage.Confirm)) return;
+        if (!Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var hit, 100)) { Click(null, null); Refresh(); return; }
         var card = hit.collider.GetComponentInParent<CardView>();
         var slot = hit.collider.GetComponent<SlotTag>();
         var sun = hit.collider.GetComponentInParent<SunTag>();
         if (card != null) TapCard(card.Uid);
         else if (slot != null) TapSlot(slot);
         else if (sun != null) TapSun(sun.PlayerId);
-        else Clear();
+        else Click(null, null);
         Refresh();
     }
 
+    /// <summary>A card tapped: what it does now (BattleView.Play CardAct).</summary>
     void TapCard(string uid)
     {
-        if (!MyDay) return;
-        if (Dawn != null) { DawnCard(uid); return; }
-        if (discarding != null)
-        {
-            if (Me.Hand.Any(c => c.Uid == uid))
-            {
-                if (discarding.Contains(uid)) discarding.Remove(uid);
-                else if (discarding.Count < Over) discarding.Add(uid);
-            }
-            return;
-        }
-        var inHand = Me.Hand.FirstOrDefault(c => c.Uid == uid);
-        var mineInPlay = Me.Tableau.FirstOrDefault(c => c.Uid == uid);
-        // Choosing what a card from hand aims at, or an attacker's target.
-        if (picked != null && options != null && options.Any(o => Aims(o) == uid))
-        {
-            Finish(options.Where(o => Aims(o) == uid).ToList());
-            return;
-        }
-        if (attacker != null && mineInPlay == null)
-        {
-            Do(new EngineAction { Type = "attack", AttackerUid = attacker, TargetUid = uid });
-            return;
-        }
-        if (inHand != null)
-        {
-            if (picked == uid) { Clear(); return; }
-            Clear();
-            if (Game.HandCost(inHand, Me) > Me.PlaysLeft)
-            {
-                Say($"{Cards.Def(inHand.DefId).Name} costs {Game.HandCost(inHand, Me)}: you have {Me.PlaysLeft} energy.");
-                return;
-            }
-            var plays = AI.PlaysFor(state, uid);
-            if (plays.Count == 0)
-            {
-                Say(Game.RoomProblem(Me, inHand.DefId) ?? "It can't be played now.");
-                return;
-            }
-            picked = uid;
-            options = plays;
-            Sound.Play("hand-lift");
-            // (Nothing to choose: it's played at once.)
-            if (plays.All(o => o.SlotIndex == null) && plays.All(o => Aims(o) == null)) Finish(plays);
-            return;
-        }
-        if (mineInPlay != null)
-        {
-            Clear();
-            // (Your Hero, tapped: its abilities, its singularity and its attack to pick from.)
-            if (mineInPlay.Slot == Game.CommandSlot)
-            {
-                ShowHero();
-                return;
-            }
-            var why = Game.AttackProblem(state, Me, uid, null, false);
-            if (why != null) Say($"{Cards.Def(mineInPlay.DefId).Name}: {why}.");
-            else attacker = uid;
-        }
+        if (state == null) return;
+        var (owner, c, hand) = Find(uid);
+        if (c == null) { Click(null, null); return; }
+        var (act, arg, _) = CardAct(owner, c, hand);
+        Click(act, arg);
     }
 
     void TapSlot(SlotTag slot)
     {
-        if (MyDay && Dawn != null)
-        {
-            if (dawnPick != null && slot.Slot >= 0 && slot.Mine == (Dawn.Kind == "shift"))
-                Do(Dawn.Kind == "shift" ? new EngineAction { Type = "dawnChoice", AllyUid = dawnPick, ShiftTo = slot.Slot } : new EngineAction { Type = "dawnChoice", EnemyUid = dawnPick, ShiftTo = slot.Slot });
-            return;
-        }
-        if (!MyDay || picked == null || !slot.Mine) return;
-        PickSlot(slot.Slot);
-    }
-
-    /// <summary>The card picked from hand put in a slot of yours (what lands there; aimed at, if one aim is all it has).</summary>
-    void PickSlot(int slotIndex)
-    {
-        if (picked == null || options == null) return;
-        var here = options.Where(o => o.SlotIndex == slotIndex).ToList();
-        if (here.Count == 0) return;
-        options = here;
-        if (here.All(o => Aims(o) == null) || here.Select(Aims).Distinct().Count() == 1) Finish(here);
+        if (state == null) return;
+        var (act, arg) = SlotAct(slot.Mine, slot.Slot);
+        Click(act, arg);
     }
 
     void TapSun(string playerId)
     {
-        if (!MyDay || playerId == you) return;
-        // (A Hero's ability or singularity aimed: their sun, if it may be.)
-        // (Something aimed, a card from hand or a Hero's ability: their sun, where it may go there.)
-        if (picked != null && options != null && options.Any(o => Aims(o) != null))
-        {
-            var atSun = options.Where(o => Aims(o) == null).ToList();
-            if (atSun.Count > 0 && atSun.Select(o => o.SlotIndex).Distinct().Count() == 1) { Finish(atSun); return; }
-        }
-        if (Dawn != null) { if (Dawn.Kind == "aim") Do(new EngineAction { Type = "dawnChoice" }); return; }
-        if (attacker != null) Do(new EngineAction { Type = "attack", AttackerUid = attacker, TargetUid = null });
+        if (state == null) return;
+        var (act, arg) = SunAct(playerId);
+        Click(act, arg);
     }
 
     // ---- Dusk: over the hand limit, the cards to let go ----
@@ -721,37 +647,6 @@ public partial class BattleView : MonoBehaviour
     /// <summary>The choice waiting on you now, if any.</summary>
     DawnChoice Dawn => state != null && state.WinnerId == null && !Autoplay && HumanDawnChoice() ? Game.ActivePlayer(state).DawnChoices[0] : null;
     string dawnPick;
-
-    /// <summary>Whether a card can answer the dawn choice (or, moving one, be the one moved).</summary>
-    bool DawnTarget(PlayerState owner, CardInstance c, bool inPlay)
-    {
-        var d = Dawn;
-        if (d == null) return false;
-        bool mine = owner.Id == you;
-        switch (d.Kind)
-        {
-            case "discount": return mine && !inPlay;
-            case "aim": case "freeze": return !mine && inPlay;
-            case "displace": return !mine && inPlay && c.Slot != Game.CommandSlot;
-            case "empower": case "renew": case "ward": return mine && inPlay;
-            default: return mine && inPlay && c.Slot != Game.CommandSlot;
-        }
-    }
-
-    void DawnCard(string uid)
-    {
-        var d = Dawn;
-        var owner = state.Players.FirstOrDefault(p => p.Tableau.Any(c => c.Uid == uid) || p.Hand.Any(c => c.Uid == uid));
-        if (owner == null) return;
-        var c = owner.Tableau.FirstOrDefault(x => x.Uid == uid) ?? owner.Hand.First(x => x.Uid == uid);
-        if (!DawnTarget(owner, c, owner.Tableau.Contains(c))) return;
-        if (d.Kind == "shift" || d.Kind == "displace")
-        {
-            dawnPick = dawnPick == uid ? null : uid;
-            return;
-        }
-        Do(owner.Id == you ? new EngineAction { Type = "dawnChoice", AllyUid = uid } : new EngineAction { Type = "dawnChoice", EnemyUid = uid });
-    }
 
     /// <summary>What the dawn choice asks, in a word or two (the web's mid-board hint).</summary>
     string DawnAsk(DawnChoice d)
@@ -833,44 +728,38 @@ public partial class BattleView : MonoBehaviour
         hint.localScale = Vector3.one * scale;
     }
 
+    /// <summary>What the board waits on you for, in its middle (app.ts renderMidHint).</summary>
     void ShowHint()
     {
         foreach (Transform c in hint) Mats.Kill(c.gameObject);
         hint.gameObject.SetActive(false);
+        if (state.WinnerId != null) return;
         var d = Dawn;
-        if (discarding != null && d == null)
+        // Over the hand limit at the day's end: pick the cards to discard in the hand, then End Day.
+        if (discarding != null && pending == null)
         {
             int left = Over - discarding.Count;
             MidHint(left > 0 ? $"discard {left} card{(left == 1 ? "" : "s")}" : "end day to discard", ("keep playing", () => { discarding = null; Refresh(); }));
             return;
         }
-        if (d == null && MyDay && (picked != null || attacker != null))
+        if (d != null)
         {
-            // A card picked or an attacker readied: what to choose next, and a way back out.
-            string ask;
-            if (attacker != null)
-            {
-                var a = Me.Tableau.FirstOrDefault(c => c.Uid == attacker);
-                bool guarded = !(Game.AimChoices(state, Me, true)?.Sun ?? true);
-                ask = guarded ? "attack a guard" : $"attack with {(a != null ? Cards.Def(a.DefId).Name.ToLowerInvariant() : "it")}";
-            }
-            else
-            {
-                bool slots = options != null && options.Select(o => o.SlotIndex).Distinct().Count() > 1;
-                ask = slots ? "place it" : "choose a target";
-            }
-            MidHint(ask, ("cancel", () => { Clear(); Refresh(); }));
+            // Skip (or, aiming heat, their sun: it has to go somewhere); moving a card, back.
+            System.Action skip = () => Act("dawn-shift-skip", null);
+            if (d.Kind == "aim") MidHint(DawnAsk(d), ("their sun", () => Act("dawn-aim-sun", null)));
+            else if (dawnPick != null) MidHint(DawnAsk(d), ("back", () => Act("dawn-shift-back", null)), ("skip", skip));
+            else MidHint(DawnAsk(d), ("skip", skip));
             return;
         }
-        if (d == null && puzzleKind == null && state.Challenge?.Kind == "dream" && state.WinnerId == null)
+        dawnPick = null;
+        if (pending == null && attacker == null)
         {
-            dawnPick = null;
-            DreamHint();
-            return;
-        }
-        if (d == null)
-        {
-            dawnPick = null;
+            // A dream: its goal, and the time left to reach it.
+            if (puzzleKind == null && state.Challenge?.Kind == "dream")
+            {
+                DreamHint();
+                return;
+            }
             // A challenge's clock (the mine's count too), with nothing acting next. (Against a Lost Overlord or Lord, the
             // card that acts next burns on the board: that says enough.)
             var lord = state.Players.FirstOrDefault(x => x.Boss != null && !x.Eliminated);
@@ -880,52 +769,40 @@ public partial class BattleView : MonoBehaviour
                 BossHint(lord.Name, ch.Kind == "mine" ? "break the crystals" : ch.Kind == "crystal" ? "break the crystal" : "hold the line", clock);
             return;
         }
-        // Skip (or, aiming heat, their sun: it has to go somewhere); moving a card, back.
-        System.Action skip = () => Do(new EngineAction { Type = "dawnChoice" });
-        if (d.Kind == "aim") MidHint(DawnAsk(d), ("their sun", skip));
-        else if (dawnPick != null) MidHint(DawnAsk(d), ("back", () => { dawnPick = null; Refresh(); }), ("skip", skip));
-        else MidHint(DawnAsk(d), ("skip", skip));
-    }
-
-    /// <summary>What a play aims at (a card), if anything.</summary>
-    static string Aims(EngineAction a) => a.AimUid ?? a.EnemyUid ?? a.AllyUid ?? a.RecoverUid ?? a.SacrificeUid;
-
-    void Finish(List<EngineAction> left)
-    {
-        var best = left.Count == 1 ? left[0] : AI.BestOf(state, left);
-        if (best != null) Do(best);
+        // A card picked, a Hero's ability or an attacker readied: what to choose next, and a way back out.
+        var ask = PendingAsk();
+        if (ask != null) MidHint(ask, ("cancel", () => Act("cancel", null)));
     }
 
     // ---- What the board shows of the choosing ----
 
-    /// <summary>A card's rim and dimming for what is being chosen.</summary>
+    /// <summary>
+    /// A card's rim for what is being chosen (app.ts renderCard's state): one that can be chosen ringed coral
+    /// (.card-choosable), the one picked blue (.card-picked), one that can attack faintly red (.card-attacker), the one
+    /// aiming red (.card-aiming); in the hand, one to discard, and one that can be played (.card-playable).
+    /// </summary>
     public void Dress(CardView v, PlayerState owner, CardInstance c, bool inPlay)
     {
         if (DragRim(v, c)) return;
         Color? rim = null;
         float strength = 1;
-        if (Dawn != null)
-        {
-            if (c.Uid == dawnPick) rim = Look.Pick;
-            else if (dawnPick == null && DawnTarget(owner, c, inPlay)) rim = Look.Aim;
-        }
-        else if (inPlay)
-        {
-            if (c.Uid == attacker) rim = Look.Pick;
-            else if (attacker != null && owner.Id != you && Game.AttackProblem(state, Me, attacker, c.Uid, true) == null) rim = Look.Aim;
-            else if (picked != null && options != null && options.Any(o => Aims(o) == c.Uid)) rim = Look.Aim;
-            else if (MyDay && owner.Id == you && attacker == null && picked == null && Game.AttackProblem(state, Me, c.Uid, null, false) == null) { rim = Look.Aim; strength = 0.45f; }
-        }
-        else if (discarding != null)
+        if (!inPlay && discarding != null)
         {
             if (discarding.Contains(c.Uid)) rim = Look.Danger;
             else if (discarding.Count < Over) { rim = Look.Danger; strength = 0.35f; }
+            v.Rim(rim, strength);
+            return;
         }
-        else
+        string look = state != null && state.WinnerId == null && (inPlay ? owner.Tableau.Contains(c) : owner.Hand.Contains(c)) ? CardAct(owner, c, !inPlay).look : null;
+        switch (look)
         {
-            if (c.Uid == picked) rim = Look.Pick;
-            else if (MyDay && Game.HandCost(c, owner) <= owner.PlaysLeft && AI.PlaysFor(state, c.Uid).Count > 0) { rim = Look.Good; strength = 0.6f; }
+            case "choosable": rim = Look.Aim; break;
+            case "picked": rim = Look.Pick; break;
+            case "attacker": rim = Look.Aim; strength = 0.45f; break;
+            case "aiming": rim = Look.Aim; strength = 1.15f; break;
         }
+        // ...and a card in hand that can be played now has a faint green rim.
+        if (!inPlay && look == null && MyDay && owner.Id == you && Game.HandCost(c, owner) <= owner.PlaysLeft && CanPlayNow(owner, c.DefId, c.Discount ?? 0)) { rim = Look.Good; strength = 0.6f; }
         v.Rim(rim, strength);
     }
 
@@ -1096,7 +973,8 @@ public partial class BattleView : MonoBehaviour
         // word clamp(0.46rem, 1.6vh, 0.6rem) over 9 px pips).
         float cw = Css.Clamp(120, 14 * l.Vw, 190), right = l.PadR, bottom = Mathf.Max(14, l.PadB);
         float eh = 10.56f * 1.2f + 2 * Css.Clamp(8, 3 * l.Vh, 14) + 2;
-        endDay = WhiteButton(chrome, "End day", RequestEndDay, 10.56f, 10, 1);
+        // (While dawn or dusk plays out, or a choice is owed, it is refused with the blocker's thud: app.ts onClick.)
+        endDay = WhiteButton(chrome, "End day", () => { if (MyDay && (!DayNow || Dawn != null)) { Sound.Play("blocked"); return; } RequestEndDay(); }, 10.56f, 10, 1);
         Hud.At((RectTransform)endDay.transform, new Vector2(1, 0), new Vector2(-right, bottom), new Vector2(cw, eh));
         float word = Css.Clamp(7.36f, 1.6f * l.Vh, 9.6f), plays = word * 1.22f + 3 + 9;
         var energy = Hud.Rect(chrome, "Energy");
@@ -1315,6 +1193,7 @@ public partial class BattleView : MonoBehaviour
         RivalHand();
         Reaction();
         ShowHint();
+        ShowChoice();
         PuzzleTag();
         GameOver();
         DrawStage();

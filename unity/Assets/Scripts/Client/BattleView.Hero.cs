@@ -213,43 +213,51 @@ public partial class BattleView
         if (stagePane != null) Destroy(stagePane.gameObject);
     }
 
-    /// <summary>A Hero's ability: at once, or (aimed) tap what it strikes, as a card from hand is aimed.</summary>
+    /// <summary>
+    /// A Hero's ability (app.ts hero-ability): paid for with a sacrifice, first the card of yours to give up; one that
+    /// heats, with rival cards on the table, aimed (a card, or their sun); else used at once.
+    /// </summary>
     void UseAbility(int index)
     {
+        var why = Game.HeroAbilityProblem(state, Me, index);
+        if (why != null) { Say(why); return; }
         heroPanel.gameObject.SetActive(false);
         var hero = Game.CommandCard(Me);
         if (hero == null) return;
-        var opts = new List<EngineAction>();
-        if (Game.AbilityAimable(hero.DefId, index))
+        if (Game.HeroAbilities(Me, hero, true)[index].Pay?.Sacrifice == true)
         {
-            var aim = Game.AimChoices(state, Me);
-            if (aim.Sun) opts.Add(new EngineAction { Type = "heroAbility", Index = index });
-            opts.AddRange((aim.Cards ?? new List<CardInstance>()).Select(c => new EngineAction { Type = "heroAbility", Index = index, AimUid = c.Uid }));
+            pending = new Pending { Uid = hero.Uid, Step = "sacrifice", Ability = index };
+            Sound.Play("hover");
+            Refresh();
+            return;
         }
-        else opts.Add(new EngineAction { Type = "heroAbility", Index = index });
-        Aim(hero.Uid, opts);
+        if (Game.AbilityAimable(hero.DefId, index) && Game.AimChoices(state, Me).Cards.Count > 0)
+        {
+            pending = new Pending { Uid = hero.Uid, Step = "aim", Ability = index };
+            Sound.Play("hover");
+            Refresh();
+            return;
+        }
+        Sound.Play("hero");
+        Do(new EngineAction { Type = "heroAbility", Index = index });
     }
 
+    /// <summary>The Hero's singularity (app.ts singularity): one that blasts a card, with rival cards on the table, aimed first.</summary>
     void Unleash()
     {
+        var why = Game.SingularityProblem(state, Me);
+        if (why != null) { Say(why); return; }
         heroPanel.gameObject.SetActive(false);
         var hero = Game.CommandCard(Me);
         if (hero == null) return;
-        var aim = Game.AimChoices(state, Me);
-        var opts = new List<EngineAction>();
-        if (aim.Sun || (aim.Cards?.Count ?? 0) == 0) opts.Add(new EngineAction { Type = "singularity" });
-        opts.AddRange((aim.Cards ?? new List<CardInstance>()).Select(c => new EngineAction { Type = "singularity", AimUid = c.Uid }));
-        Aim(hero.Uid, opts);
-    }
-
-    /// <summary>One choice: done at once; more: the targets light up to be tapped (or their sun).</summary>
-    void Aim(string heroUid, List<EngineAction> opts)
-    {
-        if (opts.Count == 0) { Say("Nothing to aim at."); return; }
-        if (opts.Count == 1) { Do(opts[0]); return; }
-        Clear();
-        picked = heroUid;
-        options = opts;
-        Refresh();
+        if ((Singularities.Of(hero.DefId)?.Effects ?? new List<Effect>()).Any(e => e.Type == "blast") && Game.AimChoices(state, Me).Cards.Count > 0)
+        {
+            pending = new Pending { Uid = hero.Uid, Step = "aim", Ability = SingAim };
+            Sound.Play("hover");
+            Refresh();
+            return;
+        }
+        Sound.Play("hero");
+        Do(new EngineAction { Type = "singularity" });
     }
 }
