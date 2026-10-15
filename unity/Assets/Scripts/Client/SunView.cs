@@ -96,13 +96,10 @@ public class SunView : MonoBehaviour
         // with a soft edge, and its shields beside, a hexagon 44 px across, faint at none.
         float z = (mine ? Board.MyRowZ + 1.65f : Board.RowZ - 1.383f) - transform.localPosition.z;
         float tx = -5.303f - transform.localPosition.x, sx = -4.674f - transform.localPosition.x, y = Floor;
-        float w = 0.667f, h = 0.267f;
-        var shadow = Board.Shape("Planet pill shadow", transform, new Color(60 / 255f, 80 / 255f, 120 / 255f, 0.18f), w, h, h / 2, 2998, y, Board.Px(4) / 10, Board.Px(8) / 10);
-        shadow.transform.localPosition = new Vector3(tx, y, z - Board.Px(2) / 10);
-        var tag = Board.Shape("Planet pill", transform, Color.white, w, h, h / 2, 3000, y);
-        tag.transform.localPosition = new Vector3(tx, y, z);
-        var edge = Board.Shape("Planet pill edge", transform, new Color(150 / 255f, 164 / 255f, 190 / 255f, 0.5f), w - 0.016f, h - 0.016f, h / 2, 3001, y, 0.007f, 0.01f, true);
-        edge.transform.localPosition = new Vector3(tx, y + 0.0005f, z);
+        pillY = y;
+        pillZ = z;
+        // (The pill and the hexagon a row, centred under the sun as the web's flex row: the pill as wide as its word.)
+        pillMid = (tx - 0.3335f + sx + 0.3125f) / 2;
         planet = Mats.FlatText("Planet", transform, "", Board.Px(10.88f), Look.InkSoft, true, 700, 12);
         planet.transform.localPosition = new Vector3(tx, y + 0.001f, z);
         float hex = 0.5f * 1.25f;
@@ -111,6 +108,37 @@ public class SunView : MonoBehaviour
         shieldBg = Board.Shape("Shields number", transform, Color.white, 0.16f, 0.15f, 0.04f, 3021, y, 0.012f, 0.03f);
         shieldBg.transform.localPosition = new Vector3(sx, y + 0.0015f, z);
         shieldN = Mats.FlatText("Shields count", transform, "0", Board.Px(12.18f), new Color(179 / 255f, 188 / 255f, 203 / 255f), true, 700, 0);
+        shieldN.transform.localPosition = new Vector3(sx, y + 0.002f, z);
+        SizePill("DEAD");
+    }
+
+    float pillY, pillZ, pillMid;
+    string pillWord;
+    MeshRenderer pillShadow, pillTag, pillEdge;
+
+    /// <summary>
+    /// The planet's pill made to fit its word (styles.css .vit-planet-tag: its height, padded each side by a third of it
+    /// and its 2 px edge), the shields' hexagon 4 px after it, the two centred together under the sun.
+    /// </summary>
+    void SizePill(string word)
+    {
+        if (word == pillWord) return;
+        pillWord = word;
+        if (pillShadow != null) Mats.Kill(pillShadow.gameObject);
+        if (pillTag != null) Mats.Kill(pillTag.gameObject);
+        if (pillEdge != null) Mats.Kill(pillEdge.gameObject);
+        const float h = 0.267f, hexW = 0.625f, gap = -0.017f;
+        float w = Mathf.Max(h, planet.GetPreferredValues(word).x + 2 * (h * 0.3125f + 0.02f));
+        float left = pillMid - (w + gap + hexW) / 2, tx = left + w / 2, sx = left + w + gap + hexW / 2, y = pillY, z = pillZ;
+        pillShadow = Board.Shape("Planet pill shadow", transform, new Color(60 / 255f, 80 / 255f, 120 / 255f, 0.18f), w, h, h / 2, 2998, y, Board.Px(4) / 10, Board.Px(8) / 10);
+        pillShadow.transform.localPosition = new Vector3(tx, y, z - Board.Px(2) / 10);
+        pillTag = Board.Shape("Planet pill", transform, Color.white, w, h, h / 2, 3000, y);
+        pillTag.transform.localPosition = new Vector3(tx, y, z);
+        pillEdge = Board.Shape("Planet pill edge", transform, new Color(150 / 255f, 164 / 255f, 190 / 255f, 0.5f), w - 0.016f, h - 0.016f, h / 2, 3001, y, 0.007f, 0.01f, true);
+        pillEdge.transform.localPosition = new Vector3(tx, y + 0.0005f, z);
+        planet.transform.localPosition = new Vector3(tx, y + 0.001f, z);
+        shield.transform.localPosition = new Vector3(sx, y + 0.001f, z);
+        shieldBg.transform.localPosition = new Vector3(sx, y + 0.0015f, z);
         shieldN.transform.localPosition = new Vector3(sx, y + 0.002f, z);
     }
 
@@ -209,6 +237,7 @@ public class SunView : MonoBehaviour
         shieldArc.mesh = ArcMesh(sd.Radius, sd.Width, Mathf.Max(0.01f, Mathf.Min(1, p.Shields / (float)Balance.MaxKeptShields)));
         var now = Game.CurrentPlanet(p, s);
         planet.text = now.ToUpperInvariant();
+        SizePill(planet.text);
         int at = System.Array.IndexOf(PlanetNames, now);
         // (The planet it faces turns to the front.)
         orbitGoal = at < 0 ? orbitGoal : -90 - at * 120;
