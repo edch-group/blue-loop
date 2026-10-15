@@ -36,6 +36,15 @@ public partial class BattleView
         ArmDreamClock();
         int days = state.Challenge.Days ?? 1;
         string goal = state.Challenge.Goal == "win" ? (days > 1 ? $"win within {days} days · day {Mathf.Min(days, state.Players[0].TurnsTaken)}" : "win this day") : "survive their day";
+        dreamClock = BossHint("a dream of the lost", goal, Clock(dreamLeft));
+    }
+
+    /// <summary>
+    /// .mid-hint.boss-hint over the board's middle: its small red words (spaced capitals), its red ask in the white pill,
+    /// and a line under it (returned, to be kept up to date).
+    /// </summary>
+    TextMeshProUGUI BossHint(string over, string goal, string under)
+    {
         var l = BoardLayout.Current;
         hint.gameObject.SetActive(true);
         PlaceHint();
@@ -43,7 +52,7 @@ public partial class BattleView
         float small = 11.2f, f = Css.Clamp(12.8f, 3.6f * l.Vh, 24), ph = f * 1.2f + 12, span = 13.6f;
         float total = small * 1.2f + 2 + ph + 2 + span * 1.2f;
         float y = total / 2;
-        var top = Hud.Label(hint, "A DREAM OF THE LOST", small, red, true, 400, 20);
+        var top = Hud.Label(hint, over.ToUpperInvariant(), small, red, true, 400, 20);
         Hud.At(top.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, y - small * 0.6f), new Vector2(Mathf.Min(520, l.W * 0.7f), small * 1.2f));
         y -= small * 1.2f + 2;
         var pill = Hud.Box(hint, "Words", new Color(1, 1, 1, 0.86f), ph / 2);
@@ -52,9 +61,10 @@ public partial class BattleView
         float w = words.GetPreferredValues(words.text).x + 2 * 18;
         Hud.At(pill.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, y - ph / 2), new Vector2(w, ph));
         y -= ph + 2;
-        dreamClock = Hud.Label(hint, Clock(dreamLeft), span, Look.Ink, false, 400, 0);
-        Hud.At(dreamClock.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, y - span * 0.6f), new Vector2(200, span * 1.2f));
-        dreamClock.fontStyle = FontStyles.Normal;
+        var line = Hud.Label(hint, under, span, Look.Ink, false, 400, 0);
+        Hud.At(line.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0, y - span * 0.6f), new Vector2(Mathf.Min(520, l.W * 0.7f), span * 1.2f));
+        line.fontStyle = FontStyles.Normal;
+        return line;
     }
 
     /// <summary>The dream's clock, run in the dreamer's own day only.</summary>

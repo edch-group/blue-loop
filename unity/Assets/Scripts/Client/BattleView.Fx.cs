@@ -261,7 +261,7 @@ public partial class BattleView
     Rect? SunRect(string playerId)
     {
         var s = Board.SunOf(playerId);
-        var col = s != null ? s.GetComponentInChildren<Collider>() : null;
+        var col = s != null ? s.GetComponentInChildren<Collider>() : Board.BossPanel(playerId);
         return col != null ? PageRect(col) : (Rect?)null;
     }
 

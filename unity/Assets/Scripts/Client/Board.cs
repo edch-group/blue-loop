@@ -11,7 +11,7 @@ using UnityEngine;
 /// screen. <see cref="Sync"/> lays it all out from a game state; cards glide to their new places. Everything stands
 /// where the web's board puts it at the screen's size (BoardLayout): <see cref="Relayout"/> when that changes.
 /// </summary>
-public class Board : MonoBehaviour
+public partial class Board : MonoBehaviour
 {
     // The table's layout, in card widths (a card is 1 × 1.4), x across and z away from the viewer, from the Stellari's
     // middle: the web board's own at this screen's size (BoardLayout, from styles.css).
@@ -634,6 +634,8 @@ public class Board : MonoBehaviour
                 v.FaceDown();
                 for (int k = 0; k < 3; k++) v.Badge(new[] { "atk", "stab", "def" }[k], "atk", null);
             }
+            // (A Lost Overlord has no sun: its vitals in its place.)
+            if (p.Boss != null) { NoSun(p.Id); BossVitals(s, p, mine); continue; }
             var sunView = SunFor(p, mine);
             // (Until the blow lands, a sun keeps showing its old heat and shields: app.ts holdUntil.)
             if (sunHold.TryGetValue(p.Id, out var sh) && Time.time < sh.until) sunView.Show(sh.s, sh.p);

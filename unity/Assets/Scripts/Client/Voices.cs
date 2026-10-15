@@ -28,6 +28,33 @@ public static class Voices
         if (clip != null) Sound.PlayClip(clip);
     }
 
+    static Coroutine talk;
+
+    /// <summary>
+    /// Lines said in turn (voice.ts converse), each 0.6 s on from the last having had its time, each beside where its
+    /// speaker is as it is said (or, none found, free over the board).
+    /// </summary>
+    public static void Converse(MonoBehaviour host, RectTransform canvas, params (string text, System.Func<(Vector2 at, bool below)?> at)[] lines)
+    {
+        if (talk != null) host.StopCoroutine(talk);
+        talk = host.StartCoroutine(Talk(canvas, lines));
+    }
+
+    static System.Collections.IEnumerator Talk(RectTransform canvas, (string text, System.Func<(Vector2 at, bool below)?> at)[] lines)
+    {
+        float wait = 0.6f;
+        foreach (var (text, at) in lines)
+        {
+            yield return new WaitForSeconds(wait);
+            if (canvas == null) yield break;
+            var where = at();
+            // (.hero-line-free: across the middle, 30% down, standing over that point.)
+            Show(text, canvas, where?.at ?? new Vector2(0, canvas.rect.height * 0.2f), where?.below ?? false);
+            wait = 2.6f + text.Length * 0.03f + 0.3f;
+        }
+        talk = null;
+    }
+
     static void Show(string text, RectTransform canvas, Vector2 at, bool below)
     {
         if (caption != null) Mats.Kill(caption);

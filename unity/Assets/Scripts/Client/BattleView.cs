@@ -108,6 +108,15 @@ public partial class BattleView : MonoBehaviour
         campaignOf = from;
         Load(game);
         Sound.Scene(game.Players.Any(p => p.Boss != null) ? "boss" : "battle");
+        // Kaelen's crystal: he begs to be freed, and the Captain answers.
+        if (game.Challenge?.Kind == "crystal" && game.TurnNumber <= 1 && Application.isPlaying)
+        {
+            var crystal = game.Players[1].Tableau.FirstOrDefault()?.Uid;
+            var captain = game.Players[0].Id;
+            Voices.Converse(this, refLayer,
+                ("Captain? Is that you? Break it, please. I can’t hold on much longer.", () => crystal != null && Board.View(crystal) != null ? CaptionAt(Board.View(crystal).transform.position, 0.7f) : null),
+                ("Hold on, Kaelen. I’m getting you out.", () => Board.SunOf(captain) != null ? CaptionAt(Board.SunOf(captain).transform.position, 0.5f * Board.SunScale) : null));
+        }
     }
 
     void BackToCampaign() => App.Instance.EndCampaignBattle(this, state, campaignOf);
@@ -525,6 +534,18 @@ public partial class BattleView : MonoBehaviour
         if (mine.Deck.Count == 0 && Was(mine).Deck.Count > 0) Board?.ShuffleDeck();
     }
 
+    /// <summary>
+    /// Where a caption stands for a thing on the board (on the overlay layer): over it, or under it when it sits at the
+    /// top of the screen (voice.ts showCaption).
+    /// </summary>
+    (Vector2 at, bool below)? CaptionAt(Vector3 world, float halfDepth)
+    {
+        var screen = Cam.WorldToScreenPoint(world + new Vector3(0, 0, halfDepth));
+        bool below = screen.y > Screen.height * 0.93f;
+        if (below) screen = Cam.WorldToScreenPoint(world - new Vector3(0, 0, halfDepth));
+        return RectTransformUtility.ScreenPointToLocalPointInRectangle(refLayer, screen, hudCam, out var at) ? (at, below) : ((Vector2, bool)?)null;
+    }
+
     /// <summary>A Hero's line as it lands: a caption over its card on the board.</summary>
     IEnumerator SpeakLater(string defId, string uid, float after)
     {
@@ -837,7 +858,18 @@ public partial class BattleView : MonoBehaviour
             DreamHint();
             return;
         }
-        if (d == null) { dawnPick = null; return; }
+        if (d == null)
+        {
+            dawnPick = null;
+            // A challenge's clock (the mine's count too), with nothing acting next. (Against a Lost Overlord or Lord, the
+            // card that acts next burns on the board: that says enough.)
+            var lord = state.Players.FirstOrDefault(x => x.Boss != null && !x.Eliminated);
+            var ch = state.Challenge;
+            string clock = ch?.Days != null ? $"{ch.Days} day{(ch.Days == 1 ? "" : "s")} left{(ch.Kind == "mine" ? $" · {ch.Broken} broken" : "")}" : "";
+            if (lord != null && Game.BossIntent(lord) == null && clock != "")
+                BossHint(lord.Name, ch.Kind == "mine" ? "break the crystals" : ch.Kind == "crystal" ? "break the crystal" : "hold the line", clock);
+            return;
+        }
         // Skip (or, aiming heat, their sun: it has to go somewhere); moving a card, back.
         System.Action skip = () => Do(new EngineAction { Type = "dawnChoice" });
         if (d.Kind == "aim") MidHint(DawnAsk(d), ("their sun", skip));
