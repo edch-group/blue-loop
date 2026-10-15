@@ -7,3 +7,6 @@ Build/
 build/
 *.csproj
 *.sln
+# Unity writes a .meta beside every asset as it opens the project; none are kept (the game builds its scenes and
+# materials in code, nothing refers to an asset by its id, and the build makes its own).
+*.meta
