@@ -59,7 +59,7 @@ public class Board : MonoBehaviour
     TextMeshPro[] phases;
     readonly MeshRenderer[] phaseDots = new MeshRenderer[3], phaseGlows = new MeshRenderer[3];
     TextMeshPro myLabel, rivalLabel, turnThem, turnYou, roundN, roundUp;
-    readonly List<MeshRenderer> roundTicks = new List<MeshRenderer>();
+    readonly List<MeshRenderer> roundTicks = new List<MeshRenderer>(), roundGlows = new List<MeshRenderer>();
     MeshRenderer roundTrack;
     Vector3 dotScale = Vector3.one;
     MeshRenderer myDeck, rivalDeck, myDiscard, rivalDiscard, myWreck, rivalWreck;
@@ -178,6 +178,7 @@ public class Board : MonoBehaviour
         slotMarks.Clear();
         slotLooks.Clear();
         roundTicks.Clear();
+        roundGlows.Clear();
         decor = new GameObject("Decor").transform;
         decor.SetParent(table, false);
         var table0 = table;
@@ -387,31 +388,66 @@ public class Board : MonoBehaviour
         float d = l.U(l.Round);
         var shadow = Shape("Round shadow", table, Rgba(90, 90, 110, 0.18f), d, d, d / 2, 2921, 0.0015f, l.U(4), l.U(8));
         shadow.transform.localPosition = new Vector3(0, 0.0015f, -l.U(2));
-        var disc = Shape("Round", table, Rgba(247, 247, 248), d, d, d / 2, 2922, 0.002f);
+        // (Its 1 px white border, and inside it radial-gradient(circle at 40% 35%, #ffffff, #eeeeef).)
+        var disc = Shape("Round", table, Color.white, d, d, d / 2, 2922, 0.002f);
         disc.transform.localPosition = new Vector3(0, 0.002f, 0);
+        float inner = d - l.U(2);
+        var face = Picture("Round face", table, RoundFace(), Color.white, inner, inner, 2923, 0.0021f);
+        face.sharedMaterial.SetFloat("_Radius", 0.5f);
+        face.transform.localPosition = new Vector3(0, 0.0021f, 0);
         float svg = d * 0.963f, r = svg * 0.44f;
-        roundTrack = Shape("Track", table, Rgba(120, 124, 134, 0.14f), 2 * r + svg * 0.09f, 2 * r + svg * 0.09f, r, 2923, 0.0025f, svg * 0.045f, 0.01f, true);
+        roundTrack = Shape("Track", table, Rgba(120, 124, 134, 0.14f), 2 * r + svg * 0.09f, 2 * r + svg * 0.09f, r, 2924, 0.0025f, svg * 0.045f, 0.01f, true);
         roundTrack.transform.localPosition = new Vector3(0, 0.0025f, 0);
         int total = Balance.InstabilityStartsRound - 1;
         for (int i = 0; i < total; i++)
         {
-            // (Each tick an arc of the rim, 4° apart from the next, clockwise from the top.)
-            var go = new GameObject("Tick");
-            go.transform.SetParent(table, false);
-            go.transform.localPosition = new Vector3(0, 0.003f, 0);
-            var mf = go.AddComponent<MeshFilter>();
-            var mr = go.AddComponent<MeshRenderer>();
-            mr.sharedMaterial = Mats.Make("Soft", Color.white);
-            mr.sharedMaterial.SetFloat("_Size", 0.5f);
-            mr.sharedMaterial.SetFloat("_Soft", 0.0001f);
-            mr.sharedMaterial.renderQueue = 2924;
-            mf.mesh = BoardArt.Arc(r, svg * 0.06f, (i / (float)total) * 360 + 2, ((i + 1) / (float)total) * 360 - 2);
-            roundTicks.Add(mr);
+            // (Each tick an arc of the rim, 4° apart from the next, clockwise from the top; lit, a fine grey edge round
+            // it, its drop-shadow(0 0 1.5px rgba(150, 158, 175, 0.95)) in the ring's own units.)
+            float a0 = (i / (float)total) * 360 + 2, a1 = ((i + 1) / (float)total) * 360 - 2;
+            MeshRenderer Arc(string name, float width, Color c, int queue, float lift)
+            {
+                var go = new GameObject(name);
+                go.transform.SetParent(table, false);
+                go.transform.localPosition = new Vector3(0, lift, 0);
+                var mf = go.AddComponent<MeshFilter>();
+                var mr = go.AddComponent<MeshRenderer>();
+                mr.sharedMaterial = Mats.Make("Soft", c);
+                mr.sharedMaterial.SetFloat("_Size", 0.5f);
+                mr.sharedMaterial.SetFloat("_Soft", 0.0001f);
+                mr.sharedMaterial.renderQueue = queue;
+                mf.mesh = BoardArt.Arc(r, width, a0 - 0.8f * (width - svg * 0.06f) / r * Mathf.Rad2Deg / 2, a1 + 0.8f * (width - svg * 0.06f) / r * Mathf.Rad2Deg / 2);
+                return mr;
+            }
+            roundGlows.Add(Arc("Tick edge", svg * 0.09f, Rgba(150, 158, 175, 0.5f), 2925, 0.0028f));
+            roundTicks.Add(Arc("Tick", svg * 0.06f, Color.white, 2926, 0.003f));
         }
         roundN = Mats.FlatText("Round", table, "I", Px(l.RoundNum), Rgba(91, 95, 103), true, 700, 0);
         roundN.transform.localPosition = new Vector3(0, 0.004f, 0);
         roundUp = Mats.FlatText("Unstable", table, "", Px(l.RoundEm), Rgba(192, 86, 61), true, 500, 10);
         roundUp.transform.localPosition = new Vector3(0, 0.004f, -l.U(l.RoundEm * 1.6f));
+    }
+
+    static Texture2D roundFace;
+
+    /// <summary>The round's disc's face: radial-gradient(circle at 40% 35%, #ffffff, #eeeeef), to its farthest corner.</summary>
+    static Texture2D RoundFace()
+    {
+        if (roundFace != null) return roundFace;
+        const int n = 64;
+        roundFace = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        var px = new Color[n * n];
+        float far = new Vector2(0.6f, 0.65f).magnitude;
+        Color a = Color.white, b = Rgba(0xee, 0xee, 0xef);
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                // (Rows bottom up: the page's 35% down is 65% up.)
+                var p = new Vector2((x + 0.5f) / n - 0.4f, (y + 0.5f) / n - 0.65f);
+                px[y * n + x] = Color.Lerp(a, b, p.magnitude / far);
+            }
+        roundFace.SetPixels(px);
+        roundFace.Apply(false);
+        return roundFace;
     }
 
     /// <summary>A slot's defence: the shield sign and the number, `size` px, centred where it is placed.</summary>
@@ -676,7 +712,12 @@ public class Board : MonoBehaviour
         roundN.text = BoardArt.Roman(s.Round);
         roundUp.text = unstable > 0 ? $"+{unstable}" : "";
         roundN.transform.localPosition = new Vector3(0, 0.004f, unstable > 0 ? L.U(3) : 0);
-        for (int i = 0; i < total; i++) roundTicks[i].sharedMaterial.color = new Color(1, 1, 1, unstable > 0 ? 0.35f : i < left ? 1 : 0.5f);
+        // (Lit white, unlit white at half; unstable, all a faint coral.)
+        for (int i = 0; i < total; i++)
+        {
+            roundTicks[i].sharedMaterial.color = unstable > 0 ? Rgba(240, 190, 180, 0.6f) : new Color(1, 1, 1, i < left ? 1 : 0.5f);
+            roundGlows[i].gameObject.SetActive(unstable <= 0 && i < left);
+        }
         roundTrack.sharedMaterial.color = unstable > 0 ? Rgba(201, 138, 134, 0.25f) : Rgba(120, 124, 134, 0.14f);
         foreach (var slot in slotMarks) slot.SetActive(true);
         // (A card picked, waiting for its place: each empty slot of yours open to it.)
