@@ -6,7 +6,8 @@ using UnityEngine;
 /// <summary>
 /// A side's sun on the table, as the web's (art.ts vitals, sun3d.ts, styles.css .vit): flat on the board, as the web's
 /// are, its corona's flames under the rings, then the dome, where the sun and its planets are drawn as solids seen from
-/// the viewer's eye (SunArt, a port of sun3d.ts), the orbit's trail and notches, and the shields' lattice; its heat
+/// the viewer's eye (SunArt and the Sun* shaders, a port of sun3d.ts, drawn per pixel on the GPU), the orbit's trail and
+/// notches, and the shields' lattice; its heat
 /// standing up over the sun's middle, turned to the eye; under it, the planet it faces in a pill and its shields'
 /// honeycomb badge. Sized and placed in the board's own pixels at the screen's size (BoardLayout).
 /// </summary>
@@ -22,9 +23,10 @@ public class SunView : MonoBehaviour
     BoardLayout lay;
     Camera eye;
 
-    MeshRenderer corona, dome;
-    Texture2D coronaTex, domeTex;
-    Color32[] coronaPx, coronaFlip, domePx, domeFlip;
+    // The corona; the dome's flat things, the lattice's far side, the sun and its planets, the lattice's near side, in
+    // that order over one another (each drawn per pixel by its shader: SunCorona, SunFlat, SunLattice, SunBalls).
+    MeshRenderer corona, dome, balls, latBack, latFront;
+    Mesh backMesh, frontMesh;
     TextMeshPro heatB, heatSmall, heatGlowB, heatGlowSmall, planet, shieldN;
     MeshRenderer pillShadow, pillEdge, pill, badge, badgePatch;
     Transform heatRoot;
@@ -35,8 +37,14 @@ public class SunView : MonoBehaviour
     bool dead, danger, cold, paradise, eaten, hasOrbit;
     float seed;
     float shownOrbit = float.NaN, orbitSeen;
-    float nextCorona, nextDome;
     bool domeDirty = true;
+    // (The 20ths and 10ths of a second the corona and the dome were last drawn on; the eye and size the lattice and the
+    // heat were last laid out for.)
+    long coronaBeat = -1, domeBeat = -1;
+    Vector3 laidCam = new Vector3(float.NaN, 0, 0);
+    float laidVs, laidS, laidU;
+    List<SunArt.LatticeCell> laidCells;
+    readonly string[] mapsShown = new string[3];
 
     public static SunView Make(Transform parent, Vector3 at, string playerId, bool mine = true)
     {
@@ -56,8 +64,13 @@ public class SunView : MonoBehaviour
 
     void Build()
     {
-        corona = Board.Picture("Corona", transform, null, Color.white, 1, 1, 2950, 0.001f);
-        dome = Board.Picture("Dome", transform, null, Color.white, 1, 1, 2956, 0.002f);
+        corona = Quad("Corona", "SunCorona", 2950, 0.001f);
+        dome = Quad("Dome", "SunFlat", 2956, 0.002f);
+        latBack = Lattice("Lattice far side", 2957, 0.0021f, out backMesh);
+        balls = Quad("Dome balls", "SunBalls", 2958, 0.0022f);
+        latFront = Lattice("Lattice near side", 2959, 0.0023f, out frontMesh);
+        corona.sharedMaterial.SetTexture(SurfaceId, SurfaceTexture());
+        balls.sharedMaterial.SetTexture(SurfaceId, SurfaceTexture());
         // (A tap on the gauge is a tap on the sun.)
         gameObject.AddComponent<SunTag>().PlayerId = PlayerId;
         hit = gameObject.AddComponent<BoxCollider>();
@@ -102,6 +115,7 @@ public class SunView : MonoBehaviour
         corona.transform.localScale = new Vector3(0.88f * vs * u, 0.88f * vs * u, 1);
         float span = vs * (1 + 2 * SunArt.DOME_PAD);
         dome.transform.localScale = new Vector3(span * u, span * u, 1);
+        balls.transform.localScale = new Vector3(span * u, span * u, 1);
         hit.size = new Vector3(vs * u, 0.1f, vs * u);
         hit.center = Vector3.zero;
         domeDirty = true;
@@ -218,6 +232,8 @@ public class SunView : MonoBehaviour
         shieldN.color = new Color(bsInk.r, bsInk.g, bsInk.b, op);
         badgePatch.sharedMaterial.color = new Color(bsBg.r, bsBg.g, bsBg.b, op);
         domeDirty = true;
+        // (A changed sun is drawn at once, as sun3d.ts animateSuns redraws a changed canvas.)
+        coronaBeat = -1;
         Lay();
     }
 
@@ -270,6 +286,7 @@ public class SunView : MonoBehaviour
         {
             shownOrbit = real;
             orbitSeen = now;
+            moving = false;
             return real;
         }
         float dt = Mathf.Max(0, now - orbitSeen);
@@ -279,6 +296,7 @@ public class SunView : MonoBehaviour
         {
             shownOrbit = real;
             orbitSeen = now;
+            moving = false;
             return real;
         }
         // (A step is a planet's worth of notches: with a day for each planet, one sweep from planet to planet.)
@@ -306,28 +324,25 @@ public class SunView : MonoBehaviour
     void Update()
     {
         if (lay == null) return;
-        float now = Time.realtimeSinceStartup, ms = now * 1000;
-        // (Drawn pixel by pixel on the one thread the page has: at most one drawing a frame across all the suns, the
-        // corona and the dome taking turns, so their work is spread over frames rather than piled into one.)
-        // (Taking turns frame by frame, each sun its own: one with work always due never starves the others.)
-        if (!all.Contains(this)) all.Add(this);
-        all.RemoveAll(x => x == null);
-        if (all.Count > 1 && all[Time.frameCount % all.Count] != this) return;
-        if (drawnFrame == Time.frameCount) return;
-        // The corona flickers about 20 times a second; the dome turns about 10 (every other frame while the orbit swings).
-        if (now >= nextCorona && !domeDirty)
+        float now = Time.realtimeSinceStartup;
+        double ms = Time.realtimeSinceStartupAsDouble * 1000;
+        // (Drawn per pixel by their shaders: each frame only hands them their numbers, on the web's beats (sun3d.ts
+        // frame). About 20 drawings a second for the corona's lazy flicker, on the twentieths of a second.)
+        long beat = (long)System.Math.Floor(ms / 50);
+        if (beat != coronaBeat)
         {
-            nextCorona = now + 0.05f;
-            drawnFrame = Time.frameCount;
+            coronaBeat = beat;
             DrawCorona(ms);
-            return;
         }
-        if (domeDirty || moving || now >= nextDome)
+        // The planets turn slowly: ten drawings a second do, unless an orbit is swinging (then every frame).
+        float shown = hasOrbit ? ShownOrbit(now) : 0;
+        if (!hasOrbit) moving = false;
+        var cam = EyeInGauge();
+        long tenth = (long)System.Math.Floor(ms / 100);
+        if (domeDirty || moving || tenth != domeBeat || cam != laidCam)
         {
-            drawnFrame = Time.frameCount;
-            nextDome = now + 0.1f;
-            domeDirty = false;
-            DrawDome(ms, now);
+            domeBeat = tenth;
+            DrawDome(ms, shown, cam);
         }
         if (pulseAge >= 0)
         {
@@ -345,49 +360,210 @@ public class SunView : MonoBehaviour
         }
     }
 
-    static readonly List<SunView> all = new List<SunView>();
-
-    /// <summary>The frame a sun last drew on (shared by all of them).</summary>
-    static int drawnFrame = -1;
-
-    /// <summary>The pixels per CSS pixel the suns are drawn at: the screen's, but at most 2 (a phone's 3 drew them 2¼ times the work).</summary>
+    /// <summary>The pixels per CSS pixel the suns were drawn at: the screen's, but at most 2 (sun3d.ts); their edges are smoothed over one.</summary>
     static float SunDpr => Mathf.Min(2, Css.PixelRatio);
 
-    void DrawCorona(float ms)
+    static readonly int SurfaceId = Shader.PropertyToID("_Surface"), DeepId = Shader.PropertyToID("_Deep"), MidId = Shader.PropertyToID("_Mid"),
+        BrightId = Shader.PropertyToID("_Bright"), FlameId = Shader.PropertyToID("_Flame"), WispId = Shader.PropertyToID("_Wisp"),
+        GeoId = Shader.PropertyToID("_Geo"), RingsId = Shader.PropertyToID("_Rings"), RimId = Shader.PropertyToID("_Rim"),
+        PlanetsId = Shader.PropertyToID("_Planets"), Base0Id = Shader.PropertyToID("_Base0"), Base1Id = Shader.PropertyToID("_Base1"),
+        Base2Id = Shader.PropertyToID("_Base2"), Trail0Id = Shader.PropertyToID("_Trail0"), Trail1Id = Shader.PropertyToID("_Trail1"),
+        Trail2Id = Shader.PropertyToID("_Trail2"), FacingId = Shader.PropertyToID("_Facing"), LatticeId = Shader.PropertyToID("_Lattice"),
+        CamId = Shader.PropertyToID("_Cam"), Ball0Id = Shader.PropertyToID("_Ball0"), Ball1Id = Shader.PropertyToID("_Ball1"),
+        Ball2Id = Shader.PropertyToID("_Ball2"), Ball3Id = Shader.PropertyToID("_Ball3"), KindsId = Shader.PropertyToID("_Kinds"),
+        SunPId = Shader.PropertyToID("_SunP"), Light0Id = Shader.PropertyToID("_Light0"), Half0Id = Shader.PropertyToID("_Half0"),
+        Light1Id = Shader.PropertyToID("_Light1"), Half1Id = Shader.PropertyToID("_Half1"), Light2Id = Shader.PropertyToID("_Light2"),
+        Half2Id = Shader.PropertyToID("_Half2"), LatId = Shader.PropertyToID("_Lat");
+    static readonly int[] MapIds = { Shader.PropertyToID("_Map0"), Shader.PropertyToID("_Map1"), Shader.PropertyToID("_Map2") };
+
+    void DrawCorona(double ms)
     {
-        // (sun3d.ts draw: its canvas at the screen's pixels, at most 220 at the page's zoom.)
-        float cw = 0.88f * vs;
-        int size = Mathf.Max(8, Mathf.RoundToInt(Mathf.Min(220 * Css.Zoom, cw * SunDpr * Css.Zoom)));
-        Ensure(ref coronaTex, ref coronaPx, ref coronaFlip, size, corona);
+        if (dead)
+        {
+            corona.enabled = false;
+            return;
+        }
         float t = Mathf.Clamp01(heat / (float)most);
         float c = heat < 0 ? Mathf.Min(1, heat / (float)Balance.MinHeat) : 0;
-        SunArt.Corona(coronaPx, size, t, c, danger, dead, seed, ms);
-        Upload(coronaTex, coronaPx, coronaFlip, size);
+        var k = SunArt.Corona(t, c, danger, seed, ms);
+        var m = corona.sharedMaterial;
+        m.SetVector(DeepId, k.Deep);
+        m.SetVector(MidId, k.Mid);
+        m.SetVector(BrightId, k.Bright);
+        m.SetVector(FlameId, k.Flame);
+        m.SetVector(WispId, k.Wisp);
         corona.enabled = true;
     }
 
-    void DrawDome(float ms, float now)
+    void DrawDome(double ms, float shown, Vector3 cam)
     {
-        // (sun3d.ts drawDome: a little finer than the screen's own pixels, at most 760 at the page's zoom.)
+        // (sun3d.ts drawDome: its canvas a little finer than the screen's own pixels, at most 760 at the page's zoom; the
+        // shaders smooth its edges over one of the canvas's pixels, as it did.)
         float span = vs * (1 + 2 * SunArt.DOME_PAD);
         int size = Mathf.Max(8, Mathf.RoundToInt(Mathf.Min(760 * Css.Zoom, span * SunDpr * Css.Zoom * 1.15f)));
-        Ensure(ref domeTex, ref domePx, ref domeFlip, size, dome);
-        var cam = EyeInGauge();
         float t = Mathf.Clamp01(heat / (float)most);
         float c = heat < 0 ? Mathf.Min(1, heat / (float)Balance.MinHeat) : 0;
         var st = new SunArt.DomeState
         {
             T = t, Cold = c, Seed = seed, Dead = dead, Paradise = paradise, HasOrbit = hasOrbit,
-            Orbit = hasOrbit ? SunArt.NotchEase(ShownOrbit(now)) : 0,
+            Orbit = hasOrbit ? SunArt.NotchEase(shown) : 0,
             Shields = shields,
             HeatArc = c > 0 ? c : t,
             ShieldArc = Mathf.Min(1, shields / (float)Balance.MaxKeptShields),
             Rim = Rim(),
         };
-        SunArt.Dome(domePx, size, vs, cam, st, ms);
-        Upload(domeTex, domePx, domeFlip, size);
-        dome.enabled = true;
-        PlaceHeat(cam);
+        var d = SunArt.Dome(size, vs, cam, st, ms);
+        var f = dome.sharedMaterial;
+        f.SetVector(GeoId, d.Geo);
+        f.SetVector(RingsId, d.Rings);
+        f.SetVector(RimId, d.Rim);
+        f.SetVector(PlanetsId, d.Planets);
+        f.SetVector(Base0Id, d.Base0);
+        f.SetVector(Base1Id, d.Base1);
+        f.SetVector(Base2Id, d.Base2);
+        f.SetVector(Trail0Id, d.Trail0);
+        f.SetVector(Trail1Id, d.Trail1);
+        f.SetVector(Trail2Id, d.Trail2);
+        f.SetVector(FacingId, d.Facing);
+        f.SetVector(LatticeId, d.Lattice);
+        var b = balls.sharedMaterial;
+        b.SetVector(GeoId, d.Geo);
+        b.SetVector(CamId, d.Cam);
+        b.SetVector(Ball0Id, d.Ball0);
+        b.SetVector(Ball1Id, d.Ball1);
+        b.SetVector(Ball2Id, d.Ball2);
+        b.SetVector(Ball3Id, d.Ball3);
+        b.SetVector(KindsId, d.Kinds);
+        b.SetVector(SunPId, d.SunP);
+        b.SetVector(DeepId, d.Deep);
+        b.SetVector(MidId, d.Mid);
+        b.SetVector(BrightId, d.Bright);
+        b.SetVector(Light0Id, d.Light0);
+        b.SetVector(Half0Id, d.Half0);
+        b.SetVector(Light1Id, d.Light1);
+        b.SetVector(Half1Id, d.Half1);
+        b.SetVector(Light2Id, d.Light2);
+        b.SetVector(Half2Id, d.Half2);
+        for (int i = 0; i < 3; i++)
+            if (mapsShown[i] != d.Maps[i])
+            {
+                mapsShown[i] = d.Maps[i];
+                b.SetTexture(MapIds[i], PlanetTexture(d.Maps[i]));
+            }
+        // Shields: a dome of hexagons over the sun, its cells laid out again only when the eye or the size moves.
+        bool lattice = d.Cells != null;
+        if (lattice && (d.Cells != laidCells || d.Geo.w != laidS || lay.U(1) != laidU)) LayLattice(d.Cells, d.Geo.w, d.Lat.y);
+        latBack.enabled = latFront.enabled = lattice;
+        if (lattice)
+        {
+            latBack.sharedMaterial.SetVector(LatId, d.Lat);
+            latFront.sharedMaterial.SetVector(LatId, d.Lat);
+        }
+        dome.enabled = balls.enabled = true;
+        if (domeDirty || cam != laidCam || vs != laidVs) PlaceHeat(cam);
+        domeDirty = false;
+        laidCam = cam;
+        laidVs = vs;
+    }
+
+    /// <summary>
+    /// The shields' lattice cells as quads round each (its box on the board, grown by the outline and a pixel), each
+    /// carrying its six corners for the shader; the far side's in one mesh, the near side's in the other, in order.
+    /// </summary>
+    void LayLattice(List<SunArt.LatticeCell> cells, float s, float width)
+    {
+        laidCells = cells;
+        laidS = s;
+        laidU = lay.U(1);
+        float u = laidU, m = width + 1 / s;
+        foreach (bool front in new[] { false, true })
+        {
+            var pos = new List<Vector3>();
+            var at = new List<Vector4>();
+            var c01 = new List<Vector4>();
+            var c23 = new List<Vector4>();
+            var c45 = new List<Vector4>();
+            var tris = new List<int>();
+            foreach (var cell in cells)
+            {
+                if (cell.front != front) continue;
+                var p = cell.pts;
+                float x0 = float.PositiveInfinity, y0 = float.PositiveInfinity, x1 = float.NegativeInfinity, y1 = float.NegativeInfinity;
+                foreach (var q in p) { x0 = Mathf.Min(x0, q.x); y0 = Mathf.Min(y0, q.y); x1 = Mathf.Max(x1, q.x); y1 = Mathf.Max(y1, q.y); }
+                x0 -= m; y0 -= m; x1 += m; y1 += m;
+                float a = SunArt.CellAlpha(cell);
+                int n = pos.Count;
+                foreach (var (x, y) in new[] { (x0, y0), (x1, y0), (x1, y1), (x0, y1) })
+                {
+                    pos.Add(new Vector3((x - vs / 2) * u, 0, -(y - vs / 2) * u));
+                    at.Add(new Vector4(x, y, a, 0));
+                    c01.Add(new Vector4(p[0].x, p[0].y, p[1].x, p[1].y));
+                    c23.Add(new Vector4(p[2].x, p[2].y, p[3].x, p[3].y));
+                    c45.Add(new Vector4(p[4].x, p[4].y, p[5].x, p[5].y));
+                }
+                tris.AddRange(new[] { n, n + 1, n + 2, n, n + 2, n + 3 });
+            }
+            var mesh = front ? frontMesh : backMesh;
+            mesh.Clear();
+            mesh.SetVertices(pos);
+            mesh.SetUVs(0, at);
+            mesh.SetUVs(1, c01);
+            mesh.SetUVs(2, c23);
+            mesh.SetUVs(3, c45);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+        }
+    }
+
+    /// <summary>A quad lying flat on the board under the gauge's middle, drawn by one of the suns' shaders (hidden until first given its numbers).</summary>
+    MeshRenderer Quad(string name, string shader, int queue, float lift)
+    {
+        var r = Mats.Flat(name, transform, Mats.Make(shader), 1, 1, lift);
+        r.sharedMaterial.renderQueue = queue;
+        r.enabled = false;
+        return r;
+    }
+
+    /// <summary>A mesh of lattice cells lying on the board, in the gauge's own frame.</summary>
+    MeshRenderer Lattice(string name, int queue, float lift, out Mesh mesh)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(transform, false);
+        go.transform.localPosition = new Vector3(0, lift, 0);
+        mesh = new Mesh { name = name };
+        mesh.MarkDynamic();
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+        var r = go.AddComponent<MeshRenderer>();
+        r.sharedMaterial = Mats.Make("SunLattice");
+        r.sharedMaterial.renderQueue = queue;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        r.receiveShadows = false;
+        r.enabled = false;
+        return r;
+    }
+
+    static Texture2D surfaceTex;
+    static readonly Dictionary<string, Texture2D> planetTex = new Dictionary<string, Texture2D>();
+
+    /// <summary>The sun's surface for the shaders (painted once): its brightness in 16 bits, read back exactly (point, linear).</summary>
+    static Texture2D SurfaceTexture()
+    {
+        if (surfaceTex != null) return surfaceTex;
+        surfaceTex = new Texture2D(512, 256, TextureFormat.RGBA32, false, true) { name = "Sun surface", wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Point };
+        surfaceTex.SetPixels32(SunArt.SurfacePixels());
+        surfaceTex.Apply(false, true);
+        return surfaceTex;
+    }
+
+    /// <summary>A planet's map for the shaders (painted once): its colours as the canvas's bytes (linear, so read as they are), wrapping round.</summary>
+    static Texture2D PlanetTexture(string pl)
+    {
+        if (planetTex.TryGetValue(pl, out var have) && have != null) return have;
+        var t = new Texture2D(256, 128, TextureFormat.RGBA32, false, true) { name = "Planet " + pl, wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Bilinear };
+        t.SetPixels32(SunArt.PlanetPixels(pl));
+        t.Apply(false, true);
+        planetTex[pl] = t;
+        return t;
     }
 
     /// <summary>The heat count where it stands: over the middle of the sun's outline as the eye sees it, turned to the eye.</summary>
@@ -424,41 +600,6 @@ public class SunView : MonoBehaviour
         heatGlowSmall.transform.localPosition += new Vector3(0, 0, 0.001f);
     }
 
-    static void Ensure(ref Texture2D tex, ref Color32[] px, ref Color32[] flip, int size, MeshRenderer r)
-    {
-        if (tex != null && tex.width == size) return;
-        if (tex != null) Mats.Kill(tex);
-        tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-        px = new Color32[size * size];
-        flip = new Color32[size * size];
-        r.sharedMaterial.mainTexture = tex;
-        // (Hidden until its first drawing is in: an empty texture shows as a white square.)
-        r.enabled = false;
-    }
-
-    /// <summary>A canvas's rows (top down) into a texture's (bottom up).</summary>
-    static void Upload(Texture2D tex, Color32[] px, Color32[] flip, int size)
-    {
-        for (int y = 0; y < size; y++) System.Array.Copy(px, y * size, flip, (size - 1 - y) * size, size);
-        // (A clear pixel takes its drawn neighbour's colour: the texture is filtered between its pixels, and a clear
-        // black one beside a fine white ring (the heat track) greyed its edges into a dark, broken line round the sun.)
-        for (int i = 0; i < flip.Length; i++)
-        {
-            if (flip[i].a != 0) continue;
-            int x = i % size;
-            Color32 n = default;
-            if (x > 0 && px[Src(i - 1)].a != 0) n = px[Src(i - 1)];
-            else if (x < size - 1 && px[Src(i + 1)].a != 0) n = px[Src(i + 1)];
-            else if (i >= size && px[Src(i - size)].a != 0) n = px[Src(i - size)];
-            else if (i + size < flip.Length && px[Src(i + size)].a != 0) n = px[Src(i + size)];
-            else continue;
-            flip[i] = new Color32(n.r, n.g, n.b, 0);
-        }
-        int Src(int j) => (size - 1 - j / size) * size + j % size;
-        tex.SetPixels32(flip);
-        tex.Apply(false);
-    }
-
     public void Settle()
     {
         shownOrbit = SunArt.OrbitNotch(orbit);
@@ -467,8 +608,8 @@ public class SunView : MonoBehaviour
 
     void OnDestroy()
     {
-        if (coronaTex != null) Mats.Kill(coronaTex);
-        if (domeTex != null) Mats.Kill(domeTex);
+        if (backMesh != null) Mats.Kill(backMesh);
+        if (frontMesh != null) Mats.Kill(frontMesh);
     }
 }
 
