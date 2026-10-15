@@ -898,10 +898,13 @@ public partial class BattleView : MonoBehaviour
         return img;
     }
 
+    /// <summary>The .btn-primary's face, white shading to #eeeff1.</summary>
+    static Texture2D buttonShade;
+
     /// <summary>
-    /// The web's .btn-primary (End Day, a result's way on): white, a white hairline inside a faint ring, corners of
-    /// `radius`, a soft shadow; its words bold spaced capitals. Disabled, the whole of it fades to 0.4. (In the units of
-    /// the canvas it is on: `ring` the ring's width.)
+    /// The web's .btn-primary (End Day, a result's way on): white shading to #eeeff1, a white hairline inside a faint
+    /// ring, corners of `radius`, a soft shadow; its words bold spaced capitals. Disabled, the whole of it fades to 0.4.
+    /// (In the units of the canvas it is on: `ring` the ring's width.)
     /// </summary>
     static Button WhiteButton(Transform parent, string text, System.Action onClick, float size, float radius = 14.5f, float ring = 1.5f)
     {
@@ -930,6 +933,13 @@ public partial class BattleView : MonoBehaviour
         fi.raycastTarget = false;
         Corners(fi, radius - ring * 0.67f);
         fi.color = Color.white;
+        // (Its face shading down, linear-gradient(180deg, #ffffff, #eeeff1), within its rounded corners.)
+        face.gameObject.AddComponent<Mask>().showMaskGraphic = true;
+        var shade = Hud.Rect(face, "Shade");
+        Hud.Fill(shade);
+        var si = shade.gameObject.AddComponent<RawImage>();
+        si.texture = buttonShade != null ? buttonShade : (buttonShade = MenuKit.Down(Color.white, Hud.Rgba(0xee, 0xef, 0xf1)));
+        si.raycastTarget = false;
         img.color = Color.white;
         var b = img.gameObject.AddComponent<Button>();
         b.transition = Selectable.Transition.None;
