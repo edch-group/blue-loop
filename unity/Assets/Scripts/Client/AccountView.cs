@@ -1,6 +1,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using K = MenuKit;
 
 /// <summary>
 /// Signing in (app.ts renderSignIn): to your account with an email and a password, creating one (agreeing to the Terms
@@ -36,19 +37,20 @@ public static class AccountView
             asked = true;
             Account.Config(on => { resetOffered = on; if (Mode == "signin") redraw(); });
         }
-        // (The web's .menu-back: its small back button, 30.4 down.)
-        MenuView.BackButton(page, () => menu.Show("title"), 26.1f, 30.4f);
-        // The form (the web's .signin): one column, 20.3 between its parts, centred on 444 down; each part its height
-        // and how it is drawn at its top.
-        var parts = new System.Collections.Generic.List<(float h, System.Action<float> draw)>();
-        // (The small title block: its words' top 150.3 under the block's.)
-        parts.Add((150.3f, y => menu.TitleBlock(page, y + 124.6f, 390)));
+        // The form (.signin): one column, 14 between its parts, centred across and in the page above its foot's 12vh
+        // (scrolling from the top when it is taller than the page); each part its height and how it is drawn at its top.
+        var parts = new System.Collections.Generic.List<(float h, System.Action<RectTransform, float> draw)>();
+        float fieldW = Mathf.Min(280, 0.8f * Css.Screen.x), cx = K.W / 2;
+        parts.Add((MenuView.TitleMeasures(true).H, (p, y) => MenuView.TitleBlock(p, cx, y, true)));
+        float hf = K.Clamp(0.9f * K.Rem, 4 * K.Vh, 1.3f * K.Rem), hh = hf * 1.16f;
+        System.Action<RectTransform, float, string> heading = (p, y, text) => K.Words(p, text.ToUpperInvariant(), 0, y, K.W, hh, hf, Hud.Rgba(85, 90, 99), true, 500, 0.3f);
         if (Mode == "name")
         {
-            if (Account.Current?.Avatar != null) parts.Add((121.8f, y => MenuView.Avatar(page, 800 - 60.9f, y, 121.8f)));
-            parts.Add((37, y => Heading(page, "your name", y)));
-            parts.Add((58, y => Field(page, name ?? Profile.Me.Name, 597, y, 406, 58, "your name", false, 18).onValueChanged.AddListener(v => name = v)));
-            parts.Add((47.1f, y => Primary(page, "continue", y, () =>
+            float av = K.Clamp(56, 14 * K.Vh, 84);
+            if (Account.Current?.Avatar != null) parts.Add((av, (p, y) => MenuView.Avatar(p, cx - av / 2, y, av)));
+            parts.Add((hh, (p, y) => heading(p, y, "your name")));
+            parts.Add((40, (p, y) => Field(p, name ?? Profile.Me.Name, cx - fieldW / 2, y, fieldW, 40, "your name", false, 18).onValueChanged.AddListener(v => name = v)));
+            parts.Add((32, (p, y) => Primary(p, "continue", y, () =>
             {
                 Profile.SignIn(name ?? Profile.Me.Name);
                 name = null;
@@ -57,30 +59,31 @@ public static class AccountView
         }
         else
         {
-            parts.Add((37, y => Heading(page, Mode == "signup" ? "create account" : Mode == "forgot" ? "reset password" : "sign in", y)));
-            parts.Add((58, y => Field(page, email, 597, y, 406, 58, "email", false, 120).onValueChanged.AddListener(v => email = v)));
+            parts.Add((hh, (p, y) => heading(p, y, Mode == "signup" ? "create account" : Mode == "forgot" ? "reset password" : "sign in")));
+            parts.Add((40, (p, y) => Field(p, email, cx - fieldW / 2, y, fieldW, 40, "email", false, 120).onValueChanged.AddListener(v => email = v)));
             // (What was typed stays through a redraw, as the web's form keeps it: the busy one as it is sent, too.)
             if (Mode != "forgot")
-                parts.Add((58, y => Field(page, password, 597, y, 406, 58, Mode == "signin" ? "password" : "password (8+ characters)", true, 200).onValueChanged.AddListener(v => password = v)));
+                parts.Add((40, (p, y) => Field(p, password, cx - fieldW / 2, y, fieldW, 40, Mode == "signin" ? "password" : "password (8+ characters)", true, 200).onValueChanged.AddListener(v => password = v)));
             if (Mode == "signup")
-                parts.Add((74.4f, y =>
+                parts.Add((51.3f, (p, y) =>
                 {
-                    Tick(page, y, agreeTerms, "I agree to the ", "Terms of Service", "/terms.html", () => { agreeTerms = !agreeTerms; redraw(); });
-                    Tick(page, y + 40.1f, agreePrivacy, "I have read and accept the ", "Privacy Policy", "/privacy.html", () => { agreePrivacy = !agreePrivacy; redraw(); });
+                    Tick(p, cx - fieldW / 2, y, fieldW, agreeTerms, "I agree to the ", "Terms of Service", "/terms.html", () => { agreeTerms = !agreeTerms; redraw(); });
+                    Tick(p, cx - fieldW / 2, y + 27.7f, fieldW, agreePrivacy, "I have read and accept the ", "Privacy Policy", "/privacy.html", () => { agreePrivacy = !agreePrivacy; redraw(); });
                 }));
             if (error.Length > 0 || note.Length > 0)
             {
-                // (The web's .auth-error, #c0563d, or .auth-note, ink-soft: centred, wrapped within 464 or 435.)
+                // (The web's .auth-error, #c0563d 12.48, at most 320 across; or .auth-note, ink-soft 11.52, at most 300.)
                 bool bad = error.Length > 0;
                 string said = bad ? error : note;
-                var probe = Hud.Label(page, said, bad ? 18.1f : 16.7f, bad ? Hud.Rgba(192, 86, 61) : Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
+                float size = bad ? 12.48f : 11.52f, tw = Mathf.Min(bad ? 320 : 300, K.W - 36);
+                var probe = K.Fill(page, said, size, bad ? Hud.Rgba(192, 86, 61) : Look.InkSoft, false, 400, 0, TextAlignmentOptions.Top);
                 probe.textWrappingMode = TextWrappingModes.Normal;
-                float tw = bad ? 464 : 435, th = probe.GetPreferredValues(said, tw, 0).y;
-                parts.Add((th, y => Hud.Place(probe.rectTransform, 800 - tw / 2, y, tw, th)));
+                float th = probe.GetPreferredValues(said, tw, 0).y;
+                parts.Add((th, (p, y) => { probe.transform.SetParent(p, false); Hud.Place(probe.rectTransform, cx - tw / 2, y, tw, th); }));
             }
             var action = Mode == "signup" ? "create account" : Mode == "forgot" ? "send link" : "sign in";
-            parts.Add((47.1f, y => Primary(page, busy ? "…" : action, y, () => Submit(menu)).interactable = !busy));
-            // (The web's .auth-alt: its links on a line, 26.1 apart.)
+            parts.Add((32, (p, y) => Primary(p, busy ? "…" : action, y, () => Submit(menu)).interactable = !busy));
+            // (The web's .auth-alt: its links on a line, 18 apart.)
             var links = new System.Collections.Generic.List<(string, System.Action)>();
             if (Mode == "signin")
             {
@@ -88,20 +91,30 @@ public static class AccountView
                 if (resetOffered) links.Add(("forgot password?", () => { Mode = "forgot"; error = note = ""; redraw(); }));
             }
             else links.Add((Mode == "signup" ? "I have an account: sign in" : "back to sign in", () => { Mode = "signin"; error = note = ""; redraw(); }));
-            parts.Add((28.6f, y => Links(page, y, links)));
+            parts.Add((19, (p, y) => Links(p, y, links)));
             // (Apple and Google sign in on the web game's own page, on this same site: its session is then this
             // game's too, taken up when it is next opened. The web game offers them as buttons; here, a link there.)
             if (Mode == "signin" && Net.Available)
-                parts.Add((28.6f, y => Links(page, y, new System.Collections.Generic.List<(string, System.Action)> { ("google or apple? sign in on the web game", () => Application.OpenURL(Net.Base + "/index.html")) })));
+                parts.Add((19, (p, y) => Links(p, y, new System.Collections.Generic.List<(string, System.Action)> { ("google or apple? sign in on the web game", () => Application.OpenURL(Net.Base + "/index.html")) })));
         }
-        float total = -20.3f;
-        foreach (var part in parts) total += part.h + 20.3f;
-        float at = 444.35f - total / 2;
+        float total = -14;
+        foreach (var part in parts) total += part.h + 14;
+        float top = Mathf.Max(6, K.SaT), room = K.H - top - 12 * K.Vh;
+        RectTransform into = page;
+        float at = top + (room - total) / 2;
+        // (Taller than its room: the whole form scrolls instead, from just under the top.)
+        if (total > room)
+        {
+            into = K.Scroller(page, "Form", 0, 0, K.W, K.H, total + top + Mathf.Max(12, K.SaB) + 12);
+            at = top + 6;
+        }
         foreach (var part in parts)
         {
-            part.draw(at);
-            at += part.h + 20.3f;
+            part.draw(into, at);
+            at += part.h + 14;
         }
+        // (The web's .menu-back: its small back button, calc(max(12px, top) + 9px) down, max(18px, left) in.)
+        MenuView.BackButton(page, () => menu.Show("title"), Mathf.Max(18, K.SaL), Mathf.Max(12, K.SaT) + 9);
     }
 
     /// <summary>Signed in and named: on to the hub, or into the room an invite link named.</summary>
@@ -167,83 +180,71 @@ public static class AccountView
         else Account.LogIn(sentEmail, sentPassword, done);
     }
 
-    /// <summary>The form's heading (the web's .menu-heading): 30.2, spaced 0.3em, #555a63, centred.</summary>
-    static void Heading(RectTransform page, string text, float y) =>
-        Hud.Text(page, text.ToUpperInvariant(), 0, y, 1600, 37, 30.2f, Hud.Rgba(85, 90, 99), true, 500, 30);
-
-    /// <summary>The form's main button (.btn-primary): as wide as its word and 23.2 either side, 47.1 tall, centred.</summary>
+    /// <summary>The form's main button (.btn-primary): as wide as its word and padded 16 a side, 32 tall, centred.</summary>
     static Button Primary(RectTransform page, string text, float y, System.Action act)
     {
-        float w = Hud.Wide(text.ToUpperInvariant(), 15.3f, 700, 14, 24.6f);
-        var b = Hud.Primary(page, text, act);
-        Hud.Place((RectTransform)b.transform, 800 - w / 2, y, w, 47.1f);
-        return b;
+        float w = K.BtnW(text, K.Kind.Primary);
+        return K.Btn(page, text, act, K.W / 2 - w / 2, y, K.Kind.Primary, w);
     }
 
-    /// <summary>Links on a line, centred, 26.1 apart (the web's .auth-alt).</summary>
+    /// <summary>Links on a line, centred, 18 apart (the web's .auth-alt).</summary>
     static void Links(RectTransform page, float y, System.Collections.Generic.List<(string text, System.Action act)> links)
     {
         var widths = new float[links.Count];
-        float total = -26.1f;
-        for (int i = 0; i < links.Count; i++) total += (widths[i] = Hud.Wide(links[i].text.ToUpperInvariant(), 13.9f, 400, 16, 2.9f)) + 26.1f;
-        float x = 800 - total / 2;
+        float total = -18;
+        for (int i = 0; i < links.Count; i++) total += (widths[i] = K.TextW(links[i].text.ToUpperInvariant(), 9.6f, 400, 0.16f) + 4) + 18;
+        float x = K.W / 2 - total / 2;
         for (int i = 0; i < links.Count; i++)
         {
-            var b = Hud.Link(page, links[i].text, links[i].act);
-            Hud.Place((RectTransform)b.transform, x, y, widths[i], 28.6f);
-            x += widths[i] + 26.1f;
+            K.Link(page, links[i].text, links[i].act, x, y);
+            x += widths[i] + 18;
         }
     }
 
     /// <summary>
-    /// A box to tick (the web's .auth-tick): its box (18.9 across, corners 5.8, a 2.2 line of #b9c0d2; ticked, filled
-    /// #5d6a8c) and its words (Exo 2, 16.2), the document's name in ink and a tap away; 406 across, centred.
+    /// A box to tick (the web's .auth-tick): its box (13 across, corners 4, a 1.5 line of #b9c0d2; ticked, filled
+    /// #5d6a8c) and its words (Exo 2 11.2), the document's name in ink and a tap away; `w` across, 23.7 tall.
     /// </summary>
-    static void Tick(RectTransform page, float y, bool on, string text, string docName, string doc, System.Action flip)
+    static void Tick(RectTransform page, float x, float y, float w, bool on, string text, string docName, string doc, System.Action flip)
     {
-        var r = Hud.Rect(page, text);
-        Hud.Place(r, 597, y, 406, 34.3f);
-        var hit = r.gameObject.AddComponent<Image>();
-        hit.color = new Color(1, 1, 1, 0);
-        r.gameObject.AddComponent<Button>().onClick.AddListener(() => { Sound.Play("click"); flip(); });
-        var edge = Hud.Box(r, "Box", on ? Hud.Rgba(93, 106, 140) : Hud.Rgba(185, 192, 210), 5.8f);
-        Hud.Place((RectTransform)edge.transform, 0, 8.7f, 18.9f, 18.9f);
+        var b = K.Hit(page, text, flip);
+        var r = (RectTransform)b.transform;
+        Hud.Place(r, x, y, w, 23.7f);
+        var edge = Hud.Box(r, "Box", on ? Hud.Rgba(93, 106, 140) : Hud.Rgba(185, 192, 210), 4);
+        Hud.Place(edge.rectTransform, 0, 6, 13, 13);
         if (!on)
         {
-            var inside = Hud.Box(edge.transform, "Inside", Color.white, 3.6f);
-            Hud.Fill((RectTransform)inside.transform);
-            ((RectTransform)inside.transform).offsetMin = new Vector2(2.2f, 2.2f);
-            ((RectTransform)inside.transform).offsetMax = new Vector2(-2.2f, -2.2f);
+            var inside = Hud.Box(edge.transform, "Inside", Color.white, 2.5f);
+            Hud.Fill(inside.rectTransform);
+            inside.rectTransform.offsetMin = new Vector2(1.5f, 1.5f);
+            inside.rectTransform.offsetMax = new Vector2(-1.5f, -1.5f);
         }
-        else Hud.Label(edge.transform, "✓", 13, Color.white, false, 600, 0);
-        var words = Hud.Text(r, $"{text}<color=#3e424a><u>{docName}</u></color>", 18.9f + 13, 0, 406 - 32, 34.3f, 16.2f, on ? Look.Ink : Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
-        words.textWrappingMode = TextWrappingModes.Normal;
+        else K.Fill(edge.transform, "✓", 9, Color.white, false, 600);
+        var words = K.Words(r, $"{text}<color=#3e424a><u>{docName}</u></color>", 22, 4, w - 22, 15.7f, 11.2f, on ? Look.Ink : Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
         // (The document's name opens it.)
-        var read = Hud.Rect(r, "Read");
         float before = words.GetPreferredValues(text).x;
-        Hud.Place(read, 31.9f + before, 0, words.GetPreferredValues(docName).x, 34.3f);
-        var ri = read.gameObject.AddComponent<Image>();
-        ri.color = new Color(1, 1, 1, 0);
-        read.gameObject.AddComponent<Button>().onClick.AddListener(() => Application.OpenURL(Net.Base + doc));
+        var read = K.Hit(r, "Read", () => Application.OpenURL(Net.Base + doc), false);
+        Hud.Place((RectTransform)read.transform, 22 + before, 0, words.GetPreferredValues(docName).x, 23.7f);
     }
 
     /// <summary>
     /// A text box (the web's .signin-name): white, a hairline of #e3e6ee, round ends, its words centred in Orbitron
-    /// (18.6, spaced 0.12em); placed by its top-left corner. The words typed are kept by `onValueChanged`.
+    /// (12.8, spaced 0.12em) inside 16 of padding; placed by its top-left corner. The words typed are kept by
+    /// `onValueChanged`.
     /// </summary>
-    public static TMP_InputField Field(Transform parent, string text, float x, float y, float w, float h, string placeholder, bool secret, int limit, float size = 18.6f)
+    public static TMP_InputField Field(Transform parent, string text, float x, float y, float w, float h, string placeholder, bool secret, int limit, float size = 12.8f, float em = 0.12f, float pad = 16)
     {
         var box = Hud.Box(parent, "Input", Color.white, h / 2);
-        Hud.Place((RectTransform)box.transform, x, y, w, h);
+        Hud.Place(box.rectTransform, x, y, w, h);
         Hud.Shadow(box, h / 2, new Hud.Drop(Hud.Rgba(227, 230, 238), 0, 0, 1));
         box.raycastTarget = true;
         var area = Hud.Rect(box.transform, "Text Area");
         Hud.Fill(area);
-        area.offsetMin = new Vector2(23.2f, 4);
-        area.offsetMax = new Vector2(-23.2f, -4);
+        area.offsetMin = new Vector2(pad, 2);
+        area.offsetMax = new Vector2(-pad, -2);
         area.gameObject.AddComponent<RectMask2D>();
-        var hint = Hud.Label(area, placeholder, size, Hud.Rgba(138, 141, 147), true, 400, 12);
-        var t = Hud.Label(area, text ?? "", size, Look.Ink, true, 400, 12);
+        var hint = K.Fill(area, placeholder, size, Hud.Rgba(138, 141, 147), true, 400, em);
+        var t = K.Fill(area, text ?? "", size, Look.Ink, true, 400, em);
         t.richText = false;
         var input = box.gameObject.AddComponent<TMP_InputField>();
         input.textViewport = area;
@@ -255,53 +256,53 @@ public static class AccountView
         input.text = text ?? "";
         return input;
     }
+
     // ---- In the profile: the account ----
 
     static bool deleting;
     static string confirm = "";
 
     /// <summary>
-    /// Under your profile's boxes, from `y` down (app.ts accountRow and the profile's foot): the account your progress
-    /// is saved to (and deleting it, confirmed with its password), then changing your name and signing out; or, signed
-    /// out, signing in. Returns the card's whole height.
+    /// Under your profile's boxes, from `y` down, `w` across from `x` (app.ts accountRow and the profile's foot), its
+    /// rows `gap` apart: the account your progress is saved to (.pv-account: padded 8 by 12, corners 12, an inset
+    /// hairline; and deleting it, confirmed with its password), then changing your name and signing out (.pv-foot,
+    /// 16 apart); or, signed out, signing in. Returns where it ends.
     /// </summary>
-    public static float ProfileRows(Transform card, MenuView menu, System.Action reopen, float y)
+    public static float ProfileRows(Transform card, MenuView menu, System.Action reopen, float x, float y, float w, float gap)
     {
         var a = Account.Current;
         if (a != null)
         {
-            // (The web's .pv-account: 746.2 by 72.1, corners 17.4, an inset hairline; the address and its line left,
-            // delete account right.)
-            var row = Hud.Box(card, "Account", Hud.Rgba(150, 160, 185, 0.25f), 17.4f);
-            Hud.Place((RectTransform)row.transform, 32.9f, y, 746.2f, 72.1f);
-            var inside = Hud.Box(row.transform, "Inside", Color.white, 16);
-            Hud.Fill((RectTransform)inside.transform);
-            ((RectTransform)inside.transform).offsetMin = new Vector2(1.4f, 1.4f);
-            ((RectTransform)inside.transform).offsetMax = new Vector2(-1.4f, -1.4f);
-            Hud.Text(row.transform, a.Email, 17.4f, 11.6f, 500, 29, 23.2f, Look.Ink, true, 500, 6, TextAlignmentOptions.Left);
-            Hud.Text(row.transform, "Your progress is saved to this account.", 17.4f, 43.5f, 500, 17, 14.4f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
-            if (!deleting)
-                FootLink(row.transform, "delete account", 728.8f, 21.7f, true, () => { deleting = true; confirm = ""; error = ""; reopen(); });
-            y += 72.1f + 20.3f;
+            var row = K.Inset(card, "Account", new Color(1, 1, 1, 0.7f), Hud.Rgba(150, 160, 185, 0.25f), 12);
+            Hud.Place(row.rectTransform, x, y, w, 48);
+            float dw = deleting ? 0 : K.TextW("DELETE ACCOUNT", 9.6f, 400, 0.16f) + 4;
+            var em = K.Words(row.transform, a.Email, 12, 8, w - 24 - dw - 12, 19, 16, Look.Ink, true, 500, 0.06f, TextAlignmentOptions.Left);
+            em.overflowMode = TextOverflowModes.Ellipsis;
+            K.Words(row.transform, "Your progress is saved to this account.", 12, 29, w - 24 - dw - 12, 11, 9.92f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
+            if (!deleting) K.Link(row.transform, "delete account", () => { deleting = true; confirm = ""; error = ""; reopen(); }, w - 12, 14.5f, fromRight: true);
+            y += 48 + gap;
             if (deleting)
             {
-                // (The web's .pv-delete: why, the box to confirm in, what went wrong, and its two buttons.)
+                // (The web's .pv-delete, 8 between its parts: why, the box to confirm in, what went wrong, and its two buttons.)
                 bool withPassword = a.Password != false;
-                var why = Hud.Text(card, $"This deletes your account and all its progress, for good. {(withPassword ? "Enter your password" : "Type DELETE")} to confirm.", 32.9f, y, 746.2f, 20, 15.3f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
-                why.textWrappingMode = TextWrappingModes.Normal;
-                y += 20 + 11.6f;
-                var field = Field(card, "", 32.9f, y, 406, 58, withPassword ? "password" : "DELETE", withPassword, 200);
+                string why = $"This deletes your account and all its progress, for good. {(withPassword ? "Enter your password" : "Type DELETE")} to confirm.";
+                var wt = K.Words(card, why, x, y, w, 30, 10.56f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.TopLeft);
+                wt.textWrappingMode = TextWrappingModes.Normal;
+                float wh = wt.GetPreferredValues(why, w, 0).y;
+                wt.rectTransform.sizeDelta = new Vector2(w, wh);
+                y += wh + 8;
+                float fw = Mathf.Min(280, w);
+                var field = Field(card, "", x, y, fw, 40, withPassword ? "password" : "DELETE", withPassword, 200);
                 field.onValueChanged.AddListener(v => confirm = v);
-                y += 58 + 11.6f;
+                y += 40 + 8;
                 if (error.Length > 0)
                 {
-                    Hud.Text(card, error, 32.9f, y, 746.2f, 20, 15.3f, Hud.Rgba(192, 86, 61), false, 400, 0, TextAlignmentOptions.Left);
-                    y += 20 + 11.6f;
+                    K.Words(card, error, x, y, w, 15, 12.48f, Hud.Rgba(192, 86, 61), false, 400, 0, TextAlignmentOptions.Left);
+                    y += 15 + 8;
                 }
-                float cw = Hud.Wide("CANCEL", 15.3f, 500, 14, 24.2f), dw = Hud.Wide("DELETE ACCOUNT", 15.3f, 500, 14, 24.2f);
-                var cancel = Hud.Btn(card, "Cancel", () => { deleting = false; error = ""; reopen(); }, 15.3f);
-                Hud.Place((RectTransform)cancel.transform, 32.9f, y, cw, 47.1f);
-                var go = Hud.Btn(card, "Delete account", () =>
+                float cw = K.BtnW("cancel", K.Kind.Btn);
+                K.Btn(card, "cancel", () => { deleting = false; error = ""; reopen(); }, x, y);
+                var go = K.Btn(card, "delete account", () =>
                 {
                     if (busy) return;
                     busy = true;
@@ -312,32 +313,22 @@ public static class AccountView
                         deleting = false;
                         menu.Show("title");
                     });
-                }, 15.3f);
-                Hud.Place((RectTransform)go.transform, 32.9f + cw + 11.6f, y, dw, 47.1f);
+                }, x + cw + 8, y);
                 go.GetComponentInChildren<TextMeshProUGUI>().color = Hud.Rgba(178, 60, 36);
                 go.interactable = !busy;
-                y += 47.1f + 20.3f;
+                y += 32 + gap;
             }
         }
         // The foot: changing your name, and signing out (or, with no account, signing in).
-        float x = 32.9f;
-        x += FootLink(card, "change name", x, y, false, () => { Mode = "name"; menu.Show("signin"); }) + 23.2f;
+        float lx = x;
+        lx += K.Link(card, "change name", () => { Mode = "name"; menu.Show("signin"); }, lx, y) + 16;
         if (a != null)
-            FootLink(card, "sign out", x, y, false, () =>
+            K.Link(card, "sign out", () =>
             {
                 // Signing out: the account's progress leaves this device with it (it's safe on the server).
                 Account.LogOut(() => menu.Show("title"));
-            });
-        else if (Net.Available) FootLink(card, "sign in", x, y, false, () => { Begin(); menu.Show("signin"); });
-        return y + 28.6f + 29.9f;
-    }
-
-    /// <summary>A link (the web's .link-btn, 28.6 tall) at (x, y), or with its right edge at x; returns its width.</summary>
-    static float FootLink(Transform parent, string text, float x, float y, bool fromRight, System.Action act)
-    {
-        float w = Hud.Wide(text.ToUpperInvariant(), 13.9f, 400, 16, 2.9f);
-        var b = Hud.Link(parent, text, act);
-        Hud.Place((RectTransform)b.transform, fromRight ? x - w : x, y, w, 28.6f);
-        return w;
+            }, lx, y);
+        else if (Net.Available) K.Link(card, "sign in", () => { Begin(); menu.Show("signin"); }, lx, y);
+        return y + 19;
     }
 }

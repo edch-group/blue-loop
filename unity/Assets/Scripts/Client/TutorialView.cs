@@ -4,12 +4,13 @@ using BlueLoop.Engine;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using K = MenuKit;
 
 /// <summary>
 /// The tutorial (puzzles.ts tutorialPage): the branch of lessons with Oriel at its root (the trunk, the core forking
 /// into holding on and the four races, the Lost Races' crown above), and the lesson picked, waiting to begin.
 /// </summary>
-public class TutorialView : MonoBehaviour
+public class TutorialView : MonoBehaviour, MenuView.IRedraw
 {
     /// <summary>Where each lesson sits on the branch, in a 100 × 64 box.</summary>
     static readonly Dictionary<string, Vector2> At = new Dictionary<string, Vector2>
@@ -36,14 +37,46 @@ public class TutorialView : MonoBehaviour
         return v;
     }
 
-    // (The branch's box on the page, as the web lays it out on its 1600 × 1000 page: 1553.6 across from 23.2 in,
-    // 768.4 tall from 149.8 down; points from the middle of the page, y up.)
-    static Vector2 Map(float x, float y) => new Vector2(23.2f + x / 100 * 1553.6f - 800, 500 - (149.8f + y / 64 * 768.4f));
+    public void Redraw() => Draw();
 
-    static Vector2 Pt(string id)
+    /// <summary>
+    /// The page's frame (.menu-tutorial and .tut, shared with the challenges): padded max(14px, top) max(16px, right)
+    /// max(12px, bottom) max(16px, left); back at its top left; its head centred (a line, 9.6 spaced 0.3em, over its
+    /// name, clamp(19.2px, 5vh, 32px) spaced 0.4em); its foot at least 64 tall at the bottom, the picked one or a word
+    /// in it; its rows 8 apart. Returns the box between head and foot: left, top, width, height.
+    /// </summary>
+    public static Rect Frame(RectTransform root, MenuView menu, string line, string title)
     {
-        var p = At.TryGetValue(id, out var a) ? a : new Vector2(50, 50);
-        return Map(p.x, p.y);
+        float l = Mathf.Max(16, K.SaL), t = Mathf.Max(14, K.SaT), r = K.W - Mathf.Max(16, K.SaR), b = K.H - Mathf.Max(12, K.SaB);
+        float hf = K.Clamp(1.2f * K.Rem, 5 * K.Vh, 2 * K.Rem), headH = 11 + 2 + hf * 1.16f;
+        K.Words(root, line.ToUpperInvariant(), l, t, r - l, 11, 9.6f, Look.InkFaint, true, 400, 0.3f);
+        K.Words(root, title.ToUpperInvariant(), l, t + 13, r - l, hf * 1.16f, hf, Look.Ink, true, 400, 0.4f);
+        MenuView.BackButton(root, () => menu.Show("hub"), l, t);
+        return new Rect(l, t + headH + 8, r - l, b - 64 - 8 - (t + headH + 8));
+    }
+
+    /// <summary>
+    /// The foot (.tut-foot, 64 tall, centred): the one picked (.tut-pick: a line (8.32 spaced 0.24em) over its name
+    /// (16 spaced 0.24em) over what it is (Exo 2 12.48), begin beside them, 18 on), or a word (.tut-hint: 9.92 spaced
+    /// 0.24em, faint).
+    /// </summary>
+    public static void Foot(RectTransform root, string small, string name, string what, string go, System.Action begin, string hint)
+    {
+        float l = Mathf.Max(16, K.SaL), r = K.W - Mathf.Max(16, K.SaR), top = K.H - Mathf.Max(12, K.SaB) - 64, cx = (l + r) / 2;
+        if (name == null)
+        {
+            K.Words(root, hint.ToUpperInvariant(), l, top + 26.5f, r - l, 11, 9.92f, Look.InkFaint, true, 400, 0.24f);
+            return;
+        }
+        small = small.ToUpperInvariant();
+        name = name.ToUpperInvariant();
+        float colW = Mathf.Max(K.TextW(small, 8.32f, 400, 0.24f), K.TextW(name, 16, 400, 0.24f), K.TextW(what, 12.48f, 400, 0, false)) + 2;
+        float bw = K.BtnW(go, K.Kind.Primary), x = cx - (colW + 18 + bw) / 2;
+        float colH = 9.5f + 2 + 18.5f + 2 + 15, y = top + (64 - colH) / 2;
+        K.Words(root, small, x, y, colW, 9.5f, 8.32f, Look.InkFaint, true, 400, 0.24f, TextAlignmentOptions.Left);
+        K.Words(root, name, x, y + 11.5f, colW, 18.5f, 16, Look.Ink, true, 400, 0.24f, TextAlignmentOptions.Left);
+        K.Words(root, what, x, y + 32, colW, 15, 12.48f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
+        K.Btn(root, go, begin, x + colW + 18, top + 16, K.Kind.Primary, bw);
     }
 
     void Draw()
@@ -51,59 +84,65 @@ public class TutorialView : MonoBehaviour
         foreach (Transform c in root) Mats.Kill(c.gameObject);
         var done = Puzzles.LessonsDone;
         bool coreDone = Lessons.CoreLessons.All(done.Contains);
-        MenuView.BackButton(root, () => menu.Show("hub"), 23.2f, 20.3f);
-        Hud.Text(root, "WITH ORIEL", 0, 20.3f, 1600, 17, 13.9f, Look.InkFaint, true, 400, 30);
-        Hud.Text(root, "TUTORIAL", 0, 40.2f, 1600, 58, 46.4f, Look.Ink, true, 400, 40);
+        var box = Frame(root, menu, "with oriel", "tutorial");
+        // The branch (.tut-tree: clamp(10px, 4vh, 30px) under the head, at most 1.2 times the screen's height across,
+        // centred; as tall as the row left it, running under the foot as the web's does). A lesson's point is its x%
+        // across and y/64 down it.
+        float mt = K.Clamp(10, 4 * K.Vh, 30), tw = Mathf.Min(box.width, 1.2f * Css.Screen.y), tx = box.x + (box.width - tw) / 2, ty = box.y + mt, th = box.height;
+        System.Func<float, float, Vector2> map = (x, y) => new Vector2(tx + x / 100 * tw - K.W / 2, K.H / 2 - (ty + y / 64 * th));
+        System.Func<string, Vector2> pt = id => { var p = At.TryGetValue(id, out var a) ? a : new Vector2(50, 50); return map(p.x, p.y); };
 
         // The links: each lesson to those before it (the crown from the trunk's top, once the core is done); a curve
-        // through a point a unit above the lower end, as the web's path.
+        // through a point a unit above the lower end, as the web's path (2 wide; lit, gold and 3; open, dashed 4 5).
         var linesRect = Hud.Rect(root, "Links");
-        Hud.At(linesRect, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1600, 1000));
+        Hud.Fill(linesRect);
         var lines = linesRect.gameObject.AddComponent<UiLines>();
         var gold = Hud.Rgba(214, 178, 94);
-        lines.Add(new List<Vector2> { Map(50, 59), Pt("sun") }, gold, 3);
+        lines.Add(new List<Vector2> { map(50, 59), pt("sun") }, gold, 3);
         foreach (var l in Lessons.All)
             foreach (var a in l.After)
             {
                 var from = a == "core" ? At["breach"] : At.TryGetValue(a, out var fa) ? fa : new Vector2(50, 50);
                 var to = At.TryGetValue(l.Id, out var ta) ? ta : new Vector2(50, 50);
                 bool lit = done.Contains(l.Id), open = Lessons.LessonOpen(l.Id, done);
-                var pts = UiLines.Curve(Map(from.x, from.y), Map((from.x + to.x) / 2, Mathf.Max(from.y, to.y) - 1), Map(to.x, to.y));
+                var pts = UiLines.Curve(map(from.x, from.y), map((from.x + to.x) / 2, Mathf.Max(from.y, to.y) - 1), map(to.x, to.y));
                 if (lit) lines.Add(pts, gold, 3);
                 else if (open) lines.Add(pts, Hud.Rgba(95, 143, 196, 0.45f), 2, 4, 5);
                 else if (a == "core") lines.Add(pts, Hud.Rgba(58, 66, 86, 0.16f), 2, 2, 6);
                 else lines.Add(pts, Hud.Rgba(58, 66, 86, 0.16f), 2);
             }
 
-        // The lessons: each a dot (60.9 across) over its name (15.3, spaced 0.16em), the two centred on its point.
+        // The lessons (.tut-node): each a dot (clamp(26px, 6.4vh, 42px), its number 11.52) over its name
+        // (clamp(8px, 1.7vh, 10.56px), spaced 0.16em), 4 apart, the two centred on its point.
+        float d0 = K.Clamp(26, 6.4f * K.Vh, 42), nf = K.Clamp(8, 1.7f * K.Vh, 10.56f), nodeH = d0 + 4 + K.LineH(nf);
         for (int i = 0; i < Lessons.All.Count; i++)
         {
             var l = Lessons.All[i];
             bool isDone = done.Contains(l.Id), open = Lessons.LessonOpen(l.Id, done), on = picked == l.Id;
-            var p = Pt(l.Id);
+            var p = pt(l.Id);
             var node = Hud.Rect(root, l.Id);
-            Hud.At(node, new Vector2(0.5f, 0.5f), p, new Vector2(240, 85.7f));
+            Hud.At(node, new Vector2(0.5f, 0.5f), p, new Vector2(160, nodeH));
             var group = node.gameObject.AddComponent<CanvasGroup>();
             group.alpha = open || isDone ? 1 : 0.5f;
             // (Picked, the dot grows by 18% in a dark ring.)
-            float d = on ? 60.9f * 1.18f : 60.9f;
+            float d = on ? d0 * 1.18f : d0;
             var dot = Hud.Rect(node, "Dot");
-            Hud.At(dot, new Vector2(0.5f, 1), new Vector2(0, -30.45f), new Vector2(d, d));
+            Hud.At(dot, new Vector2(0.5f, 1), new Vector2(0, -d0 / 2), new Vector2(d, d));
             dot.pivot = new Vector2(0.5f, 0.5f);
             var di = dot.gameObject.AddComponent<Image>();
             di.sprite = Hud.Circle;
             di.color = isDone ? Hud.Rgba(231, 194, 106) : l.Track == "advanced" && !open ? Hud.Rgba(236, 238, 243) : Color.white;
-            var ring = on ? new Hud.Drop(Hud.Rgba(58, 66, 86), 0, 0, 4.35f)
-                : isDone ? new Hud.Drop(Hud.Rgba(150, 110, 30, 0.5f), 0, 0, 1.4f)
-                : open ? new Hud.Drop(Hud.Rgba(95, 143, 196), 0, 0, 2.9f)
-                : new Hud.Drop(Hud.Rgba(58, 66, 86, 0.2f), 0, 0, 1.4f);
-            var glow = on ? new Hud.Drop(Hud.Rgba(40, 46, 70, 0.25f), 8.7f, 26.1f)
-                : isDone ? new Hud.Drop(Hud.Rgba(230, 190, 90, 0.5f), 0, 20.3f)
-                : open ? new Hud.Drop(Hud.Rgba(95, 143, 196, 0.5f), 0, 23.2f)
-                : new Hud.Drop(Hud.Rgba(40, 46, 70, 0.1f), 5.8f, 17.4f);
+            var ring = on ? new Hud.Drop(Hud.Rgba(58, 66, 86), 0, 0, 3)
+                : isDone ? new Hud.Drop(Hud.Rgba(150, 110, 30, 0.5f), 0, 0, 1)
+                : open ? new Hud.Drop(Hud.Rgba(95, 143, 196), 0, 0, 2)
+                : new Hud.Drop(Hud.Rgba(58, 66, 86, 0.2f), 0, 0, 1);
+            var glow = on ? new Hud.Drop(Hud.Rgba(40, 46, 70, 0.25f), 6, 18)
+                : isDone ? new Hud.Drop(Hud.Rgba(230, 190, 90, 0.5f), 0, 14)
+                : open ? new Hud.Drop(Hud.Rgba(95, 143, 196, 0.5f), 0, 16)
+                : new Hud.Drop(Hud.Rgba(40, 46, 70, 0.1f), 4, 12);
             Hud.Shadow(di, d / 2, ring, glow);
-            Hud.Label(dot, isDone ? "✓" : (i + 1).ToString(), 16.7f, isDone ? Hud.Rgba(106, 74, 18) : open ? Look.Ink : Look.InkSoft, true, 400, 0);
-            Hud.Text(node, l.Name.ToUpperInvariant(), 0, 66.7f, 240, 19, 15.3f, Look.InkSoft, true, 400, 16);
+            K.Fill(dot, isDone ? "✓" : (i + 1).ToString(), 11.52f, isDone ? Hud.Rgba(106, 74, 18) : open ? Look.Ink : Look.InkSoft, true, 400);
+            K.Words(node, l.Name.ToUpperInvariant(), 0, d0 + 4, 160, K.LineH(nf), nf, Look.InkSoft, true, 400, 0.16f);
             if (open || isDone)
             {
                 var id = l.Id;
@@ -113,37 +152,27 @@ public class TutorialView : MonoBehaviour
             }
         }
 
-        // Oriel, at the root: 87 across, a white ring and a soft shadow.
+        // Oriel, at the root (.tut-root: clamp(40px, 9vh, 60px), a white ring and a soft shadow).
+        float os = K.Clamp(40, 9 * K.Vh, 60);
         var oriel = Hud.Rect(root, "Oriel");
-        Hud.At(oriel, new Vector2(0.5f, 0.5f), Map(50, 59), new Vector2(87, 87));
+        Hud.At(oriel, new Vector2(0.5f, 0.5f), map(50, 59), new Vector2(os, os));
         var face = oriel.gameObject.AddComponent<Image>();
         face.sprite = Hud.Circle;
-        Hud.Shadow(face, 43.5f, new Hud.Drop(Color.white, 0, 0, 2.9f), new Hud.Drop(Hud.Rgba(40, 46, 70, 0.25f), 8.7f, 26.1f));
+        Hud.Shadow(face, os / 2, new Hud.Drop(Color.white, 0, 0, 2), new Hud.Drop(Hud.Rgba(40, 46, 70, 0.25f), 6, 18));
         oriel.gameObject.AddComponent<Mask>().showMaskGraphic = false;
         var pic = Hud.Rect(oriel, "Picture");
         Hud.Fill(pic);
         var raw = pic.gameObject.AddComponent<RawImage>();
         raw.texture = Resources.Load<Texture2D>("Portraits/oriel");
 
-        // The lesson picked, waiting to begin (its track, name and what it teaches, and begin beside them), or
-        // Oriel's word, centred under the branch.
+        // The lesson picked, waiting to begin, or Oriel's word.
         var lesson = picked != null ? Lessons.LessonById(picked) : null;
+        var hint = coreDone ? "The lost races await, above." : done.Count > 0 ? "The lost races open once the core is learnt." : "Walk with me. Start at the root.";
         if (lesson != null)
         {
-            string track = lesson.Track == "core" ? "CORE" : "THE LOST RACES", name = lesson.Name.ToUpperInvariant(), go = done.Contains(lesson.Id) ? "again" : "begin";
-            float colW = Mathf.Max(Hud.Wide(track, 12.1f, 400, 24, 0), Hud.Wide(name, 23.2f, 400, 24, 0), Hud.Wide(lesson.Teaches, 18.1f, 400, 0, 0, false));
-            float bw = Hud.Wide(go.ToUpperInvariant(), 15.3f, 700, 14, 24.6f), x = 800 - (colW + 26.1f + bw) / 2;
-            Hud.Text(root, track, x, 900.3f, colW + 2, 15, 12.1f, Look.InkFaint, true, 400, 24, TextAlignmentOptions.Left);
-            Hud.Text(root, name, x, 918.2f, colW + 2, 29, 23.2f, Look.Ink, true, 400, 24, TextAlignmentOptions.Left);
-            Hud.Text(root, lesson.Teaches, x, 950.1f, colW + 2, 22, 18.1f, Look.InkSoft, false, 400, 0, TextAlignmentOptions.Left);
             var id = lesson.Id;
-            var begin = Hud.Primary(root, go, () => App.Instance.Puzzle("lesson", id));
-            Hud.Place((RectTransform)begin.transform, x + colW + 26.1f, 912.7f, bw, 47.1f);
+            Foot(root, lesson.Track == "core" ? "core" : "the lost races", lesson.Name, lesson.Teaches, done.Contains(lesson.Id) ? "again" : "begin", () => App.Instance.Puzzle("lesson", id), null);
         }
-        else
-        {
-            var hint = coreDone ? "The lost races await, above." : done.Count > 0 ? "The lost races open once the core is learnt." : "Walk with me. Start at the root.";
-            Hud.Text(root, hint.ToUpperInvariant(), 0, 927.2f, 1600, 18, 14.4f, Look.InkFaint, true, 400, 24);
-        }
+        else Foot(root, null, null, null, null, null, hint);
     }
 }
