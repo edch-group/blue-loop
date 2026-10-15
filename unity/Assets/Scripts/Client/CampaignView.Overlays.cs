@@ -211,6 +211,16 @@ public partial class CampaignView
         nr.anchoredPosition = new Vector2(-12 * Z, 0);
         nr.sizeDelta = new Vector2(30 * Z, 30 * Z);
         WebLook.Words(nr, "×", 1.05f * 16 * Z, 0, Look.Ink, false, 400);
+        // (cmp-guide-in: from 6 above and unseen, 0.28s, eased out; a new run's first words wait for the flagship to fly
+        // in (cmp-guide-arrive: 0.5s, 2.9s on; through the opening shot 0.9s on). Timed from when this line first showed.)
+        string key = $"guide:{scene.Id}:{Shown(scene).Count}:{line.Text}";
+        if (key != guideKey)
+        {
+            guideKey = key;
+            guideAt = Time.time;
+        }
+        bool arrive = scene.Id == "intro" && fresh;
+        RiseIn.On(bubble.rectTransform, guideAt, arrive ? (Cining ? 0.9f : 2.9f) : 0, arrive ? 0.5f : 0.28f, -6, true);
         next.gameObject.AddComponent<Button>().onClick.AddListener(() =>
         {
             Sound.Play("hover");
@@ -220,6 +230,10 @@ public partial class CampaignView
             Refresh();
         });
     }
+
+    /// <summary>The guide's line showing, and since when (so a redraw carries its coming in on).</summary>
+    string guideKey;
+    float guideAt;
 
     // ---- Over the map: whatever waits on you ----
 
