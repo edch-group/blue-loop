@@ -407,6 +407,23 @@ public partial class BattleView : MonoBehaviour
             var w = Was(p);
             int dHeat = p.Heat - w.Heat;
             var sunView = Board.SunOf(p.Id);
+            int lost = byEnemy ? Mathf.Max(0, w.Shields - p.Shields) : 0;
+            int gained = Mathf.Max(0, p.Shields - w.Shields);
+            // As it lands: heat taken (red, rising) or cooled (blue) over the sun, shields lost or raised beside it;
+            // your own edges burning if it was you a rival struck.
+            var who = p.Id;
+            void Land()
+            {
+                var r = SunRect(who);
+                if (r != null)
+                {
+                    if (dHeat != 0) FloatNumber(r.Value, dHeat > 0 ? $"+{dHeat}" : $"−{-dHeat}", dHeat > 0 ? "hot" : "cool", 0);
+                    if (lost > 0) FloatNumber(r.Value, $"⬡−{lost}", "block", dHeat != 0 ? 1 : 0);
+                    else if (gained > 0) FloatNumber(r.Value, $"⬡+{gained}", "block", dHeat != 0 ? 1 : 0);
+                }
+                if (dHeat > 0 && who == you && byEnemy) HurtFlash();
+            }
+            bool flown = false;
             if (sunView != null && (dHeat != 0 || p.Shields != w.Shields))
             {
                 if (byEnemy && a.Type != "attack" && dHeat > 0)
@@ -414,13 +431,16 @@ public partial class BattleView : MonoBehaviour
                     // (Heat flies from the card played, or the striking sun, to the sun it strikes: fx.ts projectile.)
                     var fromRect = (a.CardUid != null ? CardRect(a.CardUid) : null) ?? SunRect(source.Id);
                     var pid = p.Id;
-                    if (fromRect != null) StartCoroutine(Projectile(fromRect.Value, () => SunRect(pid) ?? fromRect.Value, Hot, Mathf.Max(0, at - 0.4f), 34, 0.62f, () => sunView.Pulse(true)));
+                    if (fromRect != null)
+                    {
+                        flown = true;
+                        StartCoroutine(Projectile(fromRect.Value, () => SunRect(pid) ?? fromRect.Value, Hot, Mathf.Max(0, at - 0.4f), 34, 0.62f, () => { sunView.Pulse(true); Land(); }));
+                    }
                     else sunView.Pulse(true, at);
                 }
                 else sunView.Pulse(dHeat >= 0, a.Type == "attack" ? 0.15f : at);
             }
-            int lost = byEnemy ? Mathf.Max(0, w.Shields - p.Shields) : 0;
-            int gained = Mathf.Max(0, p.Shields - w.Shields);
+            if (!flown) StartCoroutine(After(at, Land));
             if (dHeat > 0)
             {
                 if (p.Id == you && byEnemy) Sound.Play("hurt", dHeat);

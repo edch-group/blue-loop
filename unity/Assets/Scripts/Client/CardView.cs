@@ -77,6 +77,47 @@ public class CardView : MonoBehaviour
         rim.sharedMaterial.color = col;
     }
 
+    MeshRenderer flash;
+    float flashAt = -1, flashFor;
+    bool flashHit;
+
+    /// <summary>
+    /// A card struck (.fx-hit-card: a hot ring and glow, the card brightened, gone over 0.6 s) or given something
+    /// (.fx-upgrade: a white ring and glow rising to 30% of 1.2 s and gone), `after` seconds from now.
+    /// </summary>
+    public void Flash(bool hit, float after = 0)
+    {
+        if (flash == null)
+        {
+            flash = Mats.Flat("Flash", transform, Mats.Make("Soft", new Color(0, 0, 0, 0)), 1.8f, 2.2f, -0.0005f);
+            flash.sharedMaterial.SetFloat("_Aspect", 2.2f / 1.8f);
+            flash.sharedMaterial.SetFloat("_Size", 0.54f / 1.8f);
+            flash.sharedMaterial.SetFloat("_Soft", 0.3f / 1.8f);
+            flash.sharedMaterial.renderQueue = 2996;
+        }
+        flashHit = hit;
+        flashFor = hit ? 0.6f : 1.2f;
+        flashAt = Time.time + after;
+    }
+
+    void Flashing()
+    {
+        if (flashAt < 0 || flash == null || Time.time < flashAt) return;
+        float t = (Time.time - flashAt) / flashFor;
+        // (ease-out over the whole for a blow; for a gift, in to its peak at 30% and out after.)
+        float k = flashHit ? 1 - (1 - Mathf.Pow(1 - Mathf.Clamp01(t), 2)) : t < 0.3f ? 1 - Mathf.Pow(1 - t / 0.3f, 2) : 1 - (1 - Mathf.Pow(1 - (t - 0.3f) / 0.7f, 2));
+        if (t >= 1) { k = 0; flashAt = -1; }
+        var c = flashHit ? Hud.Rgba(255, 106, 58) : Color.white;
+        c.a = Mathf.Clamp01(k);
+        flash.sharedMaterial.color = c;
+        if (flashHit)
+        {
+            var f = face.sharedMaterial.color;
+            float b = 1 + 0.6f * Mathf.Clamp01(k);
+            face.sharedMaterial.color = new Color(b, b, b, f.a);
+        }
+    }
+
     /// <summary>A badge (atk, atk-dim, stab, stab-low, def, guard) with its value, or none (n null).</summary>
     public void Badge(string slot, string kind, int? n)
     {
@@ -158,6 +199,7 @@ public class CardView : MonoBehaviour
 
     void Update()
     {
+        Flashing();
         if (Time.time < holdUntil) return;
         float k = 1 - Mathf.Exp(-Time.deltaTime * 12);
         var at = transform.localPosition - applied;

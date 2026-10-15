@@ -30,7 +30,7 @@ public partial class BattleView
         string shotAim = a.AimUid;
         var was = prev.Players.Where(p => p.Id != actor.Id).SelectMany(p => p.Tableau).ToDictionary(c => c.Uid);
         var now = next.Players.Where(p => p.Id != actor.Id).SelectMany(p => p.Tableau).ToDictionary(c => c.Uid);
-        var hit = was.Where(kv => !now.ContainsKey(kv.Key) || (now[kv.Key].Health ?? 0) < (kv.Value.Health ?? 0) || (now[kv.Key].Dented ?? 0) > (kv.Value.Dented ?? 0)).Select(kv => kv.Key).ToList();
+        var hit = was.Where(kv => !now.ContainsKey(kv.Key) || (now[kv.Key].Health ?? 0) < (kv.Value.Health ?? 0) || (now[kv.Key].Dented ?? 0) > (kv.Value.Dented ?? 0) || (heroMove && CardShift(prev, next, kv.Key).Count > 0)).Select(kv => kv.Key).ToList();
         for (int i = 0; i < hit.Count; i++)
         {
             var uid = hit[i];
@@ -43,9 +43,19 @@ public partial class BattleView
             {
                 var land = to.Value;
                 StartCoroutine(Projectile(from.Value, () => CardRect(uid) ?? land, Hot, delay, 30, 0.56f, null));
+                // (The card struck glows as it lands; a Hero's heat shows what it did.)
+                Board.View(uid)?.Flash(true, delay + 0.56f);
+                if (heroMove) CardShiftNumbers(CardShift(prev, next, uid), to.Value, delay + 0.56f);
                 continue;
             }
             StartCoroutine(Arc(from.Value, to.Value, Beam.Kind.Plain, 0.36f, delay, 0.42f, 0.52f, 0.26f));
+            // (A Hero's: what it did to the card shown as the arc reaches it.)
+            float reach = delay + 0.42f + 0.52f * 0.7f;
+            if (heroMove && nowC != null)
+            {
+                Board.View(uid)?.Flash(true, reach);
+                CardShiftNumbers(CardShift(prev, next, uid), to.Value, reach);
+            }
         }
         // A Hero's ability on its own side: a beam of light from the Hero to each card it changes.
         if (heroMove && hero != null)
@@ -54,11 +64,21 @@ public partial class BattleView
             int k = 0;
             foreach (var c in next.Players.First(p => p.Id == actor.Id).Tableau)
             {
-                if (c.Uid == hero.Uid || !mineWas.TryGetValue(c.Uid, out var w)) continue;
-                if ((c.Health ?? 0) == (w.Health ?? 0) && (c.Shields ?? 0) == (w.Shields ?? 0) && (c.Growth ?? 0) == (w.Growth ?? 0) && c.Frozen == w.Frozen) continue;
+                var shift = CardShift(prev, next, c.Uid);
+                if (shift.Count == 0 || !mineWas.ContainsKey(c.Uid)) continue;
                 var to = CardRect(c.Uid);
                 if (to == null) continue;
-                StartCoroutine(Arc(from.Value, to.Value, Beam.Kind.Plain, 0.12f, (actor.IsAI ? 0.6f : 0.42f) + k++ * 0.14f, 0.38f, 0.38f * 0.6f, 0.22f));
+                float delay = (actor.IsAI ? 0.6f : 0.42f) + k++ * 0.14f, land = delay;
+                // (The Hero itself only glows.)
+                if (c.Uid != hero.Uid)
+                {
+                    StartCoroutine(Arc(from.Value, to.Value, Beam.Kind.Plain, 0.12f, delay, 0.38f, 0.38f * 0.6f, 0.22f));
+                    land = delay + 0.38f;
+                }
+                bool bad = shift.Any(x => x.Bad);
+                Board.View(c.Uid)?.Flash(bad, land);
+                CardShiftNumbers(shift, to.Value, land);
+                Sound.Play(bad ? "clash-1" : "shield", land);
             }
         }
     }
