@@ -533,11 +533,11 @@ public partial class CampaignView
         float y = Middle(total), mid = PW / 2;
         var title = WebLook.Words(WebLook.Box(v, "Title", 0, y, PW, h2), "YOU ARE DEAD", h2s, 0.32f, Look.Ink, true, 400);
         title.margin = new Vector4(0, 0, 0.32f * h2s, 0);
-        RiseIn.On(title.rectTransform, t0, 0);
+        RiseIn.On(title.rectTransform, t0, 0, 1.4f);
         y += h2 + gap;
         var said = WebLook.Words(WebLook.Box(v, "Said", 0, y, PW, p), "The others will follow, soon enough…", ps, 0, Look.InkSoft, false, 400);
         said.fontStyle = FontStyles.Italic;
-        RiseIn.On(said.rectTransform, t0, 0.6f);
+        RiseIn.On(said.rectTransform, t0, 0.6f, 1.4f);
         y += p + gap;
         // (+ its petals, the petal after: 1.1rem, the petal 20 across, 6 between.)
         var petals = WebLook.Words(Hud.Fill(Hud.Rect(v, "Petals")), $"+ {state.Petals}", 1.1f * 16 * Z, 0.08f, Look.Ink, true, 400, TextAlignmentOptions.Left);
@@ -548,7 +548,7 @@ public partial class CampaignView
         var mark = WebLook.Centred(pr, "Petal", pw + 6 * Z + pet / 2, pet / 2, pet, pet).gameObject.AddComponent<RawImage>();
         mark.texture = Resources.Load<Texture2D>("Icons/purse-petal");
         mark.raycastTarget = false;
-        RiseIn.On(pr, t0, 1.3f);
+        RiseIn.On(pr, t0, 1.3f, 1);
         y += pet;
         if (n > 0)
         {
@@ -565,12 +565,12 @@ public partial class CampaignView
                 float x0 = 6 * Z + (rw - (inRow * cw + (inRow - 1) * cg)) / 2;
                 CardPick(cards, id, new Vector2(x0 + (i % cols) * (cw + cg), -(6 * Z + row * (cw * 1.4f + cg))), cw, keepPick == id, () => { Sound.Play("hover"); keepPick = keepPick == id ? null : id; Refresh(); }, new Vector2(0, 1));
             }
-            RiseIn.On(keep, t0, 1.6f);
+            RiseIn.On(keep, t0, 1.6f, 1);
             y += keepH;
         }
         y += gap + 10 * Z;
         var exit = WebButton(v, keepPick != null ? $"keep {Cards.Def(keepPick).Name.ToLowerInvariant()} · exit" : "exit", NewRunFromHere, true, mid, y);
-        RiseIn.On((RectTransform)exit.transform, t0, 1.8f);
+        RiseIn.On((RectTransform)exit.transform, t0, 1.8f, 0.8f);
     }
 
     /// <summary>The run over: the card picked to keep goes with the account into the next run; off to the campaign's menu.</summary>
@@ -1139,7 +1139,7 @@ public partial class CampaignView
         glow.rectTransform.offsetMin = new Vector2(-40 * Z, -40 * Z - 10 * Z);
         glow.rectTransform.offsetMax = new Vector2(40 * Z, 40 * Z - 10 * Z);
         glow.transform.SetAsFirstSibling();
-        RiseIn.On(f, t0, 0);
+        RiseIn.On(f, t0, 0, 0.8f);
         y += face + gap;
         WebLook.Words(WebLook.Box(v, "Kicker", 0, y, PW, kH), kicker.ToUpperInvariant(), 0.66f * 16 * Z, 0.32f, rust, true, 400);
         y += kH + gap;
@@ -1149,13 +1149,13 @@ public partial class CampaignView
         {
             y += gap;
             WebLook.Box(said.rectTransform, mid - lineW / 2, y, lineW, lH + 2);
-            RiseIn.On(said.rectTransform, t0, 0.4f);
+            RiseIn.On(said.rectTransform, t0, 0.4f, 1);
             y += lH;
         }
         y += gap + 6 * Z;
         var acts = WebLook.Box(v, "Actions", 0, y, PW, actionsH);
         actions(acts, actionsH);
-        RiseIn.On(acts, t0, 1);
+        RiseIn.On(acts, t0, 1, 0.8f);
     }
 
     /// <summary>
@@ -1202,7 +1202,7 @@ public partial class CampaignView
         var head = WebLook.Box(v, "Head", 0, Mathf.Max(14 * Z, pad.x), PW, kh + 2 * Z + ts * 1.26f);
         WebLook.Words(WebLook.Box(head, "Kicker", 0, 0, PW, kh), kicker.ToUpperInvariant(), 0.5f * 16 * Z, 0.24f, Look.InkSoft, false, 400);
         WebLook.Words(WebLook.Box(head, "Title", 0, kh + 2 * Z, PW, ts * 1.26f), title.ToUpperInvariant(), ts, 0.2f, Look.Ink, true, 400);
-        RiseIn.On(head, from, 0);
+        RiseIn.On(head, from, 0, 0.8f);
         // (.enc-line p: clamp(0.82rem, 2.2vh, 0.98rem), 1.45 high; the words 44 in, past the face and its gap.)
         float W = Mathf.Min(720 * Z, PW - 32 * Z);
         float fs = Css.Clamp(0.82f * 16 * Z, 2.2f * RawVh, 0.98f * 16 * Z), textX = 44 * Z, textW = W - textX, whoH = 0.48f * 16 * Z * 1.2f;
@@ -1422,8 +1422,9 @@ public partial class CampaignView
         t.margin = new Vector4(0, 0, 0.32f * 1.3f * 16 * Z * 0.78f, 0);
         float t0 = RevealFrom("dream");
         v.gameObject.AddComponent<CanvasGroup>();
-        RiseIn.On(v, t0, 0);
-        RiseIn.On(t.rectTransform, t0, 1.2f);
+        // (dream-in over 3.6s; the line (dream-line) in from a quarter of the way to seven tenths.)
+        RiseIn.On(v, t0, 0, 3.6f);
+        RiseIn.On(t.rectTransform, t0, 0.9f, 1.62f);
         if (!dreamStarting && Application.isPlaying)
         {
             dreamStarting = true;

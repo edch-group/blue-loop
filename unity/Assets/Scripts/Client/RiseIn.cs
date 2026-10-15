@@ -1,23 +1,24 @@
 using UnityEngine;
 
 /// <summary>
-/// A part of the page fading and rising in, after a wait (styles.css run-over-in: from transparent and 8px low, over
-/// 0.6s, eased; held hidden till it begins), as a scene's lines come one after another. Timed from a moment given, so a
+/// A part of the page fading and rising in, after a wait (styles.css run-over-in: from transparent and 8px (CSS) low,
+/// over 0.6s or as long as asked, eased; held hidden till it begins), as a scene's lines come one after another. Timed from a moment given, so a
 /// page drawn again carries on where it was; out of play (the editor's pictures), shown as it ends.
 /// </summary>
 public class RiseIn : MonoBehaviour
 {
-    const float Rise = 8, Length = 0.6f;
-    float from, delay, alpha = -1;
+    const float Rise = 8 * WebLook.Zoom, Length = 0.6f;
+    float from, delay, length = Length, alpha = -1;
     Vector2 rest;
     CanvasGroup group;
 
-    /// <summary>Have `r` fade and rise in `delay` seconds after `start` (a Time.time).</summary>
-    public static void On(RectTransform r, float start, float delay)
+    /// <summary>Have `r` fade and rise in `delay` seconds after `start` (a Time.time), over `length` seconds.</summary>
+    public static void On(RectTransform r, float start, float delay, float length = Length)
     {
         var x = r.gameObject.AddComponent<RiseIn>();
         x.from = start;
         x.delay = delay;
+        x.length = length;
         x.rest = r.anchoredPosition;
         x.group = r.GetComponent<CanvasGroup>();
         if (x.group == null) x.group = r.gameObject.AddComponent<CanvasGroup>();
@@ -30,7 +31,7 @@ public class RiseIn : MonoBehaviour
     {
         // (Any fading of its own, kept: it rises in to that.)
         if (alpha < 0) alpha = group.alpha;
-        float k = Application.isPlaying ? Mathf.Clamp01((Time.time - from - delay) / Length) : 1;
+        float k = Application.isPlaying ? Mathf.Clamp01((Time.time - from - delay) / length) : 1;
         float e = Ease(k);
         group.alpha = alpha * e;
         ((RectTransform)transform).anchoredPosition = rest - new Vector2(0, Rise * (1 - e));
