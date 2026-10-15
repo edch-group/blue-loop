@@ -16,6 +16,7 @@ public partial class BattleView
     void Arcs(GameState prev, GameState next, EngineAction a, PlayerState actor)
     {
         if (!Application.isPlaying || hud == null) return;
+        HeroMoved(a, actor);
         bool heroMove = a.Type == "heroAbility" || a.Type == "singularity";
         if (a.Type != "playCard" && !heroMove) return;
         var hero = heroMove ? Game.CommandCard(actor) : null;

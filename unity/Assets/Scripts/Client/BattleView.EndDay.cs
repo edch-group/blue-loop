@@ -56,7 +56,7 @@ public partial class BattleView
     void RequestEndDay()
     {
         if (state == null || !MyDay || Dawn != null) return;
-        if (picked != null || attacker != null) return;
+        if (pending != null || attacker != null) return;
         if (discarding != null) { EndDay(); return; }
         var left = LeftUndone();
         if (left.Count > 0 && !askingEnd)
@@ -77,9 +77,9 @@ public partial class BattleView
 
     /// <summary>app.ts canAutoEnd: nothing you can do today, nothing open, nothing playing out.</summary>
     bool CanAutoEnd() =>
-        state != null && state.WinnerId == null && MyDay && !online && Dawn == null && picked == null && attacker == null && options == null
+        state != null && state.WinnerId == null && MyDay && !online && Dawn == null && pending == null && attacker == null
         && stage == null && sheet == null && landing == null && drag == null && attackDrag == null && discarding == null
-        && (heroPanel == null || !heroPanel.gameObject.activeSelf) && !inspector.gameObject.activeSelf
+        && (heroPanel == null || !heroPanel.gameObject.activeSelf) && relicPanel == null && !inspector.gameObject.activeSelf
         && Time.time >= dayFrom && Time.time >= bannerFree && hud.transform.Find("Banner") == null && LeftUndone().Count == 0;
 
     /// <summary>Each frame: Enter, and the day ending by itself once settled for a moment.</summary>

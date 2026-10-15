@@ -226,7 +226,8 @@ public partial class BattleView
         return null;
     }
 
-    struct Drop { public int? Slot; public string Uid, Aim; }
+    /// <summary>Where a dragged card is let go (app.ts Pending['drop']): a slot, your Lightspeed slot, a card of yours, or what it heats.</summary>
+    struct Drop { public int? Slot; public bool Trap; public string Uid, Aim; }
 
     /// <summary>
     /// What a dragged card would land on (app.ts dropEl/dropAt): a slot of yours, or a card of yours; aiming, the rival
@@ -242,6 +243,7 @@ public partial class BattleView
             if (sun != null && sun.PlayerId != you && ch.Sun) return new Drop { Aim = "sun" };
             return null;
         }
+        if (slot != null && slot.Mine && slot.Slot == TrapSlot) return new Drop { Trap = true };
         if (slot != null && slot.Mine) return new Drop { Slot = slot.Slot };
         if (card != null && card.Table && Me.Tableau.Any(c => c.Uid == card.Uid)) return new Drop { Uid = card.Uid };
         return null;
@@ -251,7 +253,7 @@ public partial class BattleView
     void MarkDrop(Drop? d)
     {
         string uid = d?.Uid ?? (d?.Aim != "sun" ? d?.Aim : null);
-        int slot = d?.Slot ?? int.MinValue;
+        int slot = d?.Trap == true ? TrapSlot : d?.Slot ?? int.MinValue;
         bool sun = d?.Aim == "sun";
         if (uid == dropOver && slot == dropSlot && sun == dropSun) return;
         dropOver = uid;
@@ -312,14 +314,8 @@ public partial class BattleView
     /// <summary>A card played from the hand where it was let go (app.ts startPlay with its drop).</summary>
     void PlayDropped(string uid, Drop? drop)
     {
-        Clear();
-        TapCard(uid);
-        if (picked != uid || drop == null) return;
-        var d = drop.Value;
-        if (d.Aim == "sun") TapSun(Rival.Id);
-        else if (d.Aim != null) TapCard(d.Aim);
-        else if (d.Slot != null) PickSlot(d.Slot.Value);
-        else if (d.Uid != null) TapCard(d.Uid);
+        CloseSheet();
+        StartPlay(uid, drop);
     }
 
     /// <summary>A drag given up (the battle left, or a touch cancelled).</summary>

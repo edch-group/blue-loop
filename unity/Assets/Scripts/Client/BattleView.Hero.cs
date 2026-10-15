@@ -58,24 +58,24 @@ public partial class BattleView
     /// Your Hero, tapped on your day (app.ts renderHeroPanel, .stage.stage-hero): in the stage's place, its card, and to
     /// its left (12 px off) its picks, each a pill: its singularity first (charged, a blazing dark pill to unleash it;
     /// charging, how far it has to go), its abilities (a mark with what it does and how much, its name, its energy and
-    /// other costs, what it does or why not today), and its attack. A tap anywhere else puts them away.
+    /// other costs, what it does or why not today), and its attack. A tap anywhere else puts them away, and goes on to do
+    /// what it does there (EmblemsTick); a tap on the Hero again only puts them away (app.ts 'hero-panel' toggles).
     /// </summary>
     void ShowHero()
     {
         foreach (Transform c in heroPanel) Mats.Kill(c.gameObject);
         var hero = Game.CommandCard(Me);
         if (hero == null || !MyDay) return;
+        // (This very press put them away: the Hero tapped again.)
+        if (heroShutPress == press) return;
+        relicPanel = null;
+        emblemsKey = null;
+        Sound.Play("hover");
         if (heroPanel.parent != hud.transform) heroPanel.SetParent(hud.transform, false);
         heroPanel.SetAsLastSibling();
         heroPanel.gameObject.SetActive(true);
         Hud.Fill(heroPanel);
         heroPanel.localScale = Vector3.one;
-        var away = heroPanel.gameObject.GetComponent<Image>() ?? heroPanel.gameObject.AddComponent<Image>();
-        away.color = new Color(1, 1, 1, 0.001f);
-        var ab = heroPanel.gameObject.GetComponent<Button>() ?? heroPanel.gameObject.AddComponent<Button>();
-        ab.transition = Selectable.Transition.None;
-        ab.onClick.RemoveAllListeners();
-        ab.onClick.AddListener(() => { heroPanel.gameObject.SetActive(false); stageKey = null; Refresh(); });
 
         var picks = new List<Pick>();
         var k = Singularities.Of(hero.DefId);
@@ -151,9 +151,10 @@ public partial class BattleView
             else WebLook.Shadow(pill, 6, 16, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.18f), ph / 2, 1.5f, p.Attack ? new Color(214 / 255f, 96 / 255f, 70 / 255f, 0.6f) : new Color(212 / 255f, 165 / 255f, 42 / 255f, 0.6f));
             var group = pill.gameObject.AddComponent<CanvasGroup>();
             group.alpha = p.Off ? 0.6f : 1;
+            // (Every pill is the picks' own: a tap on one not usable today does not put them away.)
+            pill.raycastTarget = true;
             if (!p.Off)
             {
-                pill.raycastTarget = true;
                 var b = pill.gameObject.AddComponent<Button>();
                 var cb = b.colors;
                 cb.highlightedColor = dark ? new Color(1.1f, 1.1f, 1.2f) : new Color(1f, 0.965f, 0.886f);
@@ -213,43 +214,51 @@ public partial class BattleView
         if (stagePane != null) Destroy(stagePane.gameObject);
     }
 
-    /// <summary>A Hero's ability: at once, or (aimed) tap what it strikes, as a card from hand is aimed.</summary>
+    /// <summary>
+    /// A Hero's ability (app.ts hero-ability): paid for with a sacrifice, first the card of yours to give up; one that
+    /// heats, with rival cards on the table, aimed (a card, or their sun); else used at once.
+    /// </summary>
     void UseAbility(int index)
     {
+        var why = Game.HeroAbilityProblem(state, Me, index);
+        if (why != null) { Say(why); return; }
         heroPanel.gameObject.SetActive(false);
         var hero = Game.CommandCard(Me);
         if (hero == null) return;
-        var opts = new List<EngineAction>();
-        if (Game.AbilityAimable(hero.DefId, index))
+        if (Game.HeroAbilities(Me, hero, true)[index].Pay?.Sacrifice == true)
         {
-            var aim = Game.AimChoices(state, Me);
-            if (aim.Sun) opts.Add(new EngineAction { Type = "heroAbility", Index = index });
-            opts.AddRange((aim.Cards ?? new List<CardInstance>()).Select(c => new EngineAction { Type = "heroAbility", Index = index, AimUid = c.Uid }));
+            pending = new Pending { Uid = hero.Uid, Step = "sacrifice", Ability = index };
+            Sound.Play("hover");
+            Refresh();
+            return;
         }
-        else opts.Add(new EngineAction { Type = "heroAbility", Index = index });
-        Aim(hero.Uid, opts);
+        if (Game.AbilityAimable(hero.DefId, index) && Game.AimChoices(state, Me).Cards.Count > 0)
+        {
+            pending = new Pending { Uid = hero.Uid, Step = "aim", Ability = index };
+            Sound.Play("hover");
+            Refresh();
+            return;
+        }
+        Sound.Play("hero");
+        Do(new EngineAction { Type = "heroAbility", Index = index });
     }
 
+    /// <summary>The Hero's singularity (app.ts singularity): one that blasts a card, with rival cards on the table, aimed first.</summary>
     void Unleash()
     {
+        var why = Game.SingularityProblem(state, Me);
+        if (why != null) { Say(why); return; }
         heroPanel.gameObject.SetActive(false);
         var hero = Game.CommandCard(Me);
         if (hero == null) return;
-        var aim = Game.AimChoices(state, Me);
-        var opts = new List<EngineAction>();
-        if (aim.Sun || (aim.Cards?.Count ?? 0) == 0) opts.Add(new EngineAction { Type = "singularity" });
-        opts.AddRange((aim.Cards ?? new List<CardInstance>()).Select(c => new EngineAction { Type = "singularity", AimUid = c.Uid }));
-        Aim(hero.Uid, opts);
-    }
-
-    /// <summary>One choice: done at once; more: the targets light up to be tapped (or their sun).</summary>
-    void Aim(string heroUid, List<EngineAction> opts)
-    {
-        if (opts.Count == 0) { Say("Nothing to aim at."); return; }
-        if (opts.Count == 1) { Do(opts[0]); return; }
-        Clear();
-        picked = heroUid;
-        options = opts;
-        Refresh();
+        if ((Singularities.Of(hero.DefId)?.Effects ?? new List<Effect>()).Any(e => e.Type == "blast") && Game.AimChoices(state, Me).Cards.Count > 0)
+        {
+            pending = new Pending { Uid = hero.Uid, Step = "aim", Ability = SingAim };
+            Sound.Play("hover");
+            Refresh();
+            return;
+        }
+        Sound.Play("hero");
+        Do(new EngineAction { Type = "singularity" });
     }
 }

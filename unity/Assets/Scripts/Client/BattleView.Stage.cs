@@ -149,6 +149,8 @@ public partial class BattleView
     void ConfirmStage()
     {
         if (stage == null || !stage.Confirm) return;
+        // (Taps are ignored for 0.4 s, so a tap on OK can't land on the board beneath it: app.ts clickShieldUntil.)
+        clickShieldUntil = Time.time + 0.4f;
         stage = null;
         Sound.Play("click");
         aiAfter = Time.time + 0.45f;
@@ -263,7 +265,9 @@ public partial class BattleView
         }
         var now = StageNow();
         var heroOpen = heroPanel != null && heroPanel.gameObject.activeSelf;
-        string key = now.defId == null || heroOpen ? null : $"{now.defId}|{now.caption}|{now.faceDown}|{now.ok}|{now.against}|{stage?.Shown}|{BoardLayout.Current.W}x{BoardLayout.Current.H}";
+        // (The card picked, while its place is chosen, and it can be set face down: "set as trap" under it.)
+        bool asTrap = stage == null && now.defId != null && TrapChoosable;
+        string key = now.defId == null || heroOpen ? null : $"{now.defId}|{now.caption}|{now.faceDown}|{now.ok}|{now.against}|{stage?.Shown}|{asTrap}|{BoardLayout.Current.W}x{BoardLayout.Current.H}";
         if (key == stageKey) return;
         stageKey = key;
         if (stagePane != null) Destroy(stagePane.gameObject);
@@ -273,17 +277,19 @@ public partial class BattleView
         if (key == null) return;
         var l = BoardLayout.Current;
         // (--scw: min(250px, 50vh); against the right edge, 16 px in from the page's padding, its middle the page's.)
-        float scw = Mathf.Min(250, 50 * l.Vh), ch = scw * 1.4f;
+        // (.stage-picked:has(.stage-ls-btn): the card gives up a little height so the choice fits under it, 6 apart.)
+        float scw = Mathf.Min(250, (asTrap ? 44 : 50) * l.Vh), ch = scw * 1.4f;
         bool caption = now.caption != null && now.caption != "you play";
+        float lsSize = 9.92f, lsH = lsSize * 1.25f + 14 + 2;
         float capH = caption ? 8.96f * 1.25f + 10 + 2 : 0, okH = now.ok ? 10.56f * 1.25f + 16 + 2 : 0;
         float pairW = now.against != null ? scw * 2 + 8 : scw;
-        float h = ch + (caption ? 8 + capH : 0) + (now.ok ? 8 + 2 + okH : 0);
+        float h = ch + (caption ? 8 + capH : 0) + (now.ok ? 8 + 2 + okH : 0) + (asTrap ? 6 + lsH : 0);
         float right = l.W - (l.PadR + 16), top = l.H / 2 - h / 2;
         stagePane = Hud.Rect(hud.transform, "Stage");
         Hud.Place(stagePane, right - pairW, top, pairW, h);
         stagePane.SetSiblingIndex(beamLayer.GetSiblingIndex() + 1);
         var fade = stagePane.gameObject.AddComponent<CanvasGroup>();
-        fade.blocksRaycasts = now.ok;
+        fade.blocksRaycasts = now.ok || asTrap;
         stagePane.gameObject.AddComponent<RiseFade>().Seconds = 0.25f;
         var glow = Hud.Rect(stagePane, "Glow");
         Hud.Fill(glow);
@@ -336,6 +342,7 @@ public partial class BattleView
             var b = ok.gameObject.AddComponent<Button>();
             b.onClick.AddListener(ConfirmStage);
         }
+        if (asTrap) TrapButton(stagePane, pairW, y + 6, lsSize, lsH);
         // A rival's card waiting: it flies in from the middle of their row, at a card's size, sweeping up and over.
         if (stage != null && stage.Confirm)
         {
@@ -506,6 +513,43 @@ public partial class BattleView
         cap.sizeDelta = new Vector2(capW, need);
     }
 
+    /// <summary>
+    /// The card picked can also be set face down as a trap: said here, plainly, under it (its slot can be out of sight):
+    /// .btn.stage-ls-btn, indigo (#4b4fb0, a 1 px #3f4296 edge, 0 6px 18px rgba(50,52,120,.35)), white, padded 7 × 14,
+    /// rounded 10; the trap's mark, "set as trap" and, smaller, "+1 energy", 6 apart, in spaced capitals 0.62rem.
+    /// </summary>
+    void TrapButton(RectTransform pane, float paneW, float y, float size, float h)
+    {
+        const string words = "SET AS TRAP", more = "+1 ENERGY";
+        float mark = 0.78f * size, small = 0.8f * size;
+        float ww = Hud.Wide(words, size, 500, 14, 0, true), mw = Hud.Wide(more, small, 500, 6, 0, true);
+        float w = 14 + mark + 0.08f * size + 6 + ww + 6 + mw + 14 + 2;
+        var b = Hud.Box(pane, "Set as trap", Hud.Rgba(63, 66, 150), 10);
+        Hud.Place(b.rectTransform, (paneW - w) / 2, y, w, h);
+        WebLook.Shadow(b, 6, 18, new Color(50 / 255f, 52 / 255f, 120 / 255f, 0.35f), 10);
+        var face = Hud.Box(b.transform, "Face", Hud.Rgba(75, 79, 176), 9);
+        Hud.Fill(face.rectTransform);
+        face.rectTransform.offsetMin = new Vector2(1, 1);
+        face.rectTransform.offsetMax = new Vector2(-1, -1);
+        float x = 1 + 14;
+        var icon = Hud.Rect(b.transform, "Trap");
+        // (Its mark on a picture a quarter larger than it, as the board's.)
+        Hud.Place(icon, x - mark * 0.125f, (h - mark) / 2 - mark * 0.125f, mark * 1.25f, mark * 1.25f);
+        var ii = icon.gameObject.AddComponent<RawImage>();
+        ii.texture = Resources.Load<Texture2D>("Icons/bt-trap");
+        ii.color = Color.white;
+        ii.raycastTarget = false;
+        x += mark + 0.08f * size + 6;
+        Hud.Text(b.transform, words, x, 0, ww + 2, h, size, Color.white, true, 500, 14, TextAlignmentOptions.MidlineLeft);
+        x += ww + 6;
+        var m = Hud.Text(b.transform, more, x, 0, mw + 2, h, small, Color.white, true, 500, 6, TextAlignmentOptions.MidlineLeft);
+        m.alpha = 0.9f;
+        b.raycastTarget = true;
+        var btn = b.gameObject.AddComponent<Button>();
+        btn.transition = Selectable.Transition.None;
+        btn.onClick.AddListener(() => { Sound.Play("click"); Act("choose-slot", "ls"); });
+    }
+
     /// <summary>The middle of a player's row of cards on the page (the rival's, as the web's .tableau-row).</summary>
     Rect? RowRect(string playerId)
     {
@@ -522,9 +566,6 @@ public partial class BattleView
         float x0 = Mathf.Min(pa.x, pb.x), x1 = Mathf.Max(pa.x, pb.x);
         return new Rect(x0, (pa.y + pb.y) / 2 - hgt / 2, x1 - x0, hgt);
     }
-
-    /// <summary>A card picked from the hand waits for its place (the web's pending step 'slot').</summary>
-    public bool ChoosingSlot => picked != null && options != null && options.Any(o => o.SlotIndex != null) && options.Select(o => o.SlotIndex).Distinct().Count() > 0;
 
     /// <summary>Whether a card of your hand is on the stage instead (picked, or just played and hanging there).</summary>
     public bool OffHand(string uid) => uid == picked || (stage != null && stage.Own && stage.Uid == uid);

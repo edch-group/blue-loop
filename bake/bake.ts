@@ -470,3 +470,20 @@ function heroMark(kind: string, atk: boolean): void {
   stage.innerHTML = `<div style="padding:4px;display:inline-block"><span id="mark" class="hero-pick-mark ${atk ? 'hero-pick-mark-atk' : ''}" style="display:block">${effectMark(kind)}</span></div>`;
 }
 Object.assign(window, { heroMark });
+
+/**
+ * A boon's mark beside a Hero (app.ts heroRail, boonMarks: .boon-mark.hero-boon), its effect's symbol in its colour on
+ * the cream disc in its faint gold ring, as on a table card 200 px wide (--tcw), without its count (Unity sets that).
+ */
+function boonMark(kind: string): void {
+  stage.innerHTML = `<div style="padding:4px;display:inline-block;--tcw:200px"><i id="mark" class="boon-mark hero-boon" style="display:grid">${effectMark(kind)}</i></div>`;
+}
+
+/**
+ * What a relic's power does, marked over its badge (app.ts relicActionMark, .relic-action): its effect's symbol in its
+ * colour on the white disc, over a badge 84 px across (.relic-panel-badge), the badge itself left out.
+ */
+function relicAction(kind: string): void {
+  stage.innerHTML = `<style>.bake-ra::before { display: none !important; }</style><div class="cmp-relic bake-ra" style="width:84px;height:84px;padding:0;background:none;box-shadow:none;animation:none"><span class="relic-action">${effectMark(kind)}</span></div>`;
+}
+Object.assign(window, { boonMark, relicAction });

@@ -54,8 +54,13 @@ public partial class Board : MonoBehaviour
     readonly Dictionary<string, CardView> cards = new Dictionary<string, CardView>();
     readonly Dictionary<string, SunView> suns = new Dictionary<string, SunView>();
     readonly List<GameObject> slotMarks = new List<GameObject>();
-    /// <summary>Each of your slots' two looks: plain, and open to the card picked.</summary>
+    /// <summary>
+    /// Each slot's two looks: plain, and open to what is being chosen (yours by their index, your rival's by 100 more,
+    /// your Lightspeed slot by TrapKey), and the word under its defence when open.
+    /// </summary>
     readonly Dictionary<int, (GameObject plain, GameObject choose)> slotLooks = new Dictionary<int, (GameObject, GameObject)>();
+    readonly Dictionary<int, TextMeshPro> slotWords = new Dictionary<int, TextMeshPro>();
+    const int TrapKey = 1000;
     TextMeshPro[] phases;
     readonly MeshRenderer[] phaseDots = new MeshRenderer[3], phaseGlows = new MeshRenderer[3];
     TextMeshPro myLabel, rivalLabel, turnThem, turnYou, roundN, roundUp;
@@ -152,7 +157,8 @@ public partial class Board : MonoBehaviour
         if (dropMark == null)
             dropMark = Shape("Drop over", table, Rgba(121, 177, 151), 1 + 8 * k, 1.4f + 8 * k, 0.08f + 4 * k, 2990, 0.0008f, 1 * k, 4 * k, true);
         dropMark.gameObject.SetActive(true);
-        dropMark.transform.localPosition = SlotAt(true, slot.Value) + new Vector3(0, 0.0008f, 0);
+        // (Your Lightspeed slot too: .ls-slot.drop-over.)
+        dropMark.transform.localPosition = (slot == BattleView.TrapSlot ? MyTrap : SlotAt(true, slot.Value)) + new Vector3(0, 0.0008f, 0);
     }
 
     public static Color Rgba(int r, int g, int b, float a = 1) => new Color(r / 255f, g / 255f, b / 255f, a);
@@ -177,6 +183,7 @@ public partial class Board : MonoBehaviour
         if (decor != null) Mats.Kill(decor.gameObject);
         slotMarks.Clear();
         slotLooks.Clear();
+        slotWords.Clear();
         roundTicks.Clear();
         roundGlows.Clear();
         decor = new GameObject("Decor").transform;
@@ -335,8 +342,8 @@ public partial class Board : MonoBehaviour
             Slot(true, s);
             Slot(false, s);
         }
-        TrapSlot(MyTrap);
-        TrapSlot(RivalTrap);
+        TrapSlot(MyTrap, true);
+        TrapSlot(RivalTrap, false);
         // (An eye at each row's left end, clear of the tableau's outline: the web's way to look closely at a tableau.)
         float eyeX = l.RowLeft - l.FramePad - 8 - l.Eye / 2;
         Eye(l.At(eyeX, l.RivalRowCy));
@@ -485,10 +492,9 @@ public partial class Board : MonoBehaviour
             hero.transform.localPosition = new Vector3(0, 0.002f, -0.102f);
         }
         else Defence(plain, def.ToString(), Vector3.zero, ink, size);
-        if (mine)
         {
-            // A place to put the card picked (button.slot-choosable): a coral dashed edge on white, a faint coral glow,
-            // its defence and "here" under it in coral.
+            // A place to put the card picked, or to move a card to (button.slot-choosable): a coral dashed edge on
+            // white, a faint coral glow, its defence and "here" (or "move here") under it in coral.
             var choose = new GameObject("Choosable").transform;
             choose.SetParent(go.transform, false);
             float k = 1f / L.Tcw;
@@ -502,7 +508,8 @@ public partial class Board : MonoBehaviour
             var here = Mats.FlatText("Here", choose, "HERE", Px(hereSize), coral, true, 400, 20);
             here.transform.localPosition = new Vector3(0, 0.002f, -(top - hereH / 2) * k);
             choose.gameObject.SetActive(false);
-            slotLooks[s] = (plain.gameObject, choose.gameObject);
+            slotLooks[mine ? s : 100 + s] = (plain.gameObject, choose.gameObject);
+            slotWords[mine ? s : 100 + s] = here;
         }
         var col = go.AddComponent<BoxCollider>();
         col.size = new Vector3(1, 0.05f, 1.4f);
@@ -510,16 +517,43 @@ public partial class Board : MonoBehaviour
         slotMarks.Add(go);
     }
 
-    /// <summary>An empty place a trap could be set: a dashed indigo outline, and the trap's mark in it (as the web's).</summary>
-    void TrapSlot(Vector3 at)
+    /// <summary>
+    /// An empty place a trap could be set: a dashed indigo outline, and the trap's mark in it (as the web's). Yours,
+    /// open to the card picked when it can be set face down (button.slot-ls.slot-choosable): the coral dashed edge on
+    /// white and faint coral glow of an open slot, the mark coral and "trap +1" under it; tapped, it is set there.
+    /// </summary>
+    void TrapSlot(Vector3 at, bool mine)
     {
         var go = new GameObject("Trap slot");
         go.transform.SetParent(table, false);
         go.transform.localPosition = at;
-        Picture("Outline", go.transform, BoardArt.Slot(true), Color.white, 1, 1.4f, 2925, 0.0005f);
+        var plain = new GameObject("Plain").transform;
+        plain.SetParent(go.transform, false);
+        Picture("Outline", plain, BoardArt.Slot(true), Color.white, 1, 1.4f, 2925, 0.0005f);
         // (Its mark 1.15em of the slot's defence size, drawn on a picture a quarter larger than it.)
-        float s = L.U(Mathf.Max(12, L.Tcw * 0.22f) * 1.15f) * 1.25f;
-        Picture("Trap", go.transform, Resources.Load<Texture2D>("Icons/bt-trap"), Rgba(70, 74, 160, 0.6f), s, s, 2935, 0.002f);
+        float size = Mathf.Max(12, L.Tcw * 0.22f);
+        float s = L.U(size * 1.15f) * 1.25f;
+        var trap = Resources.Load<Texture2D>("Icons/bt-trap");
+        Picture("Trap", plain, trap, Rgba(70, 74, 160, 0.6f), s, s, 2935, 0.002f);
+        if (!mine) return;
+        var choose = new GameObject("Choosable").transform;
+        choose.SetParent(go.transform, false);
+        float k = 1f / L.Tcw;
+        Shape("Glow", choose, Rgba(208, 101, 75, 0.25f), 1, 1.4f, 0.08f, 2920, 0.0003f, 10 * k, 14 * k, true);
+        Picture("Outline", choose, BoardArt.SlotChoose(), Color.white, 1, 1.4f, 2925, 0.0005f);
+        var coral = Rgba(192, 86, 61);
+        float wordSize = Mathf.Max(7, L.Tcw * 0.08f), markH = size * 1.2f, wordH = wordSize * 1.2f;
+        // (The two lines centred together, 2 px apart.)
+        float top = (markH + 2 + wordH) / 2;
+        var mark = Picture("Trap", choose, trap, coral, s, s, 2935, 0.002f);
+        mark.transform.localPosition = new Vector3(0, 0.002f, (top - markH / 2) * k);
+        var word = Mats.FlatText("Here", choose, "TRAP +1", Px(wordSize), coral, true, 400, 20);
+        word.transform.localPosition = new Vector3(0, 0.002f, -(top - wordH / 2) * k);
+        choose.gameObject.SetActive(false);
+        slotLooks[TrapKey] = (plain.gameObject, choose.gameObject);
+        var col = go.AddComponent<BoxCollider>();
+        col.size = new Vector3(1, 0.05f, 1.4f);
+        go.AddComponent<SlotTag>().Set(true, BattleView.TrapSlot);
     }
 
     /// <summary>A round white button by a row (styles.css .tableau-eye: 30% of a card's width, 26 to 40 px), an eye in it.</summary>
@@ -729,11 +763,12 @@ public partial class Board : MonoBehaviour
         }
         roundTrack.sharedMaterial.color = unstable > 0 ? Rgba(201, 138, 134, 0.25f) : Rgba(120, 124, 134, 0.14f);
         foreach (var slot in slotMarks) slot.SetActive(true);
-        // (A card picked, waiting for its place: each empty slot of yours open to it.)
-        var viewer = s.Players.FirstOrDefault(p => p.Id == Viewer);
+        // (A card picked, waiting for its place, or a card being moved: each empty slot open to it, BattleView.SlotWord.)
         foreach (var kv in slotLooks)
         {
-            bool open = ui.ChoosingSlot && viewer != null && !viewer.Tableau.Any(c => c.Slot == kv.Key);
+            string word = kv.Key == TrapKey ? (ui.TrapChoosable ? "" : null) : kv.Key >= 50 ? ui.SlotWord(false, kv.Key - 100) : ui.SlotWord(true, kv.Key);
+            bool open = word != null;
+            if (open && slotWords.TryGetValue(kv.Key, out var t) && t.text != word.ToUpperInvariant()) t.text = word.ToUpperInvariant();
             if (kv.Value.plain.activeSelf == open) kv.Value.plain.SetActive(!open);
             if (kv.Value.choose.activeSelf != open) kv.Value.choose.SetActive(open);
         }
