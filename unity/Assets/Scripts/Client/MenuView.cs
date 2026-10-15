@@ -125,18 +125,29 @@ public class MenuView : MonoBehaviour
         backdrop = new GameObject("Backdrop", typeof(RectTransform));
         backdrop.transform.SetParent(canvas.transform, false);
         Hud.Fill((RectTransform)backdrop.transform);
-        var bg = Hud.Rect(backdrop.transform, "Background");
+        Sky(backdrop.transform);
+    }
+
+    /// <summary>
+    /// The page's light and the Stellari again, under `parent` (filling it): the campaign menu's sky (its land's
+    /// canvas clear above the land, campaign.ts nebulaOn clearSky: the page behind showing through). Framed and turned
+    /// with the menu's own.
+    /// </summary>
+    public void Sky(Transform parent)
+    {
+        var bg = Hud.Rect(parent, "Background");
         Hud.Fill(bg);
-        page0 = bg.gameObject.AddComponent<RawImage>();
-        page0.raycastTarget = false;
+        var light = bg.gameObject.AddComponent<RawImage>();
+        light.raycastTarget = false;
         // The Stellari behind it all (art.ts petalBackdrop, backdrop.ts): its two rings of petals, turning slowly (one
         // turn in three minutes; the inner ring the other way, at 0.6 of it), and its glow from the top laid over them
         // (the web's third layer, drawn last). Framed as the web frames it (its viewBox 0 -300 1000 900, sliced to cover
         // the page from its top, centred across): see FrameStage.
-        stage = Hud.Rect(backdrop.transform, "Stage");
+        var stage = Hud.Rect(parent, "Stage");
         var rings = Hud.Rect(stage, "Rings");
         rings.anchorMin = rings.anchorMax = new Vector2(0.5f, 1);
         rings.pivot = new Vector2(0.5f, 0.5f);
+        RectTransform outer = null, inner = null;
         foreach (var layer in new[] { "outer", "inner" })
         {
             var r = Hud.Rect(rings, layer);
@@ -145,20 +156,28 @@ public class MenuView : MonoBehaviour
             var ri = r.gameObject.AddComponent<RawImage>();
             ri.texture = Pictures.Load("Icons/mandala-" + layer);
             ri.raycastTarget = false;
-            if (layer == "outer") outerRing = r;
-            else innerRing = r;
+            if (layer == "outer") outer = r;
+            else inner = r;
         }
         var glow = Hud.Rect(stage, "Glow");
         glow.anchorMin = glow.anchorMax = glow.pivot = new Vector2(0.5f, 1);
         var gi = glow.gameObject.AddComponent<RawImage>();
         gi.texture = GlowTexture();
         gi.raycastTarget = false;
+        skies.Add(new SkyParts { Stage = stage, Outer = outer, Inner = inner, Light = light });
         FrameStage();
+        TurnRings(0);
     }
 
-    RectTransform stage, outerRing, innerRing;
-    RawImage page0;
-    Vector2 page0Size;
+    /// <summary>A copy of the page's light and the Stellari (the menu's own first), and the size its light was drawn for.</summary>
+    class SkyParts
+    {
+        public RectTransform Stage, Outer, Inner;
+        public RawImage Light;
+        public Vector2 Size;
+    }
+
+    readonly List<SkyParts> skies = new List<SkyParts>();
     float ringAngle;
 
     /// <summary>
@@ -168,21 +187,24 @@ public class MenuView : MonoBehaviour
     /// </summary>
     void FrameStage()
     {
-        if (stage == null) return;
-        if (page0 != null && page0Size != new Vector2(K.W, K.H))
+        skies.RemoveAll(k => k.Stage == null);
+        foreach (var sky in skies)
         {
-            page0Size = new Vector2(K.W, K.H);
-            if (page0.texture != null) Destroy(page0.texture);
-            page0.texture = PageLight(K.W, K.H);
+            if (sky.Light != null && sky.Size != new Vector2(K.W, K.H))
+            {
+                sky.Size = new Vector2(K.W, K.H);
+                if (sky.Light.texture != null) Destroy(sky.Light.texture);
+                sky.Light.texture = PageLight(K.W, K.H);
+            }
+            float s = Mathf.Max(K.W / 1000f, K.H / 900f);
+            Hud.Fill(sky.Stage);
+            var rings = (RectTransform)sky.Stage.Find("Rings");
+            rings.anchoredPosition = new Vector2(0, -470 * s);
+            rings.sizeDelta = new Vector2(680 * s, 680 * s);
+            var glow = (RectTransform)sky.Stage.Find("Glow");
+            glow.anchoredPosition = Vector2.zero;
+            glow.sizeDelta = new Vector2(1000 * s, 900 * s);
         }
-        float s = Mathf.Max(K.W / 1000f, K.H / 900f);
-        Hud.Fill(stage);
-        var rings = (RectTransform)stage.Find("Rings");
-        rings.anchoredPosition = new Vector2(0, -470 * s);
-        rings.sizeDelta = new Vector2(680 * s, 680 * s);
-        var glow = (RectTransform)stage.Find("Glow");
-        glow.anchoredPosition = Vector2.zero;
-        glow.sizeDelta = new Vector2(1000 * s, 900 * s);
     }
 
     /// <summary>
@@ -265,10 +287,10 @@ public class MenuView : MonoBehaviour
         return glowTex = t;
     }
 
-    void TurnRings()
+    void TurnRings(float dt)
     {
         // (The outer ring clockwise, as the web turns it, two degrees a second; the inner the other way, at 0.6 of it.)
-        ringAngle = (ringAngle + 2 * Time.deltaTime) % 1800;
+        ringAngle = (ringAngle + 2 * dt) % 1800;
         // (A burst's turn eased along; a finished one folded into the angle: backdrop.ts frame.)
         float extra = 0;
         for (int i = bursts.Count - 1; i >= 0; i--)
@@ -283,8 +305,11 @@ public class MenuView : MonoBehaviour
             extra += BurstTurn * (0.5f - Mathf.Cos(Mathf.PI * Mathf.Max(0, t)) / 2);
         }
         float a = ringAngle + extra;
-        if (outerRing != null) outerRing.localRotation = Quaternion.Euler(0, 0, -a);
-        if (innerRing != null) innerRing.localRotation = Quaternion.Euler(0, 0, a * 0.6f);
+        foreach (var sky in skies)
+        {
+            if (sky.Outer != null) sky.Outer.localRotation = Quaternion.Euler(0, 0, -a);
+            if (sky.Inner != null) sky.Inner.localRotation = Quaternion.Euler(0, 0, a * 0.6f);
+        }
     }
 
     /// <summary>The Stellari's bursts of speed under way (when each began): 30° more over 1.8 s, eased in and out (backdrop.ts spin).</summary>
@@ -360,7 +385,12 @@ public class MenuView : MonoBehaviour
         backdrop.SetActive(!campaign);
         // (The skill tree lies on the page's own paper, without the hub's glow.)
         backdrop.transform.Find("Stage/Glow")?.gameObject.SetActive(name != "stellari");
-        if (campaign && scene == null) scene = CampaignBackdrop.Make(cam, transform);
+        if (campaign && scene == null)
+        {
+            scene = CampaignBackdrop.Make(cam, transform);
+            // (Its sky the page behind: the page's light and the Stellari, under the land.)
+            if (scene.Sky != null) Sky(scene.Sky);
+        }
         if (!campaign && !glide && scene != null) { Mats.Kill(scene.gameObject); scene = null; }
         if (scene != null) scene.Focus(name == "captain" || name == "hangar" ? name : glide ? "research" : null);
         switch (name)
@@ -1496,7 +1526,7 @@ public class MenuView : MonoBehaviour
 
     void Update()
     {
-        TurnRings();
+        TurnRings(Time.deltaTime);
         if (Css.Size != laidSize || Css.SafeInsets != laidInsets) Relayout();
         for (int i = tweens.Count - 1; i >= 0; i--) if (Step(tweens[i])) tweens.RemoveAt(i);
         if (Input.GetKeyDown(KeyCode.Escape)) Escape();

@@ -14,11 +14,11 @@ using UMesh = UnityEngine.Mesh;
 [ExecuteAlways]
 public class CampaignBackdrop : MonoBehaviour
 {
-    const int LandLayer = 29, ShipLayer = 30;
+    const int SkyLayer = 28, LandLayer = 29, ShipLayer = 30;
     const float Loop = 150;
     static readonly Vector3 Flip = new Vector3(1, 1, -1);
 
-    Camera ui, landCam, shipCam;
+    Camera ui, skyCam, landCam, shipCam;
     CameraClearFlags uiClear;
     int uiMask;
     Transform land, ship;
@@ -54,6 +54,7 @@ public class CampaignBackdrop : MonoBehaviour
         // (The Captain or one of the crew, alone: everything else covered.)
         bool alone = zone != null && zone != "hangar" && zone != "research";
         if (landCam != null) landCam.enabled = !alone;
+        if (skyCam != null) skyCam.enabled = !alone && enabled;
         shipCam.clearFlags = alone ? CameraClearFlags.SolidColor : CameraClearFlags.Depth;
         shipCam.backgroundColor = Look.Paper;
         shipModel.gameObject.SetActive(!alone);
@@ -143,7 +144,7 @@ public class CampaignBackdrop : MonoBehaviour
         ui.clearFlags = CameraClearFlags.Depth;
         // (The page's camera draws the page alone, not the scene's layers again from where it stands.)
         uiMask = ui.cullingMask;
-        ui.cullingMask &= ~((1 << LandLayer) | (1 << ShipLayer));
+        ui.cullingMask &= ~((1 << SkyLayer) | (1 << LandLayer) | (1 << ShipLayer));
         t0 = Time.realtimeSinceStartup;
         introPending = !story;
         if (!story) BuildLand();
@@ -184,9 +185,19 @@ public class CampaignBackdrop : MonoBehaviour
         // (Where the land has broken away, the starry abyss beneath it, as on the campaign's map.)
         abyss = CampaignView.AddAbyss(g, groundMesh);
         abyss.SetFloat("_Soft", 1);
+        // The sky over it: the page behind, its light and the Stellari's rings (campaign.ts nebulaOn(back, null,
+        // { clearSky: true }): the land's canvas clear where there is no land, over the page's own backdrop), drawn
+        // first by a camera of its own (the menu fills its canvas: MenuView.Sky), the land's camera over it keeping it.
+        skyCam = MakeCamera("Sky camera", ui.depth - 3, SkyLayer, 36);
+        skyCam.clearFlags = CameraClearFlags.SolidColor;
+        skyCam.backgroundColor = Look.Paper;
+        var sky = Hud.CssCanvas(skyCam);
+        sky.gameObject.name = "Sky";
+        sky.gameObject.layer = SkyLayer;
+        sky.transform.SetParent(transform, false);
+        Sky = (RectTransform)sky.transform;
         landCam = MakeCamera("Land camera", ui.depth - 2, LandLayer, 36);
-        landCam.clearFlags = CameraClearFlags.SolidColor;
-        landCam.backgroundColor = Look.Paper;
+        landCam.clearFlags = CameraClearFlags.Depth;
         // The sunrise on the horizon behind the Stellari: its glow and the bright line along the horizon through it.
         sunGlow = SunPart("Sunrise", 0);
         sunLine = SunPart("Sunrise line", 1);
@@ -475,7 +486,21 @@ public class CampaignBackdrop : MonoBehaviour
         return c;
     }
 
-    /// <summary>Its cameras, drawn before the page's own (the land, then the ship).</summary>
+    /// <summary>The menu's sky (a canvas drawn under the land, for the page's backdrop), or none (a story scene).</summary>
+    public RectTransform Sky { get; private set; }
+
+    // (Put away with the scene (the run's own camera taking over as it sets out), and back with it.)
+    void OnDisable()
+    {
+        if (skyCam != null) skyCam.enabled = false;
+    }
+
+    void OnEnable()
+    {
+        if (skyCam != null) skyCam.enabled = landCam != null && landCam.enabled;
+    }
+
+    /// <summary>Its cameras, drawn before the page's own (the land, then the ship; the sky under them drawn on its own).</summary>
     public Camera[] Cameras => landCam != null ? new[] { landCam, shipCam } : new[] { paperCam, shipCam };
 
     /// <summary>Drawn into a texture (the editor's screenshots): its cameras with the page's.</summary>
@@ -484,6 +509,12 @@ public class CampaignBackdrop : MonoBehaviour
         foreach (var c in Cameras) c.targetTexture = rt;
         if (story) shipCam.rect = new Rect(0, 0.36f, 1, 0.64f);
         Pose();
+        // (The sky first, at once: the land's camera, drawn next, keeps it.)
+        if (skyCam != null && skyCam.enabled)
+        {
+            skyCam.targetTexture = rt;
+            skyCam.Render();
+        }
     }
 
     /// <summary>The Captain's mesh: his corners as he stands, his place in his texture, material 11 (the ship shader paints him).</summary>
