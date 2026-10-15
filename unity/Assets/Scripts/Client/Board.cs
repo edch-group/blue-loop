@@ -851,7 +851,7 @@ public class Board : MonoBehaviour
         {
             // (From the hand to the table: a new view, as its face is the table's, flying from where the old one was.)
             var at = v.transform;
-            var nv = CardView.Make(table ? this.table : handRoot, c.Uid, c.DefId, table);
+            var nv = CardView.Make(table ? this.table : handRoot, c.Uid, c.DefId, table, table ? L.Tcw : L.HandCard);
             nv.StartFrom(at.position, at.rotation, at.lossyScale);
             Mats.Kill(v.gameObject);
             cards[c.Uid] = nv;
@@ -859,11 +859,13 @@ public class Board : MonoBehaviour
         }
         if (v == null)
         {
-            v = CardView.Make(table ? this.table : handRoot, c.Uid, c.DefId, table);
+            v = CardView.Make(table ? this.table : handRoot, c.Uid, c.DefId, table, table ? L.Tcw : L.HandCard);
             cards[c.Uid] = v;
             if (dealt && Application.isPlaying) Arrive(v, table, mine);
         }
         v.SetCard(c.DefId);
+        // (Its face the web's at the width it is drawn: in play --tcw, in the hand --hw.)
+        v.DrawnAt(table ? L.Tcw : L.HandCard);
         return v;
     }
 

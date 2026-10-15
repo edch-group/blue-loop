@@ -22,13 +22,15 @@ public class CardView : MonoBehaviour
     Vector3 lunge;
     const float LungeTime = 0.4f, ShakeTime = 0.32f;
 
-    public static CardView Make(Transform parent, string uid, string defId, bool table)
+    /// <param name="css">The CSS width it is drawn at (see DrawnAt); 0: not known.</param>
+    public static CardView Make(Transform parent, string uid, string defId, bool table, float css = 0)
     {
         var go = new GameObject($"Card {defId}");
         go.transform.SetParent(parent, false);
         var v = go.AddComponent<CardView>();
         v.Uid = uid;
         v.Table = table;
+        v.Css = css;
         v.shadow = Mats.Flat("Shadow", go.transform, Mats.Make("Soft", new Color(0.25f, 0.27f, 0.33f, 0.22f)), 1.5f, 1.9f, -0.002f);
         v.shadow.sharedMaterial.SetFloat("_Aspect", 1.9f / 1.5f);
         v.shadow.sharedMaterial.SetFloat("_Size", 0.36f);
@@ -52,7 +54,28 @@ public class CardView : MonoBehaviour
     {
         if (defId == DefId) return;
         DefId = defId;
-        face.sharedMaterial.mainTexture = Faces.Of(defId, Table);
+        ShowFace();
+    }
+
+    /// <summary>The CSS width it is drawn at (a table card's --tcw, a hand card's --hw); 0: not known (the old faces).</summary>
+    public float Css { get; private set; }
+
+    /// <summary>
+    /// Drawn `css` CSS px wide: its face the one baked for that size (the web's card at that width, its floors and all),
+    /// and its badges where the web sets them on a card that wide.
+    /// </summary>
+    public void DrawnAt(float css)
+    {
+        if (Mathf.Abs(css - Css) < 0.01f) return;
+        Css = css;
+        ShowFace();
+        foreach (var kv in badges) PlaceBadge(kv.Key, kv.Value);
+    }
+
+    void ShowFace()
+    {
+        if (DefId == null) return;
+        face.sharedMaterial.mainTexture = Css > 0 ? Faces.Of(DefId, Table ? Faces.Look.Table : Faces.Look.Hand, Css) : Faces.Of(DefId, Table);
     }
 
     /// <summary>A card face down (a set trap, a pile).</summary>
@@ -138,16 +161,32 @@ public class CardView : MonoBehaviour
         {
             // (Nothing to show, and never shown: nothing to make.)
             if (n == null) return;
-            var p = slot == "atk" ? Faces.Where.atk : slot == "stab" ? Faces.Where.stab : kind == "guard" ? Faces.Where.guard : Faces.Where.def;
-            r = Mats.Flat(slot, transform, Mats.Make("Card"), p.w, p.h, 0.004f);
+            r = Mats.Flat(slot, transform, Mats.Make("Card"), 1, 1, 0.004f);
             r.sharedMaterial.SetFloat("_Radius", 0);
-            r.sharedMaterial.SetFloat("_Aspect", p.h / p.w);
             r.sharedMaterial.renderQueue = 3010;
-            r.transform.localPosition = new Vector3(-0.5f + p.x + p.w / 2, 0.004f, 0.7f - (p.y + p.h / 2));
             badges[slot] = r;
         }
         r.gameObject.SetActive(n != null);
-        if (n != null) r.sharedMaterial.mainTexture = Faces.Badge(kind, n.Value);
+        if (n == null) return;
+        badgeKind[slot] = kind;
+        PlaceBadge(slot, r);
+        r.sharedMaterial.mainTexture = Css > 0 ? Faces.Badge(kind, n.Value, Css) : Faces.Badge(kind, n.Value);
+    }
+
+    readonly Dictionary<string, string> badgeKind = new Dictionary<string, string>();
+
+    /// <summary>
+    /// A badge where the web sets it on a card as wide as this is drawn (Faces.At: a hand card's stones smaller than a
+    /// table card's, a small card's shield at its floor); not knowing its width, where it sits on a 200 px table card.
+    /// </summary>
+    void PlaceBadge(string slot, MeshRenderer r)
+    {
+        badgeKind.TryGetValue(slot, out var kind);
+        var at = slot == "def" && kind == "guard" ? "guard" : slot;
+        var p = Css > 0 ? Faces.At(at, Css, Table) : at == "atk" ? Faces.Where.atk : at == "stab" ? Faces.Where.stab : at == "guard" ? Faces.Where.guard : Faces.Where.def;
+        r.transform.localScale = new Vector3(p.w, p.h, 1);
+        r.sharedMaterial.SetFloat("_Aspect", p.h / p.w);
+        r.transform.localPosition = new Vector3(-0.5f + p.x + p.w / 2, 0.004f, 0.7f - (p.y + p.h / 2));
     }
 
     public void MoveTo(Vector3 pos, Quaternion rot, float scale = 1, bool snap = false)

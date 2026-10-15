@@ -131,10 +131,10 @@ public partial class BattleView
         var face = Hud.Rect(heroPanel, "Card");
         Hud.Place(face, left + colW + 12, top + (h - ch) / 2, scw, ch);
         var raw = face.gameObject.AddComponent<RawImage>();
-        raw.texture = Faces.Of(hero.DefId, false);
+        raw.texture = Faces.Of(hero.DefId, Faces.Look.Card, scw);
         raw.raycastTarget = false;
         WebLook.Shadow(raw, 24, 50, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.28f), scw * 0.08f, 2, Color.white);
-        Printed(face, hero.DefId, scw);
+        Printed(face, hero.DefId, scw, true);
 
         float y = top + (h - colH) / 2;
         for (int i = 0; i < picks.Count; i++)

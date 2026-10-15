@@ -190,7 +190,7 @@ public class ShopView : MonoBehaviour, MenuView.IRedraw
             var face = Hud.Rect(slot, "Face");
             Hud.At(face, new Vector2(0.5f, 1), Vector2.zero, new Vector2(fw, fh));
             var raw = face.gameObject.AddComponent<RawImage>();
-            raw.texture = Faces.Of(c.Id, false);
+            raw.texture = Faces.Of(c.Id, Faces.Look.Card, fw);
             raw.raycastTarget = false;
             // (Spare when it came as flux (none: not), new, or another copy: .bc-flux #6d6fd0, .bc-new #3a9e6a bold, ink-soft.)
             bool spare = (c.Flux ?? 0) > 0, isNew = !spare && c.IsNew == true;
