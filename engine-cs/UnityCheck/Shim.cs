@@ -71,6 +71,8 @@ namespace TMPro
         public TMP_FontWeightPair[] fontWeightTable;
         public Material material;
         public bool isMultiAtlasTexturesEnabled;
+        public Texture2D atlasTexture;
+        public Texture2D[] atlasTextures;
         public AtlasPopulationMode atlasPopulationMode;
         public bool HasCharacter(char c, bool searchFallbacks = false, bool tryAddCharacter = false) => true;
         public bool TryAddCharacters(string s) => true;

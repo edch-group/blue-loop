@@ -49,6 +49,18 @@ public static class DebugDump
                 var u1 = new System.Collections.Generic.List<Vector4>();
                 tx.mesh.GetUVs(0, u0);
                 tx.mesh.GetUVs(1, u1);
+                // (The atlas where its first glyph is read: the alpha of a few texels across it, and the atlas's own state.)
+                var at = tx.font != null ? tx.font.atlasTexture : null;
+                if (at != null && u0.Count > 2)
+                {
+                    sb.Append($" atlas={at.width}x{at.height} pages={tx.font.atlasTextures?.Length} readable={at.isReadable} tex={at.GetInstanceID()} matTex={(tx.fontSharedMaterial != null && tx.fontSharedMaterial.mainTexture != null ? tx.fontSharedMaterial.mainTexture.GetInstanceID() : 0)} texels=");
+                    if (at.isReadable)
+                        for (int k = 0; k < 5; k++)
+                        {
+                            var uv = Vector2.Lerp(u0[0], u0[2], k / 4f);
+                            sb.Append($"{at.GetPixelBilinear(uv.x, uv.y).a:0.00},");
+                        }
+                }
                 sb.Append($" uv0={(u0.Count > 0 ? u0[0].ToString("F4") : "-")} uv1={(u1.Count > 0 ? u1[0].ToString("F4") : "-")} vcol={(tx.mesh.colors32.Length > 0 ? tx.mesh.colors32[0].ToString() : "-")}");
             }
         }
