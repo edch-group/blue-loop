@@ -337,8 +337,8 @@ namespace BlueLoop.Engine
         {
             var foes = Game.LivingOpponents(state, me);
             int n = state.Players.Count;
-            int seat = state.Players.IndexOf(me);
-            var left = Game.Sorted(foes, (a, b) => ((state.Players.IndexOf(a) - seat + n) % n) - ((state.Players.IndexOf(b) - seat + n) % n)).FirstOrDefault();
+            int seat = Game.SeatOf(state, me);
+            var left = Game.Sorted(foes, (a, b) => ((Game.SeatOf(state, a) - seat + n) % n) - ((Game.SeatOf(state, b) - seat + n) % n)).FirstOrDefault();
             double Ratio(PlayerState o) => (double)o.HeatExact / Game.SupernovaThreshold(o);
             var nearest = Game.Sorted(foes, (a, b) => Game.Sign(Ratio(b) - Ratio(a))).FirstOrDefault();
             if (nearest != null && Ratio(nearest) >= FinishRatio && Ratio(nearest) > Ratio(left)) return nearest;

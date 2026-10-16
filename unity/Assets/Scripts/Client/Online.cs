@@ -290,7 +290,12 @@ public static class Online
                     ResultExtra = "";
                     battle = App.Instance?.OnlineBattle(state, you);
                 }
-                else battle.TakeRemote(state, last);
+                else
+                {
+                    // (A failure showing one move is said, and the session carries on: the next state still arrives.)
+                    try { battle.TakeRemote(state, last); }
+                    catch (System.Exception e) { UnityEngine.Debug.LogException(e); }
+                }
                 Change();
                 break;
             }

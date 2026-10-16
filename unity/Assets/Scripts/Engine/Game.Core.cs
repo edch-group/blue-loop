@@ -192,12 +192,24 @@ namespace BlueLoop.Engine
 
         public static PlayerState ActivePlayer(GameState state) => state.Players[state.ActivePlayerIndex];
 
+        /// <summary>
+        /// A player's seat (their index in the game's players), by id: a player from another copy of the state (the one
+        /// before a move, or one read back from JSON) is found too, where List.IndexOf (by reference) would say -1.
+        /// -1: not in this game.
+        /// </summary>
+        public static int SeatOf(GameState state, PlayerState p)
+        {
+            for (int i = 0; i < state.Players.Count; i++)
+                if (state.Players[i].Id == p.Id) return i;
+            return -1;
+        }
+
         public static List<PlayerState> LivingOpponents(GameState state, PlayerState p) => state.Players.Where(o => o.Id != p.Id && !o.Eliminated).ToList();
 
         static PlayerState NextOpponent(GameState state, PlayerState p)
         {
             int n = state.Players.Count;
-            int start = state.Players.IndexOf(p);
+            int start = SeatOf(state, p);
             for (int k = 1; k < n; k++)
             {
                 var o = state.Players[(start + k) % n];
@@ -282,7 +294,7 @@ namespace BlueLoop.Engine
         public static int PlaysAllowed(GameState state, PlayerState p)
         {
             int extra = Passives(p).Sum(x => x.passive.Type == "extraPlay" && (x.passive.Planet == null || CurrentPlanet(p, state) == x.passive.Planet) ? (x.passive.Amount ?? 0) : 0);
-            int catchUp = p.TurnsTaken == 1 && state.Players.IndexOf(p) > 0 && state.Players.Count <= Balance.CatchUpMaxPlayers ? Balance.LaterSeatPlays : 0;
+            int catchUp = p.TurnsTaken == 1 && SeatOf(state, p) > 0 && state.Players.Count <= Balance.CatchUpMaxPlayers ? Balance.LaterSeatPlays : 0;
             int industry = CurrentPlanet(p, state) == "industrial" ? Balance.IndustrialPlays + (p.Modifiers?.IndustrialPlays ?? 0) : 0;
             return Math.Min(p.TurnsTaken, Balance.MaxPlays) + extra + catchUp + industry + (p.Modifiers?.ExtraPlays ?? 0);
         }
@@ -734,7 +746,7 @@ namespace BlueLoop.Engine
             var target = TargetOf(state, p);
             int orbit = p.TurnsTaken > 0 ? (p.Orbit + 1) % OrbitLength : p.Orbit;
             var planet = PlanetsEaten(state, p) ? "dead" : PlanetAt(orbit);
-            int round = state.Round + (state.Players.IndexOf(p) > state.ActivePlayerIndex ? 0 : 1);
+            int round = state.Round + (SeatOf(state, p) > state.ActivePlayerIndex ? 0 : 1);
             var f = new TurnForecast { TargetId = target?.Id, UnstableRound = state.Round + 1, Round = round, Planet = planet };
             if (p.Eliminated) return f;
             if (planet == "abundant" && p.TurnsTaken > 0) f.PlanetDraw = Balance.AbundantDraw + (p.Modifiers?.AbundantDraw ?? 0);

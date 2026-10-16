@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 
@@ -54,10 +55,31 @@ public static class Look
         return f;
     }
 
-    /// <summary>Orbitron at a weight (400, 500, 700).</summary>
-    public static TMP_FontAsset Display(int weight = 500) => Font($"Orbitron-{weight}");
-    /// <summary>Exo 2 at a weight (400, 500, 600).</summary>
-    public static TMP_FontAsset Body(int weight = 400) => Font($"Exo2-{weight}");
+    /// <summary>Orbitron at a weight (it has 400, 500 and 700; another weight gets the one a browser would pick).</summary>
+    public static TMP_FontAsset Display(int weight = 500) => Font($"Orbitron-{Nearest(weight, 400, 500, 700)}") ?? Font("Orbitron-500");
+    /// <summary>Exo 2 at a weight (it has 400, 500 and 600; another weight gets the one a browser would pick).</summary>
+    public static TMP_FontAsset Body(int weight = 400) => Font($"Exo2-{Nearest(weight, 400, 500, 600)}") ?? Font("Exo2-400");
+
+    /// <summary>
+    /// The weight a face has that stands in for one it lacks (CSS font matching: above 500, the next heavier, else the
+    /// nearest lighter; at 400 or 500, the other of the two, then lighter, then heavier; below 400, lighter, then heavier).
+    /// Never a weight without a font file. Orbitron 600 had none, and its texts were left with no font: one measured
+    /// before it had woken (under a parent not active: the "choosable" look of a slot worn by a blow, drawn as an attack
+    /// destroys the card in it) fell back to a font asset TextMeshPro could not read, which threw a NullReferenceException
+    /// (Material.HasProperty, in ReadFontAssetDefinition) and left that asset's lookup half built: the next such text then
+    /// threw a MethodAccessException (IEqualityComparer&lt;UInt32&gt;.GetHashCode on whatever type now lay there) or
+    /// halted the game (memory access out of bounds). Online play's attacks.
+    /// </summary>
+    static int Nearest(int weight, params int[] have)
+    {
+        if (System.Array.IndexOf(have, weight) >= 0) return weight;
+        var heavier = have.Where(w => w > weight).OrderBy(w => w);
+        var lighter = have.Where(w => w < weight).OrderByDescending(w => w);
+        var order = weight > 500 ? heavier.Concat(lighter)
+            : weight >= 400 ? have.Where(w => w > weight && w <= 500).Concat(lighter).Concat(heavier.Where(w => w > 500))
+            : lighter.Concat(heavier);
+        return order.First();
+    }
 
     /// <summary>Text set in the game's style: Orbitron, upper case and spaced (as the web's labels), or Exo 2.</summary>
     public static T Style<T>(T t, float size, Color color, bool display = true, int weight = 500, float spacing = 0, TextAlignmentOptions align = TextAlignmentOptions.Center) where T : TMP_Text

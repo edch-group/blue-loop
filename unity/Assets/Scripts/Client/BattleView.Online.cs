@@ -95,7 +95,15 @@ public partial class BattleView
             }
             catch (System.Exception e) { Debug.LogException(e); }
             Clear();
-            Refresh();
+            // (A redraw that fails partway would leave the board as it was, the move unseen and End Day dead, until
+            // something else redrew it: it is said, and drawn again, so the game goes on.)
+            try { Refresh(); }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+                try { Refresh(); }
+                catch (System.Exception again) { Debug.LogException(again); }
+            }
             if (turnPassed && Application.isPlaying) AnnouncePhases(next, DayTimeline(next, actor));
         }
         // The rival's card takes effect once you have read it and said OK (app.ts stageEntrance: it sounds as it comes).

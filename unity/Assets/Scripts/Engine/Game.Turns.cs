@@ -271,7 +271,7 @@ namespace BlueLoop.Engine
         static List<PlayerState> OthersInOrder(GameState state, PlayerState p)
         {
             int n = state.Players.Count;
-            int seat = state.Players.IndexOf(p);
+            int seat = SeatOf(state, p);
             return Enumerable.Range(0, n - 1).Select(k => state.Players[(seat + k + 1) % n]).Where(o => !o.Eliminated).ToList();
         }
 
