@@ -37,7 +37,32 @@
     <p>turn your device sideways to play</p>
     <small>screen not turning? switch off rotation lock</small>
   </div></div>
-  <script src="Build/37f070c61a5729254b0e2df33c6cde91.loader.js"></script>
+  <script>
+    // The web game's last stages for everything heard (sound.ts build): its master at 0.8, then a gentle limiter
+    // (threshold -14 dB, ratio 3) "so swells never clip". The game's own sounds each go straight to the speakers; here
+    // whatever would reach them goes through these first. (The game's filter can't run in the browser.)
+    (() => {
+      const connect = AudioNode.prototype.connect;
+      const chains = new WeakMap();
+      AudioNode.prototype.connect = function (dest, ...rest) {
+        const ctx = this.context;
+        if (!ctx || dest !== ctx.destination) return connect.call(this, dest, ...rest);
+        let master = chains.get(ctx);
+        if (!master) {
+          master = ctx.createGain();
+          master.gain.value = 0.8;
+          const comp = ctx.createDynamicsCompressor();
+          comp.threshold.value = -14;
+          comp.ratio.value = 3;
+          connect.call(master, comp);
+          connect.call(comp, ctx.destination);
+          chains.set(ctx, master);
+        }
+        return connect.call(this, master, ...rest);
+      };
+    })();
+  </script>
+  <script src="Build/ae84858c58710c07f7a15a511c0eb28c.loader.js"></script>
   <script>
     const bar = document.querySelector('#loading i');
     // (Lock the screen sideways where that is allowed, Android in full screen; some browsers only after a tap.)
@@ -48,7 +73,7 @@
     // the publish step splits it, and lists the pieces beside it); fetched together and joined here. The bar shows the
     // download first, then the game's own loading.
     async function gameData() {
-      const whole = 'Build/b43b646e3f84f26782ea17385519db70.data.unityweb';
+      const whole = 'Build/ccc07dafefad212d648c28049f473d41.data.unityweb';
       let parts = null;
       try {
         const r = await fetch(whole + '.parts.json');
@@ -84,7 +109,7 @@
     gameData().then((dataUrl) => createUnityInstance(document.querySelector('#unity-canvas'), {
       dataUrl,
       frameworkUrl: 'Build/d40d83889350d060e87621a1e0ce5787.framework.js.unityweb',
-      codeUrl: 'Build/3046a2492cc416e65268ec5a9f1b5f27.wasm.unityweb',
+      codeUrl: 'Build/ff1aeed7c8e4648308c57fc5e77201a2.wasm.unityweb',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: "DefaultCompany",
       productName: "Blue Loop",
