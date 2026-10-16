@@ -462,7 +462,8 @@ public partial class BattleView
     {
         var who = Player(r.PlayerId);
         var enemy = state.Players.First(p => p.Id == r.EnemyId);
-        string Name(string uid) => Cards.Def(who.Tableau.FirstOrDefault(c => c.Uid == uid)?.DefId ?? "").Name ?? "";
+        // (A card not on their side, as a state from the room may have it: no name, rather than an unknown card's throw.)
+        string Name(string uid) => who.Tableau.FirstOrDefault(c => c.Uid == uid) is CardInstance c ? Cards.Def(c.DefId).Name ?? "" : "";
         string moveId = null, what;
         if (r.Pending.Kind == "play")
         {
