@@ -2042,7 +2042,7 @@ export class CampaignView {
     const tokens = relics
       .map(
         (r) =>
-          `<button class="cmp-relic blessed rarity-${r.rarity}" data-key="relic-${r.id}" aria-label="${esc(r.name)}">${relicMark(r.name, r.slot)}</button>`,
+          `<button class="cmp-relic blessed rarity-${r.rarity}" data-key="relic-${r.id}" data-tip-title="${esc(r.name.toLowerCase())}" data-tip="${esc(relicText(r))}" data-tip-note="${esc(relicNote(r))}" aria-label="${esc(r.name)}">${relicMark(r.name, r.slot)}</button>`,
       )
       .join('');
     return `<aside class="cmp-relics" aria-label="Emblems">${tokens}</aside>`;

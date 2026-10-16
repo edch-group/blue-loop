@@ -5,11 +5,12 @@ using UnityEngine.Events;
 namespace UnityEngine.EventSystems
 {
     public class UIBehaviour : MonoBehaviour { }
-    public class EventSystem : UIBehaviour { public static EventSystem current; public bool IsPointerOverGameObject() => false; public bool IsPointerOverGameObject(int id) => false; public GameObject currentSelectedGameObject; public void SetSelectedGameObject(GameObject g) { } }
+    public class EventSystem : UIBehaviour { public static EventSystem current; public bool IsPointerOverGameObject() => false; public bool IsPointerOverGameObject(int id) => false; public GameObject currentSelectedGameObject; public void SetSelectedGameObject(GameObject g) { } public void RaycastAll(PointerEventData e, System.Collections.Generic.List<RaycastResult> results) { } }
+    public struct RaycastResult { public GameObject gameObject; public float distance; public Vector2 screenPosition; }
     public class StandaloneInputModule : UIBehaviour { }
-    public class BaseEventData { }
+    public class BaseEventData { public BaseEventData() { } public BaseEventData(EventSystem es) { } }
     public enum PointerInputButton { Left, Right, Middle }
-    public class PointerEventData : BaseEventData { public Vector2 position, delta; public int pointerId; public PointerInputButton button; public GameObject pointerEnter, pointerPress; public Camera pressEventCamera, enterEventCamera; public bool dragging; public int clickCount; public enum InputButton { Left, Right, Middle } }
+    public class PointerEventData : BaseEventData { public PointerEventData(EventSystem es) : base(es) { } public Vector2 position, delta; public int pointerId; public PointerInputButton button; public GameObject pointerEnter, pointerPress; public Camera pressEventCamera, enterEventCamera; public bool dragging; public int clickCount; public enum InputButton { Left, Right, Middle } }
     public interface IEventSystemHandler { }
     public interface IPointerClickHandler : IEventSystemHandler { void OnPointerClick(PointerEventData e); }
     public interface IPointerDownHandler : IEventSystemHandler { void OnPointerDown(PointerEventData e); }

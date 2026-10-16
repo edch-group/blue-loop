@@ -6,11 +6,12 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Words a part of the screen says about itself under a mouse (the web's title and data-tip), shown by the battle's
-/// tooltip (BattleView.Tips). `Head`: a data-tip's title, if any.
+/// tooltip (BattleView.Tips; on the campaign's map, CampaignView.Tips). `Head`: a data-tip's title, if any; `Note`: its
+/// data-tip-note, if any (the campaign's tooltip shows it).
 /// </summary>
 public class Tip : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
-    public string Text, Head;
+    public string Text, Head, Note;
     public static Tip Over;
     public void OnPointerEnter(PointerEventData e) => Over = this;
     public void OnPointerExit(PointerEventData e) { if (Over == this) Over = null; }

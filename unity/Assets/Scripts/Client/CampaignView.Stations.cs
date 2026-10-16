@@ -104,6 +104,7 @@ public partial class CampaignView
     /// <summary>The station open, drawn afresh.</summary>
     void Station()
     {
+        arRedress = null;
         foreach (var c in sheetRoot.Cast<Transform>().ToList()) if (c != null) Mats.Kill(c.gameObject);
         var n = stationId != null ? state.Nodes.FirstOrDefault(x => x.Id == stationId) : null;
         if (n?.Station == null)
@@ -148,6 +149,9 @@ public partial class CampaignView
         const float Z = WebLook.Zoom;
         float shelfW = Mathf.Min(1100 * Z, PW - lay.Pad.y - lay.Pad.w), areaH = lay.ActY - lay.ShelfTop;
         var area = WebLook.Box(page, "Shelf", PW / 2 - shelfW / 2, lay.ShelfTop, shelfW, areaH);
+        // (Each card's place on the shelf, and how it is dressed there for what is picked.)
+        var cells = new List<RectTransform>();
+        var cards = new List<System.Action>();
         if (list.Count == 0)
             Hud.Label(area, (arTab == "buy" ? "sold out" : "nothing in your deck").ToUpperInvariant(), 0.7f * 16 * Z, Look.InkFaint, true, 400, 30);
         else
@@ -163,16 +167,59 @@ public partial class CampaignView
                 var id = list[i];
                 int row = i / cols, inRow = Mathf.Min(cols, list.Count - row * cols);
                 float x = ((i % cols) - (inRow - 1) / 2f) * (Kit.CardW + GapX);
-                bool picked = arTab == "fuse" ? arFuse.Contains(id) : arPick == id;
                 string tag = arTab == "buy" ? $"⬢{Campaign.BuyPrice(state, me, id)}" : arTab == "recycle" ? $"×{Have(deck, id)} · +⬢{Campaign.RecycleValue(id)}" : $"×{Have(deck, id)}";
                 Color ink = arTab == "buy" && me.Materials < Campaign.BuyPrice(state, me, id) ? Kit.Short : Look.Ink;
                 var cell = Hud.At(Hud.Rect(content, id), new Vector2(0.5f, 1), new Vector2(x, -(top + row * (Kit.CellH + GapY))), new Vector2(Kit.CardW, Kit.CellH));
-                ShelfCard(cell, id, i, picked, tag, ink, picked && arTab != "fuse");
+                int at = i;
+                cells.Add(cell);
+                cards.Add(() =>
+                {
+                    bool picked = arTab == "fuse" ? arFuse.Contains(id) : arPick == id;
+                    ShelfCard(cell, id, at, picked, tag, ink, picked && arTab != "fuse");
+                });
             }
         }
 
         // The one action, beneath the row (once each here: a buy, a recycle, a fusion).
         var act = ActRow(page, lay);
+        foreach (var card in cards) card();
+        ArAct(act, list, st, me, n);
+        // (A card tapped: the shelf's cards and the action under them dressed again where they are, the shelf held
+        // where it was scrolled to, as the web's morph keeps the page: the station is not drawn again.)
+        arRedress = () =>
+        {
+            foreach (var cell in cells) foreach (Transform c in cell) Mats.Kill(c.gameObject);
+            foreach (Transform c in act) Mats.Kill(c.gameObject);
+            foreach (var card in cards) card();
+            ArAct(act, list, st, me, n);
+        };
+
+        // The keeper, at the foot: their face and their line, nothing round them (none on a phone).
+        bool buying = arTab == "buy";
+        if (lay.Phone) return;
+        var keeper = buying ? BlueLoop.Engine.Story.Quartermaster : BlueLoop.Engine.Story.Recycler;
+        var lines = buying ? BlueLoop.Engine.Story.QuartermasterLines : BlueLoop.Engine.Story.RecyclerLines;
+        if (keeper != null && lines != null && lines.Count > 0)
+        {
+            var foot = Hud.At(Hud.Rect(page, "Keeper"), new Vector2(0, 0), new Vector2(lay.Pad.w, lay.Pad.z - 1), new Vector2(Mathf.Min(560 * Z, PW * 0.9f), 66));
+            Kit.Disc(foot, Resources.Load<Texture2D>(buying ? "Portraits/hesk" : "Portraits/tallow"), new Vector2(0, 0.5f), Vector2.zero, 64);
+            var who = WebLook.Words(foot, keeper.Name.ToUpperInvariant(), 13.5f, 0.26f, Look.InkSoft, true, 400, TextAlignmentOptions.TopLeft);
+            who.margin = new Vector4(81, 0, 0, 0);
+            var said = WebLook.Words(foot, $"“{lines[(state.Turn * 3 + keeperVisit) % lines.Count]}”", 18.6f, 0, Look.InkFaint, false, 400, TextAlignmentOptions.TopLeft);
+            said.fontStyle = FontStyles.Italic;
+            said.textWrappingMode = TextWrappingModes.Normal;
+            said.margin = new Vector4(81, 20, 0, 0);
+        }
+    }
+
+    /// <summary>The armoury's shelf and its action dressed again in place for what is picked now (set by ArmoryPage).</summary>
+    System.Action arRedress;
+
+    /// <summary>The armoury's one action, beneath the row (once each here: a buy, a recycle, a fusion), for what is picked.</summary>
+    void ArAct(RectTransform act, List<string> list, BlueLoop.Engine.Station st, Faction me, CampaignNode n)
+    {
+        const float Z = WebLook.Zoom;
+        var lay = ArLay();
         bool used = arTab == "buy" ? st.Used?.Buy == true : arTab == "recycle" ? st.Used?.Recycle == true : st.Used?.Fuse == true;
         var nodeId = n.Id;
         if (used) Kit.Across(act, 14, Kit.Hint(act, $"{(arTab == "buy" ? "bought here" : arTab == "recycle" ? "recycled here" : "fused here")} · one per station"));
@@ -214,23 +261,6 @@ public partial class CampaignView
                 if (why != null) Kit.Across(act, 14, Kit.Hint(act, why.ToLowerInvariant(), true));
                 else Kit.Across(act, 14, Kit.Go(act, $"recycle · +⬢{Campaign.RecycleValue(held)}", true, null, () => StationRecycle(nodeId, held)));
             }
-        }
-
-        // The keeper, at the foot: their face and their line, nothing round them (none on a phone).
-        bool buying = arTab == "buy";
-        if (lay.Phone) return;
-        var keeper = buying ? BlueLoop.Engine.Story.Quartermaster : BlueLoop.Engine.Story.Recycler;
-        var lines = buying ? BlueLoop.Engine.Story.QuartermasterLines : BlueLoop.Engine.Story.RecyclerLines;
-        if (keeper != null && lines != null && lines.Count > 0)
-        {
-            var foot = Hud.At(Hud.Rect(page, "Keeper"), new Vector2(0, 0), new Vector2(lay.Pad.w, lay.Pad.z - 1), new Vector2(Mathf.Min(560 * Z, PW * 0.9f), 66));
-            Kit.Disc(foot, Resources.Load<Texture2D>(buying ? "Portraits/hesk" : "Portraits/tallow"), new Vector2(0, 0.5f), Vector2.zero, 64);
-            var who = WebLook.Words(foot, keeper.Name.ToUpperInvariant(), 13.5f, 0.26f, Look.InkSoft, true, 400, TextAlignmentOptions.TopLeft);
-            who.margin = new Vector4(81, 0, 0, 0);
-            var said = WebLook.Words(foot, $"“{lines[(state.Turn * 3 + keeperVisit) % lines.Count]}”", 18.6f, 0, Look.InkFaint, false, 400, TextAlignmentOptions.TopLeft);
-            said.fontStyle = FontStyles.Italic;
-            said.textWrappingMode = TextWrappingModes.Normal;
-            said.margin = new Vector4(81, 20, 0, 0);
         }
     }
 
@@ -300,7 +330,9 @@ public partial class CampaignView
             }
         }
         else arPick = arPick == id ? null : id;
-        Station();
+        // (A pick: the shelf and its action dressed again where they are; looking a card over opens over the page.)
+        if (!inspect && arRedress != null) arRedress();
+        else Station();
     }
 
     void StationBuy(string nodeId, string id)

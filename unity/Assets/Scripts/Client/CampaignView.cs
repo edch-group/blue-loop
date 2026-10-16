@@ -20,7 +20,7 @@ public partial class CampaignView : MonoBehaviour
     public Camera Cam;
     CampaignState state;
     Canvas hud;
-    RectTransform top, overlay, sheetRoot, notes;
+    RectTransform top, overlay, sheetRoot, notes, tips;
     Transform world, mapRoot;
     readonly Dictionary<string, Transform> nodes = new Dictionary<string, Transform>();
     Vector3 focus, focusGoal;
@@ -111,6 +111,8 @@ public partial class CampaignView : MonoBehaviour
         overlay = RefLayer.Make(hud.transform, "Overlay", Relayout).Rect;
         sheetRoot = RefLayer.Make(hud.transform, "Sheet").Rect;
         notes = RefLayer.Make(hud.transform, "Notes").Rect;
+        // (The tooltip's own layer, over all the rest: the web's .kw-tip, fixed at z-index 90.)
+        tips = RefLayer.Make(hud.transform, "Tips").Rect;
         Sound.Scene(Score, TimeRift);
         // (A new run's hero has their say first: whatever else the opening brought on waits behind it.)
         if (!(fresh && state.Story.Queue.Count > 0 && state.Story.Queue[0].Id == "intro")) SkipSilentScenes();
@@ -586,6 +588,7 @@ public partial class CampaignView : MonoBehaviour
             glideRate = Mathf.Min(glideRate, 2.5f);
         }
         if (Input.GetKeyDown(KeyCode.Escape)) OnEscape();
+        TipsTick();
         bool still = !flying && !Cining && !launching && overlay.childCount == 0 && sheetRoot.childCount == 0;
         bool overUi = UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
         // The system under the pointer swells and flares.

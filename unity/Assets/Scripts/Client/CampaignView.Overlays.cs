@@ -129,6 +129,11 @@ public partial class CampaignView
             // (Under the pointer, a little larger: .cmp-relic:hover, scale(1.08).)
             badge.raycastTarget = true;
             badge.gameObject.AddComponent<Swell>().By = 1.08f;
+            // (What it does, on a hover or a tap: its name, its words and a note, in the page's tooltip (CampaignView.Tips).)
+            var tip = badge.gameObject.AddComponent<Tip>();
+            tip.Head = relics[i].Name.ToLowerInvariant();
+            tip.Text = Heroes.RelicText(relics[i]);
+            tip.Note = RelicNote(relics[i]);
             WebLook.Shadow(badge, 3 * Z, 8 * Z, new Color(30 / 255f, 34 / 255f, 50 / 255f, 0.3f), rd / 2);
             var bob = badge.gameObject.AddComponent<Bob>();
             bob.Height = 2 * Z;
@@ -514,19 +519,7 @@ public partial class CampaignView
     {
         var r = Hud.Rect(parent, id);
         Hud.At(r, anchor ?? new Vector2(0.5f, 0.5f), at, new Vector2(w, w * 1.4f));
-        if (on)
-        {
-            var glow = WebLook.Rounded(r, "Glow", new Color(138 / 255f, 111 / 255f, 224 / 255f, 0.45f), 8.56f + 18 * Z);
-            glow.sprite = Hud.Soft;
-            glow.pixelsPerUnitMultiplier = 41f / (18 * Z + 8.56f);
-            Hud.Fill(glow.rectTransform);
-            glow.rectTransform.offsetMin = -Vector2.one * 18 * Z;
-            glow.rectTransform.offsetMax = Vector2.one * 18 * Z;
-            var ring = WebLook.Rounded(r, "Ring", WebLook.Hex("#8a6fe0"), 8.56f + 2.5f * Z);
-            Hud.Fill(ring.rectTransform);
-            ring.rectTransform.offsetMin = -Vector2.one * 2.5f * Z;
-            ring.rectTransform.offsetMax = Vector2.one * 2.5f * Z;
-        }
+        PickOn(r, on);
         var face = Hud.Rect(r, "Face");
         Hud.Fill(face);
         var raw = face.gameObject.AddComponent<RawImage>();
@@ -538,6 +531,37 @@ public partial class CampaignView
         return b;
     }
 
+    /// <summary>
+    /// A card to pick's picked look (.cmp-pick-on .card), put on or taken off where it stands: behind its face, a violet
+    /// ring 2.5 round it and a glow 18 out. (A tap changes only that, as the web's morph keeps the card and changes its
+    /// class: the overlay is not drawn again.)
+    /// </summary>
+    static void PickOn(RectTransform r, bool on)
+    {
+        var had = r.Find("Glow");
+        if (!on)
+        {
+            if (had != null) Mats.Kill(had.gameObject);
+            var ringWas = r.Find("Ring");
+            if (ringWas != null) Mats.Kill(ringWas.gameObject);
+            return;
+        }
+        if (had != null) return;
+        var glow = WebLook.Rounded(r, "Glow", new Color(138 / 255f, 111 / 255f, 224 / 255f, 0.45f), 8.56f + 18 * Z);
+        glow.sprite = Hud.Soft;
+        glow.pixelsPerUnitMultiplier = 41f / (18 * Z + 8.56f);
+        Hud.Fill(glow.rectTransform);
+        glow.rectTransform.offsetMin = -Vector2.one * 18 * Z;
+        glow.rectTransform.offsetMax = Vector2.one * 18 * Z;
+        var ring = WebLook.Rounded(r, "Ring", WebLook.Hex("#8a6fe0"), 8.56f + 2.5f * Z);
+        Hud.Fill(ring.rectTransform);
+        ring.rectTransform.offsetMin = -Vector2.one * 2.5f * Z;
+        ring.rectTransform.offsetMax = Vector2.one * 2.5f * Z;
+        // (Under the face.)
+        glow.transform.SetSiblingIndex(0);
+        ring.transform.SetSiblingIndex(1);
+    }
+
     /// <summary>A web button (.btn or .btn-primary) as wide as its words, centred at a point of its parent (from its top left).</summary>
     static Button WebButton(Transform parent, string label, System.Action act, bool primary, float cx, float y, bool enabled = true)
     {
@@ -546,9 +570,26 @@ public partial class CampaignView
         var t = b.GetComponentInChildren<TextMeshProUGUI>();
         float w = Mathf.Max(primary ? 140 * Z : 0, t.GetPreferredValues(t.text).x + 2 * 16 * Z), h = fs * 1.25f + 2 * 9 * Z;
         WebLook.Box((RectTransform)b.transform, cx - w / 2, y, w, h);
-        b.interactable = enabled;
-        if (!enabled) b.gameObject.AddComponent<CanvasGroup>().alpha = 0.4f;
+        Enable(b, enabled);
         return b;
+    }
+
+    /// <summary>A web button made able (or not: [disabled], at 0.4) where it stands.</summary>
+    static void Enable(Button b, bool on)
+    {
+        b.interactable = on;
+        var g = b.GetComponent<CanvasGroup>();
+        if (g == null && !on) g = b.gameObject.AddComponent<CanvasGroup>();
+        if (g != null) g.alpha = on ? 1 : 0.4f;
+    }
+
+    /// <summary>A web button's words changed where it stands: as wide as its new words (as WebButton makes it), about its pivot.</summary>
+    static void Relabel(Button b, string label, bool primary)
+    {
+        var t = b.GetComponentInChildren<TextMeshProUGUI>();
+        t.text = label.ToUpperInvariant();
+        var r = (RectTransform)b.transform;
+        r.sizeDelta = new Vector2(Mathf.Max(primary ? 140 * Z : 0, t.GetPreferredValues(t.text).x + 2 * 16 * Z), r.sizeDelta.y);
     }
 
     // ---- The run over ----
@@ -575,6 +616,17 @@ public partial class CampaignView
         float keepH = n > 0 ? smallH + 8 * Z + areaH : 0;
         float total = h2 + gap + p + gap + pet + (n > 0 ? gap + keepH : 0) + gap + 10 * Z + exitH;
         float y = Middle(total), mid = PW / 2;
+        Button exit = null;
+        var picks = new List<(string id, RectTransform r)>();
+        // (A card tapped: picked (again, let go), the exit saying so; where they stand, nothing drawn again.)
+        void Picked(string id)
+        {
+            Sound.Play("hover");
+            keepPick = keepPick == id ? null : id;
+            foreach (var (pid, pr) in picks) PickOn(pr, keepPick == pid);
+            Relabel(exit, ExitWords(), true);
+        }
+        string ExitWords() => keepPick != null ? $"keep {Cards.Def(keepPick).Name.ToLowerInvariant()} · exit" : "exit";
         var title = WebLook.Words(WebLook.Box(v, "Title", 0, y, PW, h2), "YOU ARE DEAD", h2s, 0.32f, Look.Ink, true, 400);
         title.margin = new Vector4(0, 0, 0.32f * h2s, 0);
         RiseIn.On(title.rectTransform, t0, 0, 1.4f);
@@ -607,14 +659,19 @@ public partial class CampaignView
                 var id = keepable[i];
                 int row = i / cols, inRow = Mathf.Min(cols, n - row * cols);
                 float x0 = 6 * Z + (rw - (inRow * cw + (inRow - 1) * cg)) / 2;
-                CardPick(cards, id, new Vector2(x0 + (i % cols) * (cw + cg), -(6 * Z + row * (cw * 1.4f + cg))), cw, keepPick == id, () => { Sound.Play("hover"); keepPick = keepPick == id ? null : id; Refresh(); }, new Vector2(0, 1));
+                var pick = CardPick(cards, id, new Vector2(x0 + (i % cols) * (cw + cg), -(6 * Z + row * (cw * 1.4f + cg))), cw, keepPick == id, () => Picked(id), new Vector2(0, 1));
+                picks.Add((id, (RectTransform)pick.transform));
             }
             RiseIn.On(keep, t0, 1.6f, 1);
             y += keepH;
         }
         y += gap + 10 * Z;
-        var exit = WebButton(v, keepPick != null ? $"keep {Cards.Def(keepPick).Name.ToLowerInvariant()} · exit" : "exit", NewRunFromHere, true, mid, y);
-        RiseIn.On((RectTransform)exit.transform, t0, 1.8f, 0.8f);
+        exit = WebButton(v, ExitWords(), NewRunFromHere, true, mid, y);
+        // (Held about its middle, so as its words change it stays centred.)
+        var er = (RectTransform)exit.transform;
+        er.pivot = new Vector2(0.5f, 1);
+        er.anchoredPosition += new Vector2(er.sizeDelta.x / 2, 0);
+        RiseIn.On(er, t0, 1.8f, 0.8f);
     }
 
     /// <summary>The run over: the card picked to keep goes with the account into the next run; off to the campaign's menu.</summary>
@@ -1170,15 +1227,26 @@ public partial class CampaignView
         {
             int n = reward.Options.Count;
             float cw = PickW, gap = 10 * Z, bw = body.sizeDelta.x, rw = n * cw + (n - 1) * gap;
+            Button ok = null;
+            var picks = new List<(string id, RectTransform r)>();
+            // (A card tapped: lifted (again, let down), confirm able or not; where they stand, as the web's morph keeps
+            // the modal: nothing drawn again, nothing rising in again.)
+            void Picked(string id)
+            {
+                Sound.Play("hover");
+                cardPick = cardPick == id ? null : id;
+                foreach (var (pid, pr) in picks) PickOn(pr, cardPick == pid);
+                Enable(ok, cardPick != null);
+            }
             for (int i = 0; i < n; i++)
             {
                 var id = reward.Options[i];
-                CardPick(body, id, new Vector2((bw - rw) / 2 + i * (cw + gap) + cw / 2 - bw / 2, 0), cw, cardPick == id, () => { Sound.Play("hover"); cardPick = cardPick == id ? null : id; Refresh(); }, new Vector2(0.5f, 1));
+                var b = CardPick(body, id, new Vector2((bw - rw) / 2 + i * (cw + gap) + cw / 2 - bw / 2, 0), cw, cardPick == id, () => Picked(id), new Vector2(0.5f, 1));
+                picks.Add((id, (RectTransform)b.transform));
             }
             float y = cw * 1.4f + 10 * Z;
-            var pick = cardPick;
             var skip = WebButton(body, "skip", () => { cardPick = null; Act(new CampaignAction { Type = "chooseCard", DefId = null }); }, false, 0, y);
-            var ok = WebButton(body, "confirm", () => { cardPick = null; Act(new CampaignAction { Type = "chooseCard", DefId = pick }, "buy"); }, true, 0, y, pick != null);
+            ok = WebButton(body, "confirm", () => { var pick = cardPick; cardPick = null; Act(new CampaignAction { Type = "chooseCard", DefId = pick }, "buy"); }, true, 0, y, cardPick != null);
             float sw = ((RectTransform)skip.transform).sizeDelta.x, ow = ((RectTransform)ok.transform).sizeDelta.x, all = sw + 8 * Z + ow;
             WebLook.Box((RectTransform)skip.transform, bw / 2 - all / 2, y, sw, ((RectTransform)skip.transform).sizeDelta.y);
             WebLook.Box((RectTransform)ok.transform, bw / 2 - all / 2 + sw + 8 * Z, y, ow, ((RectTransform)ok.transform).sizeDelta.y);
