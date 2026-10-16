@@ -180,6 +180,19 @@ public partial class BattleView : MonoBehaviour
             if (hint != null && hint.gameObject.activeSelf) DebugDump.Tree(hint, "hint");
             foreach (var cam in Camera.allCameras) Debug.Log($"camera {cam.name} depth={cam.depth} mask={cam.cullingMask} clear={cam.clearFlags} enabled={cam.enabled}");
         }
+        // (A second later: every text of the HUD laid out afresh, then the trees again, to see whether that mends them.)
+        if (dumped && !remeshed && Time.time - bornAt > 9)
+        {
+            remeshed = true;
+            foreach (var tx in hud.GetComponentsInChildren<TMPro.TMP_Text>(true)) tx.ForceMeshUpdate(true, true);
+        }
+        if (remeshed && !dumped2 && Time.time - bornAt > 10)
+        {
+            dumped2 = true;
+            var pace = chrome != null ? chrome.Find("Pace") : null;
+            if (pace != null) DebugDump.Tree(pace, "pace after remesh");
+            if (hint != null && hint.gameObject.activeSelf) DebugDump.Tree(hint, "hint after remesh");
+        }
         if (!scoreLeft && state?.WinnerId != null && Application.isPlaying) { scoreLeft = true; Sound.Scene("voyage", Reversed); }
         if (FitScreen() && state != null) Refresh();
         ExtrasTick();
@@ -1221,7 +1234,7 @@ public partial class BattleView : MonoBehaviour
         return r;
     }
 
-    bool dumped;
+    bool dumped, remeshed, dumped2;
     float bornAt = -1;
     void Start() { bornAt = Time.time; }
     int refreshFrame = -10, refreshRun, relaidFrame = -10, relaidRun;

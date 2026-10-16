@@ -43,6 +43,14 @@ public static class DebugDump
             var crm = t.GetComponent<CanvasRenderer>();
             if (crm != null && crm.materialCount > 0 && crm.GetMaterial(0) != null) { var rm = crm.GetMaterial(0); sb.Append($" drawn={rm.name}/{rm.shader?.name}{Props(rm)}"); }
             sb.Append($" lossy={t.lossyScale.y:0.#####}");
+            if (tx.mesh != null && tx.mesh.vertexCount > 0)
+            {
+                var u0 = new System.Collections.Generic.List<Vector4>();
+                var u1 = new System.Collections.Generic.List<Vector4>();
+                tx.mesh.GetUVs(0, u0);
+                tx.mesh.GetUVs(1, u1);
+                sb.Append($" uv0={(u0.Count > 0 ? u0[0].ToString("F4") : "-")} uv1={(u1.Count > 0 ? u1[0].ToString("F4") : "-")} vcol={(tx.mesh.colors32.Length > 0 ? tx.mesh.colors32[0].ToString() : "-")}");
+            }
         }
         var cr = t.GetComponent<CanvasRenderer>();
         if (cr != null) sb.Append($" crAlpha={cr.GetAlpha()} inherited={cr.GetInheritedAlpha()} cull={cr.cull}");
