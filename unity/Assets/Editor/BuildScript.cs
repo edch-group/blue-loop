@@ -26,7 +26,10 @@ public static class BuildScript
             // game's memory let grow, the page the plain one.
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
             PlayerSettings.WebGL.decompressionFallback = true;
-            PlayerSettings.WebGL.dataCaching = true;
+            // (Not kept by the game's own cache: the data reaches it at a blob: address, new each visit, so it was never
+            // found again, yet written whole into the browser's storage on every load, a copy more each time. Its pieces
+            // keep in the browser's own cache instead, their names hashed and never changing.)
+            PlayerSettings.WebGL.dataCaching = false;
             PlayerSettings.WebGL.nameFilesAsHashes = true;
             PlayerSettings.WebGL.template = "PROJECT:Fill";
             // (Every generic type compiled out in full: the size option shares one body among them, which in this Unity

@@ -72,7 +72,14 @@
         }
         return new Blob(chunks);
       }));
-      return URL.createObjectURL(new Blob(pieces));
+      // (Unpacked here, by the browser's own gzip as a stream, rather than handed over packed: the game's loader would
+      // read the whole of it into memory, packed and unpacked at once, which a phone's tab could not hold.)
+      let data = new Blob(pieces);
+      if (typeof DecompressionStream === 'function') {
+        try { data = await new Response(data.stream().pipeThrough(new DecompressionStream('gzip'))).blob(); }
+        catch (e) { /* left packed: the game's loader unpacks it */ }
+      }
+      return URL.createObjectURL(data);
     }
     gameData().then((dataUrl) => createUnityInstance(document.querySelector('#unity-canvas'), {
       dataUrl,
