@@ -171,6 +171,15 @@ public partial class BattleView : MonoBehaviour
 
     void Update()
     {
+        // (Once, a few seconds into a battle: the pace's and the hint's trees in the log, for a fault seen in builds.)
+        if (!dumped && state != null && Time.timeSinceLevelLoad > 0 && Time.time - bornAt > 8)
+        {
+            dumped = true;
+            var pace = chrome != null ? chrome.Find("Pace") : null;
+            if (pace != null) DebugDump.Tree(pace, "pace");
+            if (hint != null && hint.gameObject.activeSelf) DebugDump.Tree(hint, "hint");
+            foreach (var cam in Camera.allCameras) Debug.Log($"camera {cam.name} depth={cam.depth} mask={cam.cullingMask} clear={cam.clearFlags} enabled={cam.enabled}");
+        }
         if (!scoreLeft && state?.WinnerId != null && Application.isPlaying) { scoreLeft = true; Sound.Scene("voyage", Reversed); }
         if (FitScreen() && state != null) Refresh();
         ExtrasTick();
@@ -1212,6 +1221,9 @@ public partial class BattleView : MonoBehaviour
         return r;
     }
 
+    bool dumped;
+    float bornAt = -1;
+    void Start() { bornAt = Time.time; }
     int refreshFrame = -10, refreshRun, relaidFrame = -10, relaidRun;
     bool refreshSaid;
 
