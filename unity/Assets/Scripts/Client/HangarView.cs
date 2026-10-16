@@ -20,7 +20,7 @@ public class HangarView : MonoBehaviour
     string pick;
     readonly Dictionary<string, RectTransform> slotMarks = new Dictionary<string, RectTransform>();
 
-    static readonly Dictionary<string, Color> RarityRing = new Dictionary<string, Color>
+    public static readonly Dictionary<string, Color> RarityRing = new Dictionary<string, Color>
     {
         ["dwarf"] = new Color32(0x5f, 0x86, 0xb8, 255), ["stellar"] = new Color32(0xb8, 0x89, 0x2f, 255), ["anomaly"] = new Color32(0x7a, 0x5c, 0xc0, 255),
     };
@@ -250,7 +250,7 @@ public class HangarView : MonoBehaviour
     }
 
     /// <summary>A disc centred in its parent, at a size.</summary>
-    static Image Disc(RectTransform parent, string name, float size, Color colour)
+    public static Image Disc(RectTransform parent, string name, float size, Color colour)
     {
         var r = Hud.Rect(parent, name);
         Hud.At(r, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size, size));
@@ -265,7 +265,7 @@ public class HangarView : MonoBehaviour
     static Sprite ring15;
 
     /// <summary>A mark's dashed rim (a 1.5 dashed border round a 30 circle), white to tint.</summary>
-    static Texture2D DashedRing()
+    public static Texture2D DashedRing()
     {
         if (dashed != null) return dashed;
         const int S = 96;
@@ -286,7 +286,7 @@ public class HangarView : MonoBehaviour
     }
 
     /// <summary>A fitted mark's rim: a solid ring 1.5 wide round a 30 circle, white to tint.</summary>
-    static Sprite Ring15()
+    public static Sprite Ring15()
     {
         if (ring15 != null) return ring15;
         const int S = 96;

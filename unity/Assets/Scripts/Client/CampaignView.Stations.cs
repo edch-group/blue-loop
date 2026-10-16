@@ -68,8 +68,10 @@ public partial class CampaignView
         CloseSheet();
         keeperVisit++;
         stationId = nodeId;
-        arTab = "buy";
+        // (On the Captain's runs, the dock first: the ship in its bay, the shop and the recycling unit beside it.)
+        arTab = Campaign.Player(state).Human == true ? "dock" : "buy";
         arPick = null;
+        dockSlot = null;
         arFuse.Clear();
         Station();
     }
@@ -116,12 +118,15 @@ public partial class CampaignView
         }
         var page = Hud.Rect(sheetRoot, "Station");
         Hud.Fill(page);
+        // (The dock's scene, up on the Captain's runs at a space station: CampaignView.Dock.cs.)
+        DockScene(n);
         if (n.Station.Kind == "armory")
         {
             // (The ship tab only on the Captain's runs; fusing only where the station can.)
-            if (arTab == "ship" && Campaign.Player(state).Human != true) arTab = "buy";
+            if ((arTab == "ship" || arTab == "dock") && Campaign.Player(state).Human != true) arTab = "buy";
             if (arTab == "fuse" && n.Station.Fuse != true) arTab = "buy";
-            if (arTab == "ship") StationShip(page, n);
+            if (arTab == "dock") DockPage(page, n);
+            else if (arTab == "ship") StationShip(page, n);
             else ArmoryPage(page, n);
         }
         else if (Campaign.Player(state).Human == true) LabScene(page, n);
@@ -379,9 +384,12 @@ public partial class CampaignView
     {
         const float Z = WebLook.Zoom;
         var sa = overlay.GetComponent<RefLayer>().Insets;
-        Kit.Paper(page);
-        // (.ar-back: max(18, the safe area) in, max(14, the safe area) down.)
-        WebLook.UpBack(page, LeaveStation, Mathf.Max(18 * Z, sa.w), Mathf.Max(14 * Z, sa.x), "‹ map");
+        // (The dock and the ship's birdseye are drawn over the dock's scene, not on the paper.)
+        bool docked = DockStation(n);
+        if (!docked || (arTab != "dock" && arTab != "ship")) Kit.Paper(page);
+        // (.ar-back: max(18, the safe area) in, max(14, the safe area) down. From a page of the dock, back to the dock.)
+        if (docked && arTab != "dock") WebLook.UpBack(page, () => StationTab("dock"), Mathf.Max(18 * Z, sa.w), Mathf.Max(14 * Z, sa.x), "‹ dock");
+        else WebLook.UpBack(page, LeaveStation, Mathf.Max(18 * Z, sa.w), Mathf.Max(14 * Z, sa.x), "‹ map");
         // Materials (.ar-purse), max(20, the safe area) in from the right, max(16, the safe area) down (on a phone at
         // the foot, max(10, the safe area) up from it); before them, your sun's damage and its repair.
         float x = -Mathf.Max(20 * Z, sa.y);
@@ -413,6 +421,7 @@ public partial class CampaignView
         Kit.Head(page, "space station", n.Name, lay.HeadTop, lay.H3, !lay.Phone);
         // The tabs: buy, recycle, fuse (where the station can), the ship (the Captain's runs).
         var tabs = new List<string> { "buy", "recycle" };
+        if (docked) tabs.Insert(0, "dock");
         if (n.Station.Fuse == true) tabs.Add("fuse");
         if (me.Human == true) tabs.Add("ship");
         // (.ar-tabs: 22 (CSS) apart under the name, small spaced capitals; the one open inked, a dot under it.)
@@ -477,132 +486,7 @@ public partial class CampaignView
         Kit.Printed(f, id, fh / 1.4f);
     }
 
-    // ---- The ship tab (the Captain's runs) ----
-
-    /// <summary>
-    /// A space station's ship tab: the ship's schematic as fitted for the run, and every part in the hangar beside it;
-    /// pick a part, then its slot (one swap per station).
-    /// </summary>
-    void StationShip(RectTransform page, CampaignNode n)
-    {
-        var me = Campaign.Player(state);
-        var fitted = state.Run?.Ship?.Fitted ?? new Dictionary<string, string>();
-        var have = Campaign.RunHangar(state);
-        bool used = n.Station.Used?.Part == true;
-        var pick = !used && arPick != null && have.Contains(arPick) ? arPick : null;
-        var fits = pick != null ? Parts.PartSlots(pick) : new List<string>();
-        var aboard = new HashSet<string>(fitted.Values.Where(v => v != null));
-        var lay = ArLay();
-        StationFrame(page, n, me, lay);
-
-        // (.ar-ship: min(1000, the page) across, between the tabs and the action: the schematic 1.4 parts of it, the
-        // parts 1, clamp(10, 2.4vw, 24) between; the schematic no taller than 100vh less 230.)
-        const float Z = WebLook.Zoom;
-        float areaW = Mathf.Min(1000 * Z, PW - lay.Pad.y - lay.Pad.w), boxH = Mathf.Max(60, lay.ActY - lay.ShelfTop - 8 * Z), between = Css.Clamp(10 * Z, 2.4f * Css.Screen.x / 100 * Z, 24 * Z);
-        var area = WebLook.Box(page, "Ship", PW / 2 - areaW / 2, lay.ShelfTop + 4 * Z, areaW, boxH);
-        // The schematic: the hull in blueprint lines, every slot outlined (dashed while empty, filled with its part
-        // when fitted); lit where the part in hand could go (not where it already is).
-        float colW = (areaW - between) * 1.4f / 2.4f;
-        // (.hg-ship: its column across, padded 10, rounded 18, a pale blue (#f3f7fc) inside a 1 blue hairline
-        // (rgba(95, 134, 184, 0.18)); the schematic in its middle, as wide as it is inside its padding, at most
-        // 100vh - 230 tall.)
-        float sw = Mathf.Min(colW - 20 * Z, (boxH - 20 * Z) / 0.6f, Mathf.Max(60, PH - 230 * Z) / 0.6f), sh = sw * 0.6f, k = sw / 400;
-        var panel = WebLook.Rounded(area, "Panel", new Color(216 / 255f, 227 / 255f, 240 / 255f), 18 * Z);
-        var pr = panel.rectTransform;
-        pr.anchorMin = pr.anchorMax = pr.pivot = new Vector2(0, 0.5f);
-        pr.anchoredPosition = Vector2.zero;
-        pr.sizeDelta = new Vector2(colW, sh + 20 * Z);
-        var inner = WebLook.Rounded(pr, "Inside", WebLook.Hex("#f3f7fc"), 18 * Z - 1);
-        Hud.Fill(inner.rectTransform);
-        inner.rectTransform.offsetMin = Vector2.one;
-        inner.rectTransform.offsetMax = -Vector2.one;
-        var plan = Hud.At(Hud.Rect(area, "Schematic"), new Vector2(0, 0.5f), new Vector2((colW - sw) / 2, 0), new Vector2(sw, sh));
-        Kit.Picture(plan, "ship-hull", Color.white);
-        var nodeId = n.Id;
-        foreach (var sl in Parts.ShipSlots)
-        {
-            fitted.TryGetValue(sl.Id, out var there);
-            var part = Parts.ShipPart(there);
-            bool lit = pick != null && fits.Contains(sl.Id) && there != pick;
-            var ink = part != null && Kit.RarityInk.TryGetValue(part.Rarity, out var rarity) ? rarity : Kit.RarityInk["dwarf"];
-            if (lit) Kit.Picture(plan, $"ship-{sl.Id}-fill", Kit.SlotLitFill);
-            else if (part != null) Kit.Picture(plan, $"ship-{sl.Id}-fill", ink.fill);
-            if (lit) Kit.Picture(plan, $"ship-{sl.Id}-line", Kit.SlotLitLine);
-            else if (part != null) Kit.Picture(plan, $"ship-{sl.Id}-line", ink.line);
-            else Kit.Picture(plan, $"ship-{sl.Id}-dash", Kit.SlotLine);
-            if (!Kit.SlotBox.TryGetValue(sl.Id, out var bx)) continue;
-            var hit = Hud.At(Hud.Rect(plan, sl.Id), new Vector2(0, 1), new Vector2(bx.x * k, -bx.y * k), new Vector2(bx.z * k, bx.w * k));
-            hit.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0.001f);
-            var slot = sl.Id;
-            hit.gameObject.AddComponent<Button>().onClick.AddListener(() => ArSlot(nodeId, slot));
-        }
-
-        // Every part in the hangar: its picture, its name; fitted, marked so.
-        var grid = Hud.Rect(area, "Parts");
-        grid.anchorMin = new Vector2(0, 0);
-        grid.anchorMax = new Vector2(1, 1);
-        grid.offsetMin = new Vector2(colW + between, 0);
-        grid.offsetMax = Vector2.zero;
-        var owned = Parts.ShipParts.Where(p => have.Contains(p.Id)).ToList();
-        // (.hg-none: 0.85rem faint ink.)
-        if (owned.Count == 0) Hud.Label(grid, "No parts yet.", 0.85f * 16 * Z, Look.InkFaint, false, 400, 0, TextAlignmentOptions.Left);
-        else
-        {
-            // (.hg-parts: columns at least 96 across, 8 apart, padded 2; each part (.hg-part) padded 8 6, its 64 picture,
-            // 4, its name (0.5rem spaced capitals, line-height 1.3), 4, "fitted" (0.6rem faint) if it is aboard; a row as
-            // tall as its tallest.)
-            float gw = areaW - colW - between - 4 * Z, gap = 8 * Z;
-            int cols = Mathf.Max(1, Mathf.FloorToInt((gw + gap) / (96 * Z + gap)));
-            float tw = (gw - gap * (cols - 1)) / cols, ns = 0.5f * 16 * Z, nl = ns * 1.3f, fs = 0.6f * 16 * Z;
-            var probe = WebLook.Words(grid, "", ns, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Top);
-            probe.textWrappingMode = TextWrappingModes.Normal;
-            var nameH = owned.Select(q => Mathf.Max(nl, probe.GetPreferredValues(q.Name.ToUpperInvariant(), tw - 12 * Z, 0).y)).ToList();
-            Mats.Kill(probe.gameObject);
-            float TileH(int i) => (8 + 64 + 4) * Z + nameH[i] + (aboard.Contains(owned[i].Id) ? 4 * Z + fs * 1.2f : 0) + 8 * Z;
-            int rows = (owned.Count + cols - 1) / cols;
-            var rowH = Enumerable.Range(0, rows).Select(r => Enumerable.Range(r * cols, Mathf.Min(cols, owned.Count - r * cols)).Max(TileH)).ToList();
-            float need = rowH.Sum() + (rows - 1) * gap + 4 * Z;
-            var content = Kit.Scroller(grid, Mathf.Max(need, boxH));
-            float top = 2 * Z + Mathf.Max(0, (boxH - need) / 2);
-            for (int i = 0; i < owned.Count; i++)
-            {
-                var p = owned[i];
-                int r = i / cols;
-                float th = rowH[r], y = top + rowH.Take(r).Sum() + r * gap;
-                var spot = new Vector2((i % cols) * (tw + gap) + 2 * Z, -y);
-                if (pick == p.Id)
-                {
-                    // (Picked: ringed 2.5 in gold.)
-                    var ring = Hud.Glass(content, p.Id + " ring", Kit.PickRing, false);
-                    Hud.At((RectTransform)ring.transform, new Vector2(0, 1), spot + new Vector2(-2.5f * Z, 2.5f * Z), new Vector2(tw + 5 * Z, th + 5 * Z));
-                    ring.raycastTarget = false;
-                }
-                var tile = Hud.Glass(content, p.Id, aboard.Contains(p.Id) ? (Color)new Color32(0xf6, 0xf9, 0xfd, 255) : Color.white, false);
-                Hud.At((RectTransform)tile.transform, new Vector2(0, 1), spot, new Vector2(tw, th));
-                var icon = Hud.At(Hud.Rect(tile.transform, "Icon"), new Vector2(0.5f, 1), new Vector2(0, -8 * Z), new Vector2(64 * Z, 64 * Z));
-                var ii = icon.gameObject.AddComponent<RawImage>();
-                ii.texture = Resources.Load<Texture2D>($"Icons/part-{p.Kind}-{p.Rarity}");
-                ii.raycastTarget = false;
-                var nm = WebLook.Words(WebLook.Box(tile.transform, "Name", 6 * Z, (8 + 64 + 4) * Z, tw - 12 * Z, nameH[i] + 2), p.Name.ToUpperInvariant(), ns, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Top);
-                nm.textWrappingMode = TextWrappingModes.Normal;
-                nm.lineSpacing = (1.3f - 1.26f) * 100 / 1.26f;
-                if (aboard.Contains(p.Id))
-                    WebLook.Words(WebLook.Box(tile.transform, "Fitted", 0, (8 + 64 + 4 + 4) * Z + nameH[i], tw, fs * 1.2f), "fitted", fs, 0, Look.InkFaint, false, 400);
-                var b = tile.gameObject.AddComponent<Button>();
-                var id = p.Id;
-                b.onClick.AddListener(() => { Sound.Play("hover"); arPick = arPick == id ? null : id; Station(); });
-                if (used)
-                {
-                    b.interactable = false;
-                    tile.gameObject.AddComponent<CanvasGroup>().alpha = 0.55f;
-                }
-            }
-        }
-
-        var act = ActRow(page, lay);
-        var held = Parts.ShipPart(pick);
-        Kit.Across(act, 14, Kit.Hint(act, used ? "refitted here · one part per station" : held != null ? $"{held.Text} · tap its slot" : have.Count > 0 ? "swap one part · pick it, then its slot" : "no parts in your hangar yet"));
-    }
+    // ---- The ship tab (the Captain's runs): the ship from above in the dock's scene, CampaignView.Dock.cs ----
 
     /// <summary>A part in hand, fitted in this slot (one swap per station); the run's fit kept as the hangar's too.</summary>
     void ArSlot(string nodeId, string slot)
