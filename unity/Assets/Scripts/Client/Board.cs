@@ -508,12 +508,25 @@ public partial class Board : MonoBehaviour
     }
 
     /// <summary>A slot's defence: the shield sign and the number, `size` px, centred where it is placed.</summary>
+    /// <summary>
+    /// A word on an empty slot (its defence, WRECKED, HERE...), drawn under any card on the table: text and a resting
+    /// card's face shared a render queue, where the nearer centre went last, so a slot's number could show through the
+    /// card over it. Its own copy of the font's material is put after the slot's pictures and before cards (never the
+    /// shared material, which every text in the font draws with).
+    /// </summary>
+    static TextMeshPro SlotText(string name, Transform parent, string text, float size, Color color, bool display = true, int weight = 500, float spacing = 0, TextAlignmentOptions align = TextAlignmentOptions.Center)
+    {
+        var t = Mats.FlatText(name, parent, text, size, color, display, weight, spacing, align);
+        t.fontMaterial.renderQueue = 2960;
+        return t;
+    }
+
     static void Defence(Transform parent, string text, Vector3 at, Color c, float size, int weight = 400)
     {
         // (Measured at a card 87 px wide: as many card widths at this size.)
         float k = 87f / L.Tcw;
         var mark = Picture("Shield", parent, Resources.Load<Texture2D>("Icons/bt-shield"), c, size * 0.00823f * k, size * 0.00862f * k, 2935, 0.002f);
-        var t = Mats.FlatText("Defence", parent, text, size * 0.1149f * k, c, true, weight, 8, TextAlignmentOptions.Left);
+        var t = SlotText("Defence", parent, text, size * 0.1149f * k, c, true, weight, 8, TextAlignmentOptions.Left);
         t.rectTransform.sizeDelta = new Vector2(1, 0.3f);
         // (The sign's advance, then the number; the pair centred.)
         float adv = size * 0.0101f * k, w = adv + t.GetPreferredValues(text).x;
@@ -581,7 +594,7 @@ public partial class Board : MonoBehaviour
         if (look.Wrecked)
         {
             // (.slot-wrecked small: no defence, "wrecked" in #b5503a, 0.45rem, spaced 0.18em.)
-            var w = Mats.FlatText("Wrecked", plain, "WRECKED", Px(7.2f), Rgba(181, 80, 58), true, 400, 18);
+            var w = SlotText("Wrecked", plain, "WRECKED", Px(7.2f), Rgba(181, 80, 58), true, 400, 18);
             w.transform.localPosition = new Vector3(0, 0.002f, 0);
         }
         else if (s < 0)
@@ -591,11 +604,11 @@ public partial class Board : MonoBehaviour
             var col = look.Wounded ? Rgba(232, 138, 128) : ink;
             if (look.Wounded)
             {
-                var cross = Mats.FlatText("Cross", plain, "✚", Px(size), col, true, 400, 8);
+                var cross = SlotText("Cross", plain, "✚", Px(size), col, true, 400, 8);
                 cross.transform.localPosition = new Vector3(0, 0.002f, 0.059f);
             }
             else Defence(plain, def, new Vector3(0, 0, 0.059f), ink, size, weight);
-            var hero = Mats.FlatText("Hero", plain, look.Wounded ? "WOUNDED" : "HERO", Px(Mathf.Max(6, L.Tcw * 0.075f)), new Color(col.r, col.g, col.b, col.a * 0.8f), true, 400, 20);
+            var hero = SlotText("Hero", plain, look.Wounded ? "WOUNDED" : "HERO", Px(Mathf.Max(6, L.Tcw * 0.075f)), new Color(col.r, col.g, col.b, col.a * 0.8f), true, 400, 20);
             hero.transform.localPosition = new Vector3(0, 0.002f, -0.102f);
         }
         else Defence(plain, def, Vector3.zero, ink, size, weight);
@@ -608,7 +621,7 @@ public partial class Board : MonoBehaviour
             // (The two lines centred together, 2 px apart.)
             float top = (defH + 2 + hereH) / 2;
             Defence(choose, def, new Vector3(0, 0, (top - defH / 2) * k), coral, size, weight);
-            var here = Mats.FlatText("Here", choose, "HERE", Px(hereSize), coral, true, 400, 20);
+            var here = SlotText("Here", choose, "HERE", Px(hereSize), coral, true, 400, 20);
             here.transform.localPosition = new Vector3(0, 0.002f, -(top - hereH / 2) * k);
             slotWords[key] = here;
             if (look.Rooms != null) RoomRow(choose, look.Rooms);
@@ -643,7 +656,7 @@ public partial class Board : MonoBehaviour
             int n = int.Parse(items[i][1]);
             if (n <= 0) continue;
             float size = 0.07f * L.Tcw;
-            var count = Mats.FlatText("Amount", parent, n.ToString(), Px(size), Look.Ink, true, 400, 0, TextAlignmentOptions.Right);
+            var count = SlotText("Amount", parent, n.ToString(), Px(size), Look.Ink, true, 400, 0, TextAlignmentOptions.Right);
             count.rectTransform.sizeDelta = new Vector2(1, size * 1.25f * px);
             count.rectTransform.pivot = new Vector2(1, 0.5f);
             count.transform.localPosition = new Vector3(cx + bd / 2 + 3 * px, 0.004f, cz - bd / 2 - 3 * px + size * 1.25f * px / 2);
@@ -680,7 +693,7 @@ public partial class Board : MonoBehaviour
         float top = (markH + 2 + wordH) / 2;
         var mark = Picture("Trap", choose, trap, coral, s, s, 2935, 0.002f);
         mark.transform.localPosition = new Vector3(0, 0.002f, (top - markH / 2) * k);
-        var word = Mats.FlatText("Here", choose, "TRAP +1", Px(wordSize), coral, true, 400, 20);
+        var word = SlotText("Here", choose, "TRAP +1", Px(wordSize), coral, true, 400, 20);
         word.transform.localPosition = new Vector3(0, 0.002f, -(top - wordH / 2) * k);
         choose.gameObject.SetActive(false);
         slotLooks[TrapKey] = (plain.gameObject, choose.gameObject);
