@@ -595,7 +595,8 @@ public partial class CampaignView : MonoBehaviour
         string under = null;
         if (still && !overUi && Input.mousePresent && Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var over, 200)) under = over.collider.GetComponent<NodeTag>()?.Id;
         // (A star come under the pointer chimes, each its own note: campaign.ts setHovered. A finger's touch is a tap, not a hover.)
-        if (under != null && under != hovered && Input.touchCount == 0) Sound.StarHover(Sound.SeedOf(under));
+        // (Nor for a system of yours: taken, or its station used.)
+        if (under != null && under != hovered && Input.touchCount == 0 && !Yours(under)) Sound.StarHover(Sound.SeedOf(under));
         hovered = under;
         // The boosters, heard while a ship is under way on the map (nebula3d.ts onThrust).
         Sound.Thrust(Application.isPlaying && ShipsMoving());
@@ -873,11 +874,19 @@ public partial class CampaignView : MonoBehaviour
         return true;
     }
 
+    /// <summary>A system of yours: taken, or its station used (as the map rings it).</summary>
+    bool Yours(string id)
+    {
+        var n = Campaign.NodeById(state, id);
+        return n != null && (n.Owner == state.PlayerId || StationUser(n, state.PlayerId) == state.PlayerId);
+    }
+
     /// <summary>The ship has made its move and nothing waits on you: the turn is spent.</summary>
     bool MoveSpent()
     {
         var s = state;
-        if (s == null || s.Phase != "player" || s.Battle != null || s.Struggle != null || s.Beaten != null || s.Dream != null || s.Conquest != null || s.Loot != null || s.CardRewards.Count > 0 || s.Boon != null || s.Winner != null) return false;
+        // (Someone alongside waits on an answer first: time moves on once they have it.)
+        if (s == null || s.Phase != "player" || s.Battle != null || s.Encounter != null || s.Struggle != null || s.Beaten != null || s.Dream != null || s.Conquest != null || s.Loot != null || s.CardRewards.Count > 0 || s.Boon != null || s.Winner != null) return false;
         var a = Campaign.Flagship(s, s.PlayerId);
         return a != null && Campaign.ArmyMoves(s, a).Count == 0;
     }

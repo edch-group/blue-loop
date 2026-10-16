@@ -902,7 +902,8 @@ export class CampaignView {
   /** The flagship has made its move and nothing is waiting on the player: the turn is spent. */
   private moveSpent(): boolean {
     const s = this.state;
-    if (!s || s.phase !== 'player' || s.battle || s.struggle || s.beaten || s.dream || s.conquest || s.loot || s.cardRewards.length || s.boon || s.winner) return false;
+    // (Someone alongside waits on an answer first: time moves on once they have it.)
+    if (!s || s.phase !== 'player' || s.battle || s.encounter || s.struggle || s.beaten || s.dream || s.conquest || s.loot || s.cardRewards.length || s.boon || s.winner) return false;
     const a = flagship(s, s.playerId);
     // (Moved, or with nowhere to go at all: there is no waiting, so time moves on by itself.)
     return !!a && armyMoves(s, a).length === 0;
@@ -3763,8 +3764,10 @@ export class CampaignView {
     if (id === this.hoveredStar) return;
     this.hoveredStar = id;
     this.nebula?.hover(id);
-    // (A finger's touch is a tap, not a hover: no chime for it.)
-    if (id && pointer !== 'touch') sound.starHover(parseFloat(seedOf(id)) || 0);
+    // (A finger's touch is a tap, not a hover: no chime for it. Nor for a system of yours: taken, or its station used.)
+    const n = id && this.state ? nodeById(this.state, id) : undefined;
+    const yours = !!n && this.state && (n.owner === this.state.playerId || stationUser(n, this.state.playerId) === this.state.playerId);
+    if (id && pointer !== 'touch' && !yours) sound.starHover(parseFloat(seedOf(id)) || 0);
   }
 
   private onWheel(e: WheelEvent) {

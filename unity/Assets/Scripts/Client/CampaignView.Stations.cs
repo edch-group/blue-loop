@@ -98,6 +98,8 @@ public partial class CampaignView
     void LeaveStation()
     {
         CloseSheet();
+        // (The map drawn afresh: a station used, its research taken or its dock traded at, now shows as yours.)
+        Map();
         Refresh();
     }
 
