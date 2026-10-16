@@ -21,12 +21,29 @@ public static class DebugDump
         if (depth < 4) foreach (Transform c in t) Walk(c, depth + 1, sb);
     }
 
+    static string Props(Material m)
+    {
+        var sb = new StringBuilder();
+        foreach (var p in new[] { "_ScaleRatioA", "_FaceDilate", "_OutlineSoftness", "_OutlineWidth", "_Sharpness", "_GradientScale", "_WeightNormal", "_UnderlaySoftness" })
+            if (m.HasProperty(p)) sb.Append($" {p.Substring(1)}={m.GetFloat(p):0.###}");
+        sb.Append($" kw=[{string.Join(",", m.shaderKeywords)}]");
+        return sb.ToString();
+    }
+
     static string Describe(Transform t)
     {
         var sb = new StringBuilder($"{t.GetSiblingIndex()}:{t.name} active={t.gameObject.activeInHierarchy} layer={t.gameObject.layer} scale={t.localScale.x:0.##}");
         var g = t.GetComponent<Graphic>();
         if (g != null) sb.Append($" {g.GetType().Name} color={g.color} mat={(g.material != null ? g.material.name + "/" + g.material.shader.name : "null")} enabled={g.enabled}");
-        if (g is TMP_Text tx) sb.Append($" text='{tx.text}' alpha={tx.alpha} font={tx.font?.name} verts={tx.textInfo?.characterCount}");
+        if (g is TMP_Text tx)
+        {
+            sb.Append($" text='{tx.text}' alpha={tx.alpha} font={tx.font?.name} chars={tx.textInfo?.characterCount}");
+            var m = tx.fontSharedMaterial;
+            if (m != null) sb.Append($" shared={m.name}/{m.shader?.name} id={m.GetInstanceID()}{Props(m)}");
+            var crm = t.GetComponent<CanvasRenderer>();
+            if (crm != null && crm.materialCount > 0 && crm.GetMaterial(0) != null) { var rm = crm.GetMaterial(0); sb.Append($" drawn={rm.name}/{rm.shader?.name}{Props(rm)}"); }
+            sb.Append($" lossy={t.lossyScale.y:0.#####}");
+        }
         var cr = t.GetComponent<CanvasRenderer>();
         if (cr != null) sb.Append($" crAlpha={cr.GetAlpha()} inherited={cr.GetInheritedAlpha()} cull={cr.cull}");
         var cg = t.GetComponent<CanvasGroup>();

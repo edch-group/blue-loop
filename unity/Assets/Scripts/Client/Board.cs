@@ -266,7 +266,7 @@ public partial class Board : MonoBehaviour
         }
         if (page == null)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            var go = Mats.Quad();
             Mats.Kill(go.GetComponent<Collider>());
             go.name = "Page";
             go.transform.SetParent(Cam.transform, false);

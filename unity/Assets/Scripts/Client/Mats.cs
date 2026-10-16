@@ -19,10 +19,33 @@ public static class Mats
         else Object.DestroyImmediate(o);
     }
 
+    static Mesh quad;
+
+    /// <summary>
+    /// A quad as GameObject.CreatePrimitive makes one (1 x 1 about its middle, facing -z, its texture the right way up),
+    /// without the MeshCollider CreatePrimitive adds: that class is stripped from the web build, which says so in the log.
+    /// </summary>
+    public static GameObject Quad(string name = "Quad")
+    {
+        if (quad == null)
+        {
+            quad = new Mesh { name = "Quad" };
+            quad.vertices = new[] { new Vector3(-0.5f, -0.5f, 0), new Vector3(0.5f, -0.5f, 0), new Vector3(-0.5f, 0.5f, 0), new Vector3(0.5f, 0.5f, 0) };
+            quad.uv = new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1), new Vector2(1, 1) };
+            quad.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
+            quad.triangles = new[] { 0, 3, 1, 3, 0, 2 };
+            quad.RecalculateBounds();
+        }
+        var go = new GameObject(name);
+        go.AddComponent<MeshFilter>().sharedMesh = quad;
+        go.AddComponent<MeshRenderer>();
+        return go;
+    }
+
     /// <summary>A quad lying flat (facing up), `w` wide and `h` deep, its top edge away from the viewer.</summary>
     public static MeshRenderer Flat(string name, Transform parent, Material m, float w, float h, float lift = 0)
     {
-        var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        var go = Quad();
         Kill(go.GetComponent<Collider>());
         go.name = name;
         go.transform.SetParent(parent, false);

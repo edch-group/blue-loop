@@ -691,7 +691,7 @@ public partial class CampaignView
             return;
         }
         if (darkness != null) return;
-        var q = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        var q = Mats.Quad();
         Mats.Kill(q.GetComponent<Collider>());
         q.name = "Darkness";
         darkness = q.transform;

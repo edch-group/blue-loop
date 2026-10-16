@@ -525,7 +525,7 @@ public partial class CampaignView : MonoBehaviour
         {
             // (A quad in the sign's plane in the project's own Card shader: a SpriteRenderer's default shader isn't in
             // the web build, and drew as magenta.)
-            var gl = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            var gl = Mats.Quad();
             gl.name = "Galaxy glyph";
             Mats.Kill(gl.GetComponent<Collider>());
             gl.transform.SetParent(sign, false);
