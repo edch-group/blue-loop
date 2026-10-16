@@ -50,10 +50,13 @@ const page = await browser.newPage();
 page.on('pageerror', (e) => console.error('page:', e.message));
 await page.goto('http://localhost:5199/bake/index.html');
 await page.waitForFunction(() => window.ready === true);
-const encode = (name, b64, quality) => {
+// (`loops`: a track the game loops, made a whole number of 1024-sample blocks long (scripts/loop-align.py), so the web
+// build's AAC pads nothing after its end, which clicked each time round.)
+const encode = (name, b64, quality, loops = false) => {
   const wavPath = `${tmp}/${name}.wav`;
   writeFileSync(wavPath, Buffer.from(b64, 'base64'));
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', wavPath, '-c:a', 'libvorbis', '-q:a', String(quality), `${out}/${name}.ogg`]);
+  if (loops) execFileSync('python3', ['-I', 'scripts/loop-align.py', wavPath, `${out}/${name}.ogg`, String(quality)]);
+  else execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', wavPath, '-c:a', 'libvorbis', '-q:a', String(quality), `${out}/${name}.ogg`]);
   rmSync(wavPath);
 };
 // (VOICES_ONLY=1: just the heroes' lines, leaving the effects and scores as they are; SCORES_ONLY=1: just the scores;
@@ -77,7 +80,7 @@ if (some) {
 // The boosters' thrust while a ship is under way (sound.ts thrust), as a loop: twenty seconds once settled, a whole
 // number of every cycle in it (the noise's two seconds, the wander's 0.35 Hz, the flutter's 6.5, the hum's 43.65 and
 // 44.2), so it loops without a seam. The game swells it in and lets it die away as the web's does.
-if (!only && !scoresOnly) encode('thrust', await page.evaluate(() => window.bakeLoop('thrust', [true], 6, 20)), 5);
+if (!only && !scoresOnly) encode('thrust', await page.evaluate(() => window.bakeLoop('thrust', [true], 6, 20)), 5, true);
 // Each score twice: its first pass from silence (the intro, played once) and its pass folded to loop seamlessly after it;
 // and that pass backwards (Time Dense Space, sound.ts setReverse: the loop rendered and played back to front). With
 // each, the chords it sounds when (Sound/chords.json), for the star chime. (SCORES_ENCODE=a,b: only those scenes'
@@ -92,11 +95,13 @@ for (const [scene, loop] of only ? [] : scores) {
   if (fresh) encode(`music-${scene}-intro`, intro, 4);
   const pass = await page.evaluate(([s, l]) => window.bakeScore(s, l), [scene, loop]);
   chords[`music-${scene}`] = { loop, at: await page.evaluate(() => window.bakeChords) };
-  if (fresh) encode(`music-${scene}`, pass, 4);
-  const wavPath = `${tmp}/reverse.wav`;
+  if (fresh) encode(`music-${scene}`, pass, 4, true);
+  const wavPath = `${tmp}/reverse.wav`, backPath = `${tmp}/reverse-back.wav`;
   writeFileSync(wavPath, Buffer.from(pass, 'base64'));
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', wavPath, '-af', 'areverse', '-c:a', 'libvorbis', '-q:a', '4', `${out}/music-${scene}-reverse.ogg`]);
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', wavPath, '-af', 'areverse', backPath]);
+  execFileSync('python3', ['-I', 'scripts/loop-align.py', backPath, `${out}/music-${scene}-reverse.ogg`, '4']);
   rmSync(wavPath);
+  rmSync(backPath);
 }
 if (!only) writeFileSync(`${out}/chords.json`, JSON.stringify(chords));
 if (scoresOnly) {

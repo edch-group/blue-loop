@@ -37,6 +37,31 @@
     <p>turn your device sideways to play</p>
     <small>screen not turning? switch off rotation lock</small>
   </div></div>
+  <script>
+    // The web game's last stages for everything heard (sound.ts build): its master at 0.8, then a gentle limiter
+    // (threshold -14 dB, ratio 3) "so swells never clip". The game's own sounds each go straight to the speakers; here
+    // whatever would reach them goes through these first. (The game's filter can't run in the browser.)
+    (() => {
+      const connect = AudioNode.prototype.connect;
+      const chains = new WeakMap();
+      AudioNode.prototype.connect = function (dest, ...rest) {
+        const ctx = this.context;
+        if (!ctx || dest !== ctx.destination) return connect.call(this, dest, ...rest);
+        let master = chains.get(ctx);
+        if (!master) {
+          master = ctx.createGain();
+          master.gain.value = 0.8;
+          const comp = ctx.createDynamicsCompressor();
+          comp.threshold.value = -14;
+          comp.ratio.value = 3;
+          connect.call(master, comp);
+          connect.call(comp, ctx.destination);
+          chains.set(ctx, master);
+        }
+        return connect.call(this, master, ...rest);
+      };
+    })();
+  </script>
   <script src="Build/{{{ LOADER_FILENAME }}}"></script>
   <script>
     const bar = document.querySelector('#loading i');

@@ -24,8 +24,14 @@ public class Sound : MonoBehaviour
     readonly List<AudioSource> voices = new List<AudioSource>();
     /// <summary>The score sounding (A) and the one fading out behind it (B).</summary>
     AudioSource musicA, musicB;
-    /// <summary>The loop to go on with once the score's first pass (its intro) has played.</summary>
-    AudioClip afterIntro;
+    /// <summary>
+    /// Each score's looping pass, beside its intro (musicA's, musicB's): set going with the intro, timed to come in on the
+    /// very sample the intro ends (as the web's is, scheduled on the audio clock), not swapped in on a frame's tick, which
+    /// cut the intro short by up to a frame: a click.
+    /// </summary>
+    AudioSource loopA, loopB;
+    /// <summary>When the front score started (unscaled seconds), and its intro's length (0: none): which pass is sounding.</summary>
+    float startedAt, introLength;
     /// <summary>The score the screen wants, and whether it runs backwards (Time Dense Space).</summary>
     string scene;
     bool reversed;
@@ -74,7 +80,9 @@ public class Sound : MonoBehaviour
         instance.sources.transform.SetParent(go.transform, false);
         instance.musicA = instance.sources.AddComponent<AudioSource>();
         instance.musicB = instance.sources.AddComponent<AudioSource>();
-        foreach (var m in new[] { instance.musicA, instance.musicB })
+        instance.loopA = instance.sources.AddComponent<AudioSource>();
+        instance.loopB = instance.sources.AddComponent<AudioSource>();
+        foreach (var m in new[] { instance.musicA, instance.musicB, instance.loopA, instance.loopB })
         {
             m.loop = true;
             m.playOnAwake = false;
@@ -209,16 +217,19 @@ public class Sound : MonoBehaviour
     void HearChord()
     {
         if (!playing || reversed || musicA.clip == null || !musicA.isPlaying) return;
+        // (The pass sounding: the intro until its end, then the loop, round and round.)
+        var front = introLength > 0 && Time.unscaledTime - startedAt >= introLength ? loopA : musicA;
+        if (front.clip == null) return;
         if (chordMap == null)
         {
             var text = Resources.Load<TextAsset>("Sound/chords")?.text;
             try { chordMap = text != null ? Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, Chords>>(text) : new Dictionary<string, Chords>(); }
             catch { chordMap = new Dictionary<string, Chords>(); }
         }
-        if (!chordMap.TryGetValue(musicA.clip.name, out var c) || c.at == null || c.at.Count == 0) return;
-        float t = musicA.time;
+        if (!chordMap.TryGetValue(front.clip.name, out var c) || c.at == null || c.at.Count == 0) return;
+        float t = front == loopA ? (Time.unscaledTime - startedAt - introLength) % Mathf.Max(0.01f, front.clip.length) : musicA.time;
         // (Before a pass's first chord: the last of the pass before, round the loop; a first pass from silence keeps what was.)
-        List<object> now = musicA.loop ? c.at[c.at.Count - 1] : null;
+        List<object> now = front.loop ? c.at[c.at.Count - 1] : null;
         foreach (var e in c.at)
         {
             if (System.Convert.ToSingle(e[0]) > t) break;
@@ -326,12 +337,24 @@ public class Sound : MonoBehaviour
         if (clip == null) return;
         // (In front, from silence: the last one has gone to the back to fade, stopMusic.)
         var intro = reversed ? null : Clip("music-" + scene + "-intro");
-        afterIntro = intro != null ? clip : null;
         musicA.clip = intro ?? clip;
         musicA.loop = intro == null;
         musicA.volume = 0;
         musicA.time = 0;
         musicA.Play();
+        introLength = 0;
+        if (intro != null)
+        {
+            // (The loop, on the audio clock, from the intro's last sample: its length as made, any padding the encoder
+            // put after its end overlapping the loop's start, silent.)
+            introLength = intro.samples / (float)intro.frequency;
+            loopA.clip = clip;
+            loopA.loop = true;
+            loopA.volume = 0;
+            loopA.time = 0;
+            loopA.PlayDelayed(introLength);
+        }
+        startedAt = Time.unscaledTime;
         playing = true;
         // (sound.ts faders: the battle theme in over 3 s, the ambient over 6, the voyage's, the boss's and a reversed score at once.)
         fadeIn = reversed ? 0.05f : scene == "battle" ? 3 : scene == "ambient" ? 6 : 0.05f;
@@ -343,25 +366,28 @@ public class Sound : MonoBehaviour
     void StopMusic(bool now)
     {
         if (!playing && !now) return;
-        afterIntro = null;
         playing = false;
         tones = Pentatonic;
         if (now)
         {
             musicA.Stop();
             musicB.Stop();
+            loopA.Stop();
+            loopB.Stop();
             outAt = -10;
             return;
         }
         // (The front one goes to the back to fade; whatever was fading there already is let go.)
         musicB.Stop();
+        loopB.Stop();
         (musicA, musicB) = (musicB, musicA);
+        (loopA, loopB) = (loopB, loopA);
         BeginFadeOut();
     }
 
     void BeginFadeOut()
     {
-        outFrom = Mathf.Max(musicB.volume, 0.0001f);
+        outFrom = Mathf.Max(Mathf.Max(musicB.volume, loopB.volume), 0.0001f);
         outAt = Time.unscaledTime;
     }
 
@@ -388,28 +414,20 @@ public class Sound : MonoBehaviour
             unlocked = true;
             StartMusic();
         }
-        // (The intro over: the loop, from its start, without a break.)
-        if (afterIntro != null && musicA.clip != afterIntro && (!musicA.isPlaying || musicA.time >= musicA.clip.length - Time.unscaledDeltaTime))
-        {
-            musicA.clip = afterIntro;
-            musicA.loop = true;
-            musicA.time = 0;
-            musicA.Play();
-            afterIntro = null;
-        }
         // (Each fader's ramp: in, exponentially from silence to the level baked in; out, down to silence over 2 s.)
-        if (playing && musicA.isPlaying)
+        if (playing)
         {
             float k = Mathf.Clamp01((Time.unscaledTime - fadeAt) / Mathf.Max(0.05f, fadeIn));
-            musicA.volume = fadeFrom * Mathf.Pow(1 / fadeFrom, k);
+            musicA.volume = loopA.volume = fadeFrom * Mathf.Pow(1 / fadeFrom, k);
         }
-        if (musicB.isPlaying && outAt >= 0)
+        if ((musicB.isPlaying || loopB.isPlaying) && outAt >= 0)
         {
             float t = Time.unscaledTime - outAt;
-            musicB.volume = t >= 2 ? 0 : outFrom * Mathf.Pow(0.0001f / outFrom, t / 2);
+            musicB.volume = loopB.volume = t >= 2 ? 0 : outFrom * Mathf.Pow(0.0001f / outFrom, t / 2);
             if (t >= 2.2f)
             {
                 musicB.Stop();
+                loopB.Stop();
                 outAt = -10;
             }
         }
@@ -428,8 +446,9 @@ public class Sound : MonoBehaviour
     GameObject sources;
 
     /// <summary>
-    /// A gentle peak limiter on everything heard (sound.ts build: "so swells never clip"): above 0.9 the gain comes down
-    /// at once, and recovers over a quarter second. (Not in the browser build, which can't filter its output.)
+    /// The master (sound.ts build: 0.8) and a gentle peak limiter on everything heard ("so swells never clip"): above 0.9
+    /// the gain comes down at once, and recovers over a quarter second. (Not in the browser build, which can't filter its
+    /// output: its page puts the web's own master and limiter after the game's sound, WebGLTemplates/Fill.)
     /// </summary>
     class Limiter : MonoBehaviour
     {
@@ -441,7 +460,7 @@ public class Sound : MonoBehaviour
             for (int i = 0; i < data.Length; i += channels)
             {
                 float peak = 0;
-                for (int c = 0; c < channels; c++) peak = Mathf.Max(peak, Mathf.Abs(data[i + c]));
+                for (int c = 0; c < channels; c++) peak = Mathf.Max(peak, Mathf.Abs(data[i + c] *= 0.8f));
                 float want = peak > ceiling ? ceiling / peak : 1;
                 gain = want < gain ? want : want - (want - gain) * release;
                 for (int c = 0; c < channels; c++) data[i + c] *= gain;
