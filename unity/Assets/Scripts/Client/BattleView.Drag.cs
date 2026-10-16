@@ -268,11 +268,12 @@ public partial class BattleView
     {
         var d = drag;
         var a = attackDrag;
+        // (Where it lands, read while the drag is still on: a surge's aim looks for its targets only while it aims.)
+        var drop = d != null && (d.Ghost != null || d.Beam != null) ? DropAt(Input.mousePosition) : null;
         drag = null;
         attackDrag = null;
         if (d != null && (d.Ghost != null || d.Beam != null))
         {
-            var drop = DropAt(Input.mousePosition);
             var page = Page(Input.mousePosition);
             if (d.Ghost != null) Destroy(d.Ghost.transform.parent.gameObject);
             if (d.Beam != null) Destroy(d.Beam.gameObject);

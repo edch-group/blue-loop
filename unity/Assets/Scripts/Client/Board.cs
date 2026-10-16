@@ -765,21 +765,22 @@ public partial class Board : MonoBehaviour
 
     /// <summary>
     /// A sun that can be chosen (.vitals-choosable .vit::after): a plain red ring round the sun itself, like a card you
-    /// can choose, drawn flat over it (its shaders untouched); none, put away.
+    /// can choose, drawn flat over it (its shaders untouched); a surge dragged onto it (.vitals.drop-over) or an attack
+    /// dragged over it (.vitals.aim-over), the bolder ring of a target under the pointer; none, put away.
     /// </summary>
-    void SunRing(string playerId, bool mine, bool on)
+    void SunRing(string playerId, bool mine, SunRing.Look? look)
     {
         sunRings.TryGetValue(playerId, out var ring);
-        if (!on)
+        if (look == null)
         {
             if (ring != null && ring.Go.activeSelf) ring.Go.SetActive(false);
             return;
         }
         float vs = L.Vs;
-        if (ring == null || ring.Go == null || Mathf.Abs(ring.Vs - vs) > 0.01f)
+        if (ring == null || ring.Go == null || Mathf.Abs(ring.Vs - vs) > 0.01f || ring.Kind != look.Value)
         {
             if (ring?.Go != null) Mats.Kill(ring.Go);
-            ring = new SunRing(table, vs);
+            ring = new SunRing(table, vs, look.Value);
             sunRings[playerId] = ring;
         }
         ring.Go.transform.localPosition = L.At(L.WrapLeft + 0.58f * vs, (mine ? L.MyRowCy : L.RivalRowCy) - 0.08f * vs) + new Vector3(0, 0.004f, 0);
@@ -846,7 +847,7 @@ public partial class Board : MonoBehaviour
             if (sunHold.TryGetValue(p.Id, out var sh) && Time.time < sh.until) sunView.Show(sh.s, sh.p);
             else sunView.Show(s, p);
             sunView.Face(Cam);
-            SunRing(p.Id, mine, ui.SunChoosable(p.Id));
+            SunRing(p.Id, mine, ui.SunLook(p.Id));
         }
         Hand(me, ui, seen);
         foreach (var uid in cards.Keys.Where(k => !seen.Contains(k)).ToList())
@@ -1320,6 +1321,8 @@ public partial class Board : MonoBehaviour
             if (mine)
                 foreach (var c in p.Hand)
                     if (cards.TryGetValue(c.Uid, out var v) && v != null) ui.Dress(v, p, c, false);
+            // (Its sun's ring too: a drag over it lights it, .vitals.drop-over and .aim-over.)
+            if (p.Boss == null && suns.ContainsKey(p.Id)) SunRing(p.Id, mine, ui.SunLook(p.Id));
         }
     }
 
@@ -1451,32 +1454,43 @@ public partial class Board : MonoBehaviour
 /// styles.css .vitals-choosable .vit::after: a circle 2% in from the sun's box, a 3 px border rgba(216,69,43,0.85), and
 /// round it a 2 px white ring and a red glow (0 0 18px rgba(216,69,43,0.45)), throbbing (aim-throb, 1.4 s ease-in-out,
 /// endless: half way, the white ring and the glow give way to a glow of 0 0 14px rgba(216,69,43,0.9)). Its two
-/// shadows' looks drawn each once and crossfaded; the border over them.
+/// shadows' looks drawn each once and crossfaded; the border over them. A target under the pointer, bolder:
+/// .vitals.drop-over .vit::after (a surge dragged onto it: a 4 px border rgba(216,69,43,0.9), the white ring and a
+/// glow of 0 0 30px rgba(224,69,43,0.8), still) and .vitals.aim-over .vit::after (an attack dragged over it: the
+/// choosable ring with a 4 px border, the white ring and that 30 px glow, throbbing still).
 /// </summary>
 public class SunRing
 {
+    public enum Look { Choosable, Drop, AimOver }
     public readonly GameObject Go;
     public readonly float Vs;
+    public readonly Look Kind;
     public float Since;
     readonly MeshRenderer rest, peak;
     static readonly Dictionary<string, Texture2D> made = new Dictionary<string, Texture2D>();
 
-    public SunRing(Transform table, float vs)
+    public SunRing(Transform table, float vs, Look look = Look.Choosable)
     {
         Vs = vs;
+        Kind = look;
         Go = new GameObject("Sun ring");
         Go.transform.SetParent(table, false);
-        float r = 0.48f * vs, R = r + 30;
+        bool bold = look != Look.Choosable;
+        float r = 0.48f * vs, R = r + (bold ? 50 : 30);
         float size = BoardLayout.Current.U(2 * R);
-        rest = Board.Picture("Rest", Go.transform, Ring(r, R, 0), Color.white, size, size, 2965, 0.001f);
-        peak = Board.Picture("Peak", Go.transform, Ring(r, R, 1), Color.white, size, size, 2966, 0.0012f);
-        Board.Picture("Border", Go.transform, Ring(r, R, 2), Color.white, size, size, 2967, 0.0014f);
+        var red = new Color(216 / 255f, 69 / 255f, 43 / 255f);
+        var glowRed = bold ? new Color(224 / 255f, 69 / 255f, 43 / 255f) : red;
+        float blur = bold ? 30 : 18, glowA = bold ? 0.8f : 0.45f, border = bold ? 4 : 3, borderA = look == Look.Drop ? 0.9f : 0.85f;
+        rest = Board.Picture("Rest", Go.transform, Ring(r, R, 0, glowRed, blur, glowA), Color.white, size, size, 2965, 0.001f);
+        // (Dropped onto, it holds still: no throb.)
+        if (look != Look.Drop) peak = Board.Picture("Peak", Go.transform, Ring(r, R, 1, red, 14, 0.9f), Color.white, size, size, 2966, 0.0012f);
+        Board.Picture("Border", Go.transform, Ring(r, R, 2, red, border, borderA), Color.white, size, size, 2967, 0.0014f);
         Throb();
     }
 
     public void Throb()
     {
-        if (Go == null || !Go.activeSelf) return;
+        if (Go == null || !Go.activeSelf || peak == null) return;
         float t = Mathf.Repeat(Time.time - Since, 1.4f) / 1.4f;
         float k = t < 0.5f ? BattleView.CubicBezier(0.42f, 0, 0.58f, 1, t / 0.5f) : 1 - BattleView.CubicBezier(0.42f, 0, 0.58f, 1, (t - 0.5f) / 0.5f);
         rest.sharedMaterial.color = new Color(1, 1, 1, 1 - k);
@@ -1485,17 +1499,17 @@ public class SunRing
 
     /// <summary>
     /// One layer, a picture 2 `R` CSS px across round the circle of radius `r` (3 texels a pixel): 0, its shadows at
-    /// rest (the glow under the white ring); 1, half way (the 14 px glow); 2, the border.
+    /// rest (the white ring and under it a glow of `c0`, `w` px blur, alpha `a0`); 1, half way (that glow alone); 2, the
+    /// border (`w` px inside the circle, alpha `a0`).
     /// </summary>
-    static Texture2D Ring(float r, float R, int layer)
+    static Texture2D Ring(float r, float R, int layer, Color c0, float w, float a0)
     {
-        string key = $"{r:0.00} {layer}";
+        string key = $"{r:0.00} {R:0.0} {layer} {w:0.0} {a0:0.00} {c0}";
         if (made.TryGetValue(key, out var t)) return t;
         const float k = 3;
         int n = Mathf.CeilToInt(2 * R * k);
         t = new Texture2D(n, n, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear };
         var px = new Color[n * n];
-        var red = new Color(216 / 255f, 69 / 255f, 43 / 255f);
         // (A box-shadow's blur is a Gaussian of half its length; outside the circle only.)
         float Glow(float d, float blur) => d <= r ? 0 : 0.5f * Erfc((d - r) / (blur / 2 * Mathf.Sqrt(2)));
         for (int y = 0; y < n; y++)
@@ -1503,13 +1517,13 @@ public class SunRing
             {
                 float d = new Vector2((x + 0.5f) / k - R, (y + 0.5f) / k - R).magnitude, aa = 0.5f / k;
                 Color c;
-                if (layer == 2) c = new Color(red.r, red.g, red.b, 0.85f * Mathf.Clamp01(Mathf.Min(d - (r - 3) + aa, r - d + aa) / (2 * aa)));
-                else if (layer == 1) c = new Color(red.r, red.g, red.b, 0.9f * Glow(d, 14));
+                if (layer == 2) c = new Color(c0.r, c0.g, c0.b, a0 * Mathf.Clamp01(Mathf.Min(d - (r - w) + aa, r - d + aa) / (2 * aa)));
+                else if (layer == 1) c = new Color(c0.r, c0.g, c0.b, a0 * Glow(d, w));
                 else
                 {
-                    float glow = 0.45f * Glow(d, 18), white = Mathf.Clamp01(Mathf.Min(d - r + aa, r + 2 - d + aa) / (2 * aa));
+                    float glow = a0 * Glow(d, w), white = Mathf.Clamp01(Mathf.Min(d - r + aa, r + 2 - d + aa) / (2 * aa));
                     float a = white + glow * (1 - white);
-                    c = a <= 0 ? new Color(1, 1, 1, 0) : new Color(Mathf.Lerp(red.r, 1, white / a), Mathf.Lerp(red.g, 1, white / a), Mathf.Lerp(red.b, 1, white / a), a);
+                    c = a <= 0 ? new Color(1, 1, 1, 0) : new Color(Mathf.Lerp(c0.r, 1, white / a), Mathf.Lerp(c0.g, 1, white / a), Mathf.Lerp(c0.b, 1, white / a), a);
                 }
                 px[y * n + x] = c;
             }

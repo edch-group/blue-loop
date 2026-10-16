@@ -66,6 +66,18 @@ public partial class BattleView
     public bool SunChoosable(string playerId) => state != null && state.WinnerId == null && !Autoplay && SunAct(playerId).act != null;
 
     /// <summary>
+    /// The ring a sun wears now, if any: a surge dragged onto the rival's (.vitals.drop-over), an attack dragged over it
+    /// (.vitals.aim-over on .vitals-choosable), or one that can be chosen (.vitals-choosable).
+    /// </summary>
+    public SunRing.Look? SunLook(string playerId)
+    {
+        if (playerId != you && dropSun) return SunRing.Look.Drop;
+        bool choosable = SunChoosable(playerId);
+        if (playerId != you && choosable && aimOver == "sun") return SunRing.Look.AimOver;
+        return choosable ? SunRing.Look.Choosable : (SunRing.Look?)null;
+    }
+
+    /// <summary>
     /// On your day, a card in hand that costs more energy than you have left (.card-pricey), unless it is picked or
     /// otherwise chosen, or the day's end is being chosen for.
     /// </summary>
