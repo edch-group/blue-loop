@@ -842,18 +842,19 @@ public partial class BattleView : MonoBehaviour
     /// <summary>
     /// A card's rim for what is being chosen (app.ts renderCard's state): one that can be chosen ringed coral
     /// (.card-choosable), the one picked blue (.card-picked), one that can attack faintly red (.card-attacker), the one
-    /// aiming red (.card-aiming); in the hand, one to discard, and one that can be played (.card-playable).
+    /// aiming red (.card-aiming); in the hand, one to discard (.card-discard), and one that can be played (.card-playable).
     /// </summary>
     public void Dress(CardView v, PlayerState owner, CardInstance c, bool inPlay)
     {
+        // Discarding at the day's end, a card in hand marked to go is ringed red, greyed and crossed out; the rest of
+        // the hand wears no look at all (app.ts renderCard: state 'card-discard' or '').
+        v.Discard(!inPlay && discarding != null && discarding.Contains(c.Uid));
         if (DragRim(v, c)) return;
         Color? rim = null;
         float strength = 1;
         if (!inPlay && discarding != null)
         {
-            if (discarding.Contains(c.Uid)) rim = Look.Danger;
-            else if (discarding.Count < Over) { rim = Look.Danger; strength = 0.35f; }
-            v.Rim(rim, strength);
+            v.Rim(null);
             return;
         }
         string look = state != null && state.WinnerId == null && (inPlay ? owner.Tableau.Contains(c) : owner.Hand.Contains(c)) ? CardAct(owner, c, !inPlay).look : null;
@@ -869,8 +870,8 @@ public partial class BattleView : MonoBehaviour
         v.Rim(rim, strength);
     }
 
-    /// <summary>How far a card in hand is held up (a picked card, most).</summary>
-    public float HandLift(CardInstance c) => c.Uid == picked || (discarding?.Contains(c.Uid) ?? false) ? 1f : 0;
+    /// <summary>How far a card in hand is held up (a picked card; one marked to discard stays in the fan, as the web's).</summary>
+    public float HandLift(CardInstance c) => c.Uid == picked ? 1f : 0;
 
     /// <summary>The card under the pointer, read large: its face, and in play what stands on it now.</summary>
     // ---- The screen's own layer ----

@@ -41,6 +41,7 @@ public class CardView : MonoBehaviour
         face.sharedMaterial.renderQueue = 3000 + Lift;
         foreach (var b in badges.Values) b.sharedMaterial.renderQueue = 3010 + Lift;
         foreach (var kv in marks) kv.Value.sharedMaterial.renderQueue = markQueue[kv.Key] + Lift;
+        foreach (var kv in discardQueue) kv.Key.sharedMaterial.renderQueue = kv.Value + Lift;
     }
 
     /// <param name="css">The CSS width it is drawn at (see DrawnAt); 0: not known.</param>
@@ -113,13 +114,14 @@ public class CardView : MonoBehaviour
 
     public void Dimmed(bool on) => Grey(0, on ? 0.75f : 0);
 
-    // (Each look that greys the face, the strongest shown: dimmed, frozen, too costly, its side out of the game.)
-    readonly float[] greys = new float[4];
+    // (Each look that greys the face, the strongest shown: dimmed, frozen, too costly, its side out of the game, marked
+    // to discard.)
+    readonly float[] greys = new float[5];
 
     void Grey(int i, float k)
     {
         greys[i] = k;
-        face.sharedMaterial.SetFloat("_Grey", Mathf.Max(Mathf.Max(greys[0], greys[1]), Mathf.Max(greys[2], greys[3])));
+        face.sharedMaterial.SetFloat("_Grey", greys.Max());
     }
 
     /// <summary>
@@ -229,6 +231,108 @@ public class CardView : MonoBehaviour
     }
 
     float rimA;
+
+    // ---- Marked to discard at the day's end (styles.css .hand > .card.card-discard) ----
+
+    MeshRenderer discardRing, discardGap, discardWash, discardX1, discardX2;
+    readonly Dictionary<MeshRenderer, int> discardQueue = new Dictionary<MeshRenderer, int>();
+    bool discarded;
+
+    /// <summary>
+    /// Marked to discard at the day's end (.hand > .card.card-discard): ringed (box-shadow 0 0 0 2px #fff, 0 0 0 5px
+    /// #d0654b, 0 14px 30px rgba(120, 60, 50, 0.28)), greyed (filter: grayscale(0.65) brightness(0.96)), and crossed out
+    /// under a pale wash (::after: '✕' in #c0563d at 0.42 of its width, over rgba(255, 255, 255, 0.38)). The filter
+    /// greys all of it, ring, shadow and cross too: their colours here are the web's after it.
+    /// </summary>
+    public void Discard(bool on)
+    {
+        if (!on && !discarded) return;
+        if (on && discardRing == null)
+        {
+            discardRing = DiscardBox("Discard ring", Filtered(208, 101, 75, 1), 2993, -0.0012f);
+            discardGap = DiscardBox("Discard gap", Filtered(255, 255, 255, 1), 2994, -0.0011f);
+            discardWash = DiscardBox("Discard wash", Filtered(255, 255, 255, 0.38f), 3020, 0.005f);
+            discardX1 = DiscardBox("Discard cross", Filtered(192, 86, 61, 1), 3021, 0.0052f);
+            discardX2 = DiscardBox("Discard cross", Filtered(192, 86, 61, 1), 3021, 0.0052f);
+        }
+        if (on)
+        {
+            // (Sized for the width it is drawn at, in CSS px: the rings 2 and 5 px out, their corners the card's 8% and
+            // as much again; the cross a DejaVu Sans '✕' at 0.42 of the card's width, its strokes 0.73 em long and 0.098
+            // em thick, a little below the middle as its line sets it.)
+            float px = 1f / (Css > 0 ? Css : 100);
+            PlaceBox(discardRing, 1 + 10 * px, 1.4f + 10 * px, 0.08f + 5 * px, px);
+            PlaceBox(discardGap, 1 + 4 * px, 1.4f + 4 * px, 0.08f + 2 * px, px);
+            PlaceBox(discardWash, 1, 1.4f, 0.08f, px);
+            float em = 0.42f;
+            PlaceBox(discardX1, 0.729f * em, 0.0977f * em, 0, px, 45, -0.0345f * em);
+            PlaceBox(discardX2, 0.729f * em, 0.0977f * em, 0, px, -45, -0.0345f * em);
+        }
+        if (on == discarded) return;
+        discarded = on;
+        foreach (var r in discardQueue.Keys) r.gameObject.SetActive(on);
+        // (Its face, badges and marks greyed and dimmed with it.)
+        Grey(4, on ? 0.65f : 0);
+        foreach (var r in new[] { face }.Concat(badges.Values).Concat(marks.Values))
+        {
+            if (r != null) Dim(r, on ? 0.96f : 1);
+            if (r != null && r != face) r.sharedMaterial.SetFloat("_Grey", on ? 0.65f : 0);
+        }
+        // (Its shadow the web's for a card to go, reddened and greyed.)
+        var sc = shadow.sharedMaterial.color;
+        float was = shadowA < 0 ? sc.a : shadowA, k = was > 0 ? sc.a / was : 1;
+        var want = on ? Filtered(120, 60, 50, 0.28f) : new Color(0.25f, 0.27f, 0.33f, 0.22f);
+        shadowA = want.a;
+        want.a *= k;
+        shadow.sharedMaterial.color = want;
+    }
+
+    static void Dim(MeshRenderer r, float b)
+    {
+        var c = r.sharedMaterial.color;
+        r.sharedMaterial.color = new Color(b, b, b, c.a);
+    }
+
+    /// <summary>A colour as the web's filter: grayscale(0.65) brightness(0.96) leaves it (the Filter Effects matrices).</summary>
+    static Color Filtered(int r8, int g8, int b8, float a)
+    {
+        float r = r8 / 255f, g = g8 / 255f, b = b8 / 255f;
+        const float k = 0.35f;
+        float r2 = (0.2126f + 0.7874f * k) * r + (0.7152f - 0.7152f * k) * g + (0.0722f - 0.0722f * k) * b;
+        float g2 = (0.2126f - 0.2126f * k) * r + (0.7152f + 0.2848f * k) * g + (0.0722f - 0.0722f * k) * b;
+        float b2 = (0.2126f - 0.2126f * k) * r + (0.7152f - 0.7152f * k) * g + (0.0722f + 0.9278f * k) * b;
+        return new Color(r2 * 0.96f, g2 * 0.96f, b2 * 0.96f, a);
+    }
+
+    MeshRenderer DiscardBox(string name, Color c, int queue, float lift)
+    {
+        var r = Mats.Flat(name, transform, Mats.Make("Soft", c), 1, 1, lift);
+        r.sharedMaterial.renderQueue = queue + Lift;
+        discardQueue[r] = queue;
+        return r;
+    }
+
+    /// <summary>
+    /// A crisp rounded box (the Soft shader filling its quad but for an edge to smooth) `w` by `h` card widths about
+    /// the card's middle (`dz` toward its top), its corners `radius`, turned `turn`° on the card.
+    /// </summary>
+    static void PlaceBox(MeshRenderer r, float w, float h, float radius, float px, float turn = 0, float dz = 0)
+    {
+        // (The shader's box is _Size of the quad's width across and as much of its height down; the quad a little bigger.)
+        const float size = 0.45f;
+        float qw = w / (2 * size), qh = h / (2 * size);
+        r.transform.localScale = new Vector3(qw, qh, 1);
+        r.transform.localRotation = Quaternion.Euler(0, turn, 0) * Quaternion.Euler(90, 0, 0);
+        var p = r.transform.localPosition;
+        r.transform.localPosition = new Vector3(0, p.y, dz);
+        var m = r.sharedMaterial;
+        m.SetFloat("_Aspect", qh / qw);
+        m.SetFloat("_Size", size);
+        m.SetFloat("_Radius", radius / qw);
+        m.SetFloat("_Soft", 0.5f * px / qw);
+        m.SetFloat("_Ring", 0);
+    }
+
     MeshRenderer flash;
     float flashAt = -1, flashFor, flashBright;
     bool flashHit;
