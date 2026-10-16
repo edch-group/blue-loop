@@ -995,6 +995,9 @@ public partial class BattleView : MonoBehaviour
         // (Beams lie under the screen's own layer, as .beam-arc.beam-attack under the dock and HUD.)
         beamLayer = Hud.Rect(root, "Beams");
         // (A canvas of its own, in its place among the rest: its beams redrawn every frame batch only themselves.)
+        // (On the HUD's own layer, as Hud.Own puts the others: a canvas of its own is drawn only by a camera whose mask
+        // holds its layer, and the HUD camera draws the UI layer alone, so on the default layer no beam was ever drawn.)
+        beamLayer.gameObject.layer = root.gameObject.layer;
         beamLayer.gameObject.AddComponent<Canvas>();
         Hud.Fill(beamLayer);
         chrome = Hud.Rect(root, "Chrome");
