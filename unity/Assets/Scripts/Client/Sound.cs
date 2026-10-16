@@ -68,8 +68,12 @@ public class Sound : MonoBehaviour
         var go = new GameObject("Sound");
         DontDestroyOnLoad(go);
         instance = go.AddComponent<Sound>();
-        instance.musicA = go.AddComponent<AudioSource>();
-        instance.musicB = go.AddComponent<AudioSource>();
+        // (The sources on an object of their own: the limiter, an audio filter, rides on the listener's object, and a
+        // filter may only be on an object with one listener or source.)
+        instance.sources = new GameObject("Sources");
+        instance.sources.transform.SetParent(go.transform, false);
+        instance.musicA = instance.sources.AddComponent<AudioSource>();
+        instance.musicB = instance.sources.AddComponent<AudioSource>();
         foreach (var m in new[] { instance.musicA, instance.musicB })
         {
             m.loop = true;
@@ -147,7 +151,7 @@ public class Sound : MonoBehaviour
 
     AudioSource NewVoice()
     {
-        var v = gameObject.AddComponent<AudioSource>();
+        var v = sources.AddComponent<AudioSource>();
         v.playOnAwake = false;
         voices.Add(v);
         return v;
@@ -244,7 +248,7 @@ public class Sound : MonoBehaviour
             if (Muted) return;
             if (s.thrust == null)
             {
-                s.thrust = s.gameObject.AddComponent<AudioSource>();
+                s.thrust = s.sources.AddComponent<AudioSource>();
                 s.thrust.playOnAwake = false;
                 s.thrust.loop = true;
                 s.thrust.volume = 0;
@@ -421,6 +425,7 @@ public class Sound : MonoBehaviour
     }
 
     float limiterCheck;
+    GameObject sources;
 
     /// <summary>
     /// A gentle peak limiter on everything heard (sound.ts build: "so swells never clip"): above 0.9 the gain comes down
