@@ -97,7 +97,8 @@ public partial class CampaignView : MonoBehaviour
         Cam.nearClipPlane = 0.1f;
         Cam.farClipPlane = 200;
         // (Never the campaign menu's own scenes, its land and its ship, which keep to their layers.)
-        Cam.cullingMask = ~((1 << 29) | (1 << 30));
+        // (Nor a station dock's scene: StationDock draws it with its own camera.)
+        Cam.cullingMask = ~((1 << 29) | (1 << 30) | (1 << StationDock.Layer));
         world = new GameObject("World").transform;
         world.SetParent(transform, false);
         // (In the web's own units, at the size it lays its page out at: each layer the whole screen, laid out as the web
