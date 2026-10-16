@@ -29,14 +29,36 @@ public static class Faces
         return t;
     }
 
-    /// <summary>A card's face from one variant's folder; a built card (fused, marked, the Captain's or the crew's build) shows its base card's until it has one of its own.</summary>
+    /// <summary>
+    /// A card's face from one variant's folder; a built card (fused, marked, the Captain's or the crew's build) shows its
+    /// base card's until it has one of its own. The Captain and the crew at a tier or an energy off their start show the
+    /// face baked for that (BuiltFace): the web draws a build's own name and cost, and its cost is played by.
+    /// </summary>
     static Texture2D Face(string dir, string defId)
     {
         var t = Load(dir + defId);
         if (t != null) return t;
+        var built = BuiltFace(defId);
+        if (built != null && (t = Load(dir + built)) != null) return t;
         var def = Cards.Def(defId);
         var baseId = def.FusedFrom?[0] ?? def.ArtOf ?? Builds.MarkOf(defId)?.baseId ?? defId.Split('@')[0];
         return baseId != defId ? Load(dir + baseId) : null;
+    }
+
+    /// <summary>
+    /// The face baked for the Captain's or a companion's build at its tier and energy off (bake/bake.ts BUILT_FACES:
+    /// <card>_g<gates>c<cheaper>, its name and cost dots the build's), or null (any other card, or the plain start's).
+    /// </summary>
+    static string BuiltFace(string defId)
+    {
+        if (!defId.Contains("@")) return null;
+        if (Builds.IsCaptain(defId))
+        {
+            var b = Builds.CaptainBuildOf(defId);
+            return b != null && (b.Gates != 0 || b.Cheaper != 0) ? $"{Builds.CaptainId}_g{b.Gates}c{b.Cheaper}" : null;
+        }
+        var cb = Builds.CompanionBuildOf(defId, out var c);
+        return cb != null && (cb.Gates != 0 || cb.Cheaper != 0) ? $"{c.Card}_g{cb.Gates}c{cb.Cheaper}" : null;
     }
 
     /// <summary>

@@ -12,7 +12,8 @@
  *   clamp()), so a card drawn 66 px wide is not the 200 px one shrunk: each size it is drawn at gets its own. Faces.cs
  *   keeps the same list.
  *
- * Usage: node scripts/bake-cards.mjs [--only=<variant>,…] [ids…]  (no ids: every card; no --only: every variant)
+ * Usage: node scripts/bake-cards.mjs [--only=<variant>,…] [ids…]  (no ids: every card, and the Captain's and the crew's
+ * built faces (bake.ts builtFaceIds); no --only: every variant)
  */
 import { mkdirSync, writeFileSync, globSync } from 'node:fs';
 import { createServer } from 'vite';
@@ -64,7 +65,7 @@ for (const v of variants) {
   // (Taken on nothing: what is outside a card's corners is left clear.)
   await page.addStyleTag({ content: 'html, body, #stage { background: transparent !important; }' });
   await page.evaluate(() => document.fonts.ready);
-  const ids = args.filter((a) => !a.startsWith('--')).length ? args.filter((a) => !a.startsWith('--')) : await page.evaluate(() => window.allIds());
+  const ids = args.filter((a) => !a.startsWith('--')).length ? args.filter((a) => !a.startsWith('--')) : await page.evaluate(() => [...window.allIds(), ...window.builtFaceIds()]);
   mkdirSync(`${out}/${v.dir}`, { recursive: true });
   mkdirSync(`${out}/${v.dir}-alpha`, { recursive: true });
   for (const id of ids) {
@@ -77,9 +78,11 @@ for (const v of variants) {
     });
     const card = await page.$('#stage .card');
     const shot = await card.screenshot({ type: 'png', omitBackground: true });
-    writeFileSync(`${out}/${v.dir}/${id}.jpg`, await sharp(shot).flatten({ background: '#ffffff' }).jpeg({ quality: 86 }).toBuffer());
+    // (A built card's face is saved under its own name: bake.ts faceFile.)
+    const file = await page.evaluate((id) => window.faceFile(id), id);
+    writeFileSync(`${out}/${v.dir}/${file}.jpg`, await sharp(shot).flatten({ background: '#ffffff' }).jpeg({ quality: 86 }).toBuffer());
     const alpha = await sharp(shot).extractChannel(3).toBuffer();
-    writeFileSync(`${out}/${v.dir}-alpha/${id}.png`, await sharp(alpha).joinChannel([alpha, alpha, alpha]).png({ compressionLevel: 9 }).toBuffer());
+    writeFileSync(`${out}/${v.dir}-alpha/${file}.png`, await sharp(alpha).joinChannel([alpha, alpha, alpha]).png({ compressionLevel: 9 }).toBuffer());
     if (++n % 100 === 0) console.log(n, v.dir);
   }
   await page.close();

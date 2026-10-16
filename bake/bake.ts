@@ -200,9 +200,33 @@ void Promise.all(['400 1em Orbitron', '500 1em Orbitron', '700 1em Orbitron', '3
 
 import { registeredCardDefs } from '../src/engine/cards';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from '../src/ui/menu-icon';
+import { CAPTAIN_START_ABILITY, captainId } from '../src/engine/captain';
+import { COMPANIONS, companionCardId } from '../src/engine/companions';
+import { TIERS } from '../src/engine/ascent';
 // (And the built heroes' own cards, outside the pool: the Captain and the crew, each at its start.)
 const BUILT_IDS = ['human_captain', 'companion_lancer', 'companion_engineer', 'companion_defector', 'companion_shade', 'companion_seer'];
-Object.assign(window, { allIds: () => [...registeredCardDefs().map((d) => d.id), ...BUILT_IDS.filter((id) => !registeredCardDefs().some((d) => d.id === id))] });
+// (And each of them at every tier and energy off its tree can give (ascent.ts: a gate a tier, at most two "costs 1
+// less"): its name and the energy dots on its face are the build's, not its start's. Its other words are its start's;
+// its attack and stability Unity draws over it. Saved as <card>_g<gates>c<cheaper> (Faces.cs BuiltFace).)
+const MOST_CHEAPER = 2;
+const BUILT_FACES = new Map<string, string>();
+for (const card of BUILT_IDS)
+  for (let gates = 0; gates < TIERS; gates++)
+    for (let cheaper = 0; cheaper <= MOST_CHEAPER; cheaper++) {
+      if (!gates && !cheaper) continue;
+      const companion = COMPANIONS.find((c) => c.card === card);
+      const id = companion
+        ? companionCardId(companion.id, { attack: 0, stability: 0, cheaper, traits: [companion.start], gates })
+        : captainId({ attack: 0, stability: 0, cheaper, abilities: [CAPTAIN_START_ABILITY], gates });
+      BUILT_FACES.set(id, `${card}_g${gates}c${cheaper}`);
+    }
+Object.assign(window, {
+  allIds: () => [...registeredCardDefs().map((d) => d.id), ...BUILT_IDS.filter((id) => !registeredCardDefs().some((d) => d.id === id))],
+  // (The faces baked beyond every card's own, scripts/bake-cards.mjs: the built ones above.)
+  builtFaceIds: () => [...BUILT_FACES.keys()],
+  // (The file a face is saved as: its id, or a built one's name above.)
+  faceFile: (id: string) => BUILT_FACES.get(id) ?? id,
+});
 
 // ---- Sound: the web game's own effects and scores, rendered offline (scripts/bake-sound.mjs) ----
 
