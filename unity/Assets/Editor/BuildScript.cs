@@ -33,7 +33,9 @@ public static class BuildScript
             // fails at run time on some (a MethodAccessException on an equality comparer, in online play).)
             PlayerSettings.SetIl2CppCodeGeneration(UnityEditor.Build.NamedBuildTarget.WebGL, UnityEditor.Build.Il2CppCodeGeneration.OptimizeSpeed);
             PlayerSettings.SetIl2CppCompilerConfiguration(BuildTargetGroup.WebGL, Il2CppCompilerConfiguration.Release);
-            PlayerSettings.WebGL.debugSymbolMode = WebGLDebugSymbolMode.Off;
+            // (The names of the wasm's functions kept in a file beside it, never fetched by the page: a crash's stack in
+            // the browser gives only function numbers, which this turns back into the C# methods.)
+            PlayerSettings.WebGL.debugSymbolMode = WebGLDebugSymbolMode.External;
             PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
         }
 
