@@ -171,28 +171,6 @@ public partial class BattleView : MonoBehaviour
 
     void Update()
     {
-        // (Once, a few seconds into a battle: the pace's and the hint's trees in the log, for a fault seen in builds.)
-        if (!dumped && state != null && Time.timeSinceLevelLoad > 0 && Time.time - bornAt > 8)
-        {
-            dumped = true;
-            var pace = chrome != null ? chrome.Find("Pace") : null;
-            if (pace != null) DebugDump.Tree(pace, "pace");
-            if (hint != null && hint.gameObject.activeSelf) DebugDump.Tree(hint, "hint");
-            foreach (var cam in Camera.allCameras) Debug.Log($"camera {cam.name} depth={cam.depth} mask={cam.cullingMask} clear={cam.clearFlags} enabled={cam.enabled}");
-        }
-        // (A second later: every text of the HUD laid out afresh, then the trees again, to see whether that mends them.)
-        if (dumped && !remeshed && Time.time - bornAt > 9)
-        {
-            remeshed = true;
-            foreach (var tx in hud.GetComponentsInChildren<TMPro.TMP_Text>(true)) tx.ForceMeshUpdate(true, true);
-        }
-        if (remeshed && !dumped2 && Time.time - bornAt > 10)
-        {
-            dumped2 = true;
-            var pace = chrome != null ? chrome.Find("Pace") : null;
-            if (pace != null) DebugDump.Tree(pace, "pace after remesh");
-            if (hint != null && hint.gameObject.activeSelf) DebugDump.Tree(hint, "hint after remesh");
-        }
         if (!scoreLeft && state?.WinnerId != null && Application.isPlaying) { scoreLeft = true; Sound.Scene("voyage", Reversed); }
         if (FitScreen() && state != null) Refresh();
         ExtrasTick();
@@ -259,14 +237,6 @@ public partial class BattleView : MonoBehaviour
         var want = tex != null ? new Vector2(tex.width, tex.height) : (Vector2?)null;
         if (BoardLayout.Target != want) Frame(Cam);
         if (laidOut == BoardLayout.Current) return false;
-        // (Laid out afresh frame after frame is a fault: said once, with what changed.)
-        if (Time.frameCount - relaidFrame <= 2 && ++relaidRun == 30 && !refreshSaid)
-        {
-            refreshSaid = true;
-            Debug.LogWarning($"Battle laid out again every frame: {(laidOut == null ? "none" : laidOut.W + "x" + laidOut.H)} -> {BoardLayout.Current.W}x{BoardLayout.Current.H}");
-        }
-        else if (Time.frameCount - relaidFrame > 2) relaidRun = 0;
-        relaidFrame = Time.frameCount;
         laidOut = BoardLayout.Current;
         Frame(Cam);
         Board.Relayout();
@@ -1234,26 +1204,10 @@ public partial class BattleView : MonoBehaviour
         return r;
     }
 
-    bool dumped, remeshed, dumped2;
-    float bornAt = -1;
-    void Start() { bornAt = Time.time; }
-    int refreshFrame = -10, refreshRun, relaidFrame = -10, relaidRun;
-    bool refreshSaid;
 
     void Refresh()
     {
         if (state == null) return;
-        // (Laid out again every frame for a second on end is a fault somewhere: said once, with where it came from.)
-        if (Time.frameCount != refreshFrame)
-        {
-            refreshRun = Time.frameCount == refreshFrame + 1 ? refreshRun + 1 : 1;
-            refreshFrame = Time.frameCount;
-        }
-        if (refreshRun == 90 && !refreshSaid)
-        {
-            refreshSaid = true;
-            Debug.LogWarning("Battle refreshed every frame for 90 frames:\n" + System.Environment.StackTrace);
-        }
         FitScreen();
         Persist();
         KeepStats();

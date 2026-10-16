@@ -76,7 +76,6 @@ public partial class Board
         {
             t.rectTransform.sizeDelta = new Vector2(W, l.U(rowH));
             t.transform.localPosition = new Vector3(0, 0.01f, l.U(h / 2 - y - rowH / 2));
-            t.GetComponent<MeshRenderer>().sharedMaterial.renderQueue = 2963;
             y += rowH + gap;
         }
         Row(lab, labelPx * 1.25f);
