@@ -237,6 +237,14 @@ public partial class BattleView : MonoBehaviour
         var want = tex != null ? new Vector2(tex.width, tex.height) : (Vector2?)null;
         if (BoardLayout.Target != want) Frame(Cam);
         if (laidOut == BoardLayout.Current) return false;
+        // (Laid out afresh frame after frame is a fault: said once, with what changed.)
+        if (Time.frameCount - relaidFrame <= 2 && ++relaidRun == 30 && !refreshSaid)
+        {
+            refreshSaid = true;
+            Debug.LogWarning($"Battle laid out again every frame: {(laidOut == null ? "none" : laidOut.W + "x" + laidOut.H)} -> {BoardLayout.Current.W}x{BoardLayout.Current.H}");
+        }
+        else if (Time.frameCount - relaidFrame > 2) relaidRun = 0;
+        relaidFrame = Time.frameCount;
         laidOut = BoardLayout.Current;
         Frame(Cam);
         Board.Relayout();
@@ -786,7 +794,15 @@ public partial class BattleView : MonoBehaviour
     /// <summary>What the board waits on you for, in its middle (app.ts renderMidHint).</summary>
     void ShowHint()
     {
-        foreach (Transform c in hint) Mats.Kill(c.gameObject);
+        // (What was shown goes at once, not at the frame's end: drawn again within a frame, the old pill would lie
+        // over the new one's words.)
+        for (int i = hint.childCount - 1; i >= 0; i--)
+        {
+            var c = hint.GetChild(i).gameObject;
+            c.SetActive(false);
+            c.transform.SetParent(null, false);
+            Mats.Kill(c);
+        }
         hint.gameObject.SetActive(false);
         if (state.WinnerId != null) return;
         var d = Dawn;
@@ -1196,9 +1212,23 @@ public partial class BattleView : MonoBehaviour
         return r;
     }
 
+    int refreshFrame = -10, refreshRun, relaidFrame = -10, relaidRun;
+    bool refreshSaid;
+
     void Refresh()
     {
         if (state == null) return;
+        // (Laid out again every frame for a second on end is a fault somewhere: said once, with where it came from.)
+        if (Time.frameCount != refreshFrame)
+        {
+            refreshRun = Time.frameCount == refreshFrame + 1 ? refreshRun + 1 : 1;
+            refreshFrame = Time.frameCount;
+        }
+        if (refreshRun == 90 && !refreshSaid)
+        {
+            refreshSaid = true;
+            Debug.LogWarning("Battle refreshed every frame for 90 frames:\n" + System.Environment.StackTrace);
+        }
         FitScreen();
         Persist();
         KeepStats();
