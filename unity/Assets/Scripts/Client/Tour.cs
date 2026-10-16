@@ -26,6 +26,14 @@ public class Tour : MonoBehaviour
     /// <summary>Whether a tour is showing (the game holds still meanwhile).</summary>
     public static bool Showing => active != null;
 
+    /// <summary>
+    /// Whether the tour has the keys this frame (tour.ts takes them first, in the capture phase, and stops them): while
+    /// it shows, and on the frame a key of its closed it, so that key does nothing else (Escape opening the menu,
+    /// Enter ending the day).
+    /// </summary>
+    public static bool HasKeys => active != null || Time.frameCount == closedFrame;
+    static int closedFrame = -1;
+
     List<Step> steps;
     int at;
     System.Action onEnd;
@@ -313,7 +321,7 @@ public class Tour : MonoBehaviour
     void Go(int by)
     {
         int n = Shown().Count;
-        if (at + by >= n) { Close(); return; }
+        if (at + by >= n) { closedFrame = Time.frameCount; Close(); return; }
         at = Mathf.Max(0, at + by);
         Draw();
     }
@@ -340,7 +348,7 @@ public class Tour : MonoBehaviour
         // Enter, Space or → on; ← back; Escape closes.
         if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.RightArrow)) Go(1);
         else if (Input.GetKeyDown(KeyCode.LeftArrow)) Go(-1);
-        else if (Input.GetKeyDown(KeyCode.Escape)) Close();
+        else if (Input.GetKeyDown(KeyCode.Escape)) { closedFrame = Time.frameCount; Close(); }
         if (closedAt >= 0) return;
         // (Over all of the screen, whatever is laid on it after: z-index 9500.)
         if (transform.GetSiblingIndex() != transform.parent.childCount - 1) transform.SetAsLastSibling();

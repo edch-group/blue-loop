@@ -175,7 +175,7 @@ public partial class BattleView : MonoBehaviour
         if (FitScreen() && state != null) Refresh();
         ExtrasTick();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
-        if (state != null && !Autoplay) KeysTick();
+        if (state != null && !Autoplay && !Tour.HasKeys) KeysTick();
         if (state == null || state.WinnerId != null) return;
         StageTick();
         DreamTick();
