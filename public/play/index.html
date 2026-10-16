@@ -37,7 +37,7 @@
     <p>turn your device sideways to play</p>
     <small>screen not turning? switch off rotation lock</small>
   </div></div>
-  <script src="Build/ebdbfb0454a05b7ec70717dfcb02a4c2.loader.js"></script>
+  <script src="Build/bd0bf59e81a05c5aa1311bd23b3699a8.loader.js"></script>
   <script>
     const bar = document.querySelector('#loading i');
     // (Lock the screen sideways where that is allowed, Android in full screen; some browsers only after a tap.)
@@ -48,7 +48,7 @@
     // the publish step splits it, and lists the pieces beside it); fetched together and joined here. The bar shows the
     // download first, then the game's own loading.
     async function gameData() {
-      const whole = 'Build/83529579e953c30a81935f92c470beb5.data.unityweb';
+      const whole = 'Build/9ee98ecd21ded8da4af6431498515499.data.unityweb';
       let parts = null;
       try {
         const r = await fetch(whole + '.parts.json');
@@ -72,7 +72,14 @@
         }
         return new Blob(chunks);
       }));
-      return URL.createObjectURL(new Blob(pieces));
+      // (Unpacked here, by the browser's own gzip as a stream, rather than handed over packed: the game's loader would
+      // read the whole of it into memory, packed and unpacked at once, which a phone's tab could not hold.)
+      let data = new Blob(pieces);
+      if (typeof DecompressionStream === 'function') {
+        try { data = await new Response(data.stream().pipeThrough(new DecompressionStream('gzip'))).blob(); }
+        catch (e) { /* left packed: the game's loader unpacks it */ }
+      }
+      return URL.createObjectURL(data);
     }
     gameData().then((dataUrl) => createUnityInstance(document.querySelector('#unity-canvas'), {
       dataUrl,
