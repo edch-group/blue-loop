@@ -100,9 +100,9 @@ Shader "BlueLoop/Ship"
                 }
                 if (m > 1.5 && m < 2.5)
                 {
-                    float flick = 0.9 + 0.1 * sin(t * 23.0 + i.l.x * 30.0) * sin(t * 13.0 + i.l.z * 20.0);
-                    c = lerp(i.c, float3(1, 1, 1), 0.12 + 0.5 * ndv * ndv * ndv) * flick * (1.0 + _Burn * 0.15);
-                    return fixed4(min(c, 1) * _Alpha, _Alpha);
+                    // Lit things (lamps, signs, a ring of light): their colour, flat. (A whitening toward the eye and a
+                    // flicker read as a pulsing gradient, not a light.)
+                    return fixed4(min(i.c, 1) * _Alpha, _Alpha);
                 }
                 if (m > 6.5)
                 {

@@ -425,12 +425,9 @@ public class StationDock : MonoBehaviour
         shipPivot.localRotation = Quaternion.Euler(0, 90, 0) * Quaternion.Euler(0.6f * Mathf.Sin(t * 0.6f + 1) * sway, 0, 0.5f * Mathf.Sin(t * 0.5f) * sway);
         // The ring's lights going round; the keeper looking about, bobbing; the rollers turning; the signs glowing.
         ringLights.localRotation = Quaternion.Euler(0, 0, t * 8);
-        ringMat.SetFloat("_Burn", 1 + Mathf.Sin(t * 1.3f));
         robot.localPosition = new Vector3(-0.35f, 0.025f * Mathf.Sin(t * 1.6f), 0.15f);
         robotHead.localRotation = Quaternion.Euler(4 * Mathf.Sin(t * 0.9f), 28 * Mathf.Sin(t * 0.45f) + 8 * Mathf.Sin(t * 1.3f), 0);
         for (int i = 0; i < rollers.Count; i++) rollers[i].localRotation = Quaternion.Euler((i == 0 ? 1 : -1) * t * 140, 0, 0);
-        shopSignMat.SetFloat("_Burn", 0.8f + 0.6f * Mathf.Sin(t * 1.7f));
-        recycleSignMat.SetFloat("_Burn", 0.8f + 0.6f * Mathf.Sin(t * 1.4f + 2));
         lightsMat.SetFloat("_Alpha", 0.65f + 0.35f * Mathf.Sign(Mathf.Sin(t * 3.1f)));
     }
 
