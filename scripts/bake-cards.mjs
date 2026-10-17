@@ -14,6 +14,8 @@
  *
  * Usage: node scripts/bake-cards.mjs [--only=<variant>,…] [ids…]  (no ids: every card, and the Captain's and the crew's
  * built faces (bake.ts builtFaceIds); no --only: every variant)
+ * The hand's sizes are baked a second time too costly to play (`hand-<w>-pricey`, the cards that cost energy), their
+ * shape the plain face's alpha (Faces.cs).
  */
 import { mkdirSync, writeFileSync, globSync } from 'node:fs';
 import { createServer } from 'vite';
@@ -36,10 +38,17 @@ const VARIANTS = [
   ...[84, 96].map((w) => ({ dir: `table-d${w}`, page: DESK, scale: 2, draw: ['faceIn', 'table', w] })),
   // In the hand (--hw): 66 to 103 px on a phone, about 110 to 141 on a desktop (the phone's rules change nothing here).
   ...[[66, 3], [79, 3], [100, 2.5], [124, 2]].map(([w, scale]) => ({ dir: `hand-${w}`, page: PHONE, scale, draw: ['faceIn', 'hand', w] })),
+  // And each too costly to play now (.hand .card.card-pricey: its picture and words at saturate(0.4), its energy dots
+  // grey and unlit): only the cards that cost energy, their shape the plain face's (no alpha of their own).
+  ...[[66, 3], [79, 3], [100, 2.5], [124, 2]].map(([w, scale]) => ({ dir: `hand-${w}-pricey`, page: PHONE, scale, draw: ['faceIn', 'hand', w], pricey: true })),
   // A card on its own (.stage .card, as the stage, the reply's cards, the shop's reveal and the deck builder draw one;
   // the phone's rules change nothing here either): the reply's cards (half the stage's, 86 to 125 px), and the stage's
   // (180 to 250 px, where no floor is reached: the one shrunk).
   ...[[88, 2.5], [125, 2], [250, 1.8]].map(([w, scale]) => ({ dir: `card-${w}`, page: PHONE, scale, draw: ['faceIn', 'stage', w] })),
+  // The top card of a reserves or wreckage pile (--pw: min(60% of --tcw, a third of the row's end)): a phone's 26 to
+  // 30 px, a desktop's about 40 to 56.
+  ...[26, 30].map((w) => ({ dir: `pile-p${w}`, page: PHONE, scale: 3, draw: ['faceIn', 'pile', w] })),
+  ...[40, 48, 56].map((w) => ({ dir: `pile-d${w}`, page: DESK, scale: 2, draw: ['faceIn', 'pile', w] })),
 ];
 
 const args = process.argv.slice(2);
@@ -65,11 +74,15 @@ for (const v of variants) {
   // (Taken on nothing: what is outside a card's corners is left clear.)
   await page.addStyleTag({ content: 'html, body, #stage { background: transparent !important; }' });
   await page.evaluate(() => document.fonts.ready);
-  const ids = args.filter((a) => !a.startsWith('--')).length ? args.filter((a) => !a.startsWith('--')) : await page.evaluate(() => [...window.allIds(), ...window.builtFaceIds()]);
+  let ids = args.filter((a) => !a.startsWith('--')).length ? args.filter((a) => !a.startsWith('--')) : await page.evaluate(() => [...window.allIds(), ...window.builtFaceIds()]);
+  if (v.pricey) ids = await page.evaluate((ids) => ids.filter((id) => window.costs(id)), ids);
   mkdirSync(`${out}/${v.dir}`, { recursive: true });
-  mkdirSync(`${out}/${v.dir}-alpha`, { recursive: true });
+  if (!v.pricey) mkdirSync(`${out}/${v.dir}-alpha`, { recursive: true });
   for (const id of ids) {
-    await page.evaluate(([fn, id, look, w]) => window[fn](id, look, w), [v.draw[0], id, v.draw[1], v.draw[2]]);
+    await page.evaluate(([fn, id, look, w, pricey]) => {
+      window[fn](id, look, w);
+      if (pricey) document.querySelector('#stage .card').classList.add('card-pricey');
+    }, [v.draw[0], id, v.draw[1], v.draw[2], !!v.pricey]);
     // (Its picture and gems loaded before it is taken.)
     await page.evaluate(async () => {
       await document.fonts.ready;
@@ -81,9 +94,10 @@ for (const v of variants) {
     // (A built card's face is saved under its own name: bake.ts faceFile.)
     const file = await page.evaluate((id) => window.faceFile(id), id);
     writeFileSync(`${out}/${v.dir}/${file}.jpg`, await sharp(shot).flatten({ background: '#ffffff' }).jpeg({ quality: 86 }).toBuffer());
+    if (++n % 100 === 0) console.log(n, v.dir);
+    if (v.pricey) continue;
     const alpha = await sharp(shot).extractChannel(3).toBuffer();
     writeFileSync(`${out}/${v.dir}-alpha/${file}.png`, await sharp(alpha).joinChannel([alpha, alpha, alpha]).png({ compressionLevel: 9 }).toBuffer());
-    if (++n % 100 === 0) console.log(n, v.dir);
   }
   await page.close();
 }

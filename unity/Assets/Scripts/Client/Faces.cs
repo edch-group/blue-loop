@@ -17,9 +17,12 @@ public static class Faces
     static Texture2D Load(string path)
     {
         if (cache.TryGetValue(path, out var t)) return t;
-        // (Its shape beside it: CardFaces/<variant>-alpha/<id>.)
+        // (Its shape beside it: CardFaces/<variant>-alpha/<id>; a face drawn too costly, <size>-pricey, has its plain
+        // face's.)
         var slash = path.LastIndexOf('/');
-        t = Pictures.Load(path, path.Substring(0, slash) + "-alpha" + path.Substring(slash));
+        var dir = path.Substring(0, slash);
+        if (dir.EndsWith(PriceyDir)) dir = dir.Substring(0, dir.Length - PriceyDir.Length);
+        t = Pictures.Load(path, dir + "-alpha" + path.Substring(slash));
         if (t != null)
         {
             t.wrapMode = TextureWrapMode.Clamp;
@@ -67,12 +70,16 @@ public static class Faces
     /// </summary>
     public static Texture2D Of(string defId, bool table) => Face(table ? "CardFaces/table/" : "CardFaces/face/", defId);
 
-    /// <summary>Where a card is drawn, as the web gives each its own rules: in play, in the hand, or on its own (the stage's).</summary>
-    public enum Look { Table, Hand, Card }
+    /// <summary>
+    /// Where a card is drawn, as the web gives each its own rules: in play, in the hand, on its own (the stage's), or on
+    /// top of a reserves or wreckage pile (.tpile-face: its picture 52% of it and its name, no words or numbers).
+    /// </summary>
+    public enum Look { Table, Hand, Card, Pile }
 
     // The sized faces (scripts/bake-cards.mjs VARIANTS, the same list): in play on a phone's board (its own rules) and a
     // desktop's, in the hand, and a card on its own; each as the web draws a card that many CSS px wide there.
-    static readonly int[] TablePhone = { 56, 66, 78 }, TableDesk = { 84, 96 }, Hand = { 66, 79, 100, 124 }, Plain = { 88, 125, 250 };
+    static readonly int[] TablePhone = { 56, 66, 78 }, TableDesk = { 84, 96 }, Hand = { 66, 79, 100, 124 }, Plain = { 88, 125, 250 },
+        PilePhone = { 26, 30 }, PileDesk = { 40, 48, 56 };
 
     /// <summary>
     /// A card's face as the web draws it `css` CSS px wide in that place (its fonts and art have floors: a small card is
@@ -81,18 +88,33 @@ public static class Faces
     public static Texture2D Of(string defId, Look look, float css)
     {
         var dir = Sized(look, css);
+        // (Without one, a pile's card is the magnified face, not the one in play with its square picture.)
         return (dir != null ? Face(dir, defId) : null) ?? Of(defId, look == Look.Table);
+    }
+
+    const string PriceyDir = "-pricey";
+
+    /// <summary>
+    /// A card in the hand too costly to play now, as the web draws it (.hand .card.card-pricey: its picture and words at
+    /// saturate(0.4), its energy dots grey and unlit), baked at the hand's sizes (CardFaces/hand-<w>-pricey); without
+    /// one (a card that costs nothing), its plain face.
+    /// </summary>
+    public static Texture2D Pricey(string defId, float css)
+    {
+        var dir = Sized(Look.Hand, css);
+        return (dir != null ? Face(dir.TrimEnd('/') + PriceyDir + "/", defId) : null) ?? Of(defId, Look.Hand, css);
     }
 
     /// <summary>The folder of the baked size nearest `css` for that place (a card in play: the phone's or the desktop's).</summary>
     static string Sized(Look look, float css)
     {
         if (css <= 0) return null;
-        bool phone = look == Look.Table && BoardLayout.Current.Phone;
-        var sizes = look == Look.Table ? (phone ? TablePhone : TableDesk) : look == Look.Hand ? Hand : Plain;
+        bool phone = (look == Look.Table || look == Look.Pile) && BoardLayout.Current.Phone;
+        var sizes = look == Look.Table ? (phone ? TablePhone : TableDesk) : look == Look.Pile ? (phone ? PilePhone : PileDesk) : look == Look.Hand ? Hand : Plain;
         int best = sizes[0];
         foreach (var w in sizes) if (Mathf.Abs(w - css) < Mathf.Abs(best - css)) best = w;
-        return look == Look.Table ? $"CardFaces/table-{(phone ? "p" : "d")}{best}/" : look == Look.Hand ? $"CardFaces/hand-{best}/" : $"CardFaces/card-{best}/";
+        return look == Look.Table ? $"CardFaces/table-{(phone ? "p" : "d")}{best}/" : look == Look.Pile ? $"CardFaces/pile-{(phone ? "p" : "d")}{best}/"
+            : look == Look.Hand ? $"CardFaces/hand-{best}/" : $"CardFaces/card-{best}/";
     }
 
     /// <summary>

@@ -97,7 +97,7 @@ public class CardView : MonoBehaviour
     void ShowFace()
     {
         if (DefId == null) return;
-        face.sharedMaterial.mainTexture = Css > 0 ? Faces.Of(DefId, Table ? Faces.Look.Table : Faces.Look.Hand, Css) : Faces.Of(DefId, Table);
+        face.sharedMaterial.mainTexture = Css > 0 ? (pricey && !Table ? Faces.Pricey(DefId, Css) : Faces.Of(DefId, Table ? Faces.Look.Table : Faces.Look.Hand, Css)) : Faces.Of(DefId, Table);
     }
 
     /// <summary>A card face down (a set trap, a pile).</summary>
@@ -114,8 +114,8 @@ public class CardView : MonoBehaviour
 
     public void Dimmed(bool on) => Grey(0, on ? 0.75f : 0);
 
-    // (Each look that greys the face, the strongest shown: dimmed, frozen, too costly, its side out of the game, marked
-    // to discard.)
+    // (Each look that greys the face, the strongest shown: dimmed, frozen, (2: none now, too costly has its own face), its
+    // side out of the game, marked to discard.)
     readonly float[] greys = new float[5];
 
     void Grey(int i, float k)
@@ -131,10 +131,18 @@ public class CardView : MonoBehaviour
     public void Frozen(bool on) => Grey(1, on ? 0.6f : 0);
 
     /// <summary>
-    /// Too costly to play right now (.hand .card.card-pricey: its picture and words at saturate(0.4), its cost greyed):
-    /// still a solid card, its colours muted.
+    /// Too costly to play right now (.hand .card.card-pricey: its picture and words at saturate(0.4), its energy dots
+    /// grey and unlit): still a solid card, its colours muted. Its face the one baked so (Faces.Pricey), not greyed
+    /// whole: greyed, its dots stayed a washed-out green and its card stock, name and kind went grey with them.
     /// </summary>
-    public void Pricey(bool on) => Grey(2, on ? 0.6f : 0);
+    public void Pricey(bool on)
+    {
+        if (on == pricey) return;
+        pricey = on;
+        ShowFace();
+    }
+
+    bool pricey;
 
     /// <summary>Its side out of the game (.tableau-dead: opacity 0.45, grayscale(0.7)).</summary>
     public void Dead(bool on)

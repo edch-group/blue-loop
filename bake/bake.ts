@@ -56,10 +56,12 @@ function face(id: string, variant: 'table' | 'face', width: number): void {
  * A card's face as the web draws it at one size, in the place it stands there (its floors on fonts and art make a
  * small card no shrunken large one): `table`, in play on the board (.board-plane .tableau .card.card-table at --tcw);
  * `hand`, in the hand (.table-view > .dock .hand > .card at --hw); `stage`, a card on its own as the stage draws it
- * (.stage .card at --scw; the reply's cards, the shop's reveal and the deck builder's are the same card). Its markup is the board's own (app.ts renderCard), its badges there but unseen (Unity sets its own over it),
+ * (.stage .card at --scw; the reply's cards, the shop's reveal and the deck builder's are the same card); `pile`, the top
+ * card of a reserves or wreckage pile (app.ts renderPiles: .tableau-piles .tpile .tpile-face .card at --pw, the card
+ * renderCard draws, static: its picture 52% of it, its name, no words or numbers). Its markup is the board's own (app.ts renderCard), its badges there but unseen (Unity sets its own over it),
  * its text fitted as the web fits it (fittext.ts). (The page's own size gives the phone's rules or not.)
  */
-function faceIn(id: string, ctx: 'table' | 'hand' | 'stage', width: number): void {
+function faceIn(id: string, ctx: 'table' | 'hand' | 'stage' | 'pile', width: number): void {
   const def = cardDef(id);
   const race = def.race !== undefined ? ` race-${def.race}` : '';
   const full = fullArt(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}` : '';
@@ -67,7 +69,7 @@ function faceIn(id: string, ctx: 'table' | 'hand' | 'stage', width: number): voi
     ctx === 'table'
       ? `<b class="stat-def stat-def-floor">${SHIELD_SVG}<span class="def-n">1</span></b>${cardJewels({ atk: baseAttack(def) > 0 ? baseAttack(def) : undefined, hp: baseHealth(def.id), hero: def.kind === 'command' })}`
       : stabilityBadge(def);
-  const tag = ctx === 'stage' ? 'div' : 'button';
+  const tag = ctx === 'stage' || ctx === 'pile' ? 'div' : 'button';
   const card = `<${tag} class="card kind-${def.kind}${race}${full} rarity-${def.rarity ?? 'dwarf'} ${ctx === 'table' ? 'card-table' : ''}${ctx === 'stage' ? ' card-still' : ''}" data-card="${def.id}" style="--kc:${KIND_COLOUR[shownKind(def)]}">
         ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
         ${stats}
@@ -81,7 +83,10 @@ function faceIn(id: string, ctx: 'table' | 'hand' | 'stage', width: number): voi
       ? wrap('table-view', wrap('game', wrap('display board', wrap('board3d', wrap('board-plane', wrap('tableau tableau-mine', wrap('tableau-row-wrap', wrap('tableau-row', card)))))), `--tcw:${width}px`))
       : ctx === 'hand'
         ? wrap('table-view', wrap('dock dock-raised', wrap('hand-zone', wrap('hand', card)), `--hw:${width}px`))
-        : wrap('table-view', wrap('stage', card, `--scw:${width}px`));
+        : ctx === 'pile'
+          ? // (The pile and its face keep their own box: the card fills it, inset by the pile's rules.)
+            wrap('table-view', wrap('game', wrap('display board', wrap('board3d', wrap('board-plane', wrap('tableau tableau-mine', wrap('tableau-row-wrap', wrap('tableau-piles', `<div class="tpile tpile-discard" style="--pw:${width}px"><span class="tpile-face">${card}</span></div>`))))))))
+          : wrap('table-view', wrap('stage', card, `--scw:${width}px`));
   fitCardText(stage);
 }
 Object.assign(window, { faceIn });
@@ -226,6 +231,9 @@ Object.assign(window, {
   builtFaceIds: () => [...BUILT_FACES.keys()],
   // (The file a face is saved as: its id, or a built one's name above.)
   faceFile: (id: string) => BUILT_FACES.get(id) ?? id,
+  // (Whether a card can ever be too costly to play: it costs energy, or spends all of it. Only those get a face
+  // drawn too costly, .hand .card.card-pricey: scripts/bake-cards.mjs `pricey`.)
+  costs: (id: string) => cardCost(id) > 0 || !!cardDef(id).spendAll,
 });
 
 // ---- Sound: the web game's own effects and scores, rendered offline (scripts/bake-sound.mjs) ----

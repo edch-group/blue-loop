@@ -1059,8 +1059,13 @@ public partial class Board : MonoBehaviour
     static void Top(MeshRenderer face, TextMeshPro count, List<CardInstance> pile, bool wreck)
     {
         var top = wreck ? pile?.FirstOrDefault() : pile?.LastOrDefault();
-        face.sharedMaterial.mainTexture = top != null ? Faces.Of(top.DefId, true) : null;
-        face.sharedMaterial.color = top != null ? Color.white : new Color(1, 1, 1, 0);
+        // (Its top card as the web draws it there, at the pile's width (.tpile-face .card at --pw: its picture across 52%
+        // of it, its name under it), not the card in play with its square picture. The wreckage's greyed:
+        // .tpile-wreck-face, grayscale(0.55) brightness(0.97).)
+        face.sharedMaterial.mainTexture = top != null ? Faces.Of(top.DefId, Faces.Look.Pile, L.Pw) : null;
+        face.sharedMaterial.color = top == null ? new Color(1, 1, 1, 0) : wreck ? new Color(0.97f, 0.97f, 0.97f) : Color.white;
+        face.sharedMaterial.SetFloat("_Grey", wreck ? 0.55f : 0);
+        face.sharedMaterial.SetFloat("_GreyTo", 1);
         count.text = wreck && pile != null && pile.Count > 0 ? pile.Count.ToString() : "";
         foreach (Transform c in face.transform.parent) if (c.name == "Name") c.gameObject.SetActive(top == null);
         face.transform.parent.GetComponent<PileStack>().Set(top != null ? pile.Count : 0);
