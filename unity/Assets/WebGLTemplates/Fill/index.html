@@ -228,10 +228,11 @@
       productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
       matchWebGLToCanvasSize: true,
       devicePixelRatio: window.devicePixelRatio || 1,
-    }, (p) => { bar.style.width = `${Math.round((dataUrl.startsWith('blob:') ? 70 + 30 * p : 100 * p))}%`; }))
+    }, (p) => { bar.style.width = `${Math.round((dataUrl.startsWith('blob:') ? 70 + 30 * p : 100 * p))}%`; })
       // (The game's data, now in its own memory: the page's copy let go, rather than held beside it for as long as
       // the page lives, most of a phone's tab's room, which got the tab thrown out whenever it was left.)
-      .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; if (dataUrl.startsWith('blob:')) URL.revokeObjectURL(dataUrl); })
+      .then((game) => { if (dataUrl.startsWith('blob:')) URL.revokeObjectURL(dataUrl); return game; }))
+      .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; })
       .catch((e) => { document.getElementById('loading').textContent = String(e); });
   </script>
 </body>
