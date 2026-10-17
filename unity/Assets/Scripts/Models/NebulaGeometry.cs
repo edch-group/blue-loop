@@ -43,7 +43,7 @@ namespace BlueLoop.Models
     public static class NebulaGeometry
     {
         // The ground's extent (x across, z toward the viewer) and the size of its mesh's cells.
-        const double X0 = -7, X1 = 7, Z0 = -5.5, Z1 = 4, Cell = 0.11;
+        public const double X0 = -7, X1 = 7, Z0 = -5.5, Z1 = 4, Cell = 0.11;
         // The shards' size.
         const double ShardSize = 0.42;
 

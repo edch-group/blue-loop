@@ -1,6 +1,6 @@
 // The starry abyss beneath the land (nebula3d.ts's MASK and ABYSS): drawn on the ground's own mesh, only on its fallen
-// shards, each where it lay (a little below; soft, as on the campaign menu, right where it lay); everything else is
-// put out of sight. Each pixel's ray looks down from the eye into the sky beneath, in full colour: stars at several
+// shards (on the map's land, its fallen cells), each where it lay (a little below; soft, as on the campaign menu, right
+// where it lay); everything else is put out of sight. Each pixel's ray looks down from the eye into the sky beneath, in full colour: stars at several
 // depths (so it has depth as the camera turns) over drifting clouds of colour on the deep blue-black of space, back
 // into the paper toward the horizon. Drawn before the ground (which covers it wherever land still stands), writing no
 // depth. In the web's own units (the object's space). Faded into the paper with the land standing over it (_Fade: the
@@ -14,6 +14,7 @@ Shader "BlueLoop/Abyss"
         _Soft ("Soft (the campaign menu's land)", Float) = 0
         _SoftBelow ("Soft below (the first map, where the menu broke it)", Float) = -1000000000
         _Fade ("Come in from the paper", Float) = 1
+        _Cells ("Broken away in cells (the map's land: see Ground.shader)", Float) = 0
     }
     SubShader
     {
@@ -28,16 +29,19 @@ Shader "BlueLoop/Abyss"
             #pragma target 3.0
             #include "UnityCG.cginc"
             fixed4 _Paper;
-            float _Gone, _Soft, _SoftBelow, _Fade;
-            struct appdata { float4 vertex : POSITION; float4 shard : TEXCOORD2; float2 prog : TEXCOORD3; };
+            float _Gone, _Soft, _SoftBelow, _Fade, _Cells;
+            struct appdata { float4 vertex : POSITION; float4 shard : TEXCOORD2; float4 prog : TEXCOORD3; };
             struct v2f { float4 pos : SV_POSITION; float3 p : TEXCOORD0; };
             v2f vert (appdata v)
             {
                 v2f o;
                 float prog = v.prog.x;
+                float soft = (_Soft > 0.5 || prog < _SoftBelow || (_Cells > 0.5 && v.prog.w < _SoftBelow)) ? 1.0 : 0.0;
                 float fall = (_Gone - prog) / 1.6 + v.shard.w * 0.45;
+                // (On the map's land, under each cell gone: its key passed, see Ground.shader.)
+                if (_Cells > 0.5 && soft < 0.5) fall = _Gone > v.prog.y ? 1.0 : -1.0;
                 float3 p = v.vertex.xyz;
-                p.y -= (_Soft > 0.5 || prog < _SoftBelow) ? 0.0 : 0.12;
+                p.y -= soft > 0.5 ? 0.0 : 0.12;
                 o.pos = fall > 0.0 ? UnityObjectToClipPos(float4(p, 1)) : float4(2, 2, 2, 1);
                 o.p = p;
                 return o;

@@ -191,13 +191,18 @@ public partial class CampaignView : MonoBehaviour
         var go = new GameObject("Ground");
         go.transform.SetParent(world, false);
         go.transform.localScale = new Vector3(G, G, -G);
+        // (Breaking away, as it collapses, in the cells of the ink mesh drawn into it: as solid blocks.)
         var mesh = GroundMesh(shape.Ground);
+        NewBlocks(go.transform, shape.Ground, seed);
+        CellGround(mesh, landCells);
         go.AddComponent<MeshFilter>().sharedMesh = mesh;
         groundMat = Mats.Make("Ground");
         groundMat.SetFloat("_G", G);
+        groundMat.SetFloat("_Cells", 1);
         go.AddComponent<MeshRenderer>().sharedMaterial = groundMat;
         // The starry abyss beneath it, the stars and comets over it.
         Sky(go, mesh, shape);
+        abyssMat.SetFloat("_Cells", 1);
         // (The Dark Galaxy: no land, no gas, no sky.)
         go.SetActive(state.Rift?.Kind != "dark");
         // (A new land: no falling to watch, it is simply so.)
@@ -216,6 +221,7 @@ public partial class CampaignView : MonoBehaviour
     {
         float f = landFade * landFade * (3 - 2 * landFade);
         if (groundMat != null) groundMat.SetFloat("_Fade", f);
+        if (blocksMat != null) blocksMat.SetFloat("_Fade", f);
         if (starsMat != null) starsMat.SetFloat("_Fade", f);
         if (cometsMat != null) cometsMat.SetFloat("_Fade", f);
     }
@@ -262,7 +268,8 @@ public partial class CampaignView : MonoBehaviour
     /// Instability (setCollapse): the land gone up to where the collapsed columns end, cracked up to the collapsing.
     /// On the menu's land, by how far east each column's systems stand (and what the menu already broke away stays
     /// gone, drawn soft as the menu drew it). A column falling in the galaxy already in view: the ground shakes, and
-    /// the land breaks away toward it, a column at a time (Update), exposing the starry abyss beneath.
+    /// the land breaks away toward it, a column at a time (Update), in solid blocks along its ink mesh's cells that fall
+    /// into the starry abyss beneath (CampaignView.Blocks).
     /// </summary>
     void Collapse(bool menuLand)
     {
@@ -302,12 +309,22 @@ public partial class CampaignView : MonoBehaviour
         float softBelow = menuLand && menuGone != null ? menuGone.Value + 0.8f : -1e9f;
         groundMat.SetFloat("_SoftBelow", softBelow);
         if (abyssMat != null) abyssMat.SetFloat("_SoftBelow", softBelow);
+        softBelowNow = softBelow;
         // (A first look, or going back: no falling to watch, it is simply so.)
-        if (gone < goneTarget || goneTarget < -9 || !Application.isPlaying) goneNow = gone;
+        bool snapped = gone < goneTarget || goneTarget < -9 || !Application.isPlaying;
+        if (snapped) goneNow = gone;
         goneTarget = gone;
         crackNow = crack;
         SetGone();
-        groundMat.SetFloat("_Galaxy", System.Array.IndexOf(GalaxyCodes, state.Galaxy) is int g && g > 0 ? g : 0);
+        float galaxy = System.Array.IndexOf(GalaxyCodes, state.Galaxy) is int g && g > 0 ? g : 0;
+        groundMat.SetFloat("_Galaxy", galaxy);
+        if (blocksMat != null)
+        {
+            blocksMat.SetFloat("_Galaxy", galaxy);
+            blocksMat.SetFloat("_Crack", crackNow);
+        }
+        // The cells the collapse has newly passed break away as blocks.
+        BreakAway(snapped);
     }
 
     /// <summary>How far the land is gone now (eased toward where it is going), where it is cracked; the menu's own broken land.</summary>
@@ -573,9 +590,11 @@ public partial class CampaignView : MonoBehaviour
         // The land breaks away toward the collapse, a column at a time.
         if (goneNow != goneTarget)
         {
-            goneNow = goneTarget > goneNow ? Mathf.Min(goneTarget, goneNow + Mathf.Min(0.1f, Time.deltaTime) * 1.3f) : goneTarget;
+            goneNow = goneTarget > goneNow ? Mathf.Min(goneTarget, goneNow + Mathf.Min(0.1f, Time.deltaTime) * SweepRate) : goneTarget;
             SetGone();
         }
+        // (Its blocks breaking away and falling as it goes, and on after it stops.)
+        BlocksTick(Mathf.Min(0.1f, Time.deltaTime));
         // The opening shot: alongside the flagship until the hero has had their say (or a while), then pulled back.
         if (cine == "ride" && !launching && now >= rideEnds) EndRide();
         if (cine == "done" && now - cineDone > 1.2f) cine = null;
