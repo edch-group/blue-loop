@@ -1235,9 +1235,9 @@ namespace BlueLoop.Engine
         {
             var f = Player(s);
             var pool = (s.FallenDeck ?? Flagship(s, f.Id)?.Deck ?? new List<string>()).Concat(f.Reserve).ToList();
-            if (s.KeptIn != null)
+            foreach (var id in s.StartDeck ?? (s.KeptIn != null ? new List<string> { s.KeptIn } : new List<string>()))
             {
-                int i = pool.IndexOf(s.KeptIn);
+                int i = pool.IndexOf(id);
                 if (i >= 0) pool.RemoveAt(i);
             }
             var companions = new HashSet<string>(s.Run?.Companions ?? new List<string>());

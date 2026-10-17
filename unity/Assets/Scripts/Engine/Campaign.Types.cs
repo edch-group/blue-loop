@@ -216,6 +216,7 @@ namespace BlueLoop.Engine
         public int? StarsBanked;
         public string KeptIn;
         public List<string> FallenDeck;
+        public List<string> StartDeck;
         public int? Xp;
         public int? XpBanked;
         public RunBonuses Run;

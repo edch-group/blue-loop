@@ -684,6 +684,9 @@ export interface CampaignState {
    *  deck as it fell: what a card may be kept from for the next run (keepableCards). */
   keptIn?: string;
   fallenDeck?: string[];
+  /** The flagship's deck as the run began (the kept card and the cards it started with): none of them may be kept
+   *  for the next run, only cards the run added (keepableCards). */
+  startDeck?: string[];
   /** Experience earned this run, and how much of it has been banked (it is kept even if the run is lost). */
   xp?: number;
   xpBanked?: number;
@@ -1587,6 +1590,7 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
     army.deck.push(run.kept);
     s.keptIn = run.kept;
   }
+  s.startDeck = [...army.deck];
   army.refit = false;
   tell(s, human ? captainIntroScene(me.id, army.general) : introScene(me.race, me.id, army.general));
   noticeStory(s);
@@ -3823,13 +3827,15 @@ function noteFall(s: CampaignState, army: Army) {
 
 /**
  * The cards a lost run may keep one of, for the next run: the flagship's deck as it fell and the reserve, each card
- * once. Not Heroes, companions or the Captain, and not the card this run was given from the last (one copy of it).
+ * once, less the deck it started with (a copy for each card it began with: only what the run added may be kept;
+ * before the starting deck was noted, only the card this run was given from the last). Not Heroes, companions or the
+ * Captain.
  */
 export function keepableCards(s: CampaignState): string[] {
   const f = campaignPlayer(s);
   const pool = [...(s.fallenDeck ?? flagship(s, f.id)?.deck ?? []), ...f.reserve];
-  if (s.keptIn) {
-    const i = pool.indexOf(s.keptIn);
+  for (const id of s.startDeck ?? (s.keptIn ? [s.keptIn] : [])) {
+    const i = pool.indexOf(id);
     if (i >= 0) pool.splice(i, 1);
   }
   const companions = new Set(s.run?.companions ?? []);

@@ -108,6 +108,7 @@ namespace BlueLoop.Engine
                 army.Deck.Add(run.Kept);
                 s.KeptIn = run.Kept;
             }
+            s.StartDeck = army.Deck.ToList();
             army.Refit = false;
             Tell(s, human ? Story.CaptainIntroScene(me.Id, army.General) : Story.IntroScene(me.Race, me.Id, army.General));
             NoticeStory(s);
