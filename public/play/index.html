@@ -43,11 +43,11 @@
     // whatever would reach them goes through these first. (The game's filter can't run in the browser.)
     (() => {
       const connect = AudioNode.prototype.connect;
-      const chains = new WeakMap();
+      const contexts = new Map();
       AudioNode.prototype.connect = function (dest, ...rest) {
         const ctx = this.context;
         if (!ctx || dest !== ctx.destination) return connect.call(this, dest, ...rest);
-        let master = chains.get(ctx);
+        let master = contexts.get(ctx);
         if (!master) {
           master = ctx.createGain();
           master.gain.value = 0.8;
@@ -56,13 +56,125 @@
           comp.ratio.value = 3;
           connect.call(master, comp);
           connect.call(comp, ctx.destination);
-          chains.set(ctx, master);
+          contexts.set(ctx, master);
         }
         return connect.call(this, master, ...rest);
       };
+      // Out of sight (another app, the home screen, a locked phone): everything heard fades to silence over a few
+      // hundredths of a second and the audio stops, rather than the phone cutting it off mid-sound (a fizzle); back,
+      // it starts and fades up again. (Only if still hidden when the fade is done.)
+      document.addEventListener('visibilitychange', () => {
+        const hidden = document.visibilityState === 'hidden';
+        for (const [ctx, master] of contexts) {
+          const now = ctx.currentTime;
+          master.gain.cancelScheduledValues(now);
+          master.gain.setValueAtTime(master.gain.value, now);
+          if (hidden) {
+            master.gain.linearRampToValueAtTime(0, now + 0.04);
+            setTimeout(() => { if (document.visibilityState === 'hidden') ctx.suspend().catch(() => undefined); }, 80);
+          } else {
+            if (ctx.state !== 'running') ctx.resume().catch(() => undefined);
+            master.gain.linearRampToValueAtTime(0.8, now + 0.15);
+          }
+        }
+      });
+    })();
+    // The scores (Sound.cs, BlueLoopMusic.jslib): played here, each from its own files (StreamingAssets/Music, made by
+    // scripts/score-web.py), the loop set to its exact samples wherever the browser's decoder put the sound, and coming
+    // in on the audio clock as the intro ends; only the score sounding held decoded, its intro let go once heard.
+    window.blueLoopMusic = (() => {
+      const base = 'StreamingAssets/Music/';
+      let info = null, front = null;
+      const decode = (ctx, file) => fetch(base + file + '.mp3')
+        .then((r) => { if (!r.ok) throw new Error(file + ': ' + r.status); return r.arrayBuffer(); })
+        .then((b) => new Promise((ok, no) => ctx.decodeAudioData(b, ok, no)));
+      // (Where the sound starts in the decoded loop, in seconds: none before it if the browser's decoder took off the
+      // encoder's priming, or the priming's length if it left it (MP3's usual, AAC's, or all it added). From there on
+      // the loop agrees with itself a loop's length later (its start again, after its end); from earlier it does not
+      // (the decoder's silence against the loop's end): the first place it agrees, for its loudness.)
+      function lead(buf, n, whole) {
+        const d = buf.getChannelData(0), sr = buf.sampleRate, k = sr / 44100, span = n * sr, W = 4096;
+        const extra = Math.max(0, Math.round(buf.length - whole * sr));
+        const at = [...new Set([0, 529, 576, 1105, 1152, 1634, 2112, 2624].map((p) => Math.round(p * k)).concat(extra))].sort((a, b) => a - b);
+        for (const p of at) {
+          const q = p + span, qi = Math.floor(q), f = q - qi;
+          if (qi + W + 1 >= d.length) continue;
+          let e = 0, m = 1e-9;
+          for (let i = 0; i < W; i++) {
+            const a = d[p + i], b = d[qi + i] * (1 - f) + d[qi + i + 1] * f;
+            e += (a - b) * (a - b);
+            m += a * a + b * b;
+          }
+          if (e < 0.1 * m) return p / sr;
+        }
+        return 0;
+      }
+      function stop(ctx, now) {
+        const s = front;
+        front = null;
+        if (!s) return;
+        s.dead = true;
+        clearTimeout(s.timer);
+        const t = ctx.currentTime, end = t + (now ? 0.04 : 2);
+        s.gain.gain.cancelScheduledValues(t);
+        s.gain.gain.setValueAtTime(Math.max(s.gain.gain.value, 0.0001), t);
+        s.gain.gain.exponentialRampToValueAtTime(0.0001, end);
+        for (const src of s.sources) try { src.stop(end + 0.05); } catch (e) { /* never started */ }
+        setTimeout(() => { s.gain.disconnect(); s.sources.length = 0; }, (end - t + 0.2) * 1000);
+      }
+      function play(ctx, buf, when, offset, loop, s) {
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        if (loop) { src.loop = true; src.loopStart = loop[0]; src.loopEnd = loop[1]; }
+        src.connect(s.gain);
+        src.start(when, offset);
+        s.sources.push(src);
+        src.onended = () => { src.disconnect(); const i = s.sources.indexOf(src); if (i >= 0) s.sources.splice(i, 1); };
+        return src;
+      }
+      async function start(ctx, scene, reversed, fadeIn) {
+        stop(ctx, false);
+        const s = { sources: [], gain: ctx.createGain(), t0: -1, lead: 0, n: 0, intro: !reversed, dead: false, timer: 0 };
+        front = s;
+        s.gain.gain.value = 0.0001;
+        s.gain.connect(ctx.destination);
+        try {
+          info = info || await fetch(base + 'music.json').then((r) => r.json());
+          s.n = info.lengths[scene] / info.rate;
+          const name = scene + (reversed ? '-reverse' : '');
+          // (The loop: decoded as it is wanted, some time before the intro ends, rather than both held at once.)
+          const loopIn = async () => {
+            const buf = await decode(ctx, name);
+            if (s.dead) return;
+            s.lead = lead(buf, s.n, s.n + info.margin / info.rate);
+            const now = ctx.currentTime;
+            if (s.t0 < 0) { s.t0 = now + 0.05; fade(); }
+            // (Its sound from where the intro's ends; late, in step with where it would have got to.)
+            const at = s.t0 + s.lead + (s.intro ? s.n : 0);
+            const when = Math.max(at, now + 0.05);
+            play(ctx, buf, when, s.lead + ((when - at) % s.n), [s.lead, s.lead + s.n], s);
+          };
+          const fade = () => {
+            s.gain.gain.setValueAtTime(0.0001, s.t0);
+            s.gain.gain.exponentialRampToValueAtTime(1, s.t0 + Math.max(0.05, fadeIn));
+          };
+          if (!s.intro) return void await loopIn();
+          const intro = await decode(ctx, scene + '-intro');
+          if (s.dead) return;
+          s.t0 = ctx.currentTime + 0.05;
+          fade();
+          play(ctx, intro, s.t0, 0, null, s);
+          s.timer = setTimeout(() => loopIn().catch((e) => console.warn('music', e)), Math.max(0, s.n - 25) * 1000);
+        } catch (e) {
+          console.warn('music', e);
+        }
+      }
+      // (How far into the score from its top, in seconds, as heard; -1: none sounding yet.)
+      const time = (ctx) => (front && front.t0 >= 0 ? Math.max(0, ctx.currentTime - front.t0 - front.lead) : -1);
+      return { start, stop, time };
     })();
   </script>
-  <script src="Build/798babda20762724eab1d5b1c7e006e1.loader.js"></script>
+  <script src="Build/9f97efc60a3a009d769d1b93ac92ad31.loader.js"></script>
   <script>
     const bar = document.querySelector('#loading i');
     // (Lock the screen sideways where that is allowed, Android in full screen; some browsers only after a tap.)
@@ -73,7 +185,7 @@
     // the publish step splits it, and lists the pieces beside it); fetched together and joined here. The bar shows the
     // download first, then the game's own loading.
     async function gameData() {
-      const whole = 'Build/412ece860ad372a12d05cba4456a8335.data.unityweb';
+      const whole = 'Build/2d6f883fc718a3fc505d9ae98a0f52b8.data.unityweb';
       let parts = null;
       try {
         const r = await fetch(whole + '.parts.json');
@@ -108,8 +220,8 @@
     }
     gameData().then((dataUrl) => createUnityInstance(document.querySelector('#unity-canvas'), {
       dataUrl,
-      frameworkUrl: 'Build/2b43ea03901cc7d4df1af958b0ceecd2.framework.js.unityweb',
-      codeUrl: 'Build/f6f83cac207135aaeafcda4bdc5d9a2b.wasm.unityweb',
+      frameworkUrl: 'Build/30d06f871d7eb60d71552f19ab440d8b.framework.js.unityweb',
+      codeUrl: 'Build/09ab91c9306839817f7fca30e761993f.wasm.unityweb',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: "DefaultCompany",
       productName: "Blue Loop",
@@ -117,7 +229,9 @@
       matchWebGLToCanvasSize: true,
       devicePixelRatio: window.devicePixelRatio || 1,
     }, (p) => { bar.style.width = `${Math.round((dataUrl.startsWith('blob:') ? 70 + 30 * p : 100 * p))}%`; }))
-      .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; })
+      // (The game's data, now in its own memory: the page's copy let go, rather than held beside it for as long as
+      // the page lives, most of a phone's tab's room, which got the tab thrown out whenever it was left.)
+      .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; if (dataUrl.startsWith('blob:')) URL.revokeObjectURL(dataUrl); })
       .catch((e) => { document.getElementById('loading').textContent = String(e); });
   </script>
 </body>
