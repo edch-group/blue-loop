@@ -859,7 +859,7 @@ public partial class Board : MonoBehaviour
                 v.Dead(ui.ShownDead(p));
             }
             // (A Lost Overlord has no sun: its vitals in its place.)
-            if (p.Boss != null) { NoSun(p.Id); BossVitals(s, p, mine); continue; }
+            if (p.Boss != null) { NoSun(p.Id); BossVitals(s, p, mine, ui); continue; }
             var sunView = SunFor(p, mine);
             // (Until the blow lands, a sun keeps showing its old heat and shields: app.ts holdUntil.)
             if (sunHold.TryGetValue(p.Id, out var sh) && Time.time < sh.until) sunView.Show(sh.s, sh.p);
@@ -1377,10 +1377,17 @@ public partial class Board : MonoBehaviour
         string stab = hp <= 1 ? "stab-low" : "stab", shield = (Game.IsGuard(p, c) ? "guard" : "def") + ((c.Dented ?? 0) > 0 ? "-dent" : "");
         v.Badge("stab", pvHp ? stab + "-pv" : stab, pvHp ? pv.Value.hp : hp);
         v.Badge("def", pvDef ? shield + "-pv" : shield, pvDef ? pv.Value.def : defence);
-        v.Dimmed(c.Dimmed == true);
+        // (A Lost Overlord's own card dimmed while its action recharges: .card-charging.)
+        var lord = BossShown(s, p, ui);
+        var shownPart = lord?.p.Tableau.FirstOrDefault(x => x.Uid == c.Uid);
+        v.Dimmed(c.Dimmed == true || (lord != null && shownPart != null && Game.Charging(lord.Value.p, shownPart)));
         v.Frozen(c.Frozen == true);
         CardMarks(v, s, p, c, ui);
     }
+
+    /// <summary>A Lost Overlord as its shown action is drawn: as it was while its blow plays out (BattleView.BossShown), else as it is.</summary>
+    static (GameState s, PlayerState p)? BossShown(GameState s, PlayerState p, BattleView ui) =>
+        p.Boss == null ? null : ui != null ? ui.BossShown(p) : (s, p);
 
     // (Where each of a card's marks is drawn: under the card, over its face, over its badges (3010).)
     const int QRing = 2994, QFusedBack = 2997, QFused = 2998, QFrost = 3005, QRoom = 3012, QGrowth = 3013, QChill = 3014, QShields = 3015, QAimHeat = 3016;
@@ -1413,13 +1420,16 @@ public partial class Board : MonoBehaviour
         v.Mark("shields", (c.Shields ?? 0) > 0 ? $"shields-{Mathf.Min(c.Shields.Value, 12)}" : null, QShields);
         // (The part acting next burns over any ring: its box-shadow !important.)
         bool full = Cards.IsBossCard(c.DefId) || Builds.IsCaptain(c.DefId) || c.DefId.StartsWith("companion_");
-        bool intent = full && p.Boss?.Intent == c.Uid;
+        // (As it was while its blow plays out: BattleView.BossShown.)
+        var lord = BossShown(s, p, ui);
+        var shownPart = lord?.p.Tableau.FirstOrDefault(x => x.Uid == c.Uid);
+        bool intent = full && lord?.p.Boss?.Intent == c.Uid;
         bool targeted = ui != null && ui.StageTarget == c.Uid && !ui.Choosable(p, c);
         v.Mark("ring", intent ? "intent" : targeted ? "targeted" : null, QRing);
         int aimHeat = 0;
-        if (p.Boss != null && (p.Boss.Intent == c.Uid || Game.BossMinions(p).Any(m => m.Uid == c.Uid)))
+        if (lord != null && shownPart != null && (lord.Value.p.Boss.Intent == c.Uid || Game.BossMinions(lord.Value.p).Any(m => m.Uid == c.Uid)))
         {
-            var blow = Game.PartAim(s, p, c);
+            var blow = Game.PartAim(lord.Value.s, lord.Value.p, shownPart);
             aimHeat = Mathf.Max(0, blow.Sun);
             foreach (var x in blow.Cards) aimHeat = Mathf.Max(aimHeat, x.heat);
         }

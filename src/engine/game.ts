@@ -1340,6 +1340,8 @@ interface PlayContext {
   /** Lightspeed: what it answers, and the window it was played in. */
   event?: ReactEvent;
   reaction?: Reaction;
+  /** A Lost Overlord's blow (one of its parts' actions): a Guard draws it in (see blowGuard). */
+  blow?: boolean;
 }
 
 /** A card in the discard pile a recover effect can take back: of its kind, if it names one, and never a Command card. */
@@ -1358,10 +1360,12 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         // Heat as a card is played (or a Hero's ability) goes where it was aimed: a rival card, or their sun
         // (Guards draw it in). Dawn heat, and heat from anything else, strikes the sun.
         const aimed = when === 'play' && !ctx.against && main === targetOf(state, p) ? aimedCard(state, p, ctx.aimUid) : null;
-        const victim = aimed;
+        // (A Lost Overlord's blow at the sun: a Guard steps in front of it.)
+        const victim = aimed ?? (ctx.blow ? blowGuard(state, main) : undefined);
         if (state.winnerId || p.eliminated) break;
         if (victim) {
           strikeCard(state, main, victim, amount, p, !!e.pierce, card.uid, false, true);
+          if (!aimed && when === 'turn') notePulse(state, p, card, 'heat', main, amount, victim.uid);
           break;
         }
         applyHeat(state, main, amount, p, false, card.uid, e.pierce, `${p.name}'s ${cardDef(card.defId).name}`);
@@ -1714,7 +1718,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'strikeAll': {
         const t = ctx.against ?? targetOf(state, p);
         if (!t) break;
-        const hit = strikeHits(state, t, e);
+        const hit = strikeHits(state, t, e, !!ctx.blow);
         // (The Frost Line's cold, or a Lost Overlord's blow, with no card to strike: their sun. The player chooses:
         // a card to take it, or the sun.)
         if (!hit.length && ((e.type === 'strikeBest' && e.guarded) || cardDef(card.defId).bossAction)) {
@@ -1735,7 +1739,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
       case 'devour': {
         const t = ctx.against ?? targetOf(state, p);
         // (Never a Lost Overlord's own body: what must be beaten down is beaten down.)
-        const victim = t ? devourVictim(t) : undefined;
+        const victim = t ? devourVictim(t, !!ctx.blow) : undefined;
         if (!t) break;
         // (A Lost Overlord's Devour with nothing to eat bites the sun instead.)
         if (!victim) {
@@ -2287,15 +2291,29 @@ function challengeDay(state: GameState, p: PlayerState) {
 }
 
 /** The cards a strike falls on: the one with the most attack (its Guards first, if it says so), or all of them. */
-function strikeHits(state: GameState, t: PlayerState, e: Extract<Effect, { type: 'strikeBest' | 'strikeAll' }>): CardInstance[] {
+function strikeHits(state: GameState, t: PlayerState, e: Extract<Effect, { type: 'strikeBest' | 'strikeAll' }>, blow = false): CardInstance[] {
   if (e.type === 'strikeAll') return [...t.tableau];
-  const pool = e.guarded && guards(t).length ? guards(t) : t.tableau;
+  // (A guarded strike, or a Lost Overlord's blow: a Guard draws it in.)
+  const pool = (e.guarded || blow) && guards(t).length ? guards(t) : t.tableau;
   return [...pool].sort((a, b) => cardAttack(state, t, b) - cardAttack(state, t, a) || (b.health ?? 0) - (a.health ?? 0)).slice(0, 1);
 }
 
-/** What a Devour eats: the weakest card it can take (never a Lost Overlord's own body, nor an entrenched one). */
-function devourVictim(t: PlayerState): CardInstance | undefined {
-  return [...t.tableau].filter((c) => c.uid !== t.boss?.leader && !destroyImmune(c.defId)).sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0];
+/**
+ * What a Devour eats: the weakest card it can take (never a Lost Overlord's own body, nor an entrenched one); a Lost
+ * Overlord's, a Guard first, if it can take one.
+ */
+function devourVictim(t: PlayerState, blow = false): CardInstance | undefined {
+  const can = t.tableau.filter((c) => c.uid !== t.boss?.leader && !destroyImmune(c.defId));
+  const guarding = blow ? can.filter((c) => isGuard(t, c)) : [];
+  return [...(guarding.length ? guarding : can)].sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0];
+}
+
+/**
+ * The Guard a Lost Overlord's blow at the sun strikes instead [direction: Guards draw an Overlord's blows]: the one
+ * a single-target blow would pick among them (most attack, then most stability). None with no Guard in play.
+ */
+function blowGuard(state: GameState, t: PlayerState): CardInstance | undefined {
+  return guards(t).length ? strikeHits(state, t, { type: 'strikeBest', amount: 0 }, true)[0] : undefined;
 }
 
 /** The heat a Lost Overlord's Devour deals to the sun when there is no card to eat. */
@@ -2323,13 +2341,17 @@ export function partAim(state: GameState, p: PlayerState, part: CardInstance): {
     else out.cards.push({ uid, heat });
   };
   for (const e of action.effects) {
-    if (e.type === 'heat' && e.to === 'target') out.sun += e.amount;
-    else if (e.type === 'strikeBest' || e.type === 'strikeAll') {
-      const hit = strikeHits(state, t, e);
+    if (e.type === 'heat' && e.to === 'target') {
+      // (A Guard steps in front of the sun.)
+      const g = blowGuard(state, t);
+      if (g) add(g.uid, e.amount);
+      else out.sun += e.amount;
+    } else if (e.type === 'strikeBest' || e.type === 'strikeAll') {
+      const hit = strikeHits(state, t, e, true);
       if (hit.length) hit.forEach((c) => add(c.uid, e.amount));
       else out.sun += e.amount;
     } else if (e.type === 'devour') {
-      const v = devourVictim(t);
+      const v = devourVictim(t, true);
       if (v) add(v.uid, 0);
       else out.sun += DEVOUR_SUN_HEAT;
     }
@@ -2377,12 +2399,28 @@ function bossActionScore(state: GameState, p: PlayerState, part: CardInstance): 
 }
 
 /**
- * A Lost Overlord's next action, chosen for the board as it stands (and chosen again as the board changes, so what
- * is shown is always what it will do): its best, the first in its turn order on a tie.
+ * How many of a Lost Overlord's days its own action (the Overlord's, on its Hero card) recharges once used: ready
+ * again on the third [direction: Furnace Breath, and each Overlord's own big action, only every third turn].
+ */
+export const BOSS_RECHARGE = 2;
+
+/** Whether a part's action is the Overlord's own: once used, it recharges (BOSS_RECHARGE). */
+export function recharges(c: CardInstance): boolean {
+  return cardDef(c.defId).overlordPart === 'overlord';
+}
+
+/** Whether a part's action is recharging, not to be chosen yet. */
+export function charging(p: PlayerState, c: CardInstance): boolean {
+  return recharges(c) && (p.boss?.charge ?? 0) > 0;
+}
+
+/**
+ * A Lost Overlord's next action, chosen for the board as it stands: its best, the first in its turn order on a tie,
+ * never its own action while that recharges (with nothing else to act, none: it gathers itself for the day).
  */
 export function chooseBossIntent(state: GameState, p: PlayerState) {
   if (!p.boss) return;
-  const order = bossOrder(p);
+  const order = bossOrder(p).filter((c) => !charging(p, c));
   let best: CardInstance | undefined;
   let top = -Infinity;
   for (const c of order) {
@@ -2490,21 +2528,31 @@ export function bossIntent(p: PlayerState): { card: CardInstance; name: string }
 
 /**
  * A Lost Overlord's day: the part it chose takes its action (with none left to act, it staggers, and the day is
- * lost to it); then its next is chosen and shown.
+ * lost to it; with only its own action left, recharging, it gathers itself); its own action, used, recharges, or
+ * comes a day nearer ready; then its next is chosen and shown.
  */
 function bossAct(state: GameState, p: PlayerState) {
   const intent = bossIntent(p);
+  const used = !!intent && recharges(intent.card);
   if (intent) {
     const a = cardDef(intent.card.defId).bossAction!;
     log(state, `⚔ ${p.name}: ${a.name}!`);
-    resolveEffects(state, p, intent.card, a.effects, 'turn');
-  } else if (p.boss?.leader) log(state, `${p.name} reaches for a part it no longer has, and staggers.`);
+    resolveEffects(state, p, intent.card, a.effects, 'turn', { blow: true });
+  } else {
+    const own = bossOrder(p).find((c) => charging(p, c));
+    if (own) log(state, `${p.name} gathers itself: its ${cardDef(own.defId).bossAction!.name} is still charging.`);
+    else if (p.boss?.leader) log(state, `${p.name} reaches for a part it no longer has, and staggers.`);
+  }
+  if (p.boss) {
+    if (used) p.boss.charge = BOSS_RECHARGE;
+    else if (p.boss.charge && --p.boss.charge <= 0) delete p.boss.charge;
+  }
   // Its minions, each acting for itself.
   for (const m of bossMinions(p)) {
     if (state.winnerId || p.eliminated || !p.tableau.includes(m)) continue;
     const a = cardDef(m.defId).bossAction!;
     log(state, `⚔ ${p.name}'s ${cardDef(m.defId).name}: ${a.name}!`);
-    resolveEffects(state, p, m, a.effects, 'turn');
+    resolveEffects(state, p, m, a.effects, 'turn', { blow: true });
   }
   if (state.winnerId || p.eliminated || !p.boss) return;
   // The next: its best against the board as it now stands.

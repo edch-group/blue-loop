@@ -12,7 +12,7 @@ export const BOSS_CARDS: CardDef[] = [
   // ---- The Hollow Colossus: a vast construct of a dead race, its furnace still burning ----
   {
     id: 'boss_colossus', overlordPart: 'overlord', name: 'Hollow Colossus', kind: 'command', stability: 30, attack: 0,
-    text: '{dawn}: {heat:1}. Action: {heat:8}.',
+    text: '{dawn}: {heat:1}. Action, every third turn: {heat:8}.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
     bossAction: { name: 'Furnace Breath', effects: [{ type: 'heat', amount: 8, to: 'target' }] },
   },
@@ -41,7 +41,7 @@ export const BOSS_CARDS: CardDef[] = [
   // ---- The Mother of Maws: the brood-queen of a hive that ate its own stars ----
   {
     id: 'boss_maws', overlordPart: 'overlord', name: 'Mother of Maws', kind: 'command', stability: 30, attack: 0,
-    text: '{dawn}: {heat:1}. Action: 2 Broodlings into her free slots.',
+    text: '{dawn}: {heat:1}. Action, every third turn: 2 Broodlings into her free slots.',
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
     bossAction: { name: 'Spawn', effects: [{ type: 'summon', defId: 'boss_broodling', amount: 2 }] },
   },
@@ -75,7 +75,7 @@ export const BOSS_CARDS: CardDef[] = [
   // ---- The Ashen Tyrant: the last king of a burned-out empire, still in his armour ----
   {
     id: 'boss_tyrant', overlordPart: 'overlord', name: 'Ashen Tyrant', kind: 'command', stability: 30, attack: 0,
-    text: "{dawn}: {heat:1}. Action: {heat:7}.",
+    text: "{dawn}: {heat:1}. Action, every third turn: {heat:7}.",
     onTurn: [{ type: 'heat', amount: 1, to: 'target' }],
     bossAction: { name: "Tyrant's Decree", effects: [{ type: 'heat', amount: 7, to: 'target' }] },
   },

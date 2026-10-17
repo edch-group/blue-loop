@@ -518,8 +518,11 @@ function explain(id: string): { race: boolean; head: string; colour: string; ico
   const def = cardDef(id);
   const first = [raceNoteOf(id), ...raceTraitTags(def).map((g) => `<div><b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}">${g.name}</b><span>${g.text}</span></div>`)].filter(Boolean);
   if (def.bossAction && def.overlordPart !== 'lost lord') {
-    const words = def.bossAction.say ?? plainText(def.text.includes('Action:') ? def.text.slice(def.text.indexOf('Action:') + 7) : def.text).trim();
-    first.push(`<div><b class="kw kw-removal">${def.bossAction.name}</b><span>${'Its action, when its turn comes: ' + words}</span></div>`);
+    const at = def.text.match(/Action[^:.]*:/);
+    const words = def.bossAction.say ?? plainText(at ? def.text.slice(at.index! + at[0].length) : def.text).trim();
+    // (An Overlord's own action recharges: every third of its days.)
+    const when = def.overlordPart === 'overlord' ? 'Its action, every third turn' : 'Its action, when its turn comes';
+    first.push(`<div><b class="kw kw-removal">${def.bossAction.name}</b><span>${when + ': ' + words}</span></div>`);
   }
   stage.innerHTML = `<div class="zoom-card">${keywordList(def.text, persists(id) ? { health: baseHealth(id) } : {}, first)}</div>`;
   return [...stage.querySelectorAll<HTMLElement>('.kw-list > div')].map((row) => {

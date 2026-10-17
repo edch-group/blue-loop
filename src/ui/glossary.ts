@@ -164,7 +164,7 @@ export function glossarySections(): Record<string, [string, () => string]> {
           ['Attacking a sun', 'Its attack lands as heat on the sun. Shields soak up heat first, 1 each.'],
           ['Attacking a card', `The hit wears its defence first. Wear lasts: only ${kw('repair', '1')} mends it, and it stays in the slot if the card leaves. Past its defence, the hit takes stability. At 0 the card goes to the wreckage.`],
           ['Hitting back', `A card that is attacked hits back with its own attack and any ${kw('sting', '1')}. That wears the attacker the same way.`],
-          ['Guard', `While they have a ${kw('guard')} in play, your attacks must hit a Guard. Heat aimed by a card you play, or by your Hero, goes where you choose.`],
+          ['Guard', `While they have a ${kw('guard')} in play, your attacks must hit a Guard. Heat aimed by a card you play, or by your Hero, goes where you choose. A Lost Overlord's blows at your sun or at one card fall on your Guard; a blow at every card still hits them all.`],
           ['Removal', `${kw('destroy', '2')} and the like only reach cards with that much defence or less.`],
           ['A full tableau', 'A new card replaces one of yours, which leaves play. You pick which.'],
         ])}`,

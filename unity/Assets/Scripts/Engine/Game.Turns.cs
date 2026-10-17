@@ -325,16 +325,22 @@ namespace BlueLoop.Engine
             }
             foreach (var e in action.Effects)
             {
-                if (e.Type == "heat" && e.To == "target") o.Sun += e.Amount ?? 0;
+                if (e.Type == "heat" && e.To == "target")
+                {
+                    // (A Guard steps in front of the sun.)
+                    var g = BlowGuard(state, t);
+                    if (g != null) Add(g.Uid, e.Amount ?? 0);
+                    else o.Sun += e.Amount ?? 0;
+                }
                 else if (e.Type == "strikeBest" || e.Type == "strikeAll")
                 {
-                    var hit = StrikeHits(state, t, e);
+                    var hit = StrikeHits(state, t, e, true);
                     if (hit.Count > 0) foreach (var c in hit) Add(c.Uid, e.Amount ?? 0);
                     else o.Sun += e.Amount ?? 0;
                 }
                 else if (e.Type == "devour")
                 {
-                    var v = DevourVictim(t);
+                    var v = DevourVictim(t, true);
                     if (v != null) Add(v.Uid, 0);
                     else o.Sun += DevourSunHeat;
                 }
@@ -375,12 +381,24 @@ namespace BlueLoop.Engine
             return score;
         }
 
+        /// <summary>How many of a Lost Overlord's days its own action (the Overlord's, on its Hero card) recharges once
+        /// used: ready again on the third (game.ts BOSS_RECHARGE).</summary>
+        public const int BossRecharge = 2;
+
+        /// <summary>Whether a part's action is the Overlord's own: once used, it recharges.</summary>
+        public static bool Recharges(CardInstance c) => Cards.Def(c.DefId).OverlordPart == "overlord";
+
+        /// <summary>Whether a part's action is recharging, not to be chosen yet.</summary>
+        public static bool Charging(PlayerState p, CardInstance c) => Recharges(c) && (p.Boss?.Charge ?? 0) > 0;
+
+        /// <summary>A Lost Overlord's next action, chosen for the board as it stands: its best, the first in its turn
+        /// order on a tie, never its own action while that recharges (with nothing else to act, none).</summary>
         public static void ChooseBossIntent(GameState state, PlayerState p)
         {
             if (p.Boss == null) return;
             CardInstance best = null;
             double top = double.NegativeInfinity;
-            foreach (var c in BossOrder(p))
+            foreach (var c in BossOrder(p).Where(c => !Charging(p, c)))
             {
                 double v = BossActionScore(state, p, c);
                 if (v > top) { best = c; top = v; }
@@ -413,19 +431,35 @@ namespace BlueLoop.Engine
         static void BossAct(GameState state, PlayerState p)
         {
             var intent = BossIntent(p);
+            bool used = intent != null && Recharges(intent.Value.card);
             if (intent != null)
             {
                 var a = Cards.Def(intent.Value.card.DefId).BossAction;
                 Log(state, $"⚔ {p.Name}: {a.Name}!");
-                ResolveEffects(state, p, intent.Value.card, a.Effects, "turn");
+                ResolveEffects(state, p, intent.Value.card, a.Effects, "turn", new PlayContext { Blow = true });
             }
-            else if (p.Boss?.Leader != null) Log(state, $"{p.Name} reaches for a part it no longer has, and staggers.");
+            else
+            {
+                var own = BossOrder(p).FirstOrDefault(c => Charging(p, c));
+                if (own != null) Log(state, $"{p.Name} gathers itself: its {Cards.Def(own.DefId).BossAction.Name} is still charging.");
+                else if (p.Boss?.Leader != null) Log(state, $"{p.Name} reaches for a part it no longer has, and staggers.");
+            }
+            // Its own action, used, recharges; else it comes a day nearer ready.
+            if (p.Boss != null)
+            {
+                if (used) p.Boss.Charge = BossRecharge;
+                else if (p.Boss.Charge != null && p.Boss.Charge > 0)
+                {
+                    p.Boss.Charge -= 1;
+                    if (p.Boss.Charge <= 0) p.Boss.Charge = null;
+                }
+            }
             foreach (var m in BossMinions(p))
             {
                 if (state.WinnerId != null || p.Eliminated || !p.Tableau.Contains(m)) continue;
                 var a = Cards.Def(m.DefId).BossAction;
                 Log(state, $"⚔ {p.Name}'s {Cards.Def(m.DefId).Name}: {a.Name}!");
-                ResolveEffects(state, p, m, a.Effects, "turn");
+                ResolveEffects(state, p, m, a.Effects, "turn", new PlayContext { Blow = true });
             }
             if (state.WinnerId != null || p.Eliminated || p.Boss == null) return;
             ChooseBossIntent(state, p);

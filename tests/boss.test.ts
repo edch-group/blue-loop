@@ -128,3 +128,61 @@ describe("A Lost Overlord's minions", () => {
     expect(acted.filter((t) => t.includes('Retainers') || t.includes('retainers')).length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe("A Lost Overlord's own action", () => {
+  it('recharges once used: ready again on its third day after', async () => {
+    const { BOSS_RECHARGE } = await import('../src/engine/game');
+    let s = battle();
+    const hero = s.players[1].tableau.find((c) => c.defId === lord.hero)!;
+    s.players[1].boss!.intent = hero.uid;
+    const charges: (number | undefined)[] = [];
+    const acted: string[] = [];
+    for (let day = 0; day < 3 && !s.winnerId; day++) {
+      const seq = s.log[s.log.length - 1]?.seq ?? 0;
+      s.players[0].heat = 0; // (the sun kept from going supernova, for the test)
+      s = applyAction(s, { type: 'endTurn' }); // the Overlord's day
+      for (const l of s.log) if (l.seq > seq && l.text.startsWith(`⚔ ${lord.name}:`)) acted.push(l.text);
+      const b = s.players[1];
+      charges.push(b.boss!.charge);
+      // While it recharges, what it shows next is never its own action.
+      if (b.boss!.charge) expect(bossIntent(b)?.card.defId).not.toBe(lord.hero);
+      if (!s.winnerId) s = applyAction(s, { type: 'endTurn' }); // the player's
+    }
+    expect(acted[0]).toContain('Furnace Breath');
+    expect(acted.slice(1).every((t) => !t.includes('Furnace Breath'))).toBe(true);
+    expect(charges).toEqual([BOSS_RECHARGE, 1, undefined]);
+  });
+
+  it('with nothing else to act, it gathers itself while it recharges', () => {
+    let s = createGame({ seed: 5, campaign: true, players: [{ name: 'Ada', isAI: false }, { name: lord.name, isAI: true, deck: [], boss: true, tableau: [lord.hero] }] });
+    s.players[1].boss!.charge = 1;
+    s.players[1].boss!.intent = undefined;
+    s = applyAction(s, { type: 'endTurn' });
+    expect(s.log.some((l) => /still charging/.test(l.text))).toBe(true);
+    expect(s.players[1].boss!.charge).toBeUndefined();
+    expect(bossIntent(s.players[1])?.card.defId).toBe(lord.hero);
+  });
+});
+
+describe("A Guard draws a Lost Overlord's blows", () => {
+  it('at the sun and at one card; a sweep still hits every card', async () => {
+    const { bossAim } = await import('../src/engine/game');
+    const s = battle();
+    const boss = s.players[1], me = s.players[0];
+    me.tableau = me.tableau.filter((c) => c.slot === COMMAND_SLOT);
+    me.tableau.push({ uid: 'g', defId: 'bell_warden', slot: 0, health: 6 }, { uid: 'a', defId: 'helio_lancer', slot: 1, health: 3 });
+    const part = (id: string) => boss.tableau.find((c) => c.defId === id)!.uid;
+    boss.boss!.intent = part('boss_colossus');
+    expect(bossAim(s, boss)).toEqual({ sun: 0, cards: [{ uid: 'g', heat: 8 }] });
+    boss.boss!.intent = part('colossus_left_fist');
+    expect(bossAim(s, boss).cards.map((c) => c.uid)).toEqual(['g']);
+    boss.boss!.intent = part('colossus_right_fist');
+    expect(bossAim(s, boss).cards.map((c) => c.uid).sort()).toEqual(['a', 'g']);
+    // Furnace Breath lands on the Guard: the sun spared its 8.
+    boss.boss!.intent = part('boss_colossus');
+    const heat = me.heat;
+    const t = applyAction(s, { type: 'endTurn' });
+    expect(t.log.some((l) => l.text.includes('Furnace Breath'))).toBe(true);
+    expect(t.players[0].heat - heat).toBeLessThan(8);
+  });
+});

@@ -188,6 +188,44 @@ public partial class BattleView
         return 3 * v * v * t * y1 + 3 * v * t * t * y2 + t * t * t;
     }
 
+    /// <summary>
+    /// A Lost Overlord's shown action (the part marked to act, its heat chip, its arrows, its recharge) as it stood
+    /// before the move, held while the move's day plays out until its blow has landed (app.ts holdBossShow): the
+    /// state arrives with the blow struck and the next action already chosen.
+    /// </summary>
+    GameState bossHold;
+    float bossHoldUntil;
+
+    /// <summary>A Lost Overlord as its shown action is drawn: as it was while its blow plays out, else as it is.</summary>
+    public (GameState s, PlayerState p)? BossShown(PlayerState owner)
+    {
+        var held = bossHold?.Players.FirstOrDefault(x => x.Id == owner.Id);
+        if (held?.Boss != null) return (bossHold, held);
+        return state != null && owner.Boss != null ? (state, owner) : ((GameState, PlayerState)?)null;
+    }
+
+    /// <summary>As a move lands: hold the Overlord's shown action as it was, if the move's replay plays out one of its
+    /// blows (`replayEnd`: seconds from now until the replay's last effect has landed).</summary>
+    void HoldBossShow(GameState prev, GameState next, EngineAction a, float replayEnd)
+    {
+        bossHold = null;
+        var boss = prev.Players.FirstOrDefault(p => p.Boss != null);
+        if (boss == null || a.Type != "endTurn" || replayEnd <= 0 || next.WinnerId != null) return;
+        var acting = new System.Collections.Generic.HashSet<string>(Game.BossMinions(boss).Select(m => m.Uid));
+        if (boss.Boss.Intent != null) acting.Add(boss.Boss.Intent);
+        if (!(next.TurnPulses ?? new System.Collections.Generic.List<TurnPulse>()).Any(p => p.Kind != "start" && p.Source == boss.Id && p.Uid != null && acting.Contains(p.Uid))) return;
+        bossHold = prev;
+        bossHoldUntil = Time.time + replayEnd + 0.12f;
+    }
+
+    /// <summary>The held action let go once its blow has landed: the next is shown.</summary>
+    void BossHoldTick()
+    {
+        if (bossHold == null || Time.time < bossHoldUntil) return;
+        bossHold = null;
+        if (state != null) Refresh();
+    }
+
     string bossAimKey = "";
     readonly System.Collections.Generic.List<GameObject> bossAims = new System.Collections.Generic.List<GameObject>();
 
@@ -198,8 +236,11 @@ public partial class BattleView
     void SyncBossAim()
     {
         if (hud == null || beamLayer == null) return;
-        var s = state;
-        var boss = s != null && s.WinnerId == null && stage == null ? s.Players.FirstOrDefault(p => p.Boss != null) : null;
+        var lord = state != null && state.WinnerId == null && stage == null ? state.Players.FirstOrDefault(p => p.Boss != null) : null;
+        // (While its blow plays out, as it was: BossShown.)
+        var shown = lord != null ? BossShown(lord) : null;
+        var s = shown?.s;
+        var boss = shown?.p;
         var foe = boss != null ? s.Players.FirstOrDefault(p => p != boss && !p.Eliminated) : null;
         var lines = new System.Collections.Generic.List<(string from, string to)>();
         if (boss != null && foe != null)

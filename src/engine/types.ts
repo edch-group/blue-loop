@@ -547,7 +547,16 @@ export interface PlayerState {
    * action, its parts taking turns (left to right, the Overlord itself last). `intent`: the part whose action
    * comes next: its best for the board, chosen again after every move (shown to its rival).
    */
-  boss?: { intent?: string; /** The card whose fall beats it (its Overlord): it has no sun. */ leader?: string };
+  boss?: {
+    intent?: string;
+    /** The card whose fall beats it (its Overlord): it has no sun. */
+    leader?: string;
+    /**
+     * Its own (the Overlord's) action recharging: how many more of its days before it is ready again (unset: ready).
+     * Used, it recharges for two of its days and is ready on the third.
+     */
+    charge?: number;
+  };
   /**
    * Energy left unspent at the end of this player's day, kept through the enemy's day to play a Lightspeed card
    * from hand in answer to them. Gone at their own next dawn.

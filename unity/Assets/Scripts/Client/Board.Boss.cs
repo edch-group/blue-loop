@@ -17,7 +17,7 @@ public partial class Board
     /// <summary>The box in place of a boss's sun (its collider, for where it is on the page).</summary>
     public Collider BossPanel(string playerId) => bossPanels.TryGetValue(playerId, out var b) && b.go != null ? b.go.GetComponent<Collider>() : null;
 
-    void BossVitals(GameState s, PlayerState p, bool mine)
+    void BossVitals(GameState s, PlayerState p, bool mine, BattleView ui)
     {
         var l = L;
         var ch = s.Challenge;
@@ -25,6 +25,9 @@ public partial class Board
         string label, hp;
         float? pct = null;
         var lines = new List<string>();
+        // Its own action's recharge (.boss-vitals-charge): a pip filled for each of its days, all three when it is
+        // ready; as the board shows it (BattleView.BossShown: as it was while its blow plays out).
+        int chargeLeft = -1;
         if (p.Boss?.Leader == null && ch != null)
         {
             bool mineCh = ch.Kind == "mine";
@@ -39,10 +42,13 @@ public partial class Board
             label = ch?.Kind == "crystal" ? "break the crystal" : "destroy the overlord";
             // (.boss-vitals-hp small: half its size, at 0.7.)
             hp = $"{hpNow}<size=50%><alpha=#B3>/{max}</size>";
+            var lord = BossShown(s, p, ui)?.p ?? p;
+            var own = Game.BossOrder(lord).FirstOrDefault(c => Cards.Def(c.DefId).OverlordPart == "overlord");
+            if (own != null) chargeLeft = Game.Charging(lord, own) ? lord.Boss?.Charge ?? 0 : 0;
             if (p.Shields > 0) lines.Add($"⛨ {p.Shields}");
             if (ch?.Kind == "crystal" && ch.Days != null) lines.Add($"{ch.Days} day{(ch.Days == 1 ? "" : "s")} left");
         }
-        string key = $"{l.Tcw}|{l.Vs}|{mine}|{label}|{hp}|{pct}|{string.Join("|", lines)}";
+        string key = $"{l.Tcw}|{l.Vs}|{mine}|{label}|{hp}|{pct}|{chargeLeft}|{string.Join("|", lines)}";
         if (bossPanels.TryGetValue(p.Id, out var had) && had.go != null && had.key == key) return;
         if (had.go != null) Mats.Kill(had.go);
 
@@ -57,11 +63,20 @@ public partial class Board
         var big = Mats.FlatText("Count", go.transform, hp, Px(hpPx), Rgba(0xf6, 0xec, 0xe6), true, 500, 0);
         texts.Add((big, hpPx));
         var more = lines.Select(x => Mats.FlatText("Line", go.transform, x, Px(linePx), Rgba(0xbf, 0xe6, 0xff), false, 400, 0)).ToList();
-        float inner = 0;
+        // (.boss-vitals-charge: three 7 px pips 3 px apart, then 6 px on, "charging · 2" or "ready" in the display face,
+        // amber when ready, pale while charging.)
+        const float pip = 7, pipGap = 3, chargeGap = 6;
+        int pips = Game.BossRecharge + 1;
+        float pipsW = pips * pip + (pips - 1) * pipGap;
+        TextMeshPro chargeText = chargeLeft < 0 ? null : Mats.FlatText("Charge", go.transform, (chargeLeft > 0 ? $"charging · {chargeLeft}" : "ready").ToUpperInvariant(), Px(labelPx), chargeLeft > 0 ? Rgba(246, 236, 230, 0.6f) : Rgba(0xff, 0xb0, 0x70), true, 400, 14, TextAlignmentOptions.Left);
+        float chargeTextW = chargeText != null ? chargeText.GetPreferredValues(chargeText.text).x * l.Tcw : 0;
+        float chargeW = chargeText != null ? pipsW + chargeGap + chargeTextW : 0;
+        float inner = chargeW;
         foreach (var t in texts.Select(x => x.t).Concat(more)) inner = Mathf.Max(inner, t.GetPreferredValues(t.text).x * l.Tcw);
         float w = Mathf.Max(110, inner + 2 * padX);
         float barW = w - 2 * padX, barH = 6;
-        float h = padY * 2 + labelPx * 1.25f + gap + hpPx + (pct != null ? gap + barH : 0) + more.Count * (gap + linePx * 1.25f);
+        float chargeH = labelPx * 1.25f;
+        float h = padY * 2 + labelPx * 1.25f + gap + hpPx + (pct != null ? gap + barH : 0) + (chargeText != null ? gap + chargeH : 0) + more.Count * (gap + linePx * 1.25f);
         // (Where a sun's .vitals stands: its left edge vs × 0.08 in from the row's, on the row's middle.)
         float cx = l.WrapLeft + 0.08f * l.Vs + w / 2, cy = mine ? l.MyRowCy : l.RivalRowCy;
         go.transform.localPosition = l.At(cx, cy);
@@ -101,6 +116,26 @@ public partial class Board
             bar.sharedMaterial.SetFloat("_Radius", 3f / barW);
             bar.transform.localPosition = new Vector3(0, 0.004f, l.U(h / 2 - y - barH / 2));
             y += barH + gap;
+        }
+        if (chargeText != null)
+        {
+            // The pips, then the words, the row centred.
+            float x0 = -chargeW / 2, zc = l.U(h / 2 - y - chargeH / 2);
+            int filled = pips - chargeLeft;
+            for (int i = 0; i < pips; i++)
+            {
+                bool on = i < filled;
+                var dot = Shape("Pip", go.transform, on ? Rgba(0xff, 0x8d, 0x55) : new Color(1, 1, 1, 0.15f), l.U(pip), l.U(pip), l.U(pip / 2), 2962, 0.004f);
+                dot.transform.localPosition = new Vector3(l.U(x0 + i * (pip + pipGap) + pip / 2), 0.004f, zc);
+                if (!on)
+                {
+                    var ring = Shape("Pip edge", go.transform, Rgba(255, 176, 112, 0.45f), l.U(pip), l.U(pip), l.U(pip / 2), 2963, 0.0045f, l.U(0.5f), l.U(1), true);
+                    ring.transform.localPosition = dot.transform.localPosition + new Vector3(0, 0.0005f, 0);
+                }
+            }
+            chargeText.rectTransform.sizeDelta = new Vector2(l.U(chargeTextW + 2), l.U(chargeH));
+            chargeText.transform.localPosition = new Vector3(l.U(x0 + pipsW + chargeGap + chargeTextW / 2), 0.01f, zc);
+            y += chargeH + gap;
         }
         foreach (var t in more) Row(t, linePx * 1.25f);
         // (For where it is on the page: as a sun's collider is.)

@@ -6076,6 +6076,14 @@ body:has(.game-result) .dock { visibility: hidden; }
 .boss-vitals-bar { width: 100%; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
 .boss-vitals-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff6a3a, #ffb070); }
 .boss-vitals-shields { font-size: 0.75rem; color: #bfe6ff; }
+/* Its own action's recharge: three pips, one filled for each of its days, all three when it is ready. */
+.boss-vitals-charge { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: #ffb070; }
+.boss-vitals-charge.boss-charging { color: rgba(246, 236, 230, 0.6); }
+.boss-charge-pips { display: inline-flex; gap: 3px; }
+.boss-charge-pips i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); box-shadow: inset 0 0 0 1px rgba(255, 176, 112, 0.45); }
+.boss-charge-pips i.on { background: linear-gradient(135deg, #ffb070, #ff6a3a); box-shadow: 0 0 4px rgba(255, 106, 58, 0.7); }
+/* The Overlord's card while its own action recharges: dimmed. */
+.card.card-table.card-charging .card-glyph { filter: saturate(0.35) brightness(0.7); }
 .boss-vitals .vitals-name { color: #ffb070; }
 
 /* The galaxy's trade-off, lying on the board just under the Stellari. */

@@ -121,7 +121,7 @@ import { ORACLE_NAME } from '../engine/story';
 import { relicMark } from './relic-art';
 
 import { closeTour, startTour, tourShowing } from './tour';
-import { DREAMS, shownKind, isBurst, bossIntent, bossMinions, partAim, relicN, relicOf, RELIC_POWERS, overdrivable } from '../engine';
+import { DREAMS, shownKind, isBurst, bossIntent, bossMinions, bossOrder, charging, BOSS_RECHARGE, partAim, relicN, relicOf, RELIC_POWERS, overdrivable } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
 import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
@@ -1605,6 +1605,7 @@ export class App {
       // (Once the move lands, a card with nothing left to read leaves the preview pane; one that sprang stays its moment.)
       if (this.stage?.own || (this.stage && !this.stage.confirm && this.stage !== sprung)) this.stage = null;
       if (last.action.type !== 'setTarget') backdrop.spin();
+      this.holdBossShow(prev, next, last.action);
       this.state = next;
       if (isGameOver(next) && !isGameOver(prev)) this.holdResult(next, last.action);
       // (A new day isn't under way until its dawn has played out: the hand waits.)
@@ -1756,8 +1757,11 @@ export class App {
    * strike, held until what it aims at changes [direction: a targeting arrow preview of where the boss attacks next].
    */
   private syncBossAim() {
-    const s = this.screen === 'game' ? this.state : null;
-    const boss = s && !isGameOver(s) && !this.stage ? s.players.find((p) => p.boss) : undefined;
+    const now = this.screen === 'game' ? this.state : null;
+    const lord = now && !isGameOver(now) && !this.stage ? now.players.find((p) => p.boss) : undefined;
+    // (While its blow plays out, as it was: see holdBossShow.)
+    const shown = lord ? this.bossShown(lord) : null;
+    const s = shown?.s ?? null, boss = shown?.p;
     const foe = s && boss ? s.players.find((p) => p !== boss && !p.eliminated) : undefined;
     // Each part that acts next (its chosen action, and every minion), with what it will strike.
     const parts = s && boss && foe ? [...(bossIntent(boss) ? [bossIntent(boss)!.card] : []), ...bossMinions(boss)] : [];
@@ -1780,6 +1784,42 @@ export class App {
   }
   private bossAimKey = '';
   private bossUnaim: (() => void)[] = [];
+
+  /**
+   * A Lost Overlord's shown action (the part marked to act, its heat chip, its arrows, its recharge) as it stood
+   * before the move, held while the move's day plays out, until its blow has landed [direction: the targeting arrow,
+   * and the red around the part acting, move on only once the attack has happened]: the state arrives with the
+   * blow struck and the next action already chosen.
+   */
+  private bossHold: { state: GameState; id: number } | null = null;
+  private bossHoldId = 0;
+
+  /** Before a move is drawn: hold the Overlord's shown action as it was, if the move plays out one of its blows. */
+  private holdBossShow(prev: GameState, next: GameState, action: Action) {
+    this.bossHold = null;
+    const boss = prev.players.find((p) => p.boss);
+    if (!boss || action.type !== 'endTurn' || reducedMotion() || isGameOver(next)) return;
+    const acting = new Set([boss.boss?.intent, ...bossMinions(boss).map((m) => m.uid)]);
+    if (!(next.turnPulses ?? []).some((p) => p.kind !== 'start' && p.source === boss.id && !!p.uid && acting.has(p.uid))) return;
+    this.bossHold = { state: prev, id: ++this.bossHoldId };
+    // (Let go anyway, should the replay never say it is done.)
+    const id = this.bossHoldId;
+    window.setTimeout(() => this.releaseBossShow(id), 15000);
+  }
+
+  /** The held action let go (its blow has landed): the next is shown. */
+  private releaseBossShow(id: number) {
+    if (this.bossHold?.id !== id) return;
+    this.bossHold = null;
+    if (this.screen === 'game') this.render();
+  }
+
+  /** A Lost Overlord as its shown action is drawn: as it was while its blow plays out (holdBossShow), else as it is. */
+  private bossShown(owner: PlayerState): { s: GameState; p: PlayerState } | null {
+    const held = this.bossHold?.state.players.find((x) => x.id === owner.id);
+    if (held?.boss) return { s: this.bossHold!.state, p: held };
+    return this.state && owner.boss ? { s: this.state, p: owner } : null;
+  }
 
   /**
    * A dream's time limit [direction: dreams of the lost need a time limit]: a minute, and 20 seconds more for each
@@ -2375,6 +2415,8 @@ export class App {
       if (turnPassed) this.phase = 'dawn';
       // (Skip all lasts the rival's day: as it ends, and yours begins, it is back to auto-confirm.)
       if (turnPassed && this.confirmMode === 'skip' && activePlayer(next).id === this.viewer().id) this.confirmMode = 'auto';
+      if (before) this.holdBossShow(prev, next, action);
+      else this.bossHold = null;
       this.render();
       if (before) {
         this.surfaceLog(prev);
@@ -2833,6 +2875,12 @@ export class App {
       this.supernovaAt(pid);
     };
     const replayEnd = pulses.length ? this.replayPulses(next, prev, before, nova, this.dayTimeline(next, actor, true).pulses) : 0;
+    // (A Lost Overlord's next action shows once this day's blows have landed.)
+    if (this.bossHold) {
+      const id = this.bossHold.id;
+      if (replayEnd > 0) window.setTimeout(() => this.releaseBossShow(id), replayEnd + 120);
+      else this.releaseBossShow(id);
+    }
     const hitAt = new Map<string, number>();
     let faded = 0;
     before.cards.forEach((old, uid) => {
@@ -6301,12 +6349,16 @@ export class App {
     // A Lost Overlord's part: a full-art card, its one action named across its picture; the part whose action
     // comes next is marked.
     // (A full-art card with a cost of its own, a Lost Lord, shows it: the Overlords' parts have none.)
-    const full = fullArt(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}${opts.owner?.boss?.intent === c.uid ? ' card-intent' : ''}` : '';
+    // (As it was while its blow plays out: see holdBossShow.)
+    const lord = opts.owner?.boss ? this.bossShown(opts.owner) : null;
+    const shownPart = lord?.p.tableau.find((x) => x.uid === c.uid);
+    // (Its own action recharging: the Overlord's card dimmed.)
+    const full = fullArt(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}${lord?.p.boss?.intent === c.uid ? ' card-intent' : ''}${opts.tableau && lord && shownPart && charging(lord.p, shownPart) ? ' card-charging' : ''}` : '';
     // (Its action's name shows in the inspector only [direction: hide the unique ability pills other than in the
     // inspector]. The part acting next carries the heat it will deal, large across its middle.)
     // (Its minions too: each acts every day.)
-    const acting = opts.tableau && opts.owner?.boss && this.state && (opts.owner.boss.intent === c.uid || bossMinions(opts.owner).some((m) => m.uid === c.uid));
-    const blow = acting ? partAim(this.state!, opts.owner!, c) : null;
+    const acting = opts.tableau && lord && shownPart && (lord.p.boss!.intent === c.uid || bossMinions(lord.p).some((m) => m.uid === c.uid));
+    const blow = acting ? partAim(lord!.s, lord!.p, shownPart!) : null;
     const aimHeat = blow ? Math.max(0, blow.sun, ...blow.cards.map((x) => x.heat)) : 0;
     const actionTag = aimHeat ? `<b class="boss-aim-heat">${symbolIcon('heat')}<span>${aimHeat}</span></b>` : '';
     return `
@@ -6387,8 +6439,10 @@ export class App {
     const first = [this.raceNote(defId), ...raceTraitTags(def).map((g) => `<div><b class="kw kw-trait ${g.nerf ? 'kw-trait-nerf' : ''}">${esc(g.name)}</b><span>${esc(g.text)}</span></div>`)].filter(Boolean);
     // A boss card's great action: what it does (a Lost Lord's only as a foe), in words.
     if (def.bossAction && (def.overlordPart !== 'lost lord' || owner?.boss)) {
-      const words = def.bossAction.say ?? plainText(def.text.includes('Action:') ? def.text.slice(def.text.indexOf('Action:') + 7) : def.text).trim();
-      const when = def.overlordPart === 'lost lord' ? 'Its action' : 'Its action, when its turn comes';
+      const at = def.text.match(/Action[^:.]*:/);
+      const words = def.bossAction.say ?? plainText(at ? def.text.slice(at.index! + at[0].length) : def.text).trim();
+      // (An Overlord's own action recharges: every third of its days.)
+      const when = def.overlordPart === 'lost lord' ? 'Its action' : def.overlordPart === 'overlord' ? 'Its action, every third turn' : 'Its action, when its turn comes';
       first.push(`<div><b class="kw kw-removal">${esc(def.bossAction.name)}</b><span>${esc(`${when}: ${words}`)}</span></div>`);
     }
     return keywordList(def.text, stats, first);
@@ -6609,10 +6663,23 @@ export class App {
     }
     const hp = leader?.health ?? 0, max = leader?.maxHealth ?? (leader ? baseHealth(leader.defId) : 1);
     const pct = Math.max(0, Math.min(100, (hp / Math.max(1, max)) * 100));
+    // Its own action's recharge: a pip filled for each of its days, full when it is ready (as the board shows it:
+    // see holdBossShow).
+    const lord = this.bossShown(p)?.p ?? p;
+    const own = bossOrder(lord).find((c) => cardDef(c.defId).overlordPart === 'overlord');
+    const left = own && charging(lord, own) ? lord.boss?.charge ?? 0 : 0;
+    const filled = BOSS_RECHARGE + 1 - left;
+    const charge = own
+      ? `<span class="boss-vitals-charge${left ? ' boss-charging' : ''}" title="${esc(cardDef(own.defId).bossAction!.name)}: ${left ? `charging, it can be used again in ${left + 1} turns` : 'ready'}. Once used, it recharges: every third turn.">
+        <span class="boss-charge-pips">${Array.from({ length: BOSS_RECHARGE + 1 }, (_, i) => `<i${i < filled ? ' class="on"' : ''}></i>`).join('')}</span>
+        <small>${left ? `charging · ${left}` : 'ready'}</small>
+      </span>`
+      : '';
     return `<div class="vitals boss-vitals" data-anchor="player:${p.id}" title="Beat down the Overlord itself: heat sent at it strikes the Overlord, past its shields.">
       <span class="boss-vitals-label">${ch?.kind === 'crystal' ? 'break the crystal' : 'destroy the overlord'}</span>
       <b class="boss-vitals-hp">${hp}<small>/${max}</small></b>
       <span class="boss-vitals-bar"><i style="width:${pct.toFixed(1)}%"></i></span>
+      ${charge}
       ${p.shields ? `<span class="boss-vitals-shields">⛨ ${p.shields}</span>` : ''}
       ${ch?.kind === 'crystal' && ch.days !== undefined ? `<span class="boss-vitals-shields">${ch.days} day${ch.days === 1 ? '' : 's'} left</span>` : ''}
       <span class="vitals-name">${esc(p.name.toLowerCase())}</span>

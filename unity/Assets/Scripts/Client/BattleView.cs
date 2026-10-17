@@ -173,6 +173,7 @@ public partial class BattleView : MonoBehaviour
     {
         if (!scoreLeft && state?.WinnerId != null && Application.isPlaying) { scoreLeft = true; Sound.Scene("voyage", Reversed); }
         if (FitScreen() && state != null) Refresh();
+        BossHoldTick();
         ExtrasTick();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
         if (state != null && !Autoplay && !Tour.HasKeys) KeysTick();

@@ -75,6 +75,8 @@ public partial class BattleView
             // (Skip all lasts the rival's day: as yours begins, it is back to auto.)
             if (turnPassed && confirmMode == "skip" && Game.ActivePlayer(next).Id == you) confirmMode = "auto";
             float replayEnd = replaying ? ReplayPulses(prev, next, day.Item4) : 0;
+            // (A Lost Overlord's next action shows once this day's blows have landed.)
+            HoldBossShow(prev, next, a, replayEnd);
             // Cards that faded at dawn stay in their slots while the day's effects play out, then go, one at a time.
             if (a.Type == "endTurn")
             {

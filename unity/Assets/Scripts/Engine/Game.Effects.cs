@@ -14,6 +14,8 @@ namespace BlueLoop.Engine
             public PlayerState Against;
             public ReactEvent Event;
             public Reaction Reaction;
+            /// <summary>A Lost Overlord's blow (one of its parts' actions): a Guard draws it in (see BlowGuard).</summary>
+            public bool Blow;
 
             public static PlayContext From(Action a) => a == null ? new PlayContext() : new PlayContext { EnemyUid = a.EnemyUid, ChillUid = a.ChillUid, AimUid = a.AimUid, AllyUid = a.AllyUid, RecoverUid = a.RecoverUid, ShiftTo = a.ShiftTo };
         }
@@ -331,10 +333,13 @@ namespace BlueLoop.Engine
                         var main = ctx.Against != null && !ctx.Against.Eliminated ? ctx.Against : TargetOf(state, p);
                         if (main == null) break;
                         var aimed = when == "play" && ctx.Against == null && main == TargetOf(state, p) ? AimedCard(state, p, ctx.AimUid) : null;
+                        // (A Lost Overlord's blow at the sun: a Guard steps in front of it.)
+                        var victim = aimed ?? (ctx.Blow ? BlowGuard(state, main) : null);
                         if (state.WinnerId != null || p.Eliminated) break;
-                        if (aimed != null)
+                        if (victim != null)
                         {
-                            StrikeCard(state, main, aimed, amount, p, e.Pierce == true, card.Uid, false, true);
+                            StrikeCard(state, main, victim, amount, p, e.Pierce == true, card.Uid, false, true);
+                            if (aimed == null && when == "turn") NotePulse(state, p, card, "heat", main, amount, victim.Uid);
                             break;
                         }
                         ApplyHeat(state, main, amount, p, false, card.Uid, e.Pierce == true, $"{p.Name}'s {Cards.Def(card.DefId).Name}");
@@ -719,7 +724,7 @@ namespace BlueLoop.Engine
                     {
                         var t = ctx.Against ?? TargetOf(state, p);
                         if (t == null) break;
-                        var hit = StrikeHits(state, t, e);
+                        var hit = StrikeHits(state, t, e, ctx.Blow);
                         if (hit.Count == 0 && ((e.Type == "strikeBest" && e.Guarded == true) || Cards.Def(card.DefId).BossAction != null))
                         {
                             ApplyHeat(state, t, e.Amount ?? 0, p, false, card.Uid, false, $"{p.Name}'s {Cards.Def(card.DefId).Name}");
@@ -739,7 +744,7 @@ namespace BlueLoop.Engine
                     case "devour":
                     {
                         var t = ctx.Against ?? TargetOf(state, p);
-                        var victim = t != null ? DevourVictim(t) : null;
+                        var victim = t != null ? DevourVictim(t, ctx.Blow) : null;
                         if (t == null) break;
                         if (victim == null)
                         {
@@ -959,10 +964,11 @@ namespace BlueLoop.Engine
             }
         }
 
-        static List<CardInstance> StrikeHits(GameState state, PlayerState t, Effect e)
+        static List<CardInstance> StrikeHits(GameState state, PlayerState t, Effect e, bool blow = false)
         {
             if (e.Type == "strikeAll") return t.Tableau.ToList();
-            var pool = e.Guarded == true && Guards(t).Count > 0 ? Guards(t) : t.Tableau;
+            // (A guarded strike, or a Lost Overlord's blow: a Guard draws it in.)
+            var pool = (e.Guarded == true || blow) && Guards(t).Count > 0 ? Guards(t) : t.Tableau;
             return Sorted(pool, (a, b) =>
             {
                 int d = CardAttack(state, t, b) - CardAttack(state, t, a);
@@ -970,7 +976,18 @@ namespace BlueLoop.Engine
             }).Take(1).ToList();
         }
 
-        static CardInstance DevourVictim(PlayerState t) =>
-            Sorted(t.Tableau.Where(c => c.Uid != t.Boss?.Leader && !DestroyImmune(c.DefId)), (a, b) => (a.Health ?? 0) - (b.Health ?? 0)).FirstOrDefault();
+        /// <summary>What a Devour eats: the weakest card it can take (never a Lost Overlord's own body, nor an entrenched
+        /// one); a Lost Overlord's, a Guard first, if it can take one.</summary>
+        static CardInstance DevourVictim(PlayerState t, bool blow = false)
+        {
+            var can = t.Tableau.Where(c => c.Uid != t.Boss?.Leader && !DestroyImmune(c.DefId)).ToList();
+            var guarding = blow ? can.Where(c => IsGuard(t, c)).ToList() : new List<CardInstance>();
+            return Sorted(guarding.Count > 0 ? guarding : can, (a, b) => (a.Health ?? 0) - (b.Health ?? 0)).FirstOrDefault();
+        }
+
+        /// <summary>The Guard a Lost Overlord's blow at the sun strikes instead: the one a single-target blow would pick
+        /// among them (most attack, then most stability). None with no Guard in play.</summary>
+        static CardInstance BlowGuard(GameState state, PlayerState t) =>
+            Guards(t).Count > 0 ? StrikeHits(state, t, new Effect { Type = "strikeBest", Amount = 0 }, true).FirstOrDefault() : null;
     }
 }

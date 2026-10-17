@@ -312,6 +312,9 @@ namespace BlueLoop.Engine
     {
         public string Intent;
         public string Leader;
+        /// <summary>Its own (the Overlord's) action recharging: how many more of its days before it is ready again
+        /// (null: ready). Used, it recharges for two of its days and is ready on the third.</summary>
+        public int? Charge;
     }
 
     public class Stung
