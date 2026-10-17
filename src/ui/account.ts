@@ -14,7 +14,7 @@ import { reloadProfile, setEconomy, type EconomyFields } from './profile';
  * runs between (meta), the game against the AI and a local game in progress, lessons and challenges solved, the tour,
  * the decks and the settings; so it is the same on every device signed in.
  */
-const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v6', 'blue-loop:runs:v1', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:recent-decks', 'blue-loop:ai-speed', 'blue-loop:auto-confirm', 'blue-loop:hide-starters', 'blue-loop:share-stats', 'blue-loop:ai-game', 'blue-loop:save:v4', 'blue-loop:challenges-solved', 'blue-loop:lessons-done', 'blue-loop:tutorial', 'blue-loop:tutorial-seen', 'blue-loop:stats-rec'];
+const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v6', 'blue-loop:runs:v1', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:recent-decks', 'blue-loop:ai-speed', 'blue-loop:auto-confirm', 'blue-loop:hide-starters', 'blue-loop:share-stats', 'blue-loop:ai-game', 'blue-loop:save:v4', 'blue-loop:challenges-solved', 'blue-loop:lessons-done', 'blue-loop:tutorial', 'blue-loop:tutorial-seen', 'blue-loop:stats-rec', 'blue-loop:games-begun'];
 /** The account signed in on this device, and the version of its progress this device last had. */
 const ACCOUNT_KEY = 'blue-loop:account';
 /** The native app's session token (a browser keeps its session in a cookie that pages can't read). */

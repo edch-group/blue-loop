@@ -31,6 +31,29 @@ public partial class BattleView
     /// <summary>The pill: "normal" (each rival card waits for your OK), "auto" (a moment, then by itself), "skip" (that, and your replies let pass).</summary>
     string confirmMode = "normal";
     bool AutoConfirms => confirmMode != "normal";
+
+    /// <summary>How many games this player has begun, any mode (app.ts GAMES_BEGUN_KEY).</summary>
+    const string GamesBegunKey = "blue-loop:games-begun";
+
+    /// <summary>
+    /// A fresh game begins (app.ts paceForNewGame): counted. A player's first game goes at normal pace (each rival card
+    /// waits for an OK); from the second on, unless they have chosen a pace themselves, it goes to auto, said the once.
+    /// </summary>
+    void PaceForNewGame(GameState s)
+    {
+        if (s.TurnNumber > 1 || s.WinnerId != null) return;
+        int.TryParse(Store.Get(GamesBegunKey) ?? "0", out int begun);
+        Store.Set(GamesBegunKey, (begun + 1).ToString());
+        if (begun < 1 || Store.Get(AutoConfirmKey) != null) return;
+        Store.Set(AutoConfirmKey, "1");
+        confirmMode = "auto";
+        Refresh();
+        CloseSheet();
+        sheet = Hud.Sheet(Layer, "auto mode", new[]
+        {
+            new Hud.Row("got it\nYour rival's cards now play on by themselves after a moment, rather than each waiting for your OK. Switch back to normal with the pace pill at the bottom left.", CloseSheet, null, true),
+        }, CloseSheet);
+    }
     RectTransform stagePane;
     /// <summary>Where the stage's card stands on the page.</summary>
     Rect? stageCardRect;

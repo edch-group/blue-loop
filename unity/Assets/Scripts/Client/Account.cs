@@ -14,7 +14,7 @@ using Newtonsoft.Json.Linq;
 public static class Account
 {
     /// <summary>What an account's progress is made of: these keys of this device's storage (Store).</summary>
-    public static readonly string[] Synced = { "blue-loop:profile:v1", "blue-loop:decks:v1", "blue-loop:campaign:v6", "blue-loop:runs:v1", "blue-loop:sound", "blue-loop:music", "blue-loop:recent-decks", "blue-loop:ai-speed", "blue-loop:auto-confirm", "blue-loop:hide-starters", "blue-loop:share-stats", "blue-loop:ai-game", "blue-loop:save:v4", "blue-loop:challenges-solved", "blue-loop:lessons-done", "blue-loop:tutorial", "blue-loop:tutorial-seen", "blue-loop:stats-rec" };
+    public static readonly string[] Synced = { "blue-loop:profile:v1", "blue-loop:decks:v1", "blue-loop:campaign:v6", "blue-loop:runs:v1", "blue-loop:sound", "blue-loop:music", "blue-loop:recent-decks", "blue-loop:ai-speed", "blue-loop:auto-confirm", "blue-loop:hide-starters", "blue-loop:share-stats", "blue-loop:ai-game", "blue-loop:save:v4", "blue-loop:challenges-solved", "blue-loop:lessons-done", "blue-loop:tutorial", "blue-loop:tutorial-seen", "blue-loop:stats-rec", "blue-loop:games-begun" };
     /// <summary>The account signed in on this device, and the version of its progress this device last had.</summary>
     const string AccountKey = "blue-loop:account";
     const float PushDelay = 2.5f;

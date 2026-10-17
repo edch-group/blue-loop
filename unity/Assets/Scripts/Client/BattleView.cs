@@ -116,6 +116,7 @@ public partial class BattleView : MonoBehaviour
         // (The opening hand: shuffled, then dealt in from the deck: app.ts begin, dealOpening.)
         Board.DealOpening(state);
         Begin();
+        PaceForNewGame(state);
     }
 
     /// <summary>The names the AI plays under in quickplay (app.ts BOT_NAMES).</summary>
@@ -162,6 +163,7 @@ public partial class BattleView : MonoBehaviour
         // (The opening hand: shuffled, then dealt in from the deck: app.ts begin, dealOpening.)
         Board.DealOpening(state);
         Begin();
+        if (puzzleKind == null) PaceForNewGame(state);
     }
 
     /// <summary>Whether the match's score has given way to the voyage, the game being over (app.ts render's inPlay).</summary>

@@ -245,6 +245,8 @@ type Sheet =
   | { kind: 'quit' }
   /** Ending the day with plays still left: are you sure? */
   | { kind: 'end-day' }
+  /** The second game begun: rival cards now go by themselves (auto), said once. */
+  | { kind: 'pace-auto' }
   /** Ending the day holding more than the hand limit: which cards go (`picked`, by uid). */
   | { kind: 'card'; defId: string; uid?: string; /** A card in play: its uid, so the magnified card shows its live stats. */ table?: string; /** Of a card in play with Fusion cards on it: which is shown (0 the card itself, then each fused card). */ tab?: number };
 
@@ -299,6 +301,8 @@ const AI_GAME_KEY = 'blue-loop:ai-game';
 /** A rival's cards land by themselves after a moment, rather than waiting for OK. */
 const AUTO_CONFIRM_KEY = 'blue-loop:auto-confirm';
 const AUTO_CONFIRM_MS = 2000;
+/** How many games this player has begun (any mode): the first is played at normal pace, the second on goes to auto. */
+const GAMES_BEGUN_KEY = 'blue-loop:games-begun';
 /** How long the viewer's own card hangs in the preview pane (at least) before it lands, as the rival reads it. */
 const OWN_HOLD_MS = 1100;
 /** With nothing left to do today, how long the board rests before the day ends by itself. */
@@ -1577,6 +1581,7 @@ export class App {
       this.campaignBattle = false;
       this.screen = 'game';
       this.phase = 'day';
+      this.paceForNewGame(next);
       this.render();
       this.dealOpening();
       this.announceTurn(400);
@@ -1953,6 +1958,24 @@ export class App {
     return (Math.max(0, cardCost(defId) - discount) <= me.playsLeft && hasRoomFor(me, defId) && (cardDef(defId).kind !== 'trap' || canSetTrap(me))) || canSetFaceDown(me, defId);
   }
 
+  /**
+   * A fresh game begins: counted. A player's first game goes at normal pace (each rival card waits for an OK); from
+   * the second on, unless they have chosen a pace themselves, it goes to auto, and a note says so the once.
+   */
+  private paceForNewGame(state: GameState) {
+    if (state.turnNumber > 1 || state.winnerId) return;
+    try {
+      const begun = Number(localStorage.getItem(GAMES_BEGUN_KEY) ?? '0') || 0;
+      localStorage.setItem(GAMES_BEGUN_KEY, String(begun + 1));
+      if (begun < 1 || localStorage.getItem(AUTO_CONFIRM_KEY) !== null) return;
+      localStorage.setItem(AUTO_CONFIRM_KEY, '1');
+      this.confirmMode = 'auto';
+      this.sheet = { kind: 'pace-auto' };
+    } catch {
+      // Storage unavailable: the pace stays as it is.
+    }
+  }
+
   /** End the day, checking first if there are still cards that could be played. */
   private requestEndDay() {
     const s = this.state;
@@ -2139,6 +2162,7 @@ export class App {
     this.persist(state);
     this.syncViewer();
     this.phase = 'day';
+    if (!this.puzzle) this.paceForNewGame(state);
     this.render();
     this.dealOpening();
     this.announceTurn(400);
@@ -6947,6 +6971,13 @@ export class App {
     switch (sh.kind) {
       case 'rules':
         return this.sheetFrame('how to play', this.rulesHtml());
+      case 'pace-auto':
+        return this.sheetFrame(
+          'auto mode',
+          settingsPanel(choiceRow('cancel', 'got it', '', true, "Your rival's cards now play on by themselves after a moment, rather than each waiting for your OK. Switch back to normal with the pace pill at the bottom left.")),
+          '',
+          false,
+        );
       case 'end-day': {
         const left = this.leftUndone();
         return this.sheetFrame(
