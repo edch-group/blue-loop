@@ -193,6 +193,51 @@ export function pulse(el: Element | null, cls: string, delay = 0) {
 }
 
 /**
+ * A repair's crank over a slot (Unity: BattleView.Crank.cs, to the same times): a spanner on a white disc comes in,
+ * cranks back and forth three turns of the wrist about its head (the bolt), bobbing a little with each stroke, then
+ * settles and fades. CRANK_TICKS: when each stroke lands (a tick of the repair sound each); CRANK_MENDED: when the
+ * slot's wear has cleared; both as shares of CRANK_MS. Several slots mended at once crank CRANK_STAGGER_MS apart.
+ */
+export const CRANK_MS = 1100, CRANK_TICKS = [0.27, 0.51, 0.75], CRANK_MENDED = 0.8, CRANK_STAGGER_MS = 140;
+/** The spanner's turn (degrees) and bob (shares of the disc, up) through the crank, at each offset. */
+export const CRANK_KEYS: { at: number; turn: number; bob: number; scale: number; alpha: number }[] = [
+  { at: 0, turn: -20, bob: 0, scale: 0.6, alpha: 0 },
+  { at: 0.14, turn: -20, bob: 0, scale: 1, alpha: 1 },
+  { at: 0.27, turn: 35, bob: 0.08, scale: 1, alpha: 1 },
+  { at: 0.39, turn: -25, bob: 0, scale: 1, alpha: 1 },
+  { at: 0.51, turn: 35, bob: 0.08, scale: 1, alpha: 1 },
+  { at: 0.63, turn: -25, bob: 0, scale: 1, alpha: 1 },
+  { at: 0.75, turn: 35, bob: 0.08, scale: 1, alpha: 1 },
+  { at: 0.86, turn: 0, bob: 0, scale: 1, alpha: 1 },
+  { at: 1, turn: 0, bob: 0.1, scale: 1.15, alpha: 0 },
+];
+export function crank(where: Where, spanner: string, delay = 0) {
+  if (reducedMotion()) return;
+  window.setTimeout(() => {
+    const r = place(where);
+    if (!r) return;
+    // (The disc about half the slot across, within reason, in its upper part: the slot's number shows under it.)
+    const size = Math.max(28, Math.min(72, r.width * 0.56));
+    const el = document.createElement('div');
+    el.className = 'crank';
+    el.innerHTML = `<span class="crank-disc"></span>${spanner}`;
+    Object.assign(el.style, { left: `${r.left + r.width / 2 - size / 2}px`, top: `${r.top + r.height * 0.32 - size / 2}px`, width: `${size}px`, height: `${size}px` });
+    document.body.appendChild(el);
+    const ease = 'cubic-bezier(.45,0,.4,1)';
+    el.animate(
+      CRANK_KEYS.map((k) => ({ offset: k.at, transform: `translateY(${-k.bob * size}px) scale(${k.scale})`, opacity: k.alpha, easing: ease })),
+      { duration: CRANK_MS, fill: 'both' },
+    );
+    const svg = el.querySelector('svg');
+    svg?.animate(
+      CRANK_KEYS.map((k) => ({ offset: k.at, transform: `rotate(${k.turn}deg)`, easing: ease })),
+      { duration: CRANK_MS, fill: 'both' },
+    );
+    window.setTimeout(() => el.remove(), CRANK_MS + 50);
+  }, delay);
+}
+
+/**
  * Removal: a glowing white arc from the card doing the removing to its target,
  * drawn out, held briefly over the target (which glows), then faded. Returns
  * when the arc has reached the target, so the removal can play out after it.

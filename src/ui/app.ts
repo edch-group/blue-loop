@@ -124,7 +124,7 @@ import { closeTour, startTour, tourShowing } from './tour';
 import { DREAMS, shownKind, isBurst, bossIntent, bossMinions, bossOrder, charging, BOSS_RECHARGE, partAim, relicN, relicOf, RELIC_POWERS, overdrivable } from '../engine';
 import { customDecks, deckById, PRESETS, type SavedDeck } from './decks';
 import { factionAvatar } from './factions';
-import { aim, pointerAim, anchorRect, beam, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
+import { aim, pointerAim, anchorRect, beam, crank, CRANK_MENDED, CRANK_MS, CRANK_STAGGER_MS, CRANK_TICKS, heatWave, waveReach, supernovaBurst, flyFrom, ghost, projectile, pulse, reducedMotion, snapshot, tether, type Snapshot } from './fx';
 import { symbolIcon, cardJewels, fullArt, cardBackFace, cardBodyHtml, effectMark, mechanicMark, modeCards, raceTraitTags, raceRow, cardArtLite, cardStock, cardGlyph, cardTextHtml, keywordHtml, keywordList, KIND_COLOUR, liveValues, pictureFor, playerAvatar, stabilityBadge, typeLine } from './glyphs';
 import { EXIT_FULLSCREEN_ICON, FULLSCREEN_ICON, LOG_ICON, MENU_ICON } from './menu-icon';
 import { logRows } from './logview';
@@ -382,7 +382,7 @@ function withYield(html: string, marks: string): string {
 
 /** Keywords not marked over a card in play: timings, its own numbers, and what its yield already shows. */
 // (Overheated is a condition, not a mechanic: what it turns on shows in the card's yield, and only while it holds.)
-const UNMARKED = new Set(['dawn', 'dusk', 'vigil', 'dimmed', 'abilities', 'act', 'attack', 'cost', 'heat', 'cool', 'shield', 'plays', 'energy', 'repair', 'draw', 'overheated']);
+export const UNMARKED = new Set(['dawn', 'dusk', 'vigil', 'dimmed', 'abilities', 'act', 'attack', 'cost', 'heat', 'cool', 'shield', 'plays', 'energy', 'repair', 'draw', 'overheated']);
 
 /**
  * What a card does only as it is played (or before): once it is on the board, nothing more. Marked only where its
@@ -424,7 +424,7 @@ function cardMechanics(c: CardInstance): { id: string; n: string; name: string; 
  * the number beside it [direction: the icon and the number next to it always the same height].
  */
 const INK_BOX = new Map<string, string>();
-function inkTight(svg: string): string {
+export function inkTight(svg: string): string {
   let box = INK_BOX.get(svg);
   if (!box) {
     box = '0 0 12 12';
@@ -2881,6 +2881,9 @@ export class App {
       if (replayEnd > 0) window.setTimeout(() => this.releaseBossShow(id), replayEnd + 120);
       else this.releaseBossShow(id);
     }
+    // A repair made by this move (a card played, a Hero's ability...): a spanner cranks over each slot it mended, as
+    // the move lands. (A day's turn cranks with its pulses, in the replay.)
+    if (!endingTurn) this.cranks(this.repairsIn(prev, next).map((e, i) => ({ ...e, at: (actor.isAI ? 520 : 160) + 260 + i * CRANK_STAGGER_MS })), before, next);
     const hitAt = new Map<string, number>();
     let faded = 0;
     before.cards.forEach((old, uid) => {
@@ -3060,6 +3063,82 @@ export class App {
     }
   }
 
+  /** A slot of a player's tableau on the board: the card standing in it (`uid`, if it still does), else the slot. */
+  private slotEl(pid: string, slot: number, uid?: string): HTMLElement | null {
+    const row = this.root.querySelector<HTMLElement>(`.tableau[data-owner="${pid}"] .tableau-row`);
+    if (!row) return null;
+    const card = uid ? row.querySelector<HTMLElement>(`[data-uid="${uid}"]`) : null;
+    if (card) return card;
+    return slot === COMMAND_SLOT ? row.querySelector<HTMLElement>(':scope > .cmd-slot > *') : row.querySelectorAll<HTMLElement>(':scope > .card, :scope > .slot-empty')[slot] ?? null;
+  }
+
+  /**
+   * Repairs landing (`at` ms from now, each its slot and how much it mended): a spanner cranks over each slot (fx.ts
+   * crank), the repair sound ticking with its strokes, and the slot's wear stays shown until the crank has turned it
+   * out (a card's worn defence as it was drawn before, `before`; an empty slot's number and worn look, from `next`).
+   */
+  private cranks(events: { pid: string; slot: number; uid?: string; by: number; at: number }[], before: Snapshot, next: GameState) {
+    if (!events.length || reducedMotion()) return;
+    const spanner = effectMark('repair');
+    const mendAt = (at: number) => at + CRANK_MS * CRANK_MENDED;
+    for (const e of events) {
+      crank(() => {
+        const el = this.slotEl(e.pid, e.slot, e.uid);
+        return el ? pageRect(el) : null;
+      }, spanner, e.at);
+      for (const k of CRANK_TICKS) window.setTimeout(() => sound.repair(), e.at + CRANK_MS * k);
+    }
+    // (Each slot shows its wear until its crank has turned it out: a card as it was drawn until its last; an empty
+    // slot's number climbing back by each repair as its crank finishes.)
+    const bySlot = new Map<string, typeof events>();
+    for (const e of events) bySlot.set(`${e.pid}:${e.slot}`, [...(bySlot.get(`${e.pid}:${e.slot}`) ?? []), e]);
+    for (const list of bySlot.values()) {
+      const { pid, slot, uid } = list[0];
+      const last = Math.max(...list.map((e) => mendAt(e.at)));
+      const el = this.slotEl(pid, slot, uid);
+      if (!el) continue;
+      if (uid && el.dataset.uid === uid) {
+        this.holdCardStats(el, before.cards.get(uid)?.html, last);
+        continue;
+      }
+      // (An empty slot of the row: its defence as renderTableau gives it, from its wear as it was before each repair.)
+      const p = next.players.find((x) => x.id === pid);
+      const num = el.querySelector<HTMLElement>('.slot-def');
+      if (!p || !num || slot === COMMAND_SLOT || !el.classList.contains('slot-empty')) continue;
+      const full = BALANCE.slotDefence[slot] + (p.rooms?.defence[slot] ?? 0);
+      const showWear = (wear: number) => {
+        if (!num.isConnected) return;
+        num.textContent = `⛨${Math.max(0, full - wear)}`;
+        el.classList.toggle('slot-worn', wear > 0);
+      };
+      let wear = (p.slotWear?.[slot] ?? 0) + list.reduce((n, e) => n + e.by, 0);
+      showWear(wear);
+      for (const e of [...list].sort((a, b) => a.at - b.at)) {
+        wear -= e.by;
+        const w = wear;
+        window.setTimeout(() => showWear(w), mendAt(e.at));
+      }
+    }
+  }
+
+  /**
+   * What a move repaired (not a day's turn, whose repairs are its pulses): each worn card still in its slot that wears
+   * less now, and each empty slot whose wear went down, in slot order, theirs and yours.
+   */
+  private repairsIn(prev: GameState, next: GameState): { pid: string; slot: number; uid?: string; by: number }[] {
+    const out: { pid: string; slot: number; uid?: string; by: number }[] = [];
+    for (const p of next.players) {
+      const was = prev.players.find((x) => x.id === p.id);
+      if (!was) continue;
+      for (const slot of [COMMAND_SLOT, ...Array.from({ length: BALANCE.tableauSlots }, (_, i) => i)]) {
+        const c = p.tableau.find((x) => x.slot === slot), pc = was.tableau.find((x) => x.slot === slot);
+        if (c && pc && c.uid === pc.uid && (pc.dented ?? 0) > (c.dented ?? 0)) out.push({ pid: p.id, slot, uid: c.uid, by: (pc.dented ?? 0) - (c.dented ?? 0) });
+        else if (!c && !pc && (was.slotWear?.[slot] ?? 0) > (p.slotWear?.[slot] ?? 0)) out.push({ pid: p.id, slot, by: (was.slotWear?.[slot] ?? 0) - (p.slotWear?.[slot] ?? 0) });
+      }
+    }
+    return out;
+  }
+
   /** A sun goes supernova: the explosion, then its half of the board greys out. */
   private supernovaAt(pid: string) {
     const root = this.root;
@@ -3152,20 +3231,26 @@ export class App {
     let phase: 'dusk' | 'dawn' = 'dawn';
     let lastAt = t;
     let any = false;
+    let prior: TurnPulse | null = null;
     for (const p of next.turnPulses ?? []) {
       if (p.kind === 'start') {
         phase = p.source === now.id ? 'dawn' : 'dusk';
+        prior = null;
         continue;
       }
       banner(phase);
       if (!any) t = Math.max(t, 300);
       any = true;
-      // (Regional instability strikes every sun at once: those share one moment.)
-      const when = p.together ? lastAt : t;
+      // (Regional instability strikes every sun at once: those share one moment. The slots one repair mends crank a
+      // little apart, one after another.)
+      const chained = !p.together && p.kind === 'repair' && prior?.kind === 'repair' && prior.uid === p.uid;
+      const when = p.together ? lastAt : chained ? lastAt + CRANK_STAGGER_MS : t;
       lastAt = when;
       pulses.push(when);
+      prior = p;
       // (A heat wave from the Stellari takes longer to cross the board than a bolt to fly.)
-      if (!p.together) t += step + (isWave(p) ? WAVE_EXTRA_MS : 0);
+      if (chained) t = Math.max(t, when + step);
+      else if (!p.together) t += step + (isWave(p) ? WAVE_EXTRA_MS : 0);
     }
     banner('dawn');
     return { ...at, day: any ? t + 400 : t, pulses };
@@ -3235,6 +3320,7 @@ export class App {
     // The heat wave going out now, and the last moment anything lands.
     let wave: { start: number; centre: DOMRect; rx: number; ry: number } | null = null;
     let lastLand = 0;
+    const repairs: { pid: string; slot: number; uid?: string; by: number; at: number }[] = [];
     for (const ps of steps) {
       // Regional instability strikes every sun at once: those pulses share one moment.
       const at = times[index++] ?? (ps.together ? lastAt : t);
@@ -3245,10 +3331,13 @@ export class App {
       const fromEl = ps.uid ? root.querySelector(`.tableau [data-uid="${ps.uid}"]`) : null;
       const from = fromEl ? pageRect(fromEl) : ps.uid ? before.cards.get(ps.uid)?.rect ?? null : (root.querySelector('.round-box') ? pageRect(root.querySelector('.round-box')!) : null);
       // Heat aimed at a card flies to that card (where it stood, if it has burned away since).
-      const cardEl = ps.toCard ? root.querySelector<HTMLElement>(`.tableau [data-uid="${ps.toCard}"]`) : null;
+      const cardEl = ps.toCard && ps.kind !== 'repair' ? root.querySelector<HTMLElement>(`.tableau [data-uid="${ps.toCard}"]`) : null;
       const to = ps.toCard ? (cardEl ? pageRect(cardEl) : before.cards.get(ps.toCard)?.rect ?? null) : sunAt(ps.to);
+      // A repair: a spanner cranks over the slot it mended (see cranks, after these), no bolt or beam.
+      const mends = ps.kind === 'repair';
+      if (mends && ps.slot !== undefined) repairs.push({ pid: ps.to, slot: ps.slot, uid: ps.toCard, by: ps.amount, at: at + 120 });
       // Heat aimed at a card whooshes onto it (sweeping it away, if it burns away).
-      if (ps.toCard) {
+      if (ps.toCard && !mends) {
         const burns = !next.players.some((p) => p.tableau.some((c) => c.uid === ps.toCard));
         window.setTimeout(() => {
           if (id === this.replayId) sound.whoosh(0, burns);
@@ -3272,8 +3361,9 @@ export class App {
         else if (ps.kind === 'shield') land = beam(from, to, 'plain', { delay: at + 120 });
       }
       // A struck card glows as the heat lands, and its numbers change then (after its last blow this dawn).
-      if (ps.toCard) {
-        const uid = ps.toCard, last = !steps.slice(steps.indexOf(ps) + 1).some((x) => x.toCard === uid);
+      if (mends) land = at + 120 + CRANK_MS * CRANK_MENDED;
+      else if (ps.toCard) {
+        const uid = ps.toCard, last = !steps.slice(steps.indexOf(ps) + 1).some((x) => x.toCard === uid && x.kind !== 'repair');
         // (Its sound with its last blow this dawn, when its wear is known.)
         if (last) window.setTimeout(() => id === this.replayId && cardBlowSound(prev, next, uid), land);
       }
@@ -3322,6 +3412,7 @@ export class App {
       if (!ps.together) t += step;
     }
     for (const [el, at] of cardLands) this.holdCardStats(el, before.cards.get(el.dataset.uid!)?.html, at);
+    this.cranks(repairs, before, next);
     // Finally the suns as they really are.
     const end = Math.max(t, lastLand) + 200;
     window.setTimeout(() => {

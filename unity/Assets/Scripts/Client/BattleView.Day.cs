@@ -39,20 +39,26 @@ public partial class BattleView
         string ph = "dawn";
         float lastAt = t;
         bool any = false;
+        TurnPulse prior = null;
         foreach (var p in next.TurnPulses ?? new List<TurnPulse>())
         {
             if (p.Kind == "start")
             {
                 ph = p.Source == now.Id ? "dawn" : "dusk";
+                prior = null;
                 continue;
             }
             Banner(ph);
             if (!any) t = Mathf.Max(t, 0.3f);
             any = true;
-            float when = p.Together == true ? lastAt : t;
+            // (The slots one repair mends crank a little apart, one after another.)
+            bool chained = p.Together != true && p.Kind == "repair" && prior?.Kind == "repair" && prior.Uid == p.Uid;
+            float when = p.Together == true ? lastAt : chained ? lastAt + CrankStagger : t;
             lastAt = when;
             pulses.Add(when);
-            if (p.Together != true) t += step + (IsWave(p) ? WaveExtra : 0);
+            prior = p;
+            if (chained) t = Mathf.Max(t, when + step);
+            else if (p.Together != true) t += step + (IsWave(p) ? WaveExtra : 0);
         }
         Banner("dawn");
         return (dusk, dawn, any ? t + 0.4f : t, pulses);
@@ -99,6 +105,7 @@ public partial class BattleView
         int index = 0;
         (float start, Rect centre, float rx, float ry)? wave = null;
         var cardLands = new Dictionary<string, float>();
+        var mends = new List<Mend>();
         var board = Board;
         // (Each sun shows its replayed numbers until the replay is over.)
         float holdAll = 60;
@@ -113,10 +120,13 @@ public partial class BattleView
             last = ps.Suns ?? last;
             var fromCard = ps.Uid != null ? CardRect(ps.Uid) : null;
             var from = fromCard ?? (ps.Uid == null ? TableRect(board.Middle, board.RoundHalf, board.RoundHalf) : null);
-            var cardTo = ps.ToCard != null ? CardRect(ps.ToCard) : null;
+            // A repair: a spanner cranks over the slot it mended (Cranks, after these), no bolt or beam.
+            bool mendsIt = ps.Kind == "repair";
+            if (mendsIt && ps.Slot != null) mends.Add(new Mend { Pid = ps.To, Slot = ps.Slot.Value, Uid = ps.ToCard, By = ps.Amount, At = at + 0.12f });
+            var cardTo = ps.ToCard != null && !mendsIt ? CardRect(ps.ToCard) : null;
             var to = ps.ToCard != null ? cardTo : SunRect(ps.To);
             // Heat aimed at a card whooshes onto it (sweeping it away, if it burns away).
-            if (ps.ToCard != null)
+            if (ps.ToCard != null && !mendsIt)
             {
                 bool burns = !next.Players.Any(p => p.Tableau.Any(c => c.Uid == ps.ToCard));
                 Sound.Play(burns ? "whoosh" : "whoosh-keep", at + 0.12f);
@@ -155,10 +165,11 @@ public partial class BattleView
                 }
             }
             // A struck card glows as the heat lands, and its numbers change then (after its last blow this dawn).
-            if (ps.ToCard != null)
+            if (mendsIt) land = at + 0.12f + CrankTime * CrankMended;
+            else if (ps.ToCard != null)
             {
                 var uid = ps.ToCard;
-                bool lastBlow = !steps.Skip(steps.IndexOf(ps) + 1).Any(x => x.ToCard == uid);
+                bool lastBlow = !steps.Skip(steps.IndexOf(ps) + 1).Any(x => x.ToCard == uid && x.Kind != "repair");
                 if (lastBlow) StartCoroutine(After(land, () => CardBlow(prev, next, uid)));
                 if (cardTo != null)
                 {
@@ -216,6 +227,7 @@ public partial class BattleView
             if (ps.Together != true) t += step;
         }
         foreach (var kv in cardLands) board.HoldCard(kv.Key, prev, kv.Value);
+        Cranks(mends, prev, next);
         // Finally the suns as they really are.
         float end = Mathf.Max(t, lastLand) + 0.2f;
         StartCoroutine(After(end, () =>

@@ -2499,6 +2499,10 @@ button.slot-choosable:hover { background: rgba(208, 101, 75, 0.12); }
 .dmg-hot { color: #e2461f; }
 .dmg-cool { color: #3d8fd8; }
 .dmg-block { color: #5b7bb3; font-size: clamp(16px, calc(4.2 * var(--vh)), 30px); }
+/* A repair landing on a slot (fx.ts crank): a spanner on a white disc, in repair's teal, cranking about its head. */
+.crank { position: fixed; z-index: 46; pointer-events: none; }
+.crank-disc { position: absolute; inset: 0; border-radius: 50%; background: rgba(255, 255, 255, 0.96); box-shadow: 0 0 0 2px rgba(63, 138, 126, 0.32), 0 2px 8px rgba(60, 70, 100, 0.28); }
+.crank .kw-ico { position: absolute; left: 20%; top: 20%; width: 60%; height: 60%; margin: 0; color: #3f8a7e; stroke-width: 1.9; transform-origin: 69% 31%; }
 /* A card's own changes, over it: smaller than a sun's; what a Hero gave it in gold. */
 .dmg-card { font-size: clamp(15px, calc(3.6 * var(--vh)), 26px); }
 .dmg-buff { color: #c99a2e; }

@@ -649,11 +649,13 @@ export interface TurnPulse {
   /** The player it reached. */
   to: string;
   /** 'start': no effect, just every sun as the turn's effects begin. */
-  kind: 'start' | 'heat' | 'selfHeat' | 'cool' | 'shield' | 'draw' | 'unstable';
+  kind: 'start' | 'heat' | 'selfHeat' | 'cool' | 'shield' | 'draw' | 'unstable' | 'repair';
   amount: number;
   suns: Record<string, { heat: number; shields: number; eliminated: boolean }>;
-  /** The rival card the heat struck, if it was aimed at one (not at their sun). */
+  /** The rival card the heat struck, if it was aimed at one (not at their sun); a repair's, the worn card it mended. */
   toCard?: string;
+  /** A repair's: the slot it mended (a worn card's, or an empty slot's wear). */
+  slot?: number;
   /** Lands at the same moment as the pulse before it (regional instability hits every sun at once). */
   together?: boolean;
 }

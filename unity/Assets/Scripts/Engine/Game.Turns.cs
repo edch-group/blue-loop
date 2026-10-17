@@ -164,7 +164,7 @@ namespace BlueLoop.Engine
             if (mendBy != 0)
             {
                 Log(state, $"{p.Name}'s {Relics.Of(p.Relics, "mend").Name}: dawn repair {mendBy}.");
-                Repair(state, p, mendBy);
+                Repair(state, p, mendBy, true);
             }
             int gift = Relics.N(p.Relics, "gift");
             var given = gift != 0 ? GiftCard(state, p, gift) : null;

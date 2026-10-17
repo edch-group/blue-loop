@@ -166,11 +166,14 @@ public class CardView : MonoBehaviour
     /// <summary>How many marks its room row (.card-room) shows, room0 onwards.</summary>
     public int RoomShown { get; set; }
 
+    /// <summary>How many chips its column (.card-yield) shows, chip0 onwards.</summary>
+    public int ChipShown { get; set; }
+
     /// <summary>
     /// A mark in `slot` (one at a time each): `name` as baked (Marks), drawn at render queue `queue` (over the face, 3000,
-    /// or under it), `dx` card widths across from where it was baked; none (null), it is put away.
+    /// or under it), `dx` card widths across and `dy` down from where it was baked; none (null), it is put away.
     /// </summary>
-    public void Mark(string slot, string name, int queue, float dx = 0)
+    public void Mark(string slot, string name, int queue, float dx = 0, float dy = 0)
     {
         marks.TryGetValue(slot, out var r);
         var got = name != null ? Marks.Get(name, Table, Css) : null;
@@ -200,7 +203,7 @@ public class CardView : MonoBehaviour
         c.a = (flying && flyFade ? face.sharedMaterial.color.a : whole);
         r.sharedMaterial.color = c;
         r.transform.localScale = new Vector3(at.w, at.h, 1);
-        r.transform.localPosition = new Vector3(-0.5f + at.x + at.w / 2 + dx, lift, 0.7f - (at.y + at.h / 2));
+        r.transform.localPosition = new Vector3(-0.5f + at.x + at.w / 2 + dx, lift, 0.7f - (at.y + at.h / 2 + dy));
         r.transform.localRotation = Quaternion.Euler(90, 0, 0);
     }
 
@@ -880,7 +883,8 @@ public class Dissolving : MonoBehaviour
 /// What the web sets on a card beyond its face and badges, baked as it draws each on a card that wide
 /// (scripts/bake-marks.mjs: Resources/Marks/<size>/<name>.png, and where each sits in Marks/places.json, in card widths
 /// from the card's top left): in play on a phone's board (t-p56, t-p66, t-p78) or a desktop's (t-d84, t-d96), or in
-/// the hand (h-66 … h-124). The boons and guns along a card's top scale with it alone: baked once, at t-d96.
+/// the hand (h-66 … h-124). The boons and guns along a card's top scale with it alone: baked once, at t-d96; and the
+/// chips in a column down from its top right (app.ts yieldMarks) likewise, at a card 160 px wide (chips).
 /// </summary>
 public static class Marks
 {
@@ -895,6 +899,8 @@ public static class Marks
     static string Dir(string name, bool table, float css)
     {
         if (name.StartsWith("boon-") || name.StartsWith("guns-")) return "t-d96";
+        // (A card in play's chips, sized with the card alone: baked once, large.)
+        if (name.StartsWith("chip-")) return "chips";
         bool phone = table && BoardLayout.Current.Phone;
         var sizes = table ? (phone ? TablePhone : TableDesk) : Hand;
         if (css <= 0) css = table ? BoardLayout.Current.Tcw : BoardLayout.Current.HandCard;

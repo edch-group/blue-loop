@@ -121,6 +121,71 @@ public partial class BattleView
         return o;
     }
 
+    // ---- A card in play's chips (app.ts cardYield, cardMechanics, yieldMarks) ----
+
+    static readonly string[] YieldOrder = { "heat", "cool", "shield", "draw", "plays", "repair", "selfHeat" };
+    /// <summary>app.ts UNMARKED: keywords not marked over a card in play (timings, its own numbers, what its yield shows).</summary>
+    static readonly HashSet<string> Unmarked = new HashSet<string> { "dawn", "dusk", "vigil", "dimmed", "abilities", "act", "attack", "cost", "heat", "cool", "shield", "plays", "energy", "repair", "draw", "overheated" };
+    /// <summary>app.ts AS_PLAYED: what a card does only as it is played, marked only where a dawn, dusk or vigil keeps it going (or on a Hero).</summary>
+    static readonly HashSet<string> AsPlayed = new HashSet<string> { "lightspeed", "trap", "consume", "fusion", "offering", "rootbreak", "erode", "decay", "restore", "renew", "recover", "recall", "shift", "displace", "destroy", "eject", "chosen", "plant", "spend", "global", "orbit" };
+    static readonly System.Text.RegularExpressions.Regex KwToken = new System.Text.RegularExpressions.Regex(@"\{([a-z]+)(?::([^}]+))?\}");
+
+    /// <summary>
+    /// app.ts yieldMarks: the chips over a card in play, as baked (Marks: chip-…), in order: what it gives each day now
+    /// (its dawn and dusk effects whose conditions hold: heat, cooling, shields, cards, energy, repair, heat to its own
+    /// sun, each summed, with its number; a rival's heat to its own sun left out), then a mark for each of its mechanics,
+    /// once each in the order its words give them, with the number it carries (Grow's, its growth so far).
+    /// </summary>
+    public List<string> Chips(GameState s, PlayerState p, CardInstance c)
+    {
+        var o = new List<string>();
+        bool mine = Board == null || p.Id == Board.Viewer;
+        var sum = new Dictionary<string, int>();
+        void Add(IEnumerable<Effect> effects)
+        {
+            foreach (var e in effects ?? Enumerable.Empty<Effect>())
+            {
+                if (!Game.ConditionMet(p, e.If, s, c)) continue;
+                int n = e.Type == "heat" || e.Type == "cool" || e.Type == "shield" || e.Type == "selfHeat" || e.Type == "draw" ? Game.EffectAmount(s, p, c, e, "turn")
+                    : e.Type == "repair" || e.Type == "plays" ? e.Amount ?? 0 : 0;
+                if (n <= 0) continue;
+                sum[e.Type] = (sum.TryGetValue(e.Type, out var t) ? t : 0) + n;
+            }
+        }
+        Add(Game.DawnEffects(c, p, s));
+        Add(Game.DuskEffects(c));
+        foreach (var k in YieldOrder)
+            if (sum.TryGetValue(k, out var n) && (mine || k != "selfHeat")) Have(o, $"chip-yield-{k}-{Mathf.Min(n, 20)}");
+        var def = Cards.Def(c.DefId);
+        bool hero = def.Kind == "command";
+        var seen = new HashSet<string>();
+        // (A sentence opened by a dawn, dusk or vigil goes on happening; the next sentence starts afresh.)
+        bool timed = false;
+        string text = def.Text ?? "";
+        int from = 0;
+        foreach (System.Text.RegularExpressions.Match m in KwToken.Matches(text))
+        {
+            if (text.Substring(from, m.Index - from).Contains('.')) timed = false;
+            from = m.Index + m.Length;
+            string kw = m.Groups[1].Value, value = m.Groups[2].Success ? m.Groups[2].Value : null;
+            if (kw == "dawn" || kw == "dusk" || kw == "vigil") timed = true;
+            if (Unmarked.Contains(kw) || seen.Contains(kw) || (AsPlayed.Contains(kw) && !timed && !hero)) continue;
+            // (A keyword with no mark baked is none of the game's mechanics.)
+            if (Marks.Get($"chip-mech-{kw}", true, 0) == null) continue;
+            seen.Add(kw);
+            var digits = value != null ? System.Text.RegularExpressions.Regex.Match(value, @"\d+") : null;
+            string num = kw == "grows" ? Mathf.Min(c.Growth ?? 0, 20).ToString() : digits != null && digits.Success ? digits.Value : "";
+            Have(o, num == "" ? $"chip-mech-{kw}" : $"chip-mech-{kw}-{num}");
+        }
+        return o;
+    }
+
+    /// <summary>A chip added if it was baked (a number past the most baked is left off).</summary>
+    static void Have(List<string> o, string name)
+    {
+        if (Marks.Get(name, true, 0) != null) o.Add(name);
+    }
+
     static IEnumerable<(string, int)> BoonMarks(List<string> boons)
     {
         foreach (var g in boons.GroupBy(b => b))

@@ -532,7 +532,7 @@ namespace BlueLoop.Engine
                         break;
                     }
                     case "repair":
-                        Repair(state, p, e.Amount ?? 0);
+                        Repair(state, p, e.Amount ?? 0, when == "turn", card);
                         break;
                     case "offer":
                     {
@@ -857,11 +857,11 @@ namespace BlueLoop.Engine
                 if (passive.Type == "allyLeaves" && owner.Tableau.Contains(watcher)) ResolveEffects(state, owner, watcher, passive.Effects, "leave");
         }
 
-        static void NotePulse(GameState state, PlayerState source, CardInstance card, string kind, PlayerState to, int amount, string toCard = null)
+        static void NotePulse(GameState state, PlayerState source, CardInstance card, string kind, PlayerState to, int amount, string toCard = null, int? slot = null)
         {
             if (state.TurnPulses == null || (amount <= 0 && kind != "start")) return;
             var suns = state.Players.ToDictionary(x => x.Id, x => new SunAt { Heat = x.Heat, Shields = x.Shields, Eliminated = x.Eliminated });
-            state.TurnPulses.Add(new TurnPulse { Uid = card?.Uid, Source = source.Id, To = to.Id, Kind = kind, Amount = amount, Suns = suns, ToCard = string.IsNullOrEmpty(toCard) ? null : toCard });
+            state.TurnPulses.Add(new TurnPulse { Uid = card?.Uid, Source = source.Id, To = to.Id, Kind = kind, Amount = amount, Suns = suns, ToCard = string.IsNullOrEmpty(toCard) ? null : toCard, Slot = slot });
         }
 
         static void RegionalInstability(GameState state, PlayerState roundStarter)
@@ -936,9 +936,21 @@ namespace BlueLoop.Engine
             if (Balance.DefenceMend <= 0) return;
         }
 
-        static void Repair(GameState state, PlayerState p, int amount)
+        /// <summary>
+        /// game.ts repair: mend this much worn defence on your side, the most worn cards first, then empty slots. `pulse`
+        /// (a dawn's or a dusk's, with the card that fired it, if any): each slot mended noted for the table to replay.
+        /// </summary>
+        static void Repair(GameState state, PlayerState p, int amount, bool pulse = false, CardInstance card = null)
         {
             int left = amount;
+            // (Each slot mended and by how much, in the order first mended.)
+            var mended = new List<(int slot, string uid, int by)>();
+            void Note(int slot, int by, string uid)
+            {
+                int i = mended.FindIndex(m => m.slot == slot);
+                if (i >= 0) mended[i] = (slot, mended[i].uid, mended[i].by + by);
+                else mended.Add((slot, uid, by));
+            }
             while (left > 0)
             {
                 var worst = Sorted(p.Tableau.Where(c => (c.Dented ?? 0) > 0), (a, b) => (b.Dented ?? 0) - (a.Dented ?? 0)).FirstOrDefault();
@@ -946,6 +958,7 @@ namespace BlueLoop.Engine
                 worst.Dented -= 1;
                 if (worst.Dented == 0) worst.Dented = null;
                 left -= 1;
+                if (worst.Slot != null) Note(worst.Slot.Value, 1, worst.Uid);
             }
             // (Object.keys: array-index keys first, ascending, then the rest (the Hero slot's, -1) as they were added.)
             foreach (var slot in (p.SlotWear?.Keys ?? Enumerable.Empty<int>()).OrderBy(k => k < 0 ? 1 : 0).ThenBy(k => k < 0 ? 0 : k).ToList())
@@ -955,6 +968,7 @@ namespace BlueLoop.Engine
                 p.SlotWear[slot] -= by;
                 left -= by;
                 if (p.SlotWear[slot] == 0) p.SlotWear.Remove(slot);
+                if (by > 0) Note(slot, by, null);
             }
             if (left < amount)
             {
@@ -962,6 +976,8 @@ namespace BlueLoop.Engine
                 if (tally != null && tally.Owner == p) tally.Repaired += amount - left;
                 else Log(state, $"{p.Name} repairs {amount - left} defence.");
             }
+            if (pulse)
+                foreach (var m in mended) NotePulse(state, p, card, "repair", p, m.by, m.uid, m.slot);
         }
 
         static List<CardInstance> StrikeHits(GameState state, PlayerState t, Effect e, bool blow = false)

@@ -8,11 +8,13 @@
  *
  * Sizes as the faces' (bake-cards.mjs): in play on a phone (t-p56, t-p66, t-p78) and a desktop (t-d84, t-d96), in the
  * hand (h-66, h-79, h-100, h-124: the discount only). The web's marks have floors (max()): a small card's are no large
- * one's shrunk. (The boons and guns, sized with the card alone, at t-d96 only: they scale.)
+ * one's shrunk. (The boons and guns, sized with the card alone, at t-d96 only: they scale.) And the chips in a column
+ * down from a card in play's top right (app.ts yieldMarks, .card-yield: what it gives each day and its mechanics),
+ * sized with the card alone too: baked once, large (chips, a card 160 px wide), each as the column's first.
  *
- * Usage: node scripts/bake-marks.mjs
+ * Usage: node scripts/bake-marks.mjs [--only=<size>,…]  (only those sizes baked again; the rest of places.json kept)
  */
-import { mkdirSync, writeFileSync, globSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, globSync } from 'node:fs';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 
@@ -24,7 +26,10 @@ const SIZES = [
   ...[56, 66, 78].map((w) => ({ dir: `t-p${w}`, page: PHONE, scale: 3, ctx: 'table', w })),
   ...[84, 96].map((w) => ({ dir: `t-d${w}`, page: DESK, scale: 2, ctx: 'table', w })),
   ...[[66, 3], [79, 3], [100, 2.5], [124, 2]].map(([w, scale]) => ({ dir: `h-${w}`, page: PHONE, scale, ctx: 'hand', w })),
+  { dir: 'chips', page: DESK, scale: 2, ctx: 'table', w: 160 },
 ];
+const only = process.argv.find((a) => a.startsWith('--only='))?.slice(7).split(',');
+const sizes = only ? SIZES.filter((s) => only.includes(s.dir)) : SIZES;
 const BOONS = ['heat', 'cool', 'shield', 'draw', 'energy', 'sturdy', 'repair', 'stability', 'walls', 'guns', 'plant', 'star'];
 const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
@@ -36,9 +41,11 @@ const server = await createServer({
 });
 await server.listen();
 const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
-const places = [];
+// (Baking some sizes only, the others' places are kept.)
+const kept = only && existsSync(`${out}/places.json`) ? JSON.parse(readFileSync(`${out}/places.json`, 'utf8')).items.filter((it) => !only.includes(it.k.split('/')[0])) : [];
+const places = [...kept];
 let n = 0;
-for (const s of SIZES) {
+for (const s of sizes) {
   const page = await browser.newPage({ deviceScaleFactor: s.scale, viewport: s.page });
   await page.goto(`http://localhost:${port}/bake/index.html`);
   await page.waitForFunction(() => window.ready === true);
@@ -47,7 +54,9 @@ for (const s of SIZES) {
   const fused = await page.evaluate(() => window.fusionIds());
   // [name, kind, n, frame, padding (CSS px round the mark: its shadows and glows)]
   const jobs =
-    s.ctx === 'hand'
+    s.dir === 'chips'
+      ? (await page.evaluate(() => window.chipJobs())).map(([name, kind, v]) => [name, kind, v, undefined, 4])
+      : s.ctx === 'hand'
       ? range(1, 6).map((v) => [`discount-${v}`, 'discount', v, undefined, 12])
       : [
           ...range(1, 12).map((v) => [`shields-${v}`, 'shields', v, undefined, 12]),

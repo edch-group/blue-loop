@@ -17,6 +17,19 @@ public partial class BattleView
     {
         if (!Application.isPlaying || hud == null) return;
         HeroMoved(a, actor);
+        // A repair made by this move (a card played, a Hero's ability...): a spanner cranks over each slot it mended, as
+        // the move lands (app.ts animate). (A day's turn cranks with its pulses, in the replay.)
+        if (a.Type != "endTurn")
+        {
+            var mends = RepairsIn(prev, next);
+            for (int i = 0; i < mends.Count; i++)
+            {
+                var m = mends[i];
+                m.At = (actor.IsAI ? 0.52f : 0.16f) + 0.26f + i * CrankStagger;
+                mends[i] = m;
+            }
+            Cranks(mends, prev, next);
+        }
         bool heroMove = a.Type == "heroAbility" || a.Type == "singularity";
         if (a.Type != "playCard" && !heroMove) return;
         var hero = heroMove ? Game.CommandCard(actor) : null;

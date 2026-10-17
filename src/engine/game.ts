@@ -1546,7 +1546,7 @@ function resolveEffects(state: GameState, p: PlayerState, card: CardInstance, ef
         break;
       }
       case 'repair':
-        repair(state, p, e.amount);
+        repair(state, p, e.amount, when === 'turn' ? card : undefined);
         break;
       case 'offer': {
         const giver = p.tableau.find((c) => c.uid === ctx.allyUid && c.uid !== card.uid);
@@ -1854,10 +1854,10 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
 }
 
 /** Note a dawn effect for the table to replay (only while a day is starting). */
-function notePulse(state: GameState, source: PlayerState, card: CardInstance | null, kind: TurnPulse['kind'], to: PlayerState, amount: number, toCard?: string) {
+function notePulse(state: GameState, source: PlayerState, card: CardInstance | null, kind: TurnPulse['kind'], to: PlayerState, amount: number, toCard?: string, slot?: number) {
   if (!state.turnPulses || (amount <= 0 && kind !== 'start')) return;
   const suns = Object.fromEntries(state.players.map((x) => [x.id, { heat: x.heat, shields: x.shields, eliminated: x.eliminated }]));
-  state.turnPulses.push({ uid: card?.uid, source: source.id, to: to.id, kind, amount, suns, ...(toCard ? { toCard } : {}) });
+  state.turnPulses.push({ uid: card?.uid, source: source.id, to: to.id, kind, amount, suns, ...(toCard ? { toCard } : {}), ...(slot !== undefined ? { slot } : {}) });
 }
 
 /**
@@ -1956,15 +1956,26 @@ function mendDefences(state: GameState, p: PlayerState) {
   }
 }
 
-/** Repair: mend this much worn defence on your side, the most worn cards first, then empty slots. */
-function repair(state: GameState, p: PlayerState, amount: number) {
+/**
+ * Repair: mend this much worn defence on your side, the most worn cards first, then empty slots. `pulse` (a dawn's or a
+ * dusk's, with the card that fired it, if any): each slot mended noted for the table to replay, a crank over it.
+ */
+function repair(state: GameState, p: PlayerState, amount: number, pulse?: CardInstance | null) {
   let left = amount;
+  // (Each slot mended and by how much, in the order first mended.)
+  const mended: { slot: number; uid?: string; by: number }[] = [];
+  const note = (slot: number, by: number, uid?: string) => {
+    const m = mended.find((x) => x.slot === slot);
+    if (m) m.by += by;
+    else mended.push({ slot, by, ...(uid ? { uid } : {}) });
+  };
   while (left > 0) {
     const worst = [...p.tableau].filter((c) => (c.dented ?? 0) > 0).sort((a, b) => (b.dented ?? 0) - (a.dented ?? 0))[0];
     if (!worst) break;
     worst.dented! -= 1;
     if (!worst.dented) delete worst.dented;
     left -= 1;
+    if (worst.slot !== undefined) note(worst.slot, 1, worst.uid);
   }
   for (const k of Object.keys(p.slotWear ?? {})) {
     if (left <= 0) break;
@@ -1973,11 +1984,17 @@ function repair(state: GameState, p: PlayerState, amount: number) {
     p.slotWear![slot] -= by;
     left -= by;
     if (!p.slotWear![slot]) delete p.slotWear![slot];
+    if (by > 0) note(slot, by);
   }
   if (left < amount) {
     charge(state, p, 'mends', amount - left);
     if (tally && tally.owner === p) tally.repaired += amount - left;
     else log(state, `${p.name} repairs ${amount - left} defence.`);
+  }
+  if (pulse !== undefined) {
+    for (const m of mended) {
+      notePulse(state, p, pulse, 'repair', p, m.by, m.uid, m.slot);
+    }
   }
 }
 
@@ -2146,7 +2163,7 @@ function dawnResolve(state: GameState, p: PlayerState) {
   const mendBy = relicN(p.relics, 'mend');
   if (mendBy) {
     log(state, `${p.name}'s ${relicOf(p.relics, 'mend')!.name}: dawn repair ${mendBy}.`);
-    repair(state, p, mendBy);
+    repair(state, p, mendBy, null);
   }
   const gift = relicN(p.relics, 'gift');
   const given = gift ? giftCard(state, p, gift) : undefined;

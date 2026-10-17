@@ -15,9 +15,10 @@ import { stellariaFlower } from '../src/ui/art';
 import { cardBackFace, cardArtLite, cardBodyHtml, cardJewels, cardStock, fullArt, KIND_COLOUR, raceRow, stabilityBadge, typeLine } from '../src/ui/glyphs';
 import { fitCardText } from '../src/ui/fittext';
 import { cardCost } from '../src/engine/game';
-import { GUARD_SHIELD_SVG, GUARD_SVG, HUB_ICONS, SHIELD_SVG } from '../src/ui/app';
+import { GUARD_SHIELD_SVG, GUARD_SVG, HUB_ICONS, inkTight, SHIELD_SVG, UNMARKED } from '../src/ui/app';
 import { shownKind } from '../src/engine/cards';
-import { effectMark, keywordList, raceTraitTags, symbolIcon } from '../src/ui/glyphs';
+import { effectMark, keywordList, mechanicMark, raceTraitTags, symbolIcon } from '../src/ui/glyphs';
+import { KEYWORDS, textParts } from '../src/engine/keywords';
 import { plainText } from '../src/engine/keywords';
 import { SUBRACES, raceTrait } from '../src/engine/races';
 import { baseAttack, baseHealth, persists } from '../src/engine/game';
@@ -139,6 +140,17 @@ function marks(ctx: 'table' | 'hand', width: number, kind: string, n: number, fr
   else if (kind === 'chill') inner = keep(chillMark(n));
   else if (kind === 'aimheat') inner = keep(`<b class="boss-aim-heat">${symbolIcon('heat')}<span>${n}</span></b>`);
   else if (kind === 'discount') inner = keep(`<b class="card-discount">−${n}</b>`);
+  else if (kind.startsWith('chip-')) {
+    // (app.ts yieldMarks: one chip of the column over a card in play, .card-yield: what it gives each day, yield-<kind>,
+    // or one of its mechanics, mech-<id>; its number n, none if n < 0.)
+    const [, what, id] = kind.match(/^chip-(yield|mech)-(.+)$/)!;
+    const num = n >= 0 ? `${n}` : '';
+    const chip =
+      what === 'yield'
+        ? `<i id="m" class="yield yield-${id}">${inkTight(effectMark(id === 'selfHeat' ? 'heat' : id === 'plays' ? 'energy' : id))}${num}</i>`
+        : `<i id="m" class="yield mech kw-${KEYWORDS[id].group}${num ? '' : ' mech-bare'}">${inkTight(mechanicMark(id))}${num}</i>`;
+    inner = `<span class="card-yield card-yield-mine bake-keep">${chip}</span>`;
+  }
   else if (kind.startsWith('boon-') || kind === 'guns') {
     // (app.ts boonMarks, roomMarks: a mark in the card's room row, along its top.)
     const k = kind === 'guns' ? 'guns' : kind.slice(5);
@@ -159,6 +171,30 @@ function marks(ctx: 'table' | 'hand', width: number, kind: string, n: number, fr
       : wrap('table-view', wrap('dock dock-raised', wrap('hand-zone', wrap('hand', card)), `--hw:${width}px`));
 }
 Object.assign(window, { marks, fusionIds: () => registeredCardDefs().filter((d) => d.fusion).map((d) => d.id) });
+
+/**
+ * The chips a card in play can wear (app.ts yieldMarks), for scripts/bake-marks.mjs: [name, kind, n] each. What it gives
+ * each day, 1 to 20 of each; each mechanic bare, and with each number any card's words give it (1 up to at least 9;
+ * Grow's, the growth so far, 0 to 20). (Timing words, and what is never marked over a card, app.ts UNMARKED, left out.)
+ */
+function chipJobs(): [string, string, number][] {
+  const out: [string, string, number][] = [];
+  for (const k of ['heat', 'cool', 'shield', 'draw', 'plays', 'repair', 'selfHeat']) for (let v = 1; v <= 20; v++) out.push([`chip-yield-${k}-${v}`, `chip-yield-${k}`, v]);
+  const most = new Map<string, number>();
+  const texts = [...registeredCardDefs(), ...[...BUILT_IDS, ...BUILT_FACES.keys()].map((id) => cardDef(id))].map((d) => d.text ?? '');
+  for (const t of texts)
+    for (const p of textParts(t)) {
+      const v = 'kw' in p ? p.value?.match(/\d+/)?.[0] : undefined;
+      if (v !== undefined) most.set(p.kw, Math.max(most.get(p.kw) ?? 0, Number(v)));
+    }
+  for (const [id, kw] of Object.entries(KEYWORDS)) {
+    if (kw.group === 'timing' || UNMARKED.has(id)) continue;
+    out.push([`chip-mech-${id}`, `chip-mech-${id}`, -1]);
+    const top = id === 'grows' ? 20 : most.has(id) ? Math.max(9, most.get(id)!) : 0;
+    for (let v = id === 'grows' ? 0 : 1; v <= top; v++) out.push([`chip-mech-${id}-${v}`, `chip-mech-${id}`, v]);
+  }
+  return out;
+}
 
 /** The board's own pieces: a card's back (`back`), and the Stellari's flower (`flower`). */
 function piece(kind: 'back' | 'flower', width: number): void {
@@ -230,6 +266,7 @@ for (const card of BUILT_IDS)
       BUILT_FACES.set(id, `${card}_g${gates}c${cheaper}`);
     }
 Object.assign(window, {
+  chipJobs,
   allIds: () => [...registeredCardDefs().map((d) => d.id), ...BUILT_IDS.filter((id) => !registeredCardDefs().some((d) => d.id === id))],
   // (The faces baked beyond every card's own, scripts/bake-cards.mjs: the built ones above.)
   builtFaceIds: () => [...BUILT_FACES.keys()],
@@ -585,6 +622,15 @@ function relicAction(kind: string): void {
   stage.innerHTML = `<style>.bake-ra::before { display: none !important; }</style><div class="cmp-relic bake-ra" style="width:84px;height:84px;padding:0;background:none;box-shadow:none;animation:none"><span class="relic-action">${effectMark(kind)}</span></div>`;
 }
 Object.assign(window, { boonMark, relicAction });
+
+/**
+ * A repair's crank (fx.ts crank, .crank) at 100 px, for scripts/bake-crank.mjs: its white disc with its ring and shadow
+ * (`disc`, 12 px round it), or the spanner alone (`spanner`, its svg's own box), which turns over the disc.
+ */
+function crankPart(part: 'disc' | 'spanner'): void {
+  stage.innerHTML = `<div id="piece" style="display:inline-block;padding:${part === 'disc' ? 12 : 0}px"><div class="crank" style="position:relative;width:100px;height:100px">${part === 'disc' ? '<span class="crank-disc"></span>' : effectMark('repair')}</div></div>`;
+}
+Object.assign(window, { crankPart });
 
 // ---- The glossary (glossary.ts glossarySections) as data, for scripts/bake-glossary.mjs ----
 import { glossarySections } from '../src/ui/glossary';

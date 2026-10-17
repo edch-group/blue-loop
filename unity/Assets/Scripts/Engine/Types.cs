@@ -420,6 +420,8 @@ namespace BlueLoop.Engine
         public int Amount;
         public Dictionary<string, SunAt> Suns;
         public string ToCard;
+        /// <summary>A repair's: the slot it mended (a worn card's, or an empty slot's wear).</summary>
+        public int? Slot;
         public bool? Together;
     }
 

@@ -844,7 +844,8 @@ public partial class Board : MonoBehaviour
                 ui.Dress(v, p, c, true);
             }
             // Each empty slot as it stands now (app.ts renderTableau's slots).
-            for (int i = -1; i < Balance.TableauSlots; i++) DressSlot(mine ? i : 100 + i, i, SlotNow(p, i, ui));
+            // (A slot being repaired keeps showing its wear until the crank has turned it out: HoldSlot.)
+            for (int i = -1; i < Balance.TableauSlots; i++) DressSlot(mine ? i : 100 + i, i, SlotNow(p, i, ui, HeldWear(p.Id, i)));
             // (A trap set face down, beside the row.)
             if (p.Lightspeed != null)
             {
@@ -1261,6 +1262,42 @@ public partial class Board : MonoBehaviour
         holdEnds = Mathf.Max(holdEnds, Time.time + seconds);
     }
 
+    readonly Dictionary<string, List<(float until, int wear)>> slotHold = new Dictionary<string, List<(float, int)>>();
+    float slotStep;
+
+    /// <summary>
+    /// An empty slot being repaired (BattleView.Cranks) keeps showing its wear as it was: each step's wear until its
+    /// time (seconds from now), the wear the state gives once the last is past.
+    /// </summary>
+    public void HoldSlot(string playerId, int slot, List<(float seconds, int wear)> steps)
+    {
+        if (steps.Count == 0) return;
+        slotHold[$"{playerId}:{slot}"] = steps.Select(x => (Time.time + x.seconds, x.wear)).ToList();
+        holdEnds = Mathf.Max(holdEnds, Time.time + steps.Max(x => x.seconds));
+        float first = Time.time + steps.Min(x => x.seconds);
+        slotStep = slotStep > Time.time ? Mathf.Min(slotStep, first) : first;
+    }
+
+    /// <summary>The wear a slot being repaired shows now (none: as it stands).</summary>
+    int? HeldWear(string playerId, int slot)
+    {
+        if (!slotHold.TryGetValue($"{playerId}:{slot}", out var steps)) return null;
+        foreach (var (until, wear) in steps) if (Time.time < until) return wear;
+        return null;
+    }
+
+    /// <summary>The page place of a slot on the table (a player's, if their row is shown), for what plays over it.</summary>
+    public Collider SlotCollider(string playerId, int slot)
+    {
+        bool mine = playerId == Viewer;
+        if (!mine && synced != null)
+        {
+            var rival = synced.Players.FirstOrDefault(p => p.Id == RivalId && p.Id != Viewer) ?? synced.Players.FirstOrDefault(p => p.Id != Viewer);
+            if (rival?.Id != playerId) return null;
+        }
+        return slotLooks.TryGetValue(mine ? slot : 100 + slot, out var l) && l.plain != null ? l.plain.transform.parent.GetComponent<Collider>() : null;
+    }
+
     /// <summary>A card in play keeps showing its numbers from `before` for `seconds`, until what strikes it lands.</summary>
     public void HoldCard(string uid, GameState before, float seconds)
     {
@@ -1282,6 +1319,7 @@ public partial class Board : MonoBehaviour
             holdEnds = 0;
             sunHold.Clear();
             cardHold.Clear();
+            slotHold.Clear();
             if (synced != null && syncedBy != null) Sync(synced, syncedBy);
         }
         else if (holdEnds > 0)
@@ -1289,6 +1327,13 @@ public partial class Board : MonoBehaviour
             bool lapsed = false;
             foreach (var kv in sunHold) if (Time.time >= kv.Value.until) lapsed = true;
             foreach (var kv in cardHold) if (Time.time >= kv.Value.until) lapsed = true;
+            // (A slot being repaired steps on to its next wear.)
+            if (slotStep > 0 && Time.time >= slotStep)
+            {
+                lapsed = true;
+                var next = slotHold.Values.SelectMany(v => v).Where(x => x.until > Time.time).Select(x => x.until).DefaultIfEmpty(0).Min();
+                slotStep = next;
+            }
             if (lapsed && synced != null && syncedBy != null)
             {
                 foreach (var k in sunHold.Where(kv => Time.time >= kv.Value.until).Select(kv => kv.Key).ToList()) sunHold.Remove(k);
@@ -1390,7 +1435,9 @@ public partial class Board : MonoBehaviour
         p.Boss == null ? null : ui != null ? ui.BossShown(p) : (s, p);
 
     // (Where each of a card's marks is drawn: under the card, over its face, over its badges (3010).)
-    const int QRing = 2994, QFusedBack = 2997, QFused = 2998, QFrost = 3005, QRoom = 3012, QGrowth = 3013, QChill = 3014, QShields = 3015, QAimHeat = 3016;
+    const int QRing = 2994, QFusedBack = 2997, QFused = 2998, QFrost = 3005, QRoom = 3012, QGrowth = 3013, QChill = 3014, QShields = 3015, QAimHeat = 3016, QChip = 3017;
+    // (A chip's step down its column: its height and the gap, .table-view .card-yield: 0.24 and 0.03 of a card across.)
+    const float ChipStep = 0.24f + 0.03f;
 
     /// <summary>
     /// app.ts renderCard, a card in play: its growth (top right), the boons and a room's guns along its top (.card-room),
@@ -1398,10 +1445,15 @@ public partial class Board : MonoBehaviour
     /// chilled card (chilled's drawn over frozen's, as the later rule) and a chilled card's snowflake, its own shields
     /// (on its top edge), the ring round a card a staged card is aimed at (.card-targeted), the burn of an Overlord's
     /// part acting next (.card-intent) and the heat each part acting will deal, large across its middle (.boss-aim-heat).
+    /// And its chips (app.ts yieldMarks, .card-yield): what it gives each day and its mechanics, in a column of circles
+    /// down from its top right.
     /// </summary>
     static void CardMarks(CardView v, GameState s, PlayerState p, CardInstance c, BattleView ui)
     {
         var def = Cards.Def(c.DefId);
+        var chips = ui != null ? ui.Chips(s, p, c) : new List<string>();
+        for (int i = 0; i < Mathf.Max(chips.Count, v.ChipShown); i++) v.Mark($"chip{i}", i < chips.Count ? chips[i] : null, QChip, 0, i * ChipStep);
+        v.ChipShown = chips.Count;
         v.Mark("growth", (c.Growth ?? 0) > 0 ? $"growth-{Mathf.Min(c.Growth.Value, 20)}" : null, QGrowth);
         // (The room's guns, then the card's boons, one mark a kind: a Hero's boons stand on its rail instead.)
         bool hero = c.Slot == Game.CommandSlot;
@@ -1441,7 +1493,7 @@ public partial class Board : MonoBehaviour
     /// command room's; the wear of the card that stood there taken off, mending a day at a time), wrecked shut, the
     /// Hero's with its hero wounded, a room's guns and module, its side out of the game.
     /// </summary>
-    static SlotLook SlotNow(PlayerState p, int slot, BattleView ui)
+    static SlotLook SlotNow(PlayerState p, int slot, BattleView ui, int? heldWear = null)
     {
         var look = new SlotLook { Dead = ui.ShownDead(p) };
         if (slot < 0)
@@ -1452,7 +1504,7 @@ public partial class Board : MonoBehaviour
         }
         if (Game.SlotClosed(p, slot)) { look.Wrecked = true; return look; }
         int full = Game.SlotDefence(slot) + (p.Rooms?.Defence != null && slot < p.Rooms.Defence.Count ? p.Rooms.Defence[slot] : 0);
-        int wear = p.SlotWear != null && p.SlotWear.TryGetValue(slot, out var w) ? w : 0;
+        int wear = heldWear ?? (p.SlotWear != null && p.SlotWear.TryGetValue(slot, out var w) ? w : 0);
         look.Def = Mathf.Max(0, full - wear);
         look.Worn = wear > 0;
         if (p.Rooms != null)
