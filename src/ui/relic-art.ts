@@ -1,4 +1,7 @@
 /** Relics' painted badges (and each kind's mark in ink), for the map and the battle board. */
+import type { Effect } from '../engine';
+import { effectMark, mechanicMark } from './glyphs';
+
 const glyph = (d: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
 
 /** Each relic's painted badge, by its base name (the name without its quality word): "Bright Sunlance" is sunlance. */
@@ -29,3 +32,51 @@ const RELIC_GLYPH: Record<string, string> = {
   star: glyph('M12 3v18M3 12h18M6 6l12 12M18 6 6 18'),
   ember: glyph('M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-4 3-5 0 2 1 3 2 3 0-3-1-5 0-8z'),
 };
+
+/**
+ * What a relic's power does, as the game marks it elsewhere (the chips over a card in play): its effect's mark and its
+ * number, in that effect's colour, for the face of its button in battle. `key` names its baked face (Unity's
+ * Icons/relic-face/<key>.png). None for a power with no one clear effect (several, or one the game has no mark for):
+ * its button then shows the relic's own badge.
+ */
+export type RelicFace = { kind: string; n: string; key: string };
+export function relicFace(k: { effects: Effect[]; choices?: { kind: string; times: number; amount?: number } }): RelicFace | null {
+  const face = (kind: string, n = ''): RelicFace => ({ kind, n, key: n ? `${kind}-${n.replace('+', 'plus')}` : kind });
+  if (k.effects.length > 1 || (k.effects.length && k.choices)) return null;
+  const e = k.effects[0];
+  if (!e) {
+    // (A choice its holder makes: recall so many cards to hand; shift a card.)
+    const c = k.choices;
+    if (c?.kind === 'recall') return face('recall', String(c.times));
+    if (c?.kind === 'shift') return face('shift');
+    return null;
+  }
+  const n = 'amount' in e && e.amount ? String(e.amount) : '';
+  switch (e.type) {
+    // (Heat to the rival's cards or its sun; a blow that grows with the day's held-back cards marked "+".)
+    case 'strikeAll': case 'heat': return face('heat', n + (n && 'plus' in e && e.plus ? '+' : ''));
+    case 'cool': return face('cool', n);
+    case 'shield': return face('shield', n);
+    case 'draw': return face('draw', n);
+    case 'plays': return face('plays', n);
+    case 'repair': return face('repair', n);
+    case 'restore': return face(e.all ? 'renew' : 'restore', n);
+    case 'fortify': return face('guard', n);
+    case 'devour': case 'destroy': return face('destroy');
+    case 'recover': return face('recover');
+    default: return null;
+  }
+}
+
+/** The faces drawn with an effect's mark (as the yield chips); the rest with a mechanic's, in its keyword's colour. */
+const FACE_EFFECT = new Set(['heat', 'cool', 'shield', 'draw', 'plays', 'repair']);
+/** Each mechanic face's keyword group (KEYWORDS[id].group), for its colour. */
+const FACE_GROUP: Record<string, string> = { renew: 'stability', restore: 'stability', guard: 'defence', destroy: 'removal', recover: 'recovery', recall: 'recovery', shift: 'tempo' };
+
+/** A relic power's face (.relic-face): its mark and its number, in its effect's colour. */
+export function relicFaceHtml(f: RelicFace): string {
+  const effect = FACE_EFFECT.has(f.kind);
+  const mark = effect ? effectMark(f.kind) : mechanicMark(f.kind);
+  const tone = effect ? `yield-${f.kind}` : `kw-${FACE_GROUP[f.kind] ?? 'global'}`;
+  return `<span class="relic-face ${tone}${f.n ? '' : ' relic-face-bare'}">${mark}${f.n ? `<b>${f.n}</b>` : ''}</span>`;
+}

@@ -211,7 +211,8 @@ public partial class BattleView
             // (Your day begun: each once-a-day relic ready to use pulses once, 0.14 s after the one before.)
             float? nudge = ready && k.Once != true ? nudgeAt + 0.14f * nudgeIndex++ : (float?)null;
             int index = i;
-            var t = Token(relicColumn, new Relic { Name = k.Relic, Slot = "" }, RelicActionMark(k), y, d, ready, used, relicPanel == i, child++, nudge);
+            // (Its face what it does, where the power has one clear effect (relicFace): else the relic's badge, marked.)
+            var t = Token(relicColumn, new Relic { Name = k.Relic, Slot = "" }, RelicActionMark(k), y, d, ready, used, relicPanel == i, child++, nudge, RelicFace(k));
             var img = t.GetComponent<Image>();
             img.raycastTarget = true;
             var b = t.gameObject.AddComponent<Button>();
@@ -231,23 +232,25 @@ public partial class BattleView
     }
 
     /// <summary>One token (.cmp-relic in .relic-actives) at `y` in its column: its badge, its power's mark, its looks.</summary>
-    RectTransform Token(RectTransform column, Relic relic, string mark, float y, float d, bool ready, bool used, bool open, int child, float? nudge)
+    RectTransform Token(RectTransform column, Relic relic, string mark, float y, float d, bool ready, bool used, bool open, int child, float? nudge, Texture2D face = null)
     {
         var t = Hud.Rect(column, relic.Name);
         Hud.Place(t, 0, y, d, d);
-        // (A clear disc to tap, its shadows: ready, a gold glow 0 0 14px 4px; else 0 3px 8px and 0 1px 2px.)
+        // (A clear disc to tap, its shadows: ready, a gold glow 0 0 14px 4px; else 0 3px 8px and 0 1px 2px. Round, as
+        // the web's, soft all the way: no box round the token.)
         var disc = t.gameObject.AddComponent<Image>();
         WebLook.Round(disc, 999);
         disc.color = new Color(1, 1, 1, 0);
         disc.raycastTarget = false;
-        if (ready) Hud.Shadow(disc, d / 2, new Hud.Drop(Hud.Rgba(222, 178, 90, 0.55f), 0, 14, 4), new Hud.Drop(Hud.Rgba(30, 34, 50, 0.3f), 3, 8));
-        else Hud.Shadow(disc, d / 2, new Hud.Drop(Hud.Rgba(30, 34, 50, 0.3f), 3, 8), new Hud.Drop(Hud.Rgba(30, 34, 50, 0.25f), 1, 2));
+        RoundShade(t, d, ready
+            ? new[] { new Hud.Drop(Hud.Rgba(222, 178, 90, 0.55f), 0, 14, 4), new Hud.Drop(Hud.Rgba(30, 34, 50, 0.3f), 3, 8) }
+            : new[] { new Hud.Drop(Hud.Rgba(30, 34, 50, 0.3f), 3, 8), new Hud.Drop(Hud.Rgba(30, 34, 50, 0.25f), 1, 2) });
         var badge = Hud.Rect(t, "Badge");
         Hud.Fill(badge);
         var bi = badge.gameObject.AddComponent<RawImage>();
-        bi.texture = CampaignView.RelicArt(relic);
+        bi.texture = face != null ? face : CampaignView.RelicArt(relic);
         bi.raycastTarget = false;
-        if (mark != null)
+        if (mark != null && face == null)
         {
             var m = Hud.Rect(t, "Action");
             Hud.Fill(m);
@@ -274,6 +277,109 @@ public partial class BattleView
         pulse.NudgeAt = nudge;
         pulse.Glow = disc;
         return t;
+    }
+
+    static readonly Dictionary<string, Texture2D> shades = new Dictionary<string, Texture2D>();
+
+    /// <summary>
+    /// A round token's box-shadows (`drops`, the first on top), drawn as the web draws them round a circle: soft discs,
+    /// blurred as CSS blurs (a Gaussian of half the blur), painted only outside the token. (The page's shared shadows
+    /// are rounded boxes: round a 40 px disc, a 2 px blur's was a hard grey square showing at its corners.) As the
+    /// token's first child, so it bobs, swells and fades with it.
+    /// </summary>
+    static void RoundShade(RectTransform token, float d, Hud.Drop[] drops)
+    {
+        float m = 0;
+        foreach (var dr in drops) m = Mathf.Max(m, dr.Spread + 1.5f * dr.Blur + Mathf.Abs(dr.Y) + Mathf.Abs(dr.X));
+        m = Mathf.Ceil(m);
+        string key = $"{d}|{string.Join(";", drops.Select(x => $"{x.Color}/{x.X}/{x.Y}/{x.Blur}/{x.Spread}"))}";
+        if (!shades.TryGetValue(key, out var tex) || tex == null)
+        {
+            const float k = 3;
+            float size = d + 2 * m;
+            int n = Mathf.CeilToInt(size * k);
+            tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[n * n];
+            float r0 = d / 2;
+            for (int j = 0; j < n; j++)
+                for (int i = 0; i < n; i++)
+                {
+                    // (CSS px from the token's middle, y down; the texture's rows run up.)
+                    float x = (i + 0.5f) / k - size / 2, y = size / 2 - (j + 0.5f) / k;
+                    float pr = 0, pg = 0, pb = 0, pa = 0;
+                    for (int q = drops.Length - 1; q >= 0; q--)
+                    {
+                        var dr = drops[q];
+                        float dist = Mathf.Sqrt((x - dr.X) * (x - dr.X) + (y - dr.Y) * (y - dr.Y)) - (r0 + dr.Spread);
+                        float cover = dr.Blur > 0 ? 0.5f * Erfc(dist / (dr.Blur / 2 * 1.41421356f)) : Mathf.Clamp01(0.5f - dist * k);
+                        float a = dr.Color.a * cover;
+                        pr = dr.Color.r * a + pr * (1 - a);
+                        pg = dr.Color.g * a + pg * (1 - a);
+                        pb = dr.Color.b * a + pb * (1 - a);
+                        pa = a + pa * (1 - a);
+                    }
+                    // (Its own colour, not premultiplied; and not under the token itself.)
+                    float inv = pa > 0.0001f ? 1 / pa : 0;
+                    pa *= Mathf.Clamp01((Mathf.Sqrt(x * x + y * y) - r0) * k + 0.5f);
+                    px[j * n + i] = new Color32((byte)Mathf.RoundToInt(Mathf.Clamp01(pr * inv) * 255), (byte)Mathf.RoundToInt(Mathf.Clamp01(pg * inv) * 255), (byte)Mathf.RoundToInt(Mathf.Clamp01(pb * inv) * 255), (byte)Mathf.RoundToInt(pa * 255));
+                }
+            tex.SetPixels32(px);
+            tex.Apply();
+            shades[key] = tex;
+        }
+        var s = Hud.Rect(token, "Shade");
+        Hud.Fill(s);
+        s.offsetMin = -Vector2.one * m;
+        s.offsetMax = Vector2.one * m;
+        s.SetAsFirstSibling();
+        var ri = s.gameObject.AddComponent<RawImage>();
+        ri.texture = tex;
+        ri.raycastTarget = false;
+    }
+
+    /// <summary>The complementary error function (Abramowitz and Stegun 7.1.26), for a Gaussian blur's edge.</summary>
+    static float Erfc(float x)
+    {
+        float z = Mathf.Abs(x), t = 1 / (1 + 0.3275911f * z);
+        float y = t * (0.254829592f + t * (-0.284496736f + t * (1.421413741f + t * (-1.453152027f + t * 1.061405429f)))) * Mathf.Exp(-z * z);
+        return x >= 0 ? y : 2 - y;
+    }
+
+    /// <summary>
+    /// relic-art.ts relicFace: a relic power's button face as what it does (its effect's mark and number, baked from the
+    /// page to Icons/relic-face/<key>), or none for a power with no one clear effect (its badge shown instead).
+    /// </summary>
+    static Texture2D RelicFace(BattleSkill k)
+    {
+        var effects = k.Effects ?? new List<Effect>();
+        if (effects.Count > 1 || (effects.Count > 0 && k.Choices != null)) return null;
+        string key = null;
+        if (effects.Count == 0)
+        {
+            if (k.Choices?.Kind == "recall") key = $"recall-{k.Choices.Times}";
+            else if (k.Choices?.Kind == "shift") key = "shift";
+        }
+        else
+        {
+            var e = effects[0];
+            string n = e.Amount is int a && a != 0 ? a.ToString() : "";
+            string Face(string kind, string num = "") => num.Length > 0 ? $"{kind}-{num}" : kind;
+            key = e.Type switch
+            {
+                "strikeAll" or "heat" => Face("heat", n + (e.Plus != null && n.Length > 0 ? "plus" : "")),
+                "cool" => Face("cool", n),
+                "shield" => Face("shield", n),
+                "draw" => Face("draw", n),
+                "plays" => Face("plays", n),
+                "repair" => Face("repair", n),
+                "restore" => Face(e.All == true ? "renew" : "restore", n),
+                "fortify" => Face("guard", n),
+                "devour" or "destroy" => "destroy",
+                "recover" => "recover",
+                _ => null,
+            };
+        }
+        return key != null ? Resources.Load<Texture2D>($"Icons/relic-face/{key}") : null;
     }
 
     static Material greyed;
@@ -375,7 +481,7 @@ public partial class BattleView
         WebLook.Round(bdisc, 999);
         bdisc.color = new Color(1, 1, 1, 0);
         bdisc.raycastTarget = false;
-        Hud.Shadow(bdisc, 42, new Hud.Drop(Hud.Rgba(30, 34, 50, 0.3f), 3, 8), new Hud.Drop(Hud.Rgba(30, 34, 50, 0.25f), 1, 2));
+        RoundShade(badge, 84, new[] { new Hud.Drop(Hud.Rgba(30, 34, 50, 0.3f), 3, 8), new Hud.Drop(Hud.Rgba(30, 34, 50, 0.25f), 1, 2) });
         var art = Hud.Rect(badge, "Art");
         Hud.Fill(art);
         var ai = art.gameObject.AddComponent<RawImage>();

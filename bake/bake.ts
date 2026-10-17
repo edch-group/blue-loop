@@ -22,6 +22,8 @@ import { KEYWORDS, textParts } from '../src/engine/keywords';
 import { plainText } from '../src/engine/keywords';
 import { SUBRACES, raceTrait } from '../src/engine/races';
 import { baseAttack, baseHealth, persists } from '../src/engine/game';
+import { RELIC_POWERS } from '../src/engine/relics';
+import { relicFace, relicFaceHtml } from '../src/ui/relic-art';
 
 const stage = document.getElementById('stage')!;
 document.body.style.background = '#ffffff';
@@ -622,6 +624,29 @@ function relicAction(kind: string): void {
   stage.innerHTML = `<style>.bake-ra::before { display: none !important; }</style><div class="cmp-relic bake-ra" style="width:84px;height:84px;padding:0;background:none;box-shadow:none;animation:none"><span class="relic-action">${effectMark(kind)}</span></div>`;
 }
 Object.assign(window, { boonMark, relicAction });
+
+/**
+ * A relic power's button in battle drawn as what it does (app.ts renderTurnControls, .cmp-relic.relic-fx, relic-art.ts
+ * relicFace): its pale enamel disc with its sheen, its effect's mark and number, 40 px across, without its shadows, glow
+ * or bob (Unity draws those). `relicFaceKeys` lists every face a once-a-battle or once-a-day power can have.
+ */
+function relicFaceKeys(): string[] {
+  const keys = new Set<string>();
+  for (const def of Object.values(RELIC_POWERS)) {
+    if (def.kind !== 'once' && def.kind !== 'daily') continue;
+    for (const n of def.amounts) {
+      const f = relicFace({ effects: def.effects?.(n) ?? [], choices: def.choices?.(n) });
+      if (f) keys.add(f.key);
+    }
+  }
+  return [...keys];
+}
+function relicFaceOf(key: string): void {
+  const [kind, n = ''] = key.split(/-(.*)/);
+  const face = { kind, n: n.replace('plus', '+'), key };
+  stage.innerHTML = `<div class="relic-actives" style="position:static;transform:none;padding:0;display:inline-block"><div id="face" class="cmp-relic relic-active relic-fx" style="width:40px;height:40px;box-shadow:none;animation:none">${relicFaceHtml(face)}</div></div>`;
+}
+Object.assign(window, { relicFaceKeys, relicFaceOf });
 
 /**
  * A repair's crank (fx.ts crank, .crank) at 100 px, for scripts/bake-crank.mjs: its white disc with its ring and shadow

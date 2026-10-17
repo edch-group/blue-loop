@@ -9,7 +9,7 @@ import { chromium } from 'playwright-core';
 import { globSync } from 'node:fs';
 
 const exe = globSync('/opt/pw-browsers/chromium-*/chrome-linux/chrome')[0] ?? process.env.CHROME;
-const server = await createServer({ server: { port: 5195, strictPort: true, watch: null }, logLevel: 'error' });
+const server = await createServer({ server: { port: 5195, strictPort: true, watch: null, fs: { strict: false } }, logLevel: 'error' });
 await server.listen();
 const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
 // (Three times its CSS size: sharp on any screen.)
@@ -40,6 +40,20 @@ for (const kind of kinds.filter((k) => k !== 'star')) {
   const el = await page.$('#stage > div.cmp-relic');
   writeFileSync(`unity/Assets/Resources/Icons/relic-action/${kind}.png`, await el.screenshot({ type: 'png', omitBackground: true }));
 }
-console.log(`${kinds.length + 1} marks, ${kinds.length} boons, ${kinds.length - 1} relic actions`);
+// A relic power's button in battle as what it does (relicFace, .cmp-relic.relic-fx: its disc, mark and number) to
+// Icons/relic-face/<key>.png, every face a once-a-battle or once-a-day power can have; four times its 40 px.
+const facePage = await browser.newPage({ deviceScaleFactor: 4, viewport: { width: 200, height: 200 } });
+await facePage.goto('http://localhost:5195/bake/index.html');
+await facePage.waitForFunction(() => window.ready === true);
+await facePage.addStyleTag({ content: 'html, body, #stage { background: transparent !important; }' });
+mkdirSync('unity/Assets/Resources/Icons/relic-face', { recursive: true });
+const faces = await facePage.evaluate(() => window.relicFaceKeys());
+for (const key of faces) {
+  await facePage.evaluate((k) => window.relicFaceOf(k), key);
+  await facePage.evaluate(async () => { await document.fonts.ready; });
+  const el = await facePage.$('#face');
+  writeFileSync(`unity/Assets/Resources/Icons/relic-face/${key}.png`, await el.screenshot({ type: 'png', omitBackground: true }));
+}
+console.log(`${kinds.length + 1} marks, ${kinds.length} boons, ${kinds.length - 1} relic actions, ${faces.length} relic faces: ${faces.join(' ')}`);
 await browser.close();
 await server.close();

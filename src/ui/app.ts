@@ -118,7 +118,7 @@ import { tutorialPage, challengesPage, CHALLENGES, challengeById, markLesson, ma
 import { lessonById } from '../engine/lessons';
 import { keepsWinnable } from '../engine/puzzle';
 import { ORACLE_NAME } from '../engine/story';
-import { relicMark } from './relic-art';
+import { relicFace, relicFaceHtml, relicMark } from './relic-art';
 
 import { closeTour, startTour, tourShowing } from './tour';
 import { DREAMS, shownKind, isBurst, bossIntent, bossMinions, bossOrder, charging, BOSS_RECHARGE, partAim, relicN, relicOf, RELIC_POWERS, overdrivable } from '../engine';
@@ -6244,8 +6244,10 @@ export class App {
         // (Once a battle, it is spent for good; once a day, until tomorrow.)
         const used = k.spent || (!k.once && k.usedTurn === s.turnNumber);
         const note = k.spent ? 'Used.' : used ? 'Used today.' : '';
-        // (Tapped, it shows in the preview pane, to read and then use, or not.)
-        return `<button class="cmp-relic relic-active ${used ? 'spent' : ''} ${ready ? 'ready' : ''} ${this.relicPanel === i ? 'open' : ''}" ${k.once ? '' : 'data-daily="1"'} data-act="relic-panel" data-arg="${i}" aria-label="${esc(`${k.relic}. ${k.text}${note ? ` ${note}` : ''}`)}">${relicMark(k.relic, '')}${relicActionMark(k)}</button>`;
+        // (Its face what it does, as the game marks that elsewhere: heat 2 a heat mark and 2. A power with no one
+        // clear effect shows the relic's own badge. Tapped, it shows in the preview pane, its name and words, to use or not.)
+        const face = relicFace(k);
+        return `<button class="cmp-relic relic-active ${face ? 'relic-fx' : ''} ${used ? 'spent' : ''} ${ready ? 'ready' : ''} ${this.relicPanel === i ? 'open' : ''}" ${k.once ? '' : 'data-daily="1"'} data-act="relic-panel" data-arg="${i}" aria-label="${esc(`${k.relic}. ${k.text}${note ? ` ${note}` : ''}`)}">${face ? relicFaceHtml(face) : `${relicMark(k.relic, '')}${relicActionMark(k)}`}</button>`;
       })
       .join('');
     // A relic that counts the day's attacks (three, and it strikes): its token, filling as they are made.
