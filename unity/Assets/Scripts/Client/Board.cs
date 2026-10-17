@@ -63,6 +63,8 @@ public partial class Board : MonoBehaviour
     /// </summary>
     readonly Dictionary<int, (GameObject plain, GameObject choose)> slotLooks = new Dictionary<int, (GameObject, GameObject)>();
     readonly Dictionary<int, TextMeshPro> slotWords = new Dictionary<int, TextMeshPro>();
+    /// <summary>The slots (as slotLooks keys) a card stands in now: nothing of the slot is drawn under it.</summary>
+    readonly HashSet<int> slotTaken = new HashSet<int>();
     const int TrapKey = 1000;
     TextMeshPro[] phases;
     readonly MeshRenderer[] phaseDots = new MeshRenderer[3], phaseGlows = new MeshRenderer[3];
@@ -823,6 +825,7 @@ public partial class Board : MonoBehaviour
         var me = s.Players.First(p => p.Id == Viewer);
         var rival = s.Players.FirstOrDefault(p => p.Id == RivalId && p.Id != Viewer) ?? s.Players.First(p => p.Id != Viewer);
         var seen = new HashSet<string>();
+        slotTaken.Clear();
         foreach (var p in new[] { me, rival })
         {
             bool mine = p == me;
@@ -830,6 +833,7 @@ public partial class Board : MonoBehaviour
             {
                 var v = Card(c, true, mine, p.Id);
                 seen.Add(c.Uid);
+                slotTaken.Add(mine ? c.Slot ?? 0 : 100 + (c.Slot ?? 0));
                 var at = SlotAt(mine, c.Slot ?? 0) + new Vector3(0, 0.03f, 0);
                 v.transform.SetParent(table, false);
                 v.MoveTo(at, Quaternion.identity);
@@ -846,6 +850,7 @@ public partial class Board : MonoBehaviour
             {
                 var v = Card(p.Lightspeed, true, mine, p.Id);
                 seen.Add(p.Lightspeed.Uid);
+                if (mine) slotTaken.Add(TrapKey);
                 v.transform.SetParent(table, false);
                 v.MoveTo((mine ? MyTrap : RivalTrap) + new Vector3(0, 0.03f, 0), Quaternion.identity);
                 // (Set face down, yours too, as the web's: hold it to read it.)
@@ -938,7 +943,11 @@ public partial class Board : MonoBehaviour
             string word = kv.Key == TrapKey ? (ui.TrapChoosable ? "" : null) : kv.Key >= 50 ? ui.SlotWord(false, kv.Key - 100) : ui.SlotWord(true, kv.Key);
             bool open = word != null;
             if (open && slotWords.TryGetValue(kv.Key, out var t) && t.text != word.ToUpperInvariant()) t.text = word.ToUpperInvariant();
-            if (kv.Value.plain.activeSelf == open) kv.Value.plain.SetActive(!open);
+            // (A slot with a card in it is not drawn at all, as app.ts renderTableau draws the card in its place: its
+            // defence, the slot's alone, showed under the card as it lifted to strike, shook or stood off its place,
+            // read as the card's own defence when the card's is more: Sturdy, a room, a neighbour's Bulwark.)
+            bool plain = !open && !slotTaken.Contains(kv.Key);
+            if (kv.Value.plain.activeSelf != plain) kv.Value.plain.SetActive(plain);
             if (kv.Value.choose.activeSelf != open) kv.Value.choose.SetActive(open);
         }
     }
