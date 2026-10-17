@@ -115,6 +115,7 @@ public class CrewView : MonoBehaviour
         var f = Hud.At(Hud.Rect(v, "Face"), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(fh / 1.4f, fh));
         var raw = f.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(id, false);
+        Faces.Follow(raw);
         raw.raycastTarget = false;
     }
 

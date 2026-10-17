@@ -247,6 +247,7 @@ public partial class CampaignView
                     fused.sizeDelta = lay.Phone ? new Vector2(66 * Z, 92 * Z) : new Vector2(88 * Z, 124 * Z);
                     var face = fused.gameObject.AddComponent<RawImage>();
                     face.texture = Faces.Of(Builds.FusedId(a, b), Faces.Look.Card, fused.sizeDelta.x / WebLook.Zoom);
+                    Faces.Follow(face);
                     face.raycastTarget = false;
                     Kit.Printed(fused, Builds.FusedId(a, b), fused.sizeDelta.x, true);
                     Kit.Across(act, 14, fused, Kit.Go(act, $"fuse · ⬢{cost}", true, problem, () => StationFuse(nodeId, a, b)), Kit.Hint(act, "for good"));
@@ -309,6 +310,7 @@ public partial class CampaignView
         Hud.Fill(face);
         var raw = face.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(id, Faces.Look.Card, Kit.CardW / WebLook.Zoom);
+        Faces.Follow(raw);
         Kit.Printed(face, id, Kit.CardW, true);
         var b = card.gameObject.AddComponent<Button>();
         b.targetGraphic = raw;
@@ -496,6 +498,7 @@ public partial class CampaignView
         var f = Hud.At(Hud.Rect(v, "Face"), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(fh / 1.4f, fh));
         var raw = f.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(id, false);
+        Faces.Follow(raw);
         raw.raycastTarget = false;
         Kit.Printed(f, id, fh / 1.4f);
     }

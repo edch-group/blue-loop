@@ -374,6 +374,7 @@ public partial class BattleView
             Hud.Place(r, x, cardY, scw, ch);
             var img = r.gameObject.AddComponent<RawImage>();
             img.texture = back ? Resources.Load<Texture2D>("Board/back") : Faces.Of(defId, Faces.Look.Card, scw);
+            Faces.Follow(img);
             img.raycastTarget = false;
             // (0 24px 50px rgba(70,70,90,.28), 0 0 0 2px #fff; sprung, a glow too: 0 0 30px.)
             if (glow != null) WebLook.Shadow(img, 0, 30, glow.Value, scw * 0.08f);
@@ -561,6 +562,7 @@ public partial class BattleView
             Hud.Place(face, 4, 4, ow, oh);
             var img = face.gameObject.AddComponent<RawImage>();
             img.texture = Faces.Of(defId, Faces.Look.Card, ow);
+            Faces.Follow(img);
             img.raycastTarget = false;
             Printed(face, defId, ow, true);
             // (0 0 0 1.5px #fff, 0 0 18px rgba(212,149,42,.55), 0 6px 18px rgba(90,90,110,.18).)
@@ -586,6 +588,7 @@ public partial class BattleView
         Hud.Place(card, mx, my, scw, ch);
         var ci = card.gameObject.AddComponent<RawImage>();
         ci.texture = moveId != null ? Faces.Of(moveId, Faces.Look.Card, scw) : Resources.Load<Texture2D>("Board/back");
+        Faces.Follow(ci);
         ci.raycastTarget = false;
         if (moveId != null) Printed(card, moveId, scw, true);
         WebLook.Shadow(ci, 24, 50, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.28f), scw * 0.08f, 2, Color.white);

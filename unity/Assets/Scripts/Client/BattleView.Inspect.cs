@@ -121,6 +121,7 @@ public partial class BattleView
         Hud.Place(face, left, top + (rowH - cardBlock) / 2 + (cardBlock - ch), pw, ch);
         var raw = face.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(defId, false);
+        Faces.Follow(raw);
         raw.raycastTarget = false;
         WebLook.Shadow(raw, 26, 60, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.3f), pw * 0.08f, 2, Color.white);
         var def = Cards.Def(defId);

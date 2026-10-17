@@ -1338,6 +1338,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         var img = face.gameObject.AddComponent<RawImage>();
         // (.db-card > .card: a card on its own, as wide as its tile.)
         img.texture = Faces.Of(id, Faces.Look.Card, w);
+        Faces.Follow(img);
         img.color = have > 0 ? Color.white : new Color(0.88f, 0.88f, 0.89f);
         if (focus == id || n > 0)
             Hud.Shadow(img, w * 0.06f, new Hud.Drop(focus == id ? Hex("#9fb4ff") : Mix(kc, 0.75f, Color.white), 0, 0, 2), new Hud.Drop(Hud.Rgba(90, 90, 110, 0.15f), 5, 16));
@@ -1420,6 +1421,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         Hud.Fill(face);
         var img = face.gameObject.AddComponent<RawImage>();
         img.texture = Faces.Of(id, false);
+        Faces.Follow(img);
         img.raycastTarget = false;
         Printed(face, id, pw);
         var rows = Explain(id);
@@ -1995,6 +1997,7 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
         Hud.Place(face, left, top, cw, ch);
         var img = face.gameObject.AddComponent<RawImage>();
         img.texture = Faces.Of(zoomed, false);
+        Faces.Follow(img);
         img.raycastTarget = false;
         Printed(face, zoomed, cw);
         if (rows.Count > 0)

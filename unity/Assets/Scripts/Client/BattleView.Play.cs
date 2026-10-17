@@ -715,6 +715,7 @@ public partial class BattleView
             Hud.Place(face, x, y, cw, chh);
             var img = face.gameObject.AddComponent<RawImage>();
             img.texture = Faces.Of(c.DefId, Faces.Look.Card, cw);
+            Faces.Follow(img);
             WebLook.Shadow(img, 6, 18, Hud.Rgba(80, 84, 100, 0.16f), cw * 0.08f, 2, Color.white);
             Printed(face, c.DefId, cw, true);
             var b = face.gameObject.AddComponent<Button>();
@@ -760,6 +761,7 @@ public partial class BattleView
         Hud.Place(face, (l.W - pw) / 2, y, pw, ch);
         var img = face.gameObject.AddComponent<RawImage>();
         img.texture = Faces.Of(card.DefId, false);
+        Faces.Follow(img);
         img.raycastTarget = false;
         WebLook.Shadow(img, 26, 60, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.3f), pw * 0.08f, 2, Color.white);
         y += ch + 14;

@@ -159,6 +159,7 @@ public partial class BattleView
                     // (app.ts: a copy of the hand's card on the page itself, out of the hand, as wide as it lies there: a card
                     // on its own, that wide.)
                     d.Ghost.texture = Faces.Of(view != null ? view.DefId : Me.Hand.First(c => c.Uid == d.Uid).DefId, Faces.Look.Card, BoardLayout.Current.HandCard);
+                    Faces.Follow(d.Ghost);
                     d.Ghost.raycastTarget = false;
                     // (.drag-ghost: lifted well off the page, a white hairline round it.)
                     WebLook.Shadow(d.Ghost, 24, 50, new Color(70 / 255f, 70 / 255f, 90 / 255f, 0.35f), d.Size.x * 0.08f, 2, Color.white);

@@ -1064,6 +1064,7 @@ public partial class Board : MonoBehaviour
         // of it, its name under it), not the card in play with its square picture. The wreckage's greyed:
         // .tpile-wreck-face, grayscale(0.55) brightness(0.97).)
         face.sharedMaterial.mainTexture = top != null ? Faces.Of(top.DefId, Faces.Look.Pile, L.Pw) : null;
+        Faces.Follow(face.sharedMaterial);
         face.sharedMaterial.color = top == null ? new Color(1, 1, 1, 0) : wreck ? new Color(0.97f, 0.97f, 0.97f) : Color.white;
         face.sharedMaterial.SetFloat("_Grey", wreck ? 0.55f : 0);
         face.sharedMaterial.SetFloat("_GreyTo", 1);

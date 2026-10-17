@@ -205,6 +205,7 @@ public class ShopView : MonoBehaviour, MenuView.IRedraw
             Hud.At(face, new Vector2(0.5f, 1), Vector2.zero, new Vector2(fw, fh));
             var raw = face.gameObject.AddComponent<RawImage>();
             raw.texture = Faces.Of(c.Id, Faces.Look.Card, fw);
+            Faces.Follow(raw);
             // (Read large by a right-click, or a press held on a touch screen; it rustles under a mouse.)
             raw.raycastTarget = true;
             var id = c.Id;

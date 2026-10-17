@@ -962,12 +962,17 @@ export class Nebula {
 
   /** A galaxy turning slowly round its heart (a spiral arm's): how far it has turned, and whether it turns at all. */
   private spin = 0;
+  /** Dragged away from home (pan), until the ship it follows moves on. */
+  private panned = false;
   private spinning = false;
   setSpin(on: boolean) {
     if (on === this.spinning) return;
     this.spinning = on;
     if (!on) this.spin = 0;
-    if (this.homed && !this.cine) this.glide = this.home();
+    if (this.homed && !this.cine) {
+      this.panned = false;
+      this.glide = this.home();
+    }
     this.wake();
   }
 
@@ -984,7 +989,10 @@ export class Nebula {
   follow(x: number, z: number) {
     if (this.focus && Math.hypot(this.focus[0] - x, this.focus[1] - z) < 1e-4) return;
     this.focus = [x, z];
-    if (this.homed && !this.cine) this.glide = this.home();
+    if (this.homed && !this.cine) {
+      this.panned = false;
+      this.glide = this.home();
+    }
     this.wake();
   }
 
@@ -997,7 +1005,7 @@ export class Nebula {
    */
   pan(dx: number, dy: number) {
     const cam = this.camera;
-    if (!cam || this.cine || this.spinning || !this.homed) return;
+    if (!cam || this.cine || !this.homed) return;
     const a = this.onPlane(cam.width / 2, cam.height / 2), b = this.onPlane(cam.width / 2 - dx, cam.height / 2 - dy);
     if (!a || !b) return;
     this.glide = null;
@@ -1005,6 +1013,7 @@ export class Nebula {
     const reach = Math.max(0, STRIP_WIDTH / 2 - p.dist * 0.2);
     p.x = Math.max(-reach, Math.min(reach, p.x + (b[0] - a[0])));
     p.z = Math.max(-0.35, Math.min(0.65, p.z + (b[1] - a[1])));
+    this.panned = true;
     this.moved = true;
     this.wake();
   }
@@ -1118,7 +1127,9 @@ export class Nebula {
     // A turning galaxy: round about once every six minutes, the camera easing after it.
     if (this.spinning && live && !this.cine && this.homed) {
       this.spin += dt * ((Math.PI * 2) / 360);
-      this.glide = this.home();
+      // (Dragged somewhere, it circles from there: only its turn follows the galaxy's.)
+      const h = this.home();
+      this.glide = this.panned ? { ...h, x: this.pose.x, y: this.pose.y, z: this.pose.z, dist: this.pose.dist } : h;
       this.glideRate = Math.min(this.glideRate, 2.5);
     }
     // The opening shot, while it plays, has the camera; when it is over, the camera settles (slowly) at home.

@@ -21,6 +21,7 @@ public static class Faces
     /// </summary>
     static Texture2D Arrived(string defId, Texture2D asked)
     {
+        owed = null;
         if (asked == null || Pictures.Ready(asked)) return asked;
         var tail = "/" + defId;
         Texture2D other = null;
@@ -28,10 +29,68 @@ public static class Faces
         {
             if (kv.Value == null || kv.Value == asked || !kv.Key.StartsWith("CardFaces/") || !kv.Key.EndsWith(tail) || !Pictures.Ready(kv.Value)) continue;
             // (A whole card's face first; the one in play or on a pile (its picture square) only if nothing else has come.)
-            if (!kv.Key.StartsWith("CardFaces/table") && !kv.Key.StartsWith("CardFaces/pile")) return kv.Value;
+            if (!kv.Key.StartsWith("CardFaces/table") && !kv.Key.StartsWith("CardFaces/pile")) { other = kv.Value; break; }
             other ??= kv.Value;
         }
-        return other ?? asked;
+        if (other == null) return asked;
+        owed = (asked, other);
+        return other;
+    }
+
+    /// <summary>The face last asked for, when another size of it was given meanwhile (and that one).</summary>
+    static (Texture2D asked, Texture2D given)? owed;
+
+    /// <summary>Faces given in another size's place, each put in once its own has come (if still showing the stand-in).</summary>
+    static readonly List<(Texture2D asked, Texture2D given, Object target, System.Action<Texture2D> put, System.Func<Texture> shown)> owing = new List<(Texture2D, Texture2D, Object, System.Action<Texture2D>, System.Func<Texture>)>();
+
+    /// <summary>
+    /// The face just given to `img` was a stand-in (another size of it, scaled: blurred, on a large card): its own goes
+    /// in once it has come. Called straight after giving it.
+    /// </summary>
+    public static void Follow(UnityEngine.UI.RawImage img)
+    {
+        if (owed == null || img == null) return;
+        Owe(img, t => img.texture = t, () => img.texture);
+    }
+
+    /// <summary>As for an image, for a card's own material.</summary>
+    public static void Follow(Material m)
+    {
+        if (owed == null || m == null) return;
+        Owe(m, t => m.mainTexture = t, () => m.mainTexture);
+    }
+
+    static void Owe(Object target, System.Action<Texture2D> put, System.Func<Texture> shown)
+    {
+        var (asked, given) = owed.Value;
+        owed = null;
+        owing.RemoveAll(o => o.target == target);
+        // (Only if what it shows is the stand-in: the face given just now.)
+        if (shown() != given) return;
+        owing.Add((asked, given, target, put, shown));
+        if (ticker == null && Application.isPlaying)
+        {
+            var go = new GameObject("Faces owed");
+            Object.DontDestroyOnLoad(go);
+            ticker = go.AddComponent<Owing>();
+        }
+    }
+
+    static Owing ticker;
+
+    class Owing : MonoBehaviour
+    {
+        void Update()
+        {
+            for (int i = owing.Count - 1; i >= 0; i--)
+            {
+                var o = owing[i];
+                if (o.target == null) { owing.RemoveAt(i); continue; }
+                if (!Pictures.Ready(o.asked)) continue;
+                if (o.shown() == o.given) o.put(o.asked);
+                owing.RemoveAt(i);
+            }
+        }
     }
 
     static Texture2D Load(string path)

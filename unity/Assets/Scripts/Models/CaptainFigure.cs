@@ -123,7 +123,7 @@ namespace BlueLoop.Models
         {
             g = Load();
             held = pose;
-            if (pose != null && !g.Poses.ContainsKey(pose)) throw new ArgumentException($"the Captain has no pose {pose}");
+            if (pose != null && pose != Rest && !g.Poses.ContainsKey(pose)) throw new ArgumentException($"the Captain has no pose {pose}");
             this.pose = new float[g.Names.Length][];
             Pos = new float[g.Pos.Length];
             Nor = new float[g.Nor.Length];
@@ -192,9 +192,20 @@ namespace BlueLoop.Models
             }
         }
 
+        /// <summary>
+        /// Him as Meshy made and rigged him, unposed and still: his arms and hands as made. (The poses solved for him
+        /// (poses.json) turned his forearms and hands round, his hands backwards; the scenes show him so.)
+        /// </summary>
+        public const string Rest = "rest";
+
         /// <summary>His bones where his routine has him at this moment (or his one pose), and how much he moves.</summary>
         double Stand(double t)
         {
+            if (held == Rest)
+            {
+                for (int b = 0; b < pose.Length; b++) pose[b] = Inverse(g.RestInv[b]);
+                return 0;
+            }
             if (held != null)
             {
                 var only = g.Poses[held];

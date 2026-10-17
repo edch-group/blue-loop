@@ -627,8 +627,8 @@ public partial class CampaignView : MonoBehaviour
         if (!still || overUi) return;
         // A drag pans across the floor; a tap picks a system; the wheel zooms.
         if (Input.GetMouseButtonDown(0)) { dragFrom = Input.mousePosition; dragging = false; }
-        // (Never in a turning galaxy: the camera circles it.)
-        if (Input.GetMouseButton(0) && !Spinning && (Input.mousePosition - dragFrom).magnitude > 8)
+        // (In a turning galaxy too: the camera keeps circling round where it was dragged to.)
+        if (Input.GetMouseButton(0) && (Input.mousePosition - dragFrom).magnitude > 8)
         {
             dragging = true;
             var a = FloorPoint(dragFrom);

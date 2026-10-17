@@ -569,7 +569,7 @@ public class CampaignBackdrop : MonoBehaviour
     /// <summary>The Captain's mesh: his corners as he stands, his place in his texture, material 11 (the ship shader paints him).</summary>
     UMesh FigureMesh()
     {
-        figure = new CaptainFigure();
+        figure = new CaptainFigure(CaptainFigure.Rest);
         int n = figure.Count;
         figurePos = new Vector3[n];
         figureNor = new Vector3[n];
@@ -749,7 +749,7 @@ public class CampaignBackdrop : MonoBehaviour
         var capM = shipM * T(at) * RY(1.3f) * S(0.8f * 0.7f / SS) * T(new Vector3(-foot.x, 0, -foot.z));
         capNow = capM;
         Place(captain, capM);
-        if (captain.gameObject.activeSelf) Stand(t);
+        // (Still, as Meshy made him: stood once.)
         // The companions, each in their place: on the near rail, over the sensor dish, or flying alongside.
         foreach (var (id, pl, tr) in crew)
         {

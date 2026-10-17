@@ -531,6 +531,7 @@ public partial class CampaignView
         Hud.Fill(face);
         var raw = face.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(id, Faces.Look.Card, w / Z);
+        Faces.Follow(raw);
         StationKit.Printed(face, id, w, true);
         var b = r.gameObject.AddComponent<Button>();
         b.targetGraphic = raw;

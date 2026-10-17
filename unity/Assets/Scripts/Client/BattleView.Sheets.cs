@@ -496,6 +496,7 @@ public partial class BattleView
         Hud.Place(face, x, y, w, w * 1.4f);
         var raw = face.gameObject.AddComponent<RawImage>();
         raw.texture = Faces.Of(defId, Faces.Look.Card, w);
+        Faces.Follow(raw);
         raw.raycastTarget = false;
         Hud.Shadow(raw, w * 0.08f, new Hud.Drop(Hud.Rgba(90, 90, 110, 0.15f), 5, 16));
         Printed(face, defId, w, true);

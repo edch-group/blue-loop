@@ -98,6 +98,7 @@ public class CardView : MonoBehaviour
     {
         if (DefId == null) return;
         face.sharedMaterial.mainTexture = Css > 0 ? (pricey && !Table ? Faces.Pricey(DefId, Css) : Faces.Of(DefId, Table ? Faces.Look.Table : Faces.Look.Hand, Css)) : Faces.Of(DefId, Table);
+        Faces.Follow(face.sharedMaterial);
     }
 
     /// <summary>A card face down (a set trap, a pile).</summary>
