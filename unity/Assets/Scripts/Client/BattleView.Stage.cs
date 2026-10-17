@@ -331,7 +331,9 @@ public partial class BattleView
         float right = l.W - (l.PadR + 16), top = l.H / 2 - h / 2;
         stagePane = Hud.Rect(hud.transform, "Stage");
         Hud.Place(stagePane, right - pairW, top, pairW, h);
-        stagePane.SetSiblingIndex(beamLayer.GetSiblingIndex() + 1);
+        // (Over the attack beams and the board's chrome, its End Day among them, as the web's .stage (z-index 15) is:
+        // its OK had been drawn under End Day.)
+        stagePane.SetSiblingIndex(Mathf.Max(beamLayer.GetSiblingIndex(), chrome.GetSiblingIndex()) + 1);
         var fade = stagePane.gameObject.AddComponent<CanvasGroup>();
         fade.blocksRaycasts = now.ok || asTrap;
         stagePane.gameObject.AddComponent<RiseFade>().Seconds = 0.25f;
