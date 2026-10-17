@@ -1460,8 +1460,8 @@ public class BuilderView : MonoBehaviour, MenuView.IRedraw
             img.raycastTarget = false;
         }
         int atk = Game.BaseAttack(def);
-        if (atk > 0) Badge(sized ? Faces.At("atk", w, false) : Faces.Where.atk, "atk", atk);
-        Badge(sized ? Faces.At("stab", w, false) : Faces.Where.stab, "stab", Game.BaseHealth(defId));
+        if (atk > 0) Badge(sized ? Faces.At("atk", w, false) : Faces.OnFace("atk"), "atk", atk);
+        Badge(sized ? Faces.At("stab", w, false) : Faces.OnFace("stab"), "stab", Game.BaseHealth(defId));
     }
 
     /// <summary>

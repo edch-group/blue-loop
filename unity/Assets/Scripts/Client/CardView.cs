@@ -418,13 +418,14 @@ public class CardView : MonoBehaviour
 
     /// <summary>
     /// A badge where the web sets it on a card as wide as this is drawn (Faces.At: a hand card's stones smaller than a
-    /// table card's, a small card's shield at its floor); not knowing its width, where it sits on a 200 px table card.
+    /// table card's, a small card's shield at its floor); not knowing its width, where it sits on the face it wears (a
+    /// 200 px table card's, or the magnified one's: Faces.OnFace).
     /// </summary>
     void PlaceBadge(string slot, MeshRenderer r)
     {
         badgeKind.TryGetValue(slot, out var kind);
         var at = slot == "def" && kind != null && kind.StartsWith("guard") ? "guard" : slot;
-        var p = Css > 0 ? Faces.At(at, Css, Table) : at == "atk" ? Faces.Where.atk : at == "stab" ? Faces.Where.stab : at == "guard" ? Faces.Where.guard : Faces.Where.def;
+        var p = Css > 0 ? Faces.At(at, Css, Table) : !Table ? Faces.OnFace(at) : at == "atk" ? Faces.Where.atk : at == "stab" ? Faces.Where.stab : at == "guard" ? Faces.Where.guard : Faces.Where.def;
         r.transform.localScale = new Vector3(p.w, p.h, 1);
         r.sharedMaterial.SetFloat("_Aspect", p.h / p.w);
         r.transform.localPosition = new Vector3(-0.5f + p.x + p.w / 2, 0.004f, 0.7f - (p.y + p.h / 2));

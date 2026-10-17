@@ -33,23 +33,27 @@ document.head.insertAdjacentHTML(
     .bake-wrap { display: block !important; position: static !important; inset: auto !important; width: max-content !important; height: auto !important; margin: 0 !important; padding: 0 !important; background: none !important; border: 0 !important; box-shadow: none !important; transform: none !important; filter: none !important; opacity: 1 !important; overflow: visible !important; animation: none !important; perspective: none !important; }
     .bake-wrap::before, .bake-wrap::after { display: none !important; }
     .bake-wrap .card { box-shadow: none !important; transition: none !important; animation: none !important; }
-    .bake-wrap .card-jewels, .bake-wrap .stat-def { visibility: hidden !important; }
+    .bake-wrap .card-jewels, .bake-wrap .stat-def, .bake-face .card-jewels { visibility: hidden !important; }
   </style>`,
 );
 
-/** A card's face: `table` as it stands in play (compact), `face` as in the hand or the inspector. */
+/**
+ * A card's face: `table` as it stands in play (compact), `face` as in the hand or the inspector (the web's bigCard: its
+ * printed stones there but unseen, its text fitted round them as the web fits it, fittext.ts).
+ */
 function face(id: string, variant: 'table' | 'face', width: number): void {
   const def = cardDef(id);
   const race = def.race !== undefined ? ` race-${def.race}` : '';
   const full = fullArt(def.id) ? ` card-full${cardCost(def.id) > 0 ? ' card-costed' : ''}` : '';
   const cls = variant === 'table' ? 'card-table' : 'card-big';
   stage.innerHTML = `<div class="bake-${variant}" style="--tcw:${width}px;--pw:${width}px;padding:0">
-    <div class="card ${cls} kind-${def.kind}${race}${full} rarity-${def.rarity ?? 'dwarf'}" style="--kc:${KIND_COLOUR[shownKind(def)]};box-shadow:none;margin:0">
-      ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}
+    <div class="card ${cls} kind-${def.kind}${race}${full} rarity-${def.rarity ?? 'dwarf'}" data-card="${def.id}" style="--kc:${KIND_COLOUR[shownKind(def)]};box-shadow:none;margin:0">
+      ${cardStock(def)}<div class="card-glyph">${cardArtLite(def, true)}</div>${raceRow(def)}${variant === 'face' ? stabilityBadge(def) : ''}
       <div class="card-name">${def.name.toLowerCase()}</div>
       <div class="card-text">${cardBodyHtml(def)}</div>
       <div class="card-kind">${typeLine(def)}</div>
     </div></div>`;
+  fitCardText(stage);
 }
 
 /**

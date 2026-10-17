@@ -666,8 +666,8 @@ static class StationKit
             img.raycastTarget = false;
         }
         int atk = Game.BaseAttack(def);
-        if (atk > 0) Badge(sized ? Faces.At("atk", w / WebLook.Zoom, false) : Faces.Where.atk, "atk", atk);
-        Badge(sized ? Faces.At("stab", w / WebLook.Zoom, false) : Faces.Where.stab, "stab", Game.BaseHealth(defId));
+        if (atk > 0) Badge(sized ? Faces.At("atk", w / WebLook.Zoom, false) : Faces.OnFace("atk"), "atk", atk);
+        Badge(sized ? Faces.At("stab", w / WebLook.Zoom, false) : Faces.OnFace("stab"), "stab", Game.BaseHealth(defId));
     }
 
     /// <summary>A card on the shelf: its width (120 (CSS), on a phone 88), its height, and its cell's (its price beneath it).</summary>

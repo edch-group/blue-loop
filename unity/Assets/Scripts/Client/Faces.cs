@@ -159,4 +159,11 @@ public static class Faces
         float j = table ? 0.27f : Mathf.Max(9 / css, 0.19f);
         return new Place { x = slot == "atk" ? b + 0.035f : 1 - b - 0.035f - j, y = k - b - 0.035f - j, w = j, h = j };
     }
+
+    /// <summary>
+    /// Where a badge sits on the magnified face (`face`: .card-big, baked 300 px wide), in card widths from its top left:
+    /// as the web sets it there, its stones .19 of the card (.jewel, as on any card off the board), not a table card's .27
+    /// (Where), so they stand where the face's text was fitted round them (fittext.ts).
+    /// </summary>
+    public static Place OnFace(string slot) => At(slot, 300, false);
 }

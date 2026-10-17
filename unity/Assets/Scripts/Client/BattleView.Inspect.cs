@@ -136,10 +136,10 @@ public partial class BattleView
         {
             // (In play: its numbers as they stand.)
             int atk = Game.CardAttack(state, owner, card), hp = card.Health ?? 0;
-            if (atk > 0 || Game.BaseAttack(def) > 0) Badge(Faces.Where.atk, card.Dimmed == true ? "atk-dim" : "atk", Mathf.Max(0, atk));
-            Badge(Faces.Where.stab, hp <= 1 ? "stab-low" : "stab", hp);
+            if (atk > 0 || Game.BaseAttack(def) > 0) Badge(Faces.OnFace("atk"), card.Dimmed == true ? "atk-dim" : "atk", Mathf.Max(0, atk));
+            Badge(Faces.OnFace("stab"), hp <= 1 ? "stab-low" : "stab", hp);
             bool guard = Game.IsGuard(owner, card);
-            Badge(guard ? Faces.Where.guard : Faces.Where.def, guard ? "guard" : "def", Game.CardDefence(owner, card));
+            Badge(Faces.OnFace(guard ? "guard" : "def"), guard ? "guard" : "def", Game.CardDefence(owner, card));
         }
         else Printed(face, defId, pw);
         if (panel != null) Hud.Place(panel, left + pw + 16, top + (rowH - panelH) / 2, pw, panelH);
@@ -234,8 +234,8 @@ public partial class BattleView
         }
         // (`sized`: on a face baked for its width, the stones where the web sets them on a card that wide: Faces.At.)
         int atk = Game.BaseAttack(def);
-        if (atk > 0) Badge(sized ? Faces.At("atk", w, false) : Faces.Where.atk, "atk", atk);
-        Badge(sized ? Faces.At("stab", w, false) : Faces.Where.stab, "stab", Game.BaseHealth(defId));
+        if (atk > 0) Badge(sized ? Faces.At("atk", w, false) : Faces.OnFace("atk"), "atk", atk);
+        Badge(sized ? Faces.At("stab", w, false) : Faces.OnFace("stab"), "stab", Game.BaseHealth(defId));
     }
 
     /// <summary>The explanations' panel (.kw-list): white, rounded 16, padded 12 x 14, rows 8 apart, `w` wide, at most `most` tall.</summary>
