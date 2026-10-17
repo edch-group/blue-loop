@@ -8,20 +8,27 @@ const run = (kept?: string) => {
 };
 
 describe('a card kept from a lost run', () => {
-  it('may be any card of the run but Heroes', () => {
+  it('may be any card the run added, but not its starting deck nor Heroes', () => {
     const s = run();
+    const f = flagship(s, campaignPlayer(s).id)!;
+    // (A fresh run has added nothing: nothing to keep.)
+    expect(keepableCards(s)).toEqual([]);
+    // (Cards it picks up, in the deck or the reserve, may be kept; a second copy of a starting card too.)
+    f.deck.push('helio_lancer', f.deck[1]);
+    campaignPlayer(s).reserve.push('kelp_wall');
     const keepable = keepableCards(s);
-    expect(keepable.length).toBeGreaterThan(0);
+    expect(keepable).toEqual(expect.arrayContaining(['helio_lancer', 'kelp_wall', f.deck[1]]));
     expect(keepable.every((id) => cardDef(id).kind !== 'command')).toBe(true);
     expect(new Set(keepable).size).toBe(keepable.length);
   });
 
   it('starts the next run in the deck', () => {
     const plain = run();
-    const id = keepableCards(plain).find((x) => flagship(plain, campaignPlayer(plain).id)!.deck.filter((d) => d === x).length === 1)!;
+    const has = new Set(flagship(plain, campaignPlayer(plain).id)!.deck);
+    const id = ['helio_lancer', 'kelp_wall', 'shard_lancer'].find((x) => !has.has(x))!;
     const s = run(id);
     const deck = flagship(s, campaignPlayer(s).id)!.deck;
-    expect(deck.filter((d) => d === id).length).toBe(2);
+    expect(deck.filter((d) => d === id).length).toBe(1);
     expect(s.keptIn).toBe(id);
   });
 
