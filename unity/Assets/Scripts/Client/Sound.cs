@@ -25,9 +25,10 @@ public class Sound : MonoBehaviour
     /// <summary>The score sounding (A) and the one fading out behind it (B).</summary>
     AudioSource musicA, musicB;
     /// <summary>
-    /// Each score's looping pass, beside its intro (musicA's, musicB's): set going with the intro, timed to come in on the
-    /// very sample the intro ends (as the web's is, scheduled on the audio clock), not swapped in on a frame's tick, which
-    /// cut the intro short by up to a frame: a click.
+    /// Each score's looping pass, beside its intro (musicA's, musicB's): it comes in as the intro ends, on a source of its
+    /// own, the intro left to play out its last moment rather than cut short (a click). (Not set going ahead with a
+    /// delay: in the browser build the delay was not kept, and the loop, whose start carries the end's chords folded
+    /// back over it, came in at once over the score's opening bass note.)
     /// </summary>
     AudioSource loopA, loopB;
     /// <summary>When the front score started (unscaled seconds), and its intro's length (0: none): which pass is sounding.</summary>
@@ -348,11 +349,11 @@ public class Sound : MonoBehaviour
             // (The loop, on the audio clock, from the intro's last sample: its length as made, any padding the encoder
             // put after its end overlapping the loop's start, silent.)
             introLength = intro.samples / (float)intro.frequency;
+            loopA.Stop();
             loopA.clip = clip;
             loopA.loop = true;
             loopA.volume = 0;
             loopA.time = 0;
-            loopA.PlayDelayed(introLength);
         }
         startedAt = Time.unscaledTime;
         playing = true;
@@ -413,6 +414,13 @@ public class Sound : MonoBehaviour
         {
             unlocked = true;
             StartMusic();
+        }
+        // (The intro over, by the clock since it began (its source's own time can lag as it starts in the browser): the
+        // loop, from its start.)
+        if (playing && introLength > 0 && loopA.clip != null && !loopA.isPlaying && Time.unscaledTime - startedAt >= introLength - Time.unscaledDeltaTime)
+        {
+            loopA.time = 0;
+            loopA.Play();
         }
         // (Each fader's ramp: in, exponentially from silence to the level baked in; out, down to silence over 2 s.)
         if (playing)
