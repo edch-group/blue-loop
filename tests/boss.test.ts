@@ -75,6 +75,30 @@ describe('Lost Overlords', () => {
     expect(leader.health).toBe(overlordHealth(1));
   });
 
+  it('beaten, clear the galaxy: a rarer cache, an Anomaly emblem always in it', () => {
+    let s = createCampaign({ seed: 9, race: 0 });
+    const army = flagship(s, s.playerId)!;
+    const heart = s.nodes.find((n) => n.heart)!;
+    army.nodeId = heart.links[0];
+    s = applyCampaignAction(s, { type: 'move', armyId: army.id, toId: heart.id });
+    const game = structuredClone(s.battle!.game);
+    game.winnerId = game.players[0].id;
+    const t = applyCampaignAction(s, { type: 'finishBattle', game });
+    expect(t.universe).toBe(2);
+    expect(t.loot?.cleared).toBe(true);
+    expect(t.loot?.relics.some((r) => r.rarity === 'anomaly')).toBe(true);
+    // (Any other battle won is no galaxy cleared.)
+    let u = createCampaign({ seed: 9, race: 0 });
+    const a = flagship(u, u.playerId)!;
+    const near = u.nodes.find((n) => n.links.includes(a.nodeId) && !n.home && !n.heart && !n.gate)!;
+    u = applyCampaignAction(u, { type: 'move', armyId: a.id, toId: near.id });
+    if (u.battle) {
+      const g = structuredClone(u.battle.game);
+      g.winnerId = g.players[0].id;
+      expect(applyCampaignAction(u, { type: 'finishBattle', game: g }).loot?.cleared).toBeUndefined();
+    }
+  });
+
   it('have no sun: heat sent at it strikes the Overlord, and beating the Overlord down wins', () => {
     const s = battle();
     const boss = s.players[1];

@@ -180,6 +180,8 @@ namespace BlueLoop.Engine
         public List<string> Cards;
         public List<string> Parts;
         public string Found;
+        /// <summary>The wormhole's Overlord beaten: the galaxy cleared, and its cache the rarer one (an Anomaly emblem always in it).</summary>
+        public bool? Cleared;
     }
 
     public class CampaignStory { public List<StoryScene> Queue; public List<string> Told; }

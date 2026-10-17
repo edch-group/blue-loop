@@ -70,6 +70,8 @@ public partial class CampaignView : MonoBehaviour
     }
 
     bool fresh;
+    /// <summary>The new galaxy's banner, held back while the cleared galaxy's cache waits.</summary>
+    bool galaxyBannerOwed;
 
     /// <summary>A new run: the Captain's, as petals have made them (a card kept from the last comes in with it).</summary>
     public static CampaignState NewRun()
@@ -888,6 +890,13 @@ public partial class CampaignView : MonoBehaviour
             var f = Campaign.Flagship(state, state.PlayerId);
             if (f != null) focus = focusGoal = Home(f.NodeId);
             distanceGoal = RestDist;
+            // (The galaxy cleared, its cache waiting with GALAXY CLEARED over it: the new galaxy's banner once it is taken.)
+            if (state.Loot?.Cleared == true) galaxyBannerOwed = true;
+            else Banner($"galaxy {state.Universe}", "through the wormhole");
+        }
+        if (galaxyBannerOwed && state.Loot == null)
+        {
+            galaxyBannerOwed = false;
             Banner($"galaxy {state.Universe}", "through the wormhole");
         }
         if (action.Type != "endTurn" && action.Type != "aiStep" && MoveSpent()) Invoke(nameof(PassTime), 0.42f);

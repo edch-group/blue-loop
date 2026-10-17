@@ -7477,6 +7477,22 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .loot-cache-3d { width: min(220px, 38vh); height: min(220px, 38vh); }
 /* (A white halo under the cache, breathing.) */
 .loot-cache { position: relative; }
+/* A cleared galaxy's cache: GALAXY CLEARED over it, lettered as the turn banners, in gold; the cache on a gold halo with
+   gold rays turning slowly behind it. */
+.loot-cleared { align-content: center; gap: 14px; }
+.loot-cleared-banner { font-family: var(--display); font-size: clamp(1.4rem, 7vh, 2.8rem); letter-spacing: 0.42em; padding-left: 0.42em; text-transform: uppercase; color: #8a6a1e; text-shadow: 0 0 24px rgba(255, 255, 255, 0.9); animation: loot-cleared-in 0.9s ease-out both; }
+@keyframes loot-cleared-in { from { opacity: 0; transform: translateY(10px); letter-spacing: 0.6em; } }
+.loot-cleared .loot-cache { position: relative; }
+.loot-cleared .loot-cache-art:not(canvas) { width: min(190px, 30vh); }
+.loot-cleared .loot-cache-3d { width: min(190px, 30vh); }
+.loot-cleared .loot-cache-tap { color: #8a6a1e; }
+.loot-cleared .loot-cache-halo { background: radial-gradient(closest-side, rgba(255, 255, 255, 1), rgba(250, 226, 160, 0.75) 50%, rgba(240, 200, 110, 0) 100%); }
+.loot-cache-rays { position: absolute; left: 50%; top: min(110px, 19vh); width: min(345px, 60vh); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; z-index: -2; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, rgba(232, 186, 84, 0.5) 0deg 6deg, rgba(232, 186, 84, 0) 15deg 30deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 18%, #000 30%, transparent 100%); mask: radial-gradient(closest-side, transparent 18%, #000 30%, transparent 100%);
+  animation: loot-rays-turn 60s linear infinite; }
+@keyframes loot-rays-turn { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loot-cache-rays, .loot-cleared-banner { animation: none; } }
 .loot-cache-halo { position: absolute; left: 50%; top: min(110px, 19vh); width: min(300px, 52vh); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; z-index: -1; pointer-events: none;
   background: radial-gradient(closest-side, rgba(255, 255, 255, 1), rgba(232, 240, 252, 0.7) 50%, rgba(214, 226, 246, 0) 100%); animation: loot-glow-breathe 2.6s ease-in-out infinite; }
 /* A Hero's singularity [direction: hero ultimates, "singularities"]: its charge a slim gauge beside the Hero, filling

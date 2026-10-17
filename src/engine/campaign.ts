@@ -672,6 +672,8 @@ export interface Loot {
   parts?: string[];
   /** Found in a system on the map, not won in battle (the system's name). */
   found?: string;
+  /** The wormhole's Overlord beaten: the galaxy cleared, and its cache the rarer one (an Anomaly emblem always in it). */
+  cleared?: boolean;
 }
 
 export interface CampaignState {
@@ -3419,8 +3421,15 @@ function overlordBounty(s: CampaignState, f: Faction, army?: Army) {
   s.petals += petals;
   gainXp(s, CAMPAIGN.xpBoss);
   clog(s, `${lord.name} falls: ${f.name} gathers ${petals} Stellari petal${petals === 1 ? '' : 's'} from its remains.`, undefined, f.id);
-  // (Every boss leaves a ship part in its wreck.)
-  if (f.id === s.playerId) findPart(s, 1, true);
+  // (Every boss leaves a ship part in its wreck, and an emblem of the rarest kind in its hoard.)
+  if (f.id === s.playerId) {
+    findPart(s, 1, true);
+    const slots = RACE_SLOTS[f.race];
+    const kind: SlotKind = slots[randomInt(s, slots.length)].kind;
+    const relic = makeRelic(`item${++s.uidCounter}`, kind, 'anomaly', f.race, nextRandom(s), f.relics ?? []);
+    (f.relics ??= []).push(relic);
+    clog(s, `${f.name} takes ${relic.name} from ${lord.name}'s hoard.`, undefined, f.id);
+  }
   const fits = (id: string) => rarityOf(id) !== 'dwarf' && cardDef(id).kind !== 'command' && (!army || deckAddProblem({ ...f, reserve: [id] }, army, id) === null);
   const hoard = [...new Set(shuffleInPlace(s, riftPool(s) ?? offerPool(f, s.mode, s.universe)))].filter(fits).slice(0, CAMPAIGN.bossCardChoices + (s.run?.vault ?? 0));
   // (An Overlord's hoard is a hard event's: an Enigma a little likelier.)
@@ -4071,8 +4080,11 @@ export function applyCampaignAction(prev: CampaignState, action: CampaignAction)
       const before = lootMark(s);
       const game = action.auto ? simulateBattle(action.game) : action.game;
       const mine = game.players.find((p) => !p.isAI);
+      const universe = s.universe;
       resolveBattle(s, game, action.salvage);
       const loot = lootSince(s, before, !!mine && game.winnerId === mine.id);
+      // (The Overlord beaten, the flagship through its wormhole: the galaxy cleared.)
+      if (loot.won && s.universe !== universe) loot.cleared = true;
       // (Shown on the map only if it brought something.)
       if (loot.materials || loot.xp || loot.petals || loot.relics.length || loot.cards.length || loot.parts?.length) s.loot = loot;
       else delete s.loot;

@@ -809,7 +809,16 @@ namespace BlueLoop.Engine
             s.Petals += petals;
             GainXp(s, T.XpBoss);
             Clog(s, $"{lordName} falls: {f.Name} gathers {petals} Stellari petal{(petals == 1 ? "" : "s")} from its remains.", (string)null, f.Id);
-            if (f.Id == s.PlayerId) FindPart(s, 1, true);
+            // (Every boss leaves a ship part in its wreck, and an emblem of the rarest kind in its hoard.)
+            if (f.Id == s.PlayerId)
+            {
+                FindPart(s, 1, true);
+                var slots = Heroes.RaceSlots[f.Race];
+                var kind = slots[RInt(s, slots.Count)].Kind;
+                var relic = Heroes.MakeRelic($"item{++s.UidCounter}", kind, "anomaly", f.Race, R(s), f.Relics ?? new List<Relic>());
+                (f.Relics ??= new List<Relic>()).Add(relic);
+                Clog(s, $"{f.Name} takes {relic.Name} from {lordName}'s hoard.", (string)null, f.Id);
+            }
             bool Fits(string id) => RarityOf(id) != "dwarf" && Cards.Def(id).Kind != "command" && (army == null || DeckAddProblemFor(f, army, id) == null);
             var hoard = Shuffle(s, RiftPool(s) ?? OfferPool(f, s.Mode, s.Universe)).Distinct().Where(Fits).Take(T.BossCardChoices + (s.Run?.Vault ?? 0)).ToList();
             var options = f.Id == s.PlayerId ? WithEnigma(s, hoard, true) : hoard;

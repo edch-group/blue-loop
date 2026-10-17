@@ -543,6 +543,8 @@ export class CampaignView {
   private sheet: Sheet | null = null;
   /** The cache of the last battle's rewards, burst open (its rewards coming out). */
   private lootOpen = false;
+  /** The new galaxy's banner, held back while the cleared galaxy's cache waits. */
+  private galaxyBannerOwed = false;
   /** The card picked to keep for the next run, on the run-over screen. */
   private keepPick: string | null = null;
   /** On the way into a pending battle (so the map, drawn meanwhile, sends it only once). */
@@ -825,6 +827,12 @@ export class CampaignView {
       this.view = null;
       this.selected = null;
       this.army = null;
+      // (The galaxy cleared, its cache waiting with GALAXY CLEARED over it: the new galaxy's banner once it is taken.)
+      if (this.state.loot?.cleared) this.galaxyBannerOwed = true;
+      else this.host.banner(`galaxy ${this.state.universe}`, 'through the wormhole');
+    }
+    if (this.galaxyBannerOwed && this.state && !this.state.loot) {
+      this.galaxyBannerOwed = false;
       this.host.banner(`galaxy ${this.state.universe}`, 'through the wormhole');
     }
     // Every move is a turn: once the flagship has made its move (and anything it brought on is settled), time moves on.
@@ -3973,8 +3981,9 @@ export class CampaignView {
       const split = items.length > 3 ? Math.ceil(items.length / 2) : items.length;
       const rows = [items.slice(0, split), items.slice(split)].filter((r) => r.length);
       const cols = Math.max(...rows.map((r) => r.length));
+      // (The galaxy cleared, its Overlord beaten: GALAXY CLEARED over the cache, the rarer one, gold light turning behind it.)
       if (!this.lootOpen)
-        return `<div class="overlay overlay-soft loot-overlay"><button class="loot-cache" data-act="cmp-loot-open" aria-label="Open the cache">${canNebula() ? '<span class="loot-cache-halo" aria-hidden="true"></span><canvas class="loot-cache-art loot-cache-3d" data-loot3d="cache"></canvas>' : LOOT_CACHE}<span class="loot-cache-tap">${l.found ? 'found' : l.won ? 'victory' : 'what was saved'} · tap to open</span></button></div>`;
+        return `<div class="overlay overlay-soft loot-overlay${l.cleared ? ' loot-cleared' : ''}">${l.cleared ? '<div class="loot-cleared-banner">galaxy cleared</div>' : ''}<button class="loot-cache" data-act="cmp-loot-open" aria-label="Open the cache">${l.cleared ? '<span class="loot-cache-rays" aria-hidden="true"></span>' : ''}${canNebula() ? '<span class="loot-cache-halo" aria-hidden="true"></span><canvas class="loot-cache-art loot-cache-3d" data-loot3d="cache"></canvas>' : LOOT_CACHE}<span class="loot-cache-tap">${l.cleared ? 'the overlord’s hoard' : l.found ? 'found' : l.won ? 'victory' : 'what was saved'} · tap to open</span></button></div>`;
       return `<div class="overlay overlay-soft loot-overlay loot-opened">
         <div class="loot-burst" aria-hidden="true"></div>
         ${gauge ? `<div class="loot-item loot-top" style="--i:0">${gauge}</div>` : ''}

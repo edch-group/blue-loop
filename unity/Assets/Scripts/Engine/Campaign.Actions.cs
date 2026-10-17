@@ -223,8 +223,11 @@ namespace BlueLoop.Engine
                     var before = LootMark(s);
                     var game = action.Auto == true ? SimulateBattle(action.Game) : action.Game;
                     var mine = game.Players.FirstOrDefault(p => !p.IsAI);
+                    int universe = s.Universe;
                     ResolveBattle(s, game, action.Salvage, action.SalvageNone == true);
                     var loot = LootSince(s, before, mine != null && game.WinnerId == mine.Id);
+                    // (The Overlord beaten, the flagship through its wormhole: the galaxy cleared.)
+                    if (loot.Won && s.Universe != universe) loot.Cleared = true;
                     s.Loot = AnyLoot(loot) ? loot : null;
                     break;
                 }

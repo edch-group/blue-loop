@@ -709,15 +709,37 @@ public partial class CampaignView
         {
             // (Its art min(220, 38vh) across, its halo min(300, 52vh) round it; the words 10 under it; the whole in the
             // middle of the page.)
-            float art = Mathf.Min(220 * Z, 38 * RawVh), halo = Mathf.Min(300 * Z, 52 * RawVh), tapH = 0.72f * 16 * Z * 1.25f;
-            float y0 = Middle(art + 10 * Z + tapH);
+            // (The galaxy cleared, its Overlord beaten: GALAXY CLEARED over it, as the turn banners are lettered, and the
+            // cache the rarer one, on a gold halo with gold light turning behind it.)
+            bool cleared = l.Cleared == true;
+            float art = Mathf.Min(220 * Z, (cleared ? 32 : 38) * RawVh), halo = Mathf.Min(300 * Z, 52 * RawVh), tapH = 0.72f * 16 * Z * 1.25f;
+            float bannerS = Css.Clamp(1.4f * 16 * Z, 7 * RawVh, 2.8f * 16 * Z), bannerH = cleared ? bannerS * 1.26f + 14 * Z : 0;
+            float y0 = Middle(bannerH + art + 10 * Z + tapH) + bannerH;
+            if (cleared)
+            {
+                var band = WebLook.Box(v, "Galaxy cleared", 0, y0 - bannerH, PW, bannerH);
+                var bandGlow = WebLook.Centred(band, "Glow", PW / 2, bannerS * 0.63f, PW, bannerS * 3.2f).gameObject.AddComponent<RawImage>();
+                bandGlow.texture = BannerGlow();
+                bandGlow.raycastTarget = false;
+                var cw = WebLook.Words(WebLook.Box(band, "Words", 0, 0, PW, bannerS * 1.26f), "GALAXY CLEARED", bannerS, 0.42f, WebLook.Hex("#8a6a1e"), true, 400);
+                cw.margin = new Vector4(0.42f * bannerS, 0, 0, 0);
+                RiseIn.On(band, Time.time, 0.1f, 0.9f, 10);
+            }
             var cache = WebLook.Box(v, "Cache", mid - art / 2, y0, art, art + 10 * Z + tapH);
+            if (cleared)
+            {
+                var rays = WebLook.Centred(cache, "Rays", art / 2, art / 2, halo * 1.15f, halo * 1.15f).gameObject.AddComponent<RawImage>();
+                rays.texture = GoldRays();
+                rays.raycastTarget = false;
+                rays.gameObject.AddComponent<Turn>();
+            }
             var ring = WebLook.Centred(cache, "Halo", art / 2, Mathf.Min(110 * Z, 19 * RawVh), halo, halo).gameObject.AddComponent<RawImage>();
-            ring.texture = CacheHalo();
+            ring.texture = CacheHalo(cleared);
             ring.raycastTarget = false;
             var pic = WebLook.Box(cache, "Art", 0, 0, art, art).gameObject.AddComponent<RawImage>();
             pic.texture = Resources.Load<Texture2D>("Icons/loot-cache");
-            var tap = WebLook.Words(WebLook.Box(cache, "Tap", art / 2 - 260 * Z, art + 10 * Z, 520 * Z, tapH), $"{(l.Found != null ? "FOUND" : l.Won ? "VICTORY" : "WHAT WAS SAVED")} · TAP TO OPEN", 0.72f * 16 * Z, 0.24f, Look.InkSoft, true, 400);
+            string tapWords = cleared ? "THE OVERLORD’S HOARD" : l.Found != null ? "FOUND" : l.Won ? "VICTORY" : "WHAT WAS SAVED";
+            var tap = WebLook.Words(WebLook.Box(cache, "Tap", art / 2 - 260 * Z, art + 10 * Z, 520 * Z, tapH), $"{tapWords} · TAP TO OPEN", 0.72f * 16 * Z, 0.24f, cleared ? WebLook.Hex("#8a6a1e") : Look.InkSoft, true, 400);
             tap.raycastTarget = false;
             cache.gameObject.AddComponent<Float>();
             pic.gameObject.AddComponent<Button>().onClick.AddListener(() =>
@@ -1040,23 +1062,53 @@ public partial class CampaignView
         WebLook.Words(WebLook.Box(r, "Name", -lw * 0.25f, s + 6 * Z, lw * 1.5f, 33), p?.Name.ToLowerInvariant() ?? id, 1 * 16 * Z, 0, Look.Ink, false, 600);
     }
 
-    static Texture2D cacheHalo;
+    static Texture2D cacheHalo, goldHalo, goldRays;
 
-    /// <summary>The cache's halo: white at its heart, a pale blue at half way, gone at its edge.</summary>
-    static Texture2D CacheHalo()
+    /// <summary>The cache's halo: white at its heart, a pale blue at half way, gone at its edge (an Overlord's: a warm gold).</summary>
+    static Texture2D CacheHalo(bool gold = false)
     {
-        if (cacheHalo != null) return cacheHalo;
+        if (!gold && cacheHalo != null) return cacheHalo;
+        if (gold && goldHalo != null) return goldHalo;
         const int S = 128;
-        cacheHalo = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        var tex = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        Color half = gold ? new Color(250 / 255f, 226 / 255f, 160 / 255f, 0.75f) : new Color(232 / 255f, 240 / 255f, 252 / 255f, 0.7f);
+        Color edge = gold ? new Color(240 / 255f, 200 / 255f, 110 / 255f, 0) : new Color(214 / 255f, 226 / 255f, 246 / 255f, 0);
         for (int y = 0; y < S; y++)
             for (int x = 0; x < S; x++)
             {
                 float d = new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f).magnitude / (S / 2f);
-                Color c = d < 0.5f ? Color.Lerp(Color.white, new Color(232 / 255f, 240 / 255f, 252 / 255f, 0.7f), d / 0.5f) : Color.Lerp(new Color(232 / 255f, 240 / 255f, 252 / 255f, 0.7f), new Color(214 / 255f, 226 / 255f, 246 / 255f, 0), Mathf.Clamp01((d - 0.5f) / 0.5f));
-                cacheHalo.SetPixel(x, y, c);
+                Color c = d < 0.5f ? Color.Lerp(Color.white, half, d / 0.5f) : Color.Lerp(half, edge, Mathf.Clamp01((d - 0.5f) / 0.5f));
+                tex.SetPixel(x, y, c);
             }
-        cacheHalo.Apply();
-        return cacheHalo;
+        tex.Apply();
+        if (gold) goldHalo = tex;
+        else cacheHalo = tex;
+        return tex;
+    }
+
+    /// <summary>An Overlord's cache's light: twelve soft gold rays from its middle, fading out to their ends.</summary>
+    static Texture2D GoldRays()
+    {
+        if (goldRays != null) return goldRays;
+        const int S = 256;
+        goldRays = new Texture2D(S, S, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                var p = new Vector2(x + 0.5f - S / 2f, y + 0.5f - S / 2f);
+                float d = p.magnitude / (S / 2f), a = Mathf.Atan2(p.y, p.x);
+                float ray = Mathf.Pow(Mathf.Max(0, Mathf.Cos(a * 6)), 6);
+                float k = ray * Mathf.Clamp01(1 - d) * Mathf.Clamp01(d * 4) * 0.55f;
+                goldRays.SetPixel(x, y, new Color(232 / 255f, 186 / 255f, 84 / 255f, k));
+            }
+        goldRays.Apply();
+        return goldRays;
+    }
+
+    /// <summary>Turning slowly, a full turn a minute.</summary>
+    public class Turn : MonoBehaviour
+    {
+        void Update() => transform.localRotation = Quaternion.Euler(0, 0, -Time.time * 6);
     }
 
     /// <summary>
