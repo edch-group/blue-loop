@@ -104,13 +104,40 @@ public class CardView : MonoBehaviour
     public void FaceDown() => face.sharedMaterial.mainTexture = Resources.Load<Texture2D>("Board/back");
 
     /// <summary>Dragged out of the hand: it stays, faint, while its copy flies (.card-dragging).</summary>
+    /// <summary>
+    /// The card left in the hand while it is dragged (.hand > .card.card-dragging: opacity 0.3): the whole of it faded, its
+    /// badges, marks and rim with its face (only its face had been, its numbers and rim left whole over the hand); its
+    /// shadow gone. (Not a text's font material, which every text in the font shares.)
+    /// </summary>
     public void Ghosted(bool on)
     {
-        var c = face.sharedMaterial.color;
-        c.a = on ? 0.3f : 1;
-        face.sharedMaterial.color = c;
+        if (on == ghosted) return;
+        ghosted = on;
         shadow.gameObject.SetActive(!on);
+        foreach (var r in GetComponentsInChildren<Renderer>(true))
+        {
+            if (r == shadow || r.GetComponent<TMPro.TMP_Text>() != null) continue;
+            var m = r.sharedMaterial;
+            if (m == null || !m.HasProperty("_Color")) continue;
+            if (on)
+            {
+                var c = m.color;
+                ghostAlpha[m] = c.a;
+                c.a *= 0.3f;
+                m.color = c;
+            }
+            else if (ghostAlpha.TryGetValue(m, out var a))
+            {
+                var c = m.color;
+                c.a = a;
+                m.color = c;
+            }
+        }
+        if (!on) ghostAlpha.Clear();
     }
+
+    bool ghosted;
+    readonly Dictionary<Material, float> ghostAlpha = new Dictionary<Material, float>();
 
     public void Dimmed(bool on) => Grey(0, on ? 0.75f : 0);
 
