@@ -385,8 +385,9 @@ public class MenuView : MonoBehaviour
         // (The campaign's page over its own scene: the land, the ship on it.)
         bool campaign = name == "campaign" || name == "captain" || name == "hangar";
         backdrop.SetActive(!campaign);
-        // (The skill tree lies on the page's own paper, without the hub's glow.)
-        backdrop.transform.Find("Stage/Glow")?.gameObject.SetActive(name != "stellari");
+        // (The skill tree lies on the page's own paper (.up-shop.up-tree paints it over the page's backdrop, the same
+        // light), without the hub's Stellari or its glow: its own Stellari is the one at the foot of its sky.)
+        backdrop.transform.Find("Stage")?.gameObject.SetActive(name != "stellari");
         if (campaign && scene == null)
         {
             scene = CampaignBackdrop.Make(cam, transform);
