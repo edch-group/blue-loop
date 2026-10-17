@@ -9,8 +9,12 @@
  */
 import { reloadProfile, setEconomy, type EconomyFields } from './profile';
 
-/** What an account's progress is made of: these keys of this device's storage. */
-const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v6', 'blue-loop:runs:v1', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:recent-decks', 'blue-loop:ai-speed', 'blue-loop:auto-confirm', 'blue-loop:hide-starters', 'blue-loop:share-stats'];
+/**
+ * What an account's progress is made of: these keys of this device's storage. Every mode's: the campaign and the
+ * runs between (meta), the game against the AI and a local game in progress, lessons and challenges solved, the tour,
+ * the decks and the settings; so it is the same on every device signed in.
+ */
+const SYNCED = ['blue-loop:profile:v1', 'blue-loop:decks:v1', 'blue-loop:campaign:v6', 'blue-loop:runs:v1', 'blue-loop:sound', 'blue-loop:music', 'blue-loop:recent-decks', 'blue-loop:ai-speed', 'blue-loop:auto-confirm', 'blue-loop:hide-starters', 'blue-loop:share-stats', 'blue-loop:ai-game', 'blue-loop:save:v4', 'blue-loop:challenges-solved', 'blue-loop:lessons-done', 'blue-loop:tutorial', 'blue-loop:tutorial-seen', 'blue-loop:stats-rec'];
 /** The account signed in on this device, and the version of its progress this device last had. */
 const ACCOUNT_KEY = 'blue-loop:account';
 /** The native app's session token (a browser keeps its session in a cookie that pages can't read). */
@@ -144,9 +148,21 @@ function sameSave(a: unknown, b: Save): boolean {
   return SYNCED.every((k) => comparable(k, (a as Save)[k] ?? null) === comparable(k, b[k] ?? null));
 }
 
+/** Taking the account's progress onto this device: its writes are not this device's changes. */
+let applying = false;
+
 /** Take a copy of the account's progress onto this device (in place of what was here). */
 function apply(save: unknown) {
   if (!save || typeof save !== 'object') return;
+  applying = true;
+  try {
+    applyKeys(save as Save);
+  } finally {
+    applying = false;
+  }
+}
+
+function applyKeys(save: Save) {
   for (const key of SYNCED) {
     const v = (save as Save)[key];
     try {
@@ -466,6 +482,24 @@ export async function checkIn(): Promise<boolean> {
     if ((e as ApiError).status === 401) write(ACCOUNT_KEY, null);
     return false;
   }
+}
+
+// Any change to a key of the progress goes to the account shortly, whichever part of the game wrote it (as the Unity
+// game's Store does): not only where a caller remembered to say so.
+if (typeof Storage !== 'undefined') {
+  const set = Storage.prototype.setItem;
+  const remove = Storage.prototype.removeItem;
+  const touched = (store: Storage, key: string) => {
+    if (!applying && store === globalThis.localStorage && SYNCED.includes(key)) markDirty();
+  };
+  Storage.prototype.setItem = function (key: string, value: string) {
+    set.call(this, key, value);
+    touched(this, key);
+  };
+  Storage.prototype.removeItem = function (key: string) {
+    remove.call(this, key);
+    touched(this, key);
+  };
 }
 
 // Changes are pushed before the page goes away (as far as the browser allows), and as soon as the connection is back.
