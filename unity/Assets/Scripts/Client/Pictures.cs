@@ -18,6 +18,9 @@ public static class Pictures
     /// <summary>Whether a picture has arrived (a blank one still on its way has not).</summary>
     public static bool Ready(Texture2D t) => t != null && !waiting.Contains(t);
 
+    /// <summary>How many pictures are still on their way (a screen made under the paper waits a moment for them).</summary>
+    public static int Waiting => waiting.Count;
+
     public static Texture2D Load(string path)
     {
         if (cache.TryGetValue(path, out var t)) return t;

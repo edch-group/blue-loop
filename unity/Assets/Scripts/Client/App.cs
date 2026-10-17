@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Linq;
 using BlueLoop.Engine;
 using UnityEngine;
 
@@ -101,27 +103,152 @@ public class App : MonoBehaviour
             campaign.Launch(scene, leaving.GetComponentInChildren<Canvas>(), leavingCam, Left);
             return;
         }
+        // A run picked up mid-battle: the paper comes in over the menu, and the battle is made under it (the map,
+        // never seen, put aside at once: CampaignBattle).
+        if (run?.Battle != null && Application.isPlaying)
+        {
+            StartCoroutine(RunIntoBattle(run, fresh));
+            return;
+        }
         Clear();
         campaign = CampaignView.Make(run, fresh);
         current = campaign.gameObject;
     }
 
-    /// <summary>A battle of the run's: the map put aside (not gone) while it is fought.</summary>
+    IEnumerator RunIntoBattle(CampaignState run, bool fresh)
+    {
+        Curtain.Hold();
+        try
+        {
+            // (Nothing showing yet: the paper simply up.)
+            if (current != null) yield return Curtain.Close();
+            else Curtain.Cover();
+            Clear();
+            campaign = CampaignView.Make(run, fresh);
+            current = campaign.gameObject;
+        }
+        finally { Curtain.Release(); }
+    }
+
+    // ---- Between the run's map and its battles ----
+
+    /// <summary>How long the ship is seen settled at the system before the paper comes in over the map (campaign.ts ENCOUNTER_PAUSE, shortened: the camera already leaning in).</summary>
+    const float Landed = 0.35f;
+    /// <summary>The longest the paper waits on the new screen's pictures arriving (in the browser each streams in).</summary>
+    const float PicturesWait = 0.6f;
+    bool switching;
+
+    /// <summary>
+    /// A battle of the run's: the map put aside (not gone) while it is fought. The camera leans in toward the ship
+    /// as the paper comes in over the map, the battle's score taking over; the board is made under it, and the paper
+    /// lifts off it as its opening hand is dealt in. (A run picked up mid-battle: the paper is already up.)
+    /// </summary>
     public void CampaignBattle(GameState game, CampaignView from)
     {
-        from.gameObject.SetActive(false);
+        if (!Application.isPlaying)
+        {
+            from.gameObject.SetActive(false);
+            MakeCampaignBattle(game, from, false);
+            return;
+        }
+        StartCoroutine(IntoBattle(game, from));
+    }
+
+    BattleView MakeCampaignBattle(GameState game, CampaignView from, bool held)
+    {
         var battle = BattleView.Make();
         battle.Cam.transform.SetParent(battle.transform, true);
         battle.Board.transform.SetParent(battle.transform, true);
-        battle.LoadCampaign(game, from);
+        battle.LoadCampaign(game, from, held);
+        return battle;
     }
 
-    /// <summary>Back from a battle of the run's, with how it ended (or retreated from).</summary>
+    IEnumerator IntoBattle(GameState game, CampaignView from)
+    {
+        Curtain.Hold();
+        switching = true;
+        try
+        {
+            // (The battle's score in as the map's goes: Sound.Scene crossfades them.)
+            Sound.Scene(game.Players.Any(p => p.Boss != null) ? "boss" : "battle", from.TimeRift);
+            if (!Curtain.Covered)
+            {
+                from.LeanIn();
+                yield return Wait(Landed);
+                yield return Curtain.Close();
+                // (A frame drawn wholly covered before the board is made: the hitch of making it never seen.)
+                yield return null;
+            }
+            if (from == null) yield break;
+            // (The map put aside and the board made in the one frame: never a frame with neither.)
+            from.gameObject.SetActive(false);
+            var battle = MakeCampaignBattle(game, from, true);
+            yield return null;
+            yield return Arrivals();
+            battle.Open();
+            yield return Curtain.Open();
+        }
+        finally
+        {
+            switching = false;
+            Curtain.Release();
+        }
+    }
+
+    /// <summary>
+    /// Back from a battle of the run's, with how it ended (or retreated from): the paper comes in over the board as the
+    /// map's score comes back; under it the map is shown as it now stands, framed on the flagship; the paper lifts off
+    /// it as the camera eases back out to rest. Whatever the battle left waiting (spoils, a card, the run's end) is
+    /// there as it clears.
+    /// </summary>
     public void EndCampaignBattle(BattleView battle, GameState game, CampaignView to)
     {
-        Mats.Kill(battle.gameObject);
-        to.gameObject.SetActive(true);
-        to.FinishBattle(game);
+        if (!Application.isPlaying)
+        {
+            Mats.Kill(battle.gameObject);
+            to.gameObject.SetActive(true);
+            to.FinishBattle(game);
+            return;
+        }
+        if (switching) return;
+        StartCoroutine(BackToMap(battle, game, to));
+    }
+
+    IEnumerator BackToMap(BattleView battle, GameState game, CampaignView to)
+    {
+        Curtain.Hold();
+        switching = true;
+        try
+        {
+            to.ScoreBack();
+            yield return Curtain.Close();
+            // (A frame drawn wholly covered, then the map shown afresh under it: its rebuilding never seen.)
+            yield return null;
+            if (battle != null) Mats.Kill(battle.gameObject);
+            if (to == null) yield break;
+            to.gameObject.SetActive(true);
+            to.FinishBattle(game);
+            to.Reframe();
+            yield return null;
+            yield return Arrivals();
+            yield return Curtain.Open();
+        }
+        finally
+        {
+            switching = false;
+            Curtain.Release();
+        }
+    }
+
+    /// <summary>A moment for the pictures the new screen asked for to arrive (never long), so none pops in after.</summary>
+    static IEnumerator Arrivals()
+    {
+        for (float t = 0; t < PicturesWait && Pictures.Waiting > 0; t += Mathf.Min(Time.unscaledDeltaTime, 0.1f)) yield return null;
+    }
+
+    static IEnumerator Wait(float seconds)
+    {
+        for (float t = 0; t < seconds; t += Mathf.Min(Time.unscaledDeltaTime, 1 / 30f)) yield return null;
     }
 
     /// <summary>A lesson ("lesson") or a challenge ("challenge"), as a battle.</summary>

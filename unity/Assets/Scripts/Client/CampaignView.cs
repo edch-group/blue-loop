@@ -607,9 +607,9 @@ public partial class CampaignView : MonoBehaviour
             spin += Mathf.Min(0.1f, Time.deltaTime) * (Mathf.PI * 2 / 360);
             glideRate = Mathf.Min(glideRate, 2.5f);
         }
-        if (Input.GetKeyDown(KeyCode.Escape)) OnEscape();
+        if (Input.GetKeyDown(KeyCode.Escape) && !Curtain.Busy) OnEscape();
         TipsTick();
-        bool still = !flying && !Cining && !launching && overlay.childCount == 0 && sheetRoot.childCount == 0;
+        bool still = !flying && !Cining && !launching && overlay.childCount == 0 && sheetRoot.childCount == 0 && !Curtain.Busy;
         bool overUi = UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
         // The system under the pointer swells and flares.
         string under = null;
@@ -976,6 +976,36 @@ public partial class CampaignView : MonoBehaviour
 
     /// <summary>In Time Dense Space: the map's score and its battles' run backwards (app.ts render, sound.ts setReverse).</summary>
     public bool TimeRift => state?.Rift?.Kind == "time";
+
+    /// <summary>The map's score, back as the paper comes in over a battle (crossfading from the battle's).</summary>
+    public void ScoreBack() => Sound.Scene(Score, TimeRift);
+
+    /// <summary>As a battle opens: the camera leans in toward the ship as the paper comes in over the map.</summary>
+    public void LeanIn()
+    {
+        var f = Campaign.Flagship(state, state.PlayerId);
+        if (f != null) focusGoal = Home(f.NodeId);
+        distanceGoal = distance * 0.74f;
+        glideRate = Mathf.Max(glideRate, 3.5f);
+    }
+
+    /// <summary>
+    /// Back from a battle, under the paper: framed on the flagship, a little in, to ease back out to rest as the paper
+    /// lifts (the lean in, undone); the land whole at once (no fading in out of the paper after the paper itself has).
+    /// </summary>
+    public void Reframe()
+    {
+        var f = Campaign.Flagship(state, state.PlayerId);
+        if (f != null) focus = focusGoal = Home(f.NodeId);
+        distanceGoal = RestDist;
+        distance = RestDist * 0.86f;
+        yawNow = RestYaw;
+        pitchNow = RestPitch;
+        landFade = 1;
+        LandFade();
+        Animate();
+        Camera();
+    }
 
     public void FinishBattle(GameState game, bool auto = false)
     {

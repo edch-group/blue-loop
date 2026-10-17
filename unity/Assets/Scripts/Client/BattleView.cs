@@ -124,27 +124,60 @@ public partial class BattleView : MonoBehaviour
 
     CampaignView campaignOf;
 
-    /// <summary>A battle of the campaign's: fought as any other, its end handed back to the run.</summary>
-    public void LoadCampaign(GameState game, CampaignView from)
+    /// <summary>
+    /// A battle of the campaign's: fought as any other, its end handed back to the run. Made under the paper as the
+    /// map gives way to it (`held`): its opening (the deal, the dawn's banner, the AI's first thought, a word said) waits
+    /// for Open, as the paper lifts, so none of it is spent out of sight.
+    /// </summary>
+    public void LoadCampaign(GameState game, CampaignView from, bool held = false)
     {
         campaignOf = from;
+        holding = held;
         Load(game);
+        holding = false;
         Sound.Scene(game.Players.Any(p => p.Boss != null) ? "boss" : "battle", Reversed);
-        // Kaelen's crystal: he begs to be freed, and the Captain answers.
+        // Kaelen's crystal: he begs to be freed, and the Captain answers (as the battle opens).
         if (game.Challenge?.Kind == "crystal" && game.TurnNumber <= 1 && Application.isPlaying)
-        {
-            var crystal = game.Players[1].Tableau.FirstOrDefault()?.Uid;
-            var captain = game.Players[0].Id;
-            Voices.Converse(this, refLayer,
-                ("Captain? Is that you? Break it, please. I can’t hold on much longer.", () => crystal != null && Board.View(crystal) != null ? CaptionAt(Board.View(crystal).transform.position, 0.7f) : null),
-                ("Hold on, Kaelen. I’m getting you out.", () => Board.SunOf(captain) != null ? CaptionAt(Board.SunOf(captain).transform.position, 0.5f * Board.SunScale) : null));
-        }
+            Opening(() =>
+            {
+                var crystal = game.Players[1].Tableau.FirstOrDefault()?.Uid;
+                var captain = game.Players[0].Id;
+                Voices.Converse(this, refLayer,
+                    ("Captain? Is that you? Break it, please. I can’t hold on much longer.", () => crystal != null && Board.View(crystal) != null ? CaptionAt(Board.View(crystal).transform.position, 0.7f) : null),
+                    ("Hold on, Kaelen. I’m getting you out.", () => Board.SunOf(captain) != null ? CaptionAt(Board.SunOf(captain).transform.position, 0.5f * Board.SunScale) : null));
+            });
     }
 
     /// <summary>A battle of Time Dense Space's: its score runs backwards, as the map's does (app.ts render).</summary>
     bool Reversed => campaignOf != null && campaignOf.TimeRift;
 
-    void BackToCampaign() => App.Instance.EndCampaignBattle(this, state, campaignOf);
+    void BackToCampaign()
+    {
+        // (The map's score comes back as the paper comes in: no turn to the voyage's on the way out, a retreat's.)
+        scoreLeft = true;
+        App.Instance.EndCampaignBattle(this, state, campaignOf);
+    }
+
+    // The battle's opening (the deal and the rest), held while the screen is made under the paper (LoadCampaign).
+    bool holding;
+    System.Action heldOpening;
+
+    /// <summary>Whether its opening still waits on the paper lifting (nothing plays on it till then).</summary>
+    public bool Held => heldOpening != null;
+
+    void Opening(System.Action a)
+    {
+        if (heldOpening != null || holding) heldOpening += a;
+        else a();
+    }
+
+    /// <summary>The paper lifting off it: its opening begins (the hand dealt in from the deck as it clears).</summary>
+    public void Open()
+    {
+        var a = heldOpening;
+        heldOpening = null;
+        a?.Invoke();
+    }
 
     /// <summary>Show a battle as it stands (a state set up elsewhere: a lesson, a puzzle, a picture).</summary>
     public void Load(GameState s)
@@ -161,9 +194,12 @@ public partial class BattleView : MonoBehaviour
         Sound.Scene(s.Players.Any(p => p.Boss != null) ? "boss" : "battle", Reversed);
         scoreLeft = false;
         // (The opening hand: shuffled, then dealt in from the deck: app.ts begin, dealOpening.)
-        Board.DealOpening(state);
-        Begin();
-        if (puzzleKind == null) PaceForNewGame(state);
+        Opening(() =>
+        {
+            Board.DealOpening(state);
+            Begin();
+            if (puzzleKind == null) PaceForNewGame(state);
+        });
     }
 
     /// <summary>Whether the match's score has given way to the voyage, the game being over (app.ts render's inPlay).</summary>
@@ -175,10 +211,12 @@ public partial class BattleView : MonoBehaviour
     {
         if (!scoreLeft && state?.WinnerId != null && Application.isPlaying) { scoreLeft = true; Sound.Scene("voyage", Reversed); }
         if (FitScreen() && state != null) Refresh();
+        // (Made under the paper, its opening not yet begun: nothing plays out of sight.)
+        if (heldOpening != null) return;
         BossHoldTick();
         ExtrasTick();
         if (toast != null) toast.gameObject.SetActive(Time.time < toastUntil);
-        if (state != null && !Autoplay && !Tour.HasKeys) KeysTick();
+        if (state != null && !Autoplay && !Tour.HasKeys && !Curtain.Busy) KeysTick();
         if (state == null || state.WinnerId != null) return;
         StageTick();
         DreamTick();
@@ -186,7 +224,8 @@ public partial class BattleView : MonoBehaviour
         AiTick();
         // (Skip all: a reply waiting on you is let pass, online too, where it is yours to make: app.ts skipReply.)
         if (!busy && confirmMode == "skip" && state.Reaction != null && Answering(state.Reaction)) StartCoroutine(PassReply());
-        if (Autoplay) return;
+        // (Nor any taps while the screen is changing: the paper coming in or lifting.)
+        if (Autoplay || Curtain.Busy) return;
         HoverRustle();
         // (A touch screen has no hover: a first tap on the hand raises it, a tap away lowers it, as the web's.)
         if (Input.touchCount > 0) touch = true;
