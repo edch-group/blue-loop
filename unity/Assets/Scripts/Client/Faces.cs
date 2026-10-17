@@ -14,6 +14,26 @@ public static class Faces
     static readonly Dictionary<string, Texture2D> cache = new Dictionary<string, Texture2D>();
     static Places places;
 
+    /// <summary>
+    /// A card's face from another of its sizes that has arrived, while the one asked for is still on its way (in the
+    /// browser a face comes when first asked for: a card lifted to drag, or flown to the table, was blank meanwhile, only
+    /// its white shadow seen). Null if none has.
+    /// </summary>
+    static Texture2D Arrived(string defId, Texture2D asked)
+    {
+        if (asked == null || Pictures.Ready(asked)) return asked;
+        var tail = "/" + defId;
+        Texture2D other = null;
+        foreach (var kv in cache)
+        {
+            if (kv.Value == null || kv.Value == asked || !kv.Key.StartsWith("CardFaces/") || !kv.Key.EndsWith(tail) || !Pictures.Ready(kv.Value)) continue;
+            // (A whole card's face first; the one in play or on a pile (its picture square) only if nothing else has come.)
+            if (!kv.Key.StartsWith("CardFaces/table") && !kv.Key.StartsWith("CardFaces/pile")) return kv.Value;
+            other ??= kv.Value;
+        }
+        return other ?? asked;
+    }
+
     static Texture2D Load(string path)
     {
         if (cache.TryGetValue(path, out var t)) return t;
@@ -68,7 +88,7 @@ public static class Faces
     /// A card's face, as it stands in play (`table`, 200 px) or magnified (`face`: .card-big, 300 px, for the inspector
     /// and the zoom).
     /// </summary>
-    public static Texture2D Of(string defId, bool table) => Face(table ? "CardFaces/table/" : "CardFaces/face/", defId);
+    public static Texture2D Of(string defId, bool table) => Arrived(defId, Face(table ? "CardFaces/table/" : "CardFaces/face/", defId));
 
     /// <summary>
     /// Where a card is drawn, as the web gives each its own rules: in play, in the hand, on its own (the stage's), or on
@@ -89,7 +109,7 @@ public static class Faces
     {
         var dir = Sized(look, css);
         // (Without one, a pile's card is the magnified face, not the one in play with its square picture.)
-        return (dir != null ? Face(dir, defId) : null) ?? Of(defId, look == Look.Table);
+        return Arrived(defId, (dir != null ? Face(dir, defId) : null) ?? Of(defId, look == Look.Table));
     }
 
     const string PriceyDir = "-pricey";
@@ -102,7 +122,7 @@ public static class Faces
     public static Texture2D Pricey(string defId, float css)
     {
         var dir = Sized(Look.Hand, css);
-        return (dir != null ? Face(dir.TrimEnd('/') + PriceyDir + "/", defId) : null) ?? Of(defId, Look.Hand, css);
+        return Arrived(defId, (dir != null ? Face(dir.TrimEnd('/') + PriceyDir + "/", defId) : null) ?? Of(defId, Look.Hand, css));
     }
 
     /// <summary>The folder of the baked size nearest `css` for that place (a card in play: the phone's or the desktop's).</summary>

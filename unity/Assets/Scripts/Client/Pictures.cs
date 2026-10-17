@@ -12,6 +12,11 @@ public static class Pictures
 {
     static readonly Dictionary<string, Texture2D> cache = new Dictionary<string, Texture2D>();
     static Dictionary<string, (string file, int w, int h)> list;
+    /// <summary>Pictures still on their way (handed back blank, not yet filled in).</summary>
+    static readonly HashSet<Texture2D> waiting = new HashSet<Texture2D>();
+
+    /// <summary>Whether a picture has arrived (a blank one still on its way has not).</summary>
+    public static bool Ready(Texture2D t) => t != null && !waiting.Contains(t);
 
     public static Texture2D Load(string path)
     {
@@ -78,7 +83,8 @@ public static class Pictures
         var blank = new Color32[found.w * found.h];
         t.SetPixels32(blank);
         t.Apply();
-        Get(found.file, data => { if (data != null) t.LoadImage(data, false); });
+        waiting.Add(t);
+        Get(found.file, data => { if (data != null) t.LoadImage(data, false); waiting.Remove(t); });
         return t;
     }
 
@@ -90,11 +96,14 @@ public static class Pictures
         var t = new Texture2D(found.w, found.h, TextureFormat.RGBA32, true) { filterMode = FilterMode.Trilinear, mipMapBias = -0.5f };
         t.SetPixels32(new Color32[found.w * found.h]);
         t.Apply(true);
+        waiting.Add(t);
         byte[] colour = null, alpha = null;
         int left = 2;
         void Arrived()
         {
-            if (--left > 0 || colour == null) return;
+            if (--left > 0) return;
+            waiting.Remove(t);
+            if (colour == null) return;
             var c = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             c.LoadImage(colour, false);
             var px = c.GetPixels32();
