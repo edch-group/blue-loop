@@ -38,7 +38,8 @@ public partial class BattleView
         int playable = me.Hand.Count(c => CanPlayNow(me, c.DefId, c.Discount ?? 0));
         if (playable > 0) o.Add($"{playable} playable card{(playable == 1 ? "" : "s")}");
         var aims = Game.AimChoices(state, me, true);
-        int attackers = aims != null && (aims.Sun || aims.Cards.Count > 0) ? me.Tableau.Count(c => c.Dimmed != true && Game.CardAttack(state, me, c) > 0) : 0;
+        // (Those that can attack at all: not dimmed, nor frozen, nor without attack: AttackProblem's own checks.)
+        int attackers = aims != null && (aims.Sun || aims.Cards.Count > 0) ? me.Tableau.Count(c => Game.AttackProblem(state, me, c.Uid, null, false) == null) : 0;
         if (attackers > 0) o.Add($"{attackers} card{(attackers == 1 ? "" : "s")} that can still attack");
         var hero = Game.CommandCard(me);
         if (hero != null && Enumerable.Range(0, Game.HeroAbilities(me, hero).Count).Any(i => Game.HeroAbilityProblem(state, me, i) == null)) o.Add($"{Cards.Def(hero.DefId).Name}'s ability");
@@ -77,9 +78,10 @@ public partial class BattleView
 
     /// <summary>app.ts canAutoEnd: nothing you can do today, nothing open, nothing playing out.</summary>
     bool CanAutoEnd() =>
-        state != null && state.WinnerId == null && MyDay && !online && Dawn == null && pending == null && attacker == null
+        // (Online too, and with a card looked at in the inspector, as the web's: neither waits on anything.)
+        state != null && state.WinnerId == null && MyDay && Dawn == null && pending == null && attacker == null
         && stage == null && sheet == null && landing == null && drag == null && attackDrag == null && discarding == null
-        && (heroPanel == null || !heroPanel.gameObject.activeSelf) && relicPanel == null && !inspector.gameObject.activeSelf
+        && (heroPanel == null || !heroPanel.gameObject.activeSelf) && relicPanel == null
         && Time.time >= dayFrom && Time.time >= bannerFree && hud.transform.Find("Banner") == null && LeftUndone().Count == 0;
 
     /// <summary>Each frame: Enter, and the day ending by itself once settled for a moment.</summary>

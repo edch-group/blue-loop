@@ -2018,7 +2018,8 @@ export class App {
     const playable = me.hand.filter((c) => this.canPlayNow(me, c.defId, c.discount)).length;
     if (playable) out.push(`${playable} playable card${playable === 1 ? '' : 's'}`);
     const { cards, sun } = aimChoices(s, me, true);
-    const attackers = sun || cards.length ? me.tableau.filter((c) => !c.dimmed && cardAttack(s, me, c) > 0).length : 0;
+    // (Those that can attack at all: not dimmed, nor frozen, nor without attack: attackProblem's own checks.)
+    const attackers = sun || cards.length ? me.tableau.filter((c) => !attackProblem(s, me, c.uid)).length : 0;
     if (attackers) out.push(`${attackers} card${attackers === 1 ? '' : 's'} that can still attack`);
     const hero = commandCard(me);
     if (hero && heroAbilities(me, hero).some((_, i) => !heroAbilityProblem(s, me, i))) out.push(`${cardDef(hero.defId).name}'s ability`);
