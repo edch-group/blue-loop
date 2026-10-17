@@ -749,8 +749,35 @@ public partial class CampaignView
         float lw = Mathf.Min(112 * Z, (92 * RawVw - (cols - 1) * gap) / cols, (100 * RawVh - 190 * Z - (rows - 1) * gap) / rows / 1.45f);
         float lh = lw * 1.4f, padY = (Css.MaxHeight(560) ? 10 : 20) * Z;
         var crew = LootCrew(l);
-        float xpH = crew.Count > 0 ? CrewH(crew.Count) + 4 * Z + 4 * Z : 0, itemsH = 2 * padY + rows * lh + (rows - 1) * gap, takeH = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
-        float total = xpH + itemsH + 4 * Z + 6 * Z + takeH, y = Middle(total);
+        float xpH = crew.Count > 0 ? CrewH(crew.Count) + 4 * Z + 4 * Z : 0, takeH = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
+        // (Each row as tall as what is in it: an emblem's name and what it does under its badge can run past a card's
+        // height, and have that room of their own rather than running over the row under them or the take button.
+        // All of it smaller if that is more than the page holds.)
+        var relicAt = new Dictionary<int, Relic>();
+        {
+            int k = (l.Materials > 0 ? 1 : 0) + (l.Petals > 0 ? 1 : 0);
+            foreach (var rel in l.Relics ?? new List<Relic>()) relicAt[k++] = rel;
+        }
+        float[] rowH = new float[rows];
+        float itemsH = 0, total = 0;
+        for (int fit = 0; fit < 4; fit++)
+        {
+            lh = lw * 1.4f;
+            for (int row = 0; row < rows; row++) rowH[row] = lh;
+            foreach (var kv in relicAt)
+            {
+                var probe = Hud.Rect(v, "Probe");
+                float th = RelicTile(probe, kv.Value, lw) + 6 * Z;
+                Destroy(probe.gameObject);
+                int row = kv.Key < split ? 0 : 1;
+                rowH[row] = Mathf.Max(rowH[row], th);
+            }
+            itemsH = 2 * padY + rowH.Sum() + (rows - 1) * gap;
+            total = xpH + itemsH + 4 * Z + 6 * Z + takeH;
+            if (total <= PH - 16 * Z) break;
+            lw *= Mathf.Max(0.7f, (PH - 16 * Z - (total - itemsH) - 2 * padY - (rows - 1) * gap) / Mathf.Max(1, rowH.Sum()));
+        }
+        float y = Middle(total);
         if (crew.Count > 0)
         {
             XpGauge(v, y, crew, t0);
@@ -767,7 +794,7 @@ public partial class CampaignView
             for (int k = from; k < from + n; k++) rowW += wide[k] * lw + (k > from ? gap : 0);
             for (int k = from; k < i; k++) before += wide[k] * lw + gap;
             float cx = mid - rowW / 2 + before + wide[i] * lw / 2 + (row == 1 ? lw * 0.3f : 0);
-            float cy = y + row * (lh + gap) + lh / 2 + at * at * 7 * Z;
+            float cy = y + (row == 1 ? rowH[0] + gap : 0) + lh / 2 + at * at * 7 * Z;
             var slot = WebLook.Centred(v, "Reward", cx, cy, wide[i] * lw, lh);
             slot.localRotation = Quaternion.Euler(0, 0, -((i % 2 == 1 ? 1 : -1) * (2 + i % 3)));
             tiles[i](slot, lw);
@@ -1269,13 +1296,15 @@ public partial class CampaignView
         b.textWrappingMode = TextWrappingModes.Normal;
         b.lineSpacing = (1.3f - 1.26f) * 100 / 1.26f;
         float bh = b.GetPreferredValues(b.text, w, 0).y;
-        b.rectTransform.sizeDelta = new Vector2(w, bh + 2);
+        // (Its box made as tall as the words: the words fill it. Sized itself, the words grew out of the box both ways,
+        // twice as wide as the tile and over the badge, on one line.)
+        ((RectTransform)b.transform.parent).sizeDelta = new Vector2(w, bh + 2);
         y += bh + 6 * Z;
         var t = WebLook.Words(WebLook.Box(r, "What", 0, y, w, 10), Heroes.RelicText(rel), ss, 0, Look.InkSoft, false, 400, TextAlignmentOptions.Top);
         t.textWrappingMode = TextWrappingModes.Normal;
         t.lineSpacing = (1.3f - 1.26f) * 100 / 1.26f;
         float th = t.GetPreferredValues(t.text, w, 0).y;
-        t.rectTransform.sizeDelta = new Vector2(w, th + 2);
+        ((RectTransform)t.transform.parent).sizeDelta = new Vector2(w, th + 2);
         return y + th;
     }
 
@@ -2211,7 +2240,7 @@ public partial class CampaignView
             var legend = WebLook.Words(WebLook.Box(body, "Legend", tok + 8 * Z, y, W - tok - 8 * Z, 10), "<color=#3e424a><b>Materials</b></color> pay for everything. Earned: every system you take, finds and battles. Spent: cards at space stations, fusing cards and repairs.", ls, 0, Look.InkSoft, false, 400, TextAlignmentOptions.TopLeft);
             legend.textWrappingMode = TextWrappingModes.Normal;
             float lh = Mathf.Max(tok, legend.GetPreferredValues(legend.text, W - tok - 8 * Z, 0).y);
-            legend.rectTransform.sizeDelta = new Vector2(W - tok - 8 * Z, lh + 2);
+            ((RectTransform)legend.transform.parent).sizeDelta = new Vector2(W - tok - 8 * Z, lh + 2);
             var mt = WebLook.Box(body, "Token", 0, y, tok, tok).gameObject.AddComponent<RawImage>();
             mt.texture = Resources.Load<Texture2D>("Icons/materials");
             mt.raycastTarget = false;
@@ -2225,7 +2254,7 @@ public partial class CampaignView
                 t.textWrappingMode = TextWrappingModes.Normal;
                 t.lineSpacing = (1.55f - 1.26f) * 100 / 1.26f;
                 float h = t.GetPreferredValues(t.text, tw, 0).y;
-                t.rectTransform.sizeDelta = new Vector2(tw, h + 2);
+                ((RectTransform)t.transform.parent).sizeDelta = new Vector2(tw, h + 2);
                 WebLook.Words(WebLook.Box(body, "Bullet", indent - 14 * Z, y, 14 * Z, 1.55f * fs), "•", fs, 0, Look.Ink, false, 400, TextAlignmentOptions.Left);
                 RuleMarks(t, rules[i], fs);
                 y += Mathf.Max(h, 1.55f * fs);
