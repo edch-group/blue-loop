@@ -96,6 +96,11 @@ jobs:
             rm -f "$f.meta"
           done
           cd ../../..
+          # (The scores, played by the page itself in the browser (scripts/score-web.py, Sound.cs): their own files beside
+          # the pictures, and Unity's copies left out of the game's data.)
+          mkdir -p unity/Assets/StreamingAssets/Music
+          cp unity/WebMusic/* unity/Assets/StreamingAssets/Music/
+          rm -f unity/Assets/Resources/Sound/music-*.ogg unity/Assets/Resources/Sound/music-*.ogg.meta
           python3 - <<'PY'
           import os
           from PIL import Image
@@ -103,6 +108,8 @@ jobs:
           lines = []
           for d, _, files in os.walk(root):
               for f in sorted(files):
+                  if not f.endswith(('.png', '.jpg')):
+                      continue
                   path = os.path.join(d, f)
                   w, h = Image.open(path).size
                   lines.append(f"{os.path.relpath(path, root)} {w} {h}")

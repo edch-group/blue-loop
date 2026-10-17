@@ -538,9 +538,10 @@ public partial class BattleView
             bool heroOpen = heroPanel != null && heroPanel.gameObject.activeSelf;
             if (heroOpen || relicPanel != null)
             {
-                // (What takes taps there: the picks' pills, the relic's pane, the tokens.)
+                // (What takes taps there: the picks' pills, the relic's pane, the tokens. Where a finger is, itself.)
+                Vector2 point = Input.touchCount > 0 ? Input.GetTouch(0).position : (Vector2)Input.mousePosition;
                 bool Over(Transform t) => t is RectTransform r && t.gameObject.activeInHierarchy
-                    && RectTransformUtility.ScreenPointToLocalPointInRectangle(r, Input.mousePosition, hudCam, out var at) && r.rect.Contains(at);
+                    && RectTransformUtility.ScreenPointToLocalPointInRectangle(r, point, hudCam, out var at) && r.rect.Contains(at);
                 bool OnPick() => heroPanel.Cast<Transform>().Any(c => c.GetComponent<Image>() is Image i && i.raycastTarget && Over(c));
                 if (heroOpen && !OnPick())
                 {

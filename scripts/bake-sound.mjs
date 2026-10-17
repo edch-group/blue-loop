@@ -104,6 +104,8 @@ for (const [scene, loop] of only ? [] : scores) {
   rmSync(backPath);
 }
 if (!only) writeFileSync(`${out}/chords.json`, JSON.stringify(chords));
+// (And the scores as the browser build's page plays them, unity/WebMusic: scripts/score-web.py.)
+if (!only) execFileSync('python3', ['-I', 'scripts/score-web.py', out, 'unity/WebMusic']);
 if (scoresOnly) {
   console.log(`${scores.length} scores`);
   await browser.close();

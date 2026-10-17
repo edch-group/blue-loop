@@ -668,7 +668,7 @@ public partial class BattleView : MonoBehaviour
 
     // ---- Taps on the board ----
 
-    bool OverHud() => UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+    bool OverHud() => Hud.OverUi();
 
     void Tap()
     {

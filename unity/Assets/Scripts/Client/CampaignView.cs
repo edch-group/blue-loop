@@ -610,7 +610,7 @@ public partial class CampaignView : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Escape) && !Curtain.Busy) OnEscape();
         TipsTick();
         bool still = !flying && !Cining && !launching && overlay.childCount == 0 && sheetRoot.childCount == 0 && !Curtain.Busy;
-        bool overUi = UnityEngine.EventSystems.EventSystem.current != null && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+        bool overUi = Hud.OverUi();
         // The system under the pointer swells and flares.
         string under = null;
         if (still && !overUi && Input.mousePresent && Physics.Raycast(Cam.ScreenPointToRay(Input.mousePosition), out var over, 200)) under = over.collider.GetComponent<NodeTag>()?.Id;

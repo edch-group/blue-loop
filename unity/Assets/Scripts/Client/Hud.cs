@@ -10,6 +10,23 @@ using UnityEngine.UI;
 /// </summary>
 public static class Hud
 {
+    static readonly System.Collections.Generic.List<RaycastResult> uiHits = new System.Collections.Generic.List<RaycastResult>();
+
+    /// <summary>
+    /// Whether the pointer is over the screen's own layer (a button, a pill, a sheet), a finger's touch as much as the
+    /// mouse: the event system's own answer is for the mouse alone, and said no to every touch, so a tap on a button
+    /// went on to the board under it too (closing the Hero's picks before their button had the tap).
+    /// </summary>
+    public static bool OverUi()
+    {
+        var es = EventSystem.current;
+        if (es == null) return false;
+        if (Input.touchCount == 0) return es.IsPointerOverGameObject();
+        uiHits.Clear();
+        es.RaycastAll(new PointerEventData(es) { position = Input.GetTouch(0).position }, uiHits);
+        return uiHits.Count > 0;
+    }
+
     public const float W = 1600, H = 1000;
     static Sprite rounded, soft, circle;
 

@@ -184,6 +184,21 @@ public class Sound : MonoBehaviour
         public List<List<object>> at;
     }
 
+    /// <summary>A baked pass's chords (and its length, `loop` seconds), if it has any.</summary>
+    static bool Chord(string pass, out Chords c)
+    {
+        if (chordMap == null)
+        {
+            var text = Resources.Load<TextAsset>("Sound/chords")?.text;
+            try { chordMap = text != null ? Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, Chords>>(text) : new Dictionary<string, Chords>(); }
+            catch { chordMap = new Dictionary<string, Chords>(); }
+        }
+        return chordMap.TryGetValue(pass, out c) && c.at != null && c.at.Count > 0;
+    }
+
+    /// <summary>A score's pass, in seconds (as baked: chords.json's `loop`); 0 if unknown.</summary>
+    static float PassLength(string pass) => Chord(pass, out var c) ? c.loop : 0;
+
     /// <summary>
     /// A star under the pointer (sound.ts starHover): a soft glassy chime, each star its own note: a tone of the chord the
     /// score is sounding (A minor's pentatonic with none), from E5 up two octaves, picked by the star's seed; its shimmer
@@ -217,20 +232,22 @@ public class Sound : MonoBehaviour
     /// <summary>The chord sounding at this point of the forward score (kept while it runs backwards, as the web's is).</summary>
     void HearChord()
     {
-        if (!playing || reversed || musicA.clip == null || !musicA.isPlaying) return;
+        if (!playing || reversed) return;
+        // (How far into the score from its top: the page's own clock for it in the browser.)
+#if UNITY_WEBGL && !UNITY_EDITOR
+        float since = BlueLoopMusicTime();
+        if (since < 0) return;
+#else
+        if (musicA.clip == null || !musicA.isPlaying) return;
+        float since = Time.unscaledTime - startedAt;
+#endif
         // (The pass sounding: the intro until its end, then the loop, round and round.)
-        var front = introLength > 0 && Time.unscaledTime - startedAt >= introLength ? loopA : musicA;
-        if (front.clip == null) return;
-        if (chordMap == null)
-        {
-            var text = Resources.Load<TextAsset>("Sound/chords")?.text;
-            try { chordMap = text != null ? Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, Chords>>(text) : new Dictionary<string, Chords>(); }
-            catch { chordMap = new Dictionary<string, Chords>(); }
-        }
-        if (!chordMap.TryGetValue(front.clip.name, out var c) || c.at == null || c.at.Count == 0) return;
-        float t = front == loopA ? (Time.unscaledTime - startedAt - introLength) % Mathf.Max(0.01f, front.clip.length) : musicA.time;
+        bool looping = introLength <= 0 || since >= introLength;
+        string pass = "music-" + scene + (introLength > 0 && !looping ? "-intro" : "");
+        if (!Chord(pass, out var c)) return;
+        float t = introLength > 0 ? (looping ? (since - introLength) % Mathf.Max(0.01f, c.loop) : since) : since % Mathf.Max(0.01f, c.loop);
         // (Before a pass's first chord: the last of the pass before, round the loop; a first pass from silence keeps what was.)
-        List<object> now = front.loop ? c.at[c.at.Count - 1] : null;
+        List<object> now = looping ? c.at[c.at.Count - 1] : null;
         foreach (var e in c.at)
         {
             if (System.Convert.ToSingle(e[0]) > t) break;
@@ -331,6 +348,16 @@ public class Sound : MonoBehaviour
     void StartMusic()
     {
         if (scene == null || playing || !MusicOn || Muted || !unlocked || hidden) return;
+        // (sound.ts faders: the battle theme in over 3 s, the ambient over 6, the voyage's, the boss's and a reversed score at once.)
+        fadeIn = reversed ? 0.05f : scene == "battle" ? 3 : scene == "ambient" ? 6 : 0.05f;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        // (In the browser the page plays the scores, from files of their own (BlueLoopMusic.jslib): Unity's playback
+        // came round a loop with the decoder's padding in it, a pop each time, and held every score heard decoded.)
+        BlueLoopMusicStart(scene, reversed, fadeIn);
+        introLength = reversed ? 0 : PassLength("music-" + scene);
+        playing = true;
+        return;
+#else
         // (A reversed score: its loop back to front, from its end; forwards, its first pass from silence, then the pass
         // that loops: the looping one has its end's ringing folded back over its start, which, played first, layered the
         // end's chords over the score's opening.)
@@ -357,11 +384,16 @@ public class Sound : MonoBehaviour
         }
         startedAt = Time.unscaledTime;
         playing = true;
-        // (sound.ts faders: the battle theme in over 3 s, the ambient over 6, the voyage's, the boss's and a reversed score at once.)
-        fadeIn = reversed ? 0.05f : scene == "battle" ? 3 : scene == "ambient" ? 6 : 0.05f;
         fadeFrom = 0.0001f;
         fadeAt = Time.unscaledTime;
+#endif
     }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [System.Runtime.InteropServices.DllImport("__Internal")] static extern void BlueLoopMusicStart(string scene, bool reversed, float fadeIn);
+    [System.Runtime.InteropServices.DllImport("__Internal")] static extern void BlueLoopMusicStop(bool now);
+    [System.Runtime.InteropServices.DllImport("__Internal")] static extern float BlueLoopMusicTime();
+#endif
 
     /// <summary>sound.ts stopMusic: the score fades out over 2 s (exponentially, as the web's ramp), or, `now`, stops at once.</summary>
     void StopMusic(bool now)
@@ -369,6 +401,10 @@ public class Sound : MonoBehaviour
         if (!playing && !now) return;
         playing = false;
         tones = Pentatonic;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        BlueLoopMusicStop(now);
+        return;
+#endif
         if (now)
         {
             musicA.Stop();
