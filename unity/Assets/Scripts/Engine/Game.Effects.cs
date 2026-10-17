@@ -823,6 +823,13 @@ namespace BlueLoop.Engine
             card.Shields = null;
             card.Frozen = null;
             card.Charge = null;
+            // (What it did today goes with it: back in play it comes in as any card does, dimmed or, with Darkspeed, ready.)
+            card.Dimmed = null;
+            card.Fresh = null;
+            card.SpentAttack = null;
+            card.Fortified = null;
+            card.Chill = null;
+            card.ChilledBy = null;
             var leaving = Cards.Def(card.DefId);
             if (card.EchoOf != null)
             {

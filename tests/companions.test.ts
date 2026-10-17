@@ -19,7 +19,7 @@ import { CAPTAIN } from '../src/engine/captain';
 import { cardDef } from '../src/engine/cards';
 import { bankCompanions, buyCompanion, companionCards, companionPoints, runBonuses } from '../src/engine/meta';
 import { companionBuild, companionCardId, companionLevel, plainCompanion, xpFromActs } from '../src/engine/companions';
-import { applyAction, createGame } from '../src/engine/game';
+import { activePlayer, applyAction, attackProblem, createGame } from '../src/engine/game';
 
 const army = (s: CampaignState) => armiesOf(s, s.playerId)[0];
 /** The first battle the flagship can fly into. */
@@ -86,6 +86,34 @@ describe('the companions', () => {
     g = applyAction(g, { type: 'attack', attackerUid: lancer.uid, targetUid: null } as never);
     expect(g.acts?.lancer?.damage).toBeGreaterThan(0);
     expect(xpFromActs('lancer', g.acts!.lancer!)).toBe(g.acts!.lancer!.damage);
+  });
+
+  it('a Darkspeed character that dies after attacking comes back ready again (its dimming does not go with it)', () => {
+    const K = 'companion_lancer@1.0.0.lunge+charge';
+    let g = createGame({ seed: 1, campaign: true, players: [{ name: 'A', isAI: false, deck: Array(10).fill('companion_lancer') }, { name: 'B', isAI: false, deck: Array(10).fill('companion_lancer') }] });
+    if (activePlayer(g).id !== g.players[0].id) g = applyAction(g, { type: 'endTurn' });
+    g.players[0].hand.push({ uid: 'k1', defId: K });
+    g.players[0].playsLeft = 9;
+    g = applyAction(g, { type: 'playCard', cardUid: 'k1' } as never);
+    expect(attackProblem(g, g.players[0], 'k1')).toBeNull();
+    g = applyAction(g, { type: 'attack', attackerUid: 'k1', targetUid: null });
+    g = applyAction(g, { type: 'endTurn' });
+    // (Struck down on the rival's day, still dimmed from his attack.)
+    g.players[1].hand.push({ uid: 'b1', defId: 'companion_lancer@3.0.0.lunge+charge' });
+    g.players[1].playsLeft = 9;
+    g = applyAction(g, { type: 'playCard', cardUid: 'b1' } as never);
+    g = applyAction(g, { type: 'attack', attackerUid: 'b1', targetUid: 'k1' });
+    expect(g.players[0].wreck!.find((c) => c.uid === 'k1')!.dimmed).toBeUndefined();
+    g = applyAction(g, { type: 'endTurn' });
+    // (Back from the wreckage, as the reserves and a reshuffle bring him: the same card.)
+    const back = g.players[0];
+    for (const pile of [back.wreck ?? [], back.discard, back.deck]) {
+      const i = pile.findIndex((c) => c.uid === 'k1');
+      if (i >= 0) back.hand.push(pile.splice(i, 1)[0]);
+    }
+    back.playsLeft = 9;
+    g = applyAction(g, { type: 'playCard', cardUid: 'k1' } as never);
+    expect(attackProblem(g, g.players[0], 'k1')).toBeNull();
   });
 
   it('the defector comes once two beaten heroes have been spared', () => {

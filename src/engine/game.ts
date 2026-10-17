@@ -1816,6 +1816,13 @@ function leaveTableau(state: GameState, owner: PlayerState, card: CardInstance, 
   delete card.shields;
   delete card.frozen;
   delete card.charge;
+  // (What it did today goes with it: back in play it comes in as any card does, dimmed or, with Darkspeed, ready.)
+  delete card.dimmed;
+  delete card.fresh;
+  delete card.spentAttack;
+  delete card.fortified;
+  delete card.chill;
+  delete card.chilledBy;
   // (An Echo's Hero turns back into the card it really is, its leave effects the Hero's own.)
   const leaving = cardDef(card.defId);
   if (card.echoOf) {
