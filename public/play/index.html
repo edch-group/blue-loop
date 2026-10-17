@@ -174,7 +174,7 @@
       return { start, stop, time };
     })();
   </script>
-  <script src="Build/9f97efc60a3a009d769d1b93ac92ad31.loader.js"></script>
+  <script src="Build/e73e4c0fd751acf17f7b26962376d954.loader.js"></script>
   <script>
     const bar = document.querySelector('#loading i');
     // (Lock the screen sideways where that is allowed, Android in full screen; some browsers only after a tap.)
@@ -185,7 +185,7 @@
     // the publish step splits it, and lists the pieces beside it); fetched together and joined here. The bar shows the
     // download first, then the game's own loading.
     async function gameData() {
-      const whole = 'Build/2d6f883fc718a3fc505d9ae98a0f52b8.data.unityweb';
+      const whole = 'Build/5f94534c324c5d7e6b85fa3298860c41.data.unityweb';
       let parts = null;
       try {
         const r = await fetch(whole + '.parts.json');
@@ -220,8 +220,8 @@
     }
     gameData().then((dataUrl) => createUnityInstance(document.querySelector('#unity-canvas'), {
       dataUrl,
-      frameworkUrl: 'Build/30d06f871d7eb60d71552f19ab440d8b.framework.js.unityweb',
-      codeUrl: 'Build/09ab91c9306839817f7fca30e761993f.wasm.unityweb',
+      frameworkUrl: 'Build/dcbfa09abd865cd4a29f12d985d23bea.framework.js.unityweb',
+      codeUrl: 'Build/c59fba2275906750740e4d304599d719.wasm.unityweb',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: "DefaultCompany",
       productName: "Blue Loop",
