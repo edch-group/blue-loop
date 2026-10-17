@@ -147,7 +147,7 @@ public partial class CampaignView
         var stock = (st.Cards ?? new List<string>()).Where(c => !string.IsNullOrEmpty(c)).ToList();
         int Have(List<string> among, string card) => among.Count(c => c == card);
         var list = arTab == "buy" ? stock : deck.Distinct().Where(c => (c != flag?.General || Have(deck, c) > 1) && !(arTab == "recycle" && Campaign.IsCharacter(c))).ToList();
-        var lay = ArLay();
+        var lay = ArLay(StationTabs(n) != null);
         StationFrame(page, n, me, lay);
 
         // The shelf (.ar-shelf): the cards across the middle, a little tilted each, wrapping to more rows (scrolled) if
@@ -378,7 +378,7 @@ public partial class CampaignView
 
     /// <summary>
     /// What every armoury tab has round it: the page's paper, the way back to the map, materials (and the dock's repair
-    /// for your sun) top right, its name small at the top and its tabs as words under it.
+    /// for your sun) top right, its name small at the top and its tabs (StationTabs), if any, as words under it.
     /// </summary>
     void StationFrame(RectTransform page, CampaignNode n, Faction me, ArLayout lay)
     {
@@ -419,11 +419,8 @@ public partial class CampaignView
             Hud.At(sun, anchor, new Vector2(x, py), new Vector2(heat.GetPreferredValues(heat.text).x + 4, 32));
         }
         Kit.Head(page, "space station", n.Name, lay.HeadTop, lay.H3, !lay.Phone);
-        // The tabs: buy, recycle, fuse (where the station can), the ship (the Captain's runs).
-        var tabs = new List<string> { "buy", "recycle" };
-        if (docked) tabs.Insert(0, "dock");
-        if (n.Station.Fuse == true) tabs.Add("fuse");
-        if (me.Human == true) tabs.Add("ship");
+        var tabs = StationTabs(n);
+        if (tabs == null) return;
         // (.ar-tabs: 22 (CSS) apart under the name, small spaced capitals; the one open inked, a dot under it.)
         const float TabGap = 22 * Z;
         float tabH = 0.62f * 16 * Z * 1.25f + 8 * Z;
@@ -452,6 +449,23 @@ public partial class CampaignView
             tx += w + TabGap;
         }
         row.sizeDelta = new Vector2(Mathf.Max(0, tx - TabGap), tabH);
+    }
+
+    /// <summary>
+    /// The tabs under a station's name, or none. Without a dock: buy, recycle, fuse (where the station can). With one (the
+    /// Captain's runs), none: each of its pages is reached from the scene (the shop, the recycling unit, the ship) and back
+    /// returns to it; only the recycling unit's page, where the station can fuse, has a switch of its two (recycle, fuse).
+    /// </summary>
+    List<string> StationTabs(CampaignNode n)
+    {
+        bool fuse = n.Station.Fuse == true;
+        if (!DockStation(n))
+        {
+            var tabs = new List<string> { "buy", "recycle" };
+            if (fuse) tabs.Add("fuse");
+            return tabs;
+        }
+        return fuse && (arTab == "recycle" || arTab == "fuse") ? new List<string> { "recycle", "fuse" } : null;
     }
 
     void StationTab(string tab)

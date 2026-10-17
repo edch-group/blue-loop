@@ -12,7 +12,8 @@ using Kit = StationKit;
 /// recycling unit its recycling (and fusing, where the station can), the ship pans the camera down over it to fit parts:
 /// each slot marked on the ship itself (empty, fitted in its part's rarity, lit where the part in hand goes), the parts
 /// listed beside it with what each does, and what is picked (a part, or a slot) told in full at the panel's foot. The
-/// station's tabs stay as a row of words under its name; repair stays top right; back returns to the dock, then the map.
+/// station's name stays at the top (no tabs: each page is reached from the scene, and back returns to it); repair stays
+/// top right; back returns to the dock, then the map.
 /// </summary>
 public partial class CampaignView
 {
@@ -86,15 +87,15 @@ public partial class CampaignView
     // ---- The dock ----
 
     /// <summary>
-    /// The dock (the station's first view): its name, tabs and purse over the scene; over the shop, the recycling unit
-    /// and the ship, a tag saying what each is (and if it is used up here), each tappable, as is the thing itself.
+    /// The dock (the station's first view): its name and purse over the scene; what the shop, the recycling unit and the
+    /// ship are (and if each is used up here) written in the scene itself, on the vendors' signs and painted on the deck
+    /// before the pad (StationDock.Label); each thing tappable where it is on the screen, its sign and markings with it.
     /// </summary>
     void DockPage(RectTransform page, CampaignNode n)
     {
-        const float Z = WebLook.Zoom;
         var me = Campaign.Player(state);
         var st = n.Station;
-        var lay = ArLay();
+        var lay = ArLay(false);
         TopWash(page, lay.ShelfTop);
         bool fuse = st.Fuse == true;
         int stock = (st.Cards ?? new List<string>()).Count(c => !string.IsNullOrEmpty(c));
@@ -107,7 +108,9 @@ public partial class CampaignView
             (what: "recycle", title: "recycling", sub: st.Used?.Recycle == true ? (fuse ? "recycled here · fuse" : "recycled here") : fuse ? "recycle · fuse" : "recycle a card", done: st.Used?.Recycle == true && (!fuse || st.Used?.Fuse == true),
                 tip: fuse ? "Break a card from your deck down for materials, or fuse two cards into one. One of each per station." : "Break a card from your deck down for materials. One per station.", tab: "recycle"),
         };
-        // (The things themselves first, the ship under the vendors; their tags over them all.)
+        // (What each is, written on it in the scene.)
+        foreach (var s in spots) dock.Label(s.what, s.title, s.sub, s.done);
+        // (Over each thing, where it is on the screen, a hit for it: the ship's under the vendors'.)
         var hits = new List<RectTransform>();
         foreach (var s in spots)
         {
@@ -121,61 +124,35 @@ public partial class CampaignView
             tip.Text = s.tip;
             hits.Add(hit);
         }
-        var tags = spots.Select(s => DockTag(page, s.title, s.sub, s.done, s.tab)).ToList();
+        // (The ship's words painted on the deck before it: tapped, as the ship is.)
+        var mark = Hud.Rect(page, "ship mark hit");
+        mark.anchorMin = mark.anchorMax = mark.pivot = new Vector2(0.5f, 0.5f);
+        mark.gameObject.AddComponent<Image>().color = new Color(1, 1, 1, 0.001f);
+        mark.gameObject.AddComponent<Button>().onClick.AddListener(() => StationTab("ship"));
+        var markTip = mark.gameObject.AddComponent<Tip>();
+        markTip.Head = spots[0].title;
+        markTip.Text = spots[0].tip;
         StationFrame(page, n, me, lay);
-        float top = PH / 2 - lay.ShelfTop, foot = -PH / 2 + lay.Pad.z + (lay.Phone ? 44 * Z : 0);
+        void Place(RectTransform hit, Rect? box, float k)
+        {
+            if (hit == null) return;
+            bool on = box != null;
+            if (hit.gameObject.activeSelf != on) hit.gameObject.SetActive(on);
+            if (!on) return;
+            Vector2 a = OnPage(page, box.Value.min), b = OnPage(page, box.Value.max);
+            hit.anchoredPosition = (a + b) / 2;
+            hit.sizeDelta = new Vector2(Mathf.Abs(b.x - a.x), Mathf.Abs(b.y - a.y)) * k;
+        }
         dock.Placed = () =>
         {
-            for (int i = 0; i < spots.Length; i++)
-            {
-                var hit = hits[i];
-                var tag = tags[i];
-                if (hit == null || tag == null) continue;
-                var box = dock.ScreenBox(spots[i].what);
-                bool on = box != null;
-                if (hit.gameObject.activeSelf != on) hit.gameObject.SetActive(on);
-                if (tag.gameObject.activeSelf != on) tag.gameObject.SetActive(on);
-                if (!on) continue;
-                Vector2 a = OnPage(page, box.Value.min), b = OnPage(page, box.Value.max), c = (a + b) / 2;
-                var size = new Vector2(Mathf.Abs(b.x - a.x), Mathf.Abs(b.y - a.y));
-                hit.anchoredPosition = c;
-                // (The ship's box is roomy round its hull: a little in from it.)
-                hit.sizeDelta = spots[i].what == "ship" ? size * 0.85f : size;
-                // The ship's tag under it, on the pad; the vendors' over their signs; all kept on the page.
-                bool below = spots[i].what == "ship";
-                float h = tag.sizeDelta.y, w = tag.sizeDelta.x;
-                float y = below ? Mathf.Min(a.y, b.y) - 4 * Z - h : Mathf.Max(a.y, b.y) + 6 * Z;
-                y = Mathf.Clamp(y, foot, top - h);
-                float x = Mathf.Clamp(c.x, -PW / 2 + w / 2 + 8 * Z, PW / 2 - w / 2 - 8 * Z);
-                tag.anchoredPosition = new Vector2(x, y);
-            }
+            // (The ship's box is roomy round its hull: a little in from it.)
+            for (int i = 0; i < spots.Length; i++) Place(hits[i], dock.ScreenBox(spots[i].what), spots[i].what == "ship" ? 0.85f : 1);
+            Place(mark, dock.ScreenBox("ship mark"), 1);
         };
         dock.Tick();
     }
 
-    /// <summary>A tag over something in the dock: its name in spaced capitals, what it offers under it; tapped, it opens it.</summary>
-    RectTransform DockTag(RectTransform page, string title, string sub, bool done, string tab)
-    {
-        const float Z = WebLook.Zoom;
-        var bg = WebLook.Rounded(page, title, new Color(1, 1, 1, 0.9f), 14 * Z);
-        bg.raycastTarget = true;
-        WebLook.Shadow(bg, 4 * Z, 14 * Z, new Color(40 / 255f, 50 / 255f, 70 / 255f, 0.16f), 14 * Z, Z, new Color(58 / 255f, 66 / 255f, 86 / 255f, 0.1f));
-        float ts = 0.7f * 16 * Z, ss = 0.54f * 16 * Z;
-        var t = WebLook.Words(bg.transform, title.ToUpperInvariant(), ts, 0.24f, Look.Ink, true, 500);
-        var u = WebLook.Words(bg.transform, sub.ToUpperInvariant(), ss, 0.16f, done ? Look.InkFaint : WebLook.Hex("#9a7429"), true, 400);
-        float w = Mathf.Max(t.GetPreferredValues(t.text).x, u.GetPreferredValues(u.text).x) + 2 * 16 * Z;
-        float h = ts * 1.3f + 2 * Z + ss * 1.3f + 2 * 8 * Z;
-        var r = bg.rectTransform;
-        r.anchorMin = r.anchorMax = new Vector2(0.5f, 0.5f);
-        r.pivot = new Vector2(0.5f, 0);
-        r.sizeDelta = new Vector2(w, h);
-        WebLook.Box(t.rectTransform, 0, 8 * Z, w, ts * 1.3f);
-        WebLook.Box(u.rectTransform, 0, 8 * Z + ts * 1.3f + 2 * Z, w, ss * 1.3f);
-        bg.gameObject.AddComponent<Button>().onClick.AddListener(() => StationTab(tab));
-        return r;
-    }
-
-    /// <summary>A wash of the page's white down from the top, under the station's name and tabs, so they read over the scene.</summary>
+    /// <summary>A wash of the page's white down from the top, under the station's name, so it reads over the scene.</summary>
     static void TopWash(RectTransform page, float h)
     {
         const float Z = WebLook.Zoom;
@@ -240,7 +217,7 @@ public partial class CampaignView
         var pick = !used && arPick != null && have.Contains(arPick) ? arPick : null;
         var fits = pick != null ? Parts.PartSlots(pick) : new List<string>();
         var aboard = new HashSet<string>(fitted.Values.Where(v => v != null));
-        var lay = ArLay();
+        var lay = ArLay(false);
         var nodeId = n.Id;
         TopWash(page, lay.ShelfTop);
 

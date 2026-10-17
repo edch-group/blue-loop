@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using BlueLoop.Models;
+using TMPro;
 using UnityEngine;
 using UMesh = UnityEngine.Mesh;
 
@@ -11,7 +12,8 @@ using UMesh = UnityEngine.Mesh;
 /// about, the crusher's rollers turning, the signs glowing. Its other shot: straight down on the ship (the camera
 /// panning and tilting there), for fitting parts, its slots on the screen for their marks.
 /// Drawn by a camera of its own on its own layer, under the campaign's page; everything built from the game's ship
-/// shader in code (DockMesh), with no colliders: what is tapped is found by where it is on the screen.
+/// shader in code (DockMesh), with no colliders: what is tapped is found by where it is on the screen. What each thing is
+/// is written on it, in the scene: on the shop's and the recycler's lit signs, and painted on the deck before the pad.
 /// </summary>
 [ExecuteAlways]
 public class StationDock : MonoBehaviour
@@ -38,6 +40,9 @@ public class StationDock : MonoBehaviour
     readonly List<Transform> rollers = new List<Transform>();
     readonly List<Material> mats = new List<Material>();
     readonly List<UMesh> meshes = new List<UMesh>();
+    /// <summary>The words on the signs (title, then what it offers), and painted on the deck before the pad.</summary>
+    TextMeshPro shopTitle, shopSub, recycleTitle, recycleSub, shipTitle, shipSub;
+    float markAlpha = -1;
     Material shopSignMat, recycleSignMat, lightsMat, ringMat;
     UMesh hullMesh;
     string specKey;
@@ -87,6 +92,7 @@ public class StationDock : MonoBehaviour
         BuildBay();
         BuildShop();
         BuildRecycler();
+        BuildMark();
         shipPivot = Pivot("Ship", root, ShipAt, Quaternion.Euler(0, 90, 0));
         var h = new GameObject("Hull") { layer = Layer };
         h.transform.SetParent(shipPivot, false);
@@ -203,6 +209,8 @@ public class StationDock : MonoBehaviour
         s.Box(new Vector3(0, 2.95f, 0.02f), new Vector3(2.3f, 0.4f, 0.04f), new Color(1f, 0.88f, 0.6f), 2);
         signShop = Piece("Shop sign", shop, Vector3.zero, Quaternion.identity, s, Holder);
         shopSignMat = signShop.GetComponent<MeshRenderer>().sharedMaterial;
+        // (Its words on its lit face (2.3 by 0.4, its front at z 0), a hair in front of it.)
+        SignWords(shop, new Vector3(0, 2.95f, 0), 2.3f, out shopTitle, out shopSub);
 
         // The keeper: a little robot behind the counter, its head turning as it looks about.
         robot = Pivot("Keeper", shop, new Vector3(-0.35f, 0, 0.15f), Quaternion.identity);
@@ -278,6 +286,90 @@ public class StationDock : MonoBehaviour
         s.Box(new Vector3(0, 3.05f, 0.87f), new Vector3(2.2f, 0.4f, 0.04f), new Color(0.74f, 1f, 0.88f), 2);
         signRecycle = Piece("Recycle sign", recycler, Vector3.zero, Quaternion.identity, s, teal);
         recycleSignMat = signRecycle.GetComponent<MeshRenderer>().sharedMaterial;
+        // (Its words on its lit face (2.2 by 0.4, its front at z 0.85).)
+        SignWords(recycler, new Vector3(0, 3.05f, 0.85f), 2.2f, out recycleTitle, out recycleSub);
+    }
+
+    /// <summary>
+    /// The words on a lit sign (its face `w` across and 0.4 high, `face` the middle of its front, which looks down -z):
+    /// the title over what it offers, in the sign's own plane, a hair in front of it. TextMeshPro's text faces -z too,
+    /// so it reads the right way round from the dock's camera, turned as the sign is.
+    /// </summary>
+    void SignWords(Transform parent, Vector3 face, float w, out TextMeshPro title, out TextMeshPro sub)
+    {
+        // (Margins of 0.12 either side, 0.03 top and foot: the title in the upper 0.19, what it offers the lower 0.14.)
+        float iw = w - 0.24f;
+        title = Words("Sign title", parent, face + new Vector3(0, 0.075f, -0.015f), Quaternion.identity, iw, 0.19f, 1.5f, 0.24f, 500);
+        sub = Words("Sign words", parent, face + new Vector3(0, -0.105f, -0.015f), Quaternion.identity, iw, 0.13f, 0.95f, 0.16f, 500);
+    }
+
+    /// <summary>
+    /// Words in the scene (TextMeshPro in 3D, on the dock's layer): in a box `w` by `h` (scene units) about `at`, sized to
+    /// fit it (at most `max`: a size of 10 is an em of one unit), spaced capitals (`spacing` in ems) in the game's display
+    /// face. Drawn in the font's own (transparent) queue, after the scene's opaque pieces, so over what they are printed on.
+    /// </summary>
+    TextMeshPro Words(string name, Transform parent, Vector3 at, Quaternion rot, float w, float h, float max, float spacing, int weight)
+    {
+        var go = new GameObject(name) { layer = Layer };
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = at;
+        go.transform.localRotation = rot;
+        var t = go.AddComponent<TextMeshPro>();
+        Look.Style(t, max, Look.Ink, true, weight, spacing * 100);
+        t.rectTransform.sizeDelta = new Vector2(w, h);
+        t.enableAutoSizing = true;
+        t.fontSizeMin = 0.1f;
+        t.fontSizeMax = max;
+        t.overflowMode = TextOverflowModes.Overflow;
+        t.margin = Vector4.zero;
+        t.text = "";
+        var r = t.GetComponent<MeshRenderer>();
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        r.receiveShadows = false;
+        return t;
+    }
+
+    /// <summary>
+    /// The words painted on the deck before the pad, between its guide lines (3.8 apart): lying flat on it, their tops
+    /// away from the camera, read as the deck is seen; drawn out 1.6 times along the deck, as markings painted on a floor
+    /// are, so they read for the low look along it. Lifted a hair off it (the guide lines' paint is 0.014 up).
+    /// </summary>
+    void BuildMark()
+    {
+        var flat = Quaternion.Euler(90, 0, 0);
+        shipTitle = Words("Deck title", root, new Vector3(0, 0.022f, MarkZ + 0.25f), flat, 3.3f, 0.5f, 4.2f, 0.24f, 700);
+        shipSub = Words("Deck words", root, new Vector3(0, 0.022f, MarkZ - 0.42f), flat, 3.3f, 0.3f, 2.4f, 0.16f, 500);
+        shipTitle.transform.localScale = shipSub.transform.localScale = new Vector3(1, 1.6f, 1);
+    }
+
+    /// <summary>Where the deck's painted words are (their middle, along z): before the pad's edge (z -3.1), short of the deck's (-5).</summary>
+    const float MarkZ = -3.8f;
+
+    /// <summary>
+    /// What a sign says (`what`: "shop", "recycle" or "ship"): its name, and what it offers here (or that it is used up,
+    /// faint). Upper case, as the web's labels; the title in ink, what it offers in the amber accent.
+    /// </summary>
+    public void Label(string what, string title, string sub, bool done)
+    {
+        TextMeshPro a, b;
+        switch (what)
+        {
+            case "shop": a = shopTitle; b = shopSub; break;
+            case "recycle": a = recycleTitle; b = recycleSub; break;
+            case "ship": a = shipTitle; b = shipSub; break;
+            default: return;
+        }
+        if (a == null || b == null) return;
+        // (On the lit signs, ink on their light; painted on the deck, a little worn, the deck's grey through it.)
+        bool paint = what == "ship";
+        var ink = Look.Ink;
+        var sc = done ? Look.InkFaint : WebLook.Hex("#9a7429");
+        a.text = title.ToUpperInvariant();
+        b.text = sub.ToUpperInvariant();
+        a.color = paint ? new Color(ink.r, ink.g, ink.b, 0.82f) : ink;
+        b.color = paint ? new Color(sc.r, sc.g, sc.b, 0.9f) : sc;
+        // (The paint's fade, as the camera stands now, put on again.)
+        if (paint) markAlpha = -1;
     }
 
     Transform Pivot(string name, Transform parent, Vector3 at, Quaternion rot)
@@ -361,7 +453,9 @@ public class StationDock : MonoBehaviour
         switch (what)
         {
             case "shop": t = shop; b = new Bounds(new Vector3(0, 1.6f, 0), new Vector3(2.7f, 3.3f, 1.9f)); break;
-            case "recycle": t = recycler; b = new Bounds(new Vector3(0, 1.65f, 0), new Vector3(2.5f, 3.3f, 2.2f)); break;
+            case "recycle": t = recycler; b = new Bounds(new Vector3(0, 1.7f, 0), new Vector3(2.5f, 3.4f, 2.2f)); break;
+            // (The words painted on the deck before the pad.)
+            case "ship mark": t = root; b = new Bounds(new Vector3(0, 0.02f, MarkZ), new Vector3(3.4f, 0.05f, 1.4f)); break;
             case "ship":
                 if (hullMesh == null) return null;
                 t = hull;
@@ -411,6 +505,14 @@ public class StationDock : MonoBehaviour
         lastTick = t;
         Animate(t);
         Pose(dt);
+        // (The deck's painted words fade as the camera goes over the ship: they are the dock's, not the fitting's.)
+        float ma = 1 - bird;
+        if (shipTitle != null && Mathf.Abs(ma - markAlpha) > 0.004f)
+        {
+            markAlpha = ma;
+            shipTitle.alpha = 0.82f * ma;
+            shipSub.alpha = 0.9f * ma;
+        }
         Placed?.Invoke();
     }
 
@@ -447,7 +549,7 @@ public class StationDock : MonoBehaviour
             goalT = ShipCentre;
             // (Its tilt straight on down from the dock's shot: the ship's nose toward the foot of the screen.)
             goalR = Quaternion.LookRotation(Vector3.down, Vector3.forward);
-            // (All of it (4 long, 3 or so across) in the screen's lower 80% (the station's name and tabs over the
+            // (All of it (4 long, 3 or so across) in the screen's lower 80% (the station's name over the
             // rest), and in the left 55% across; set that much lower and to the left.)
             goalD = Mathf.Max(ShipSize * 1.15f / (0.8f * 2 * tan), 3.4f / (0.55f * 2 * tan * aspect)) + 1.5f;
             goalO = -0.22f;
@@ -461,7 +563,7 @@ public class StationDock : MonoBehaviour
             // (Both vendors, 6.4 either side, in view however narrow the screen.)
             goalD = Mathf.Max(10.5f, 6.6f / (tan * aspect) + 1.5f);
             goalO = 0;
-            // (A little lower, clear of the station's name and tabs.)
+            // (A little lower, clear of the station's name.)
             goalL = 0.08f;
         }
         if (!posed || dt <= 0 && !Application.isPlaying)
