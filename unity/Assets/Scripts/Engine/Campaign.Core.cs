@@ -15,7 +15,7 @@ namespace BlueLoop.Engine
         public int MaxFortification, FortifyBaseCost, FortifyCostPerLevel, FortifyHealth, FusionBase, MaxDamage, WinMaterials;
         public double VaultChance, VaultTwoChance;
         public int CardChoices, Lanes, Columns, ColGap, LaneGap, MapWidth, MapHeight, MapMargin, BonusPlanets;
-        public int PetalBase, BossPetals, BossCardChoices, XpBattle, XpBattleLost, XpConquer, XpChallenge, XpGalaxy, XpBoss, PetalShare;
+        public int PetalBase, BossPetals, BossCardChoices, XpBattle, XpBattleLost, XpConquer, XpChallenge, XpGalaxy, XpBoss, CrewXpBattle, CrewXpBattleLost, CrewXpOverlord, PetalShare;
         public int BattleActionCap, ArmyRepelledDamage, ArmyHealCost, StabilityTurns, StabilityStep, StabilityMin, StabiliseCost, StabiliseTurns;
         public double RecycleShare;
         public int LostRelicMaterials, HeartWardenHealth;

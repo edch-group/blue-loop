@@ -48,7 +48,10 @@ namespace BlueLoop.Engine
         public int? Hunters;
         /// <summary>The races the Captain's rewards lean to (Kinship, Fellowship), and how far.</summary>
         public Affinity Affinity;
+        /// <summary>A share more experience, for the Captain and every companion (Study, Mess hall).</summary>
         public double? XpBonus;
+        /// <summary>A random common ship part in the hangar as the Captain's run begins (Spare parts).</summary>
+        public int? Spares;
         public int? Choices;
         public int? Tithe;
         public int? Vault;
@@ -83,7 +86,7 @@ namespace BlueLoop.Engine
     public class MetaUpgrade
     {
         public string Id;
-        /// <summary>'sun', 'command', 'flagship', 'perk', 'start', 'spoils', 'lore' or 'unlock'.</summary>
+        /// <summary>'sun', 'command', 'flagship', 'perk', 'start', 'spoils', 'lore', 'crew' or 'unlock'.</summary>
         public string Group;
         public string Name;
         /// <summary>What the next level gives (or, at the most, what it gives now).</summary>
@@ -201,7 +204,7 @@ namespace BlueLoop.Engine
     }
 
     /// <summary>
-    /// The loop's lasting progress (meta.ts): experience that raises the commander's level, petals that buy the
+    /// The loop's lasting progress (meta.ts): the Captain's experience that raises their level, petals that buy the
     /// Stellari's skill tree, unlocks and starter cards, the Captain's and the companions' ascents, the ship's parts.
     /// The tables are data (meta.json).
     /// </summary>
@@ -262,24 +265,24 @@ namespace BlueLoop.Engine
         /// <summary>An upgrade's next level's price, in petals.</summary>
         public static int PriceOf(MetaUpgrade u, int level) => u.Group == "unlock" ? u.Cost(level) : PointCost(u);
 
-        /// <summary>The experience to rise from a level to the next: a little more each level.</summary>
-        public static int CommanderXpToNext(int level) => 25 + level;
+        /// <summary>The experience the Captain needs to rise from a level to the next: a little more each level.</summary>
+        public static int CaptainXpToNext(int level) => 25 + level;
 
-        /// <summary>The commander's level for the experience earned in all.</summary>
-        public static MetaLevel LevelFor(double xp)
+        /// <summary>The Captain's level for the experience they have earned in all.</summary>
+        public static MetaLevel CaptainLevel(double xp)
         {
             int level = 1;
             double left = Math.Max(0, Math.Floor(xp));
-            while (left >= CommanderXpToNext(level))
+            while (left >= CaptainXpToNext(level))
             {
-                left -= CommanderXpToNext(level);
+                left -= CaptainXpToNext(level);
                 level++;
             }
-            return new MetaLevel { Level = level, Into = (int)left, Need = CommanderXpToNext(level) };
+            return new MetaLevel { Level = level, Into = (int)left, Need = CaptainXpToNext(level) };
         }
 
         /// <summary>The experience it takes, in all, to reach a level.</summary>
-        public static int XpForLevel(int level) => Enumerable.Range(1, Math.Max(0, level - 1)).Sum(CommanderXpToNext);
+        public static int XpForLevel(int level) => Enumerable.Range(1, Math.Max(0, level - 1)).Sum(CaptainXpToNext);
 
         static IEnumerable<MetaUpgrade> Tree => MetaUpgrades.Where(u => u.Group != "unlock");
 
@@ -292,8 +295,8 @@ namespace BlueLoop.Engine
         /// <summary>Skill points spent: on the Captain.</summary>
         public static int PointsSpent(MetaState meta) => CaptainPointsSpent(meta);
 
-        /// <summary>Skill points to spend: one for every level past the first, less those spent.</summary>
-        public static int PointsLeft(MetaState meta) => LevelFor(meta.Xp).Level - 1 - PointsSpent(meta);
+        /// <summary>The Captain's skill points to spend: one for every level past the first, less those spent.</summary>
+        public static int PointsLeft(MetaState meta) => CaptainLevel(meta.Xp).Level - 1 - PointsSpent(meta);
 
         // ---- The companions ----
 
@@ -839,6 +842,8 @@ namespace BlueLoop.Engine
             if (L("foundry") + L("aligned") != 0) mods.IndustrialPlays = L("foundry") + L("aligned");
             if (L("coldworld") + L("aligned") != 0) mods.DeadCool = 2 * (L("coldworld") + L("aligned"));
             if (L("bastion") != 0) mods.GuardDefence = 2 * L("bastion");
+            if (L("holds") != 0) mods.HandSize = L("holds");
+            if (L("pride") != 0) mods.OverlordSlow = L("pride");
             var r = new RunBonuses
             {
                 Materials = 3 * L("materials"),
@@ -861,7 +866,8 @@ namespace BlueLoop.Engine
                 Stock = 3 * L("stock"),
                 Legacy = L("legacy"),
                 Plunder = 2 * L("plunder"),
-                XpBonus = 0.1 * L("study"),
+                XpBonus = 0.1 * L("study") + 0.25 * L("mess"),
+                Spares = L("spares"),
                 Choices = L("choice"),
                 Tithe = 2 * L("tithe"),
                 Vault = 2 * L("vault"),

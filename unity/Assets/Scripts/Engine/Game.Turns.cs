@@ -210,7 +210,8 @@ namespace BlueLoop.Engine
             }
         }
 
-        public static int MaxHand(PlayerState p) => Balance.MaxHand + Relics.N(p.Relics, "grasp");
+        /// <summary>The most cards a player may hold after dusk (a Grasp emblem holds more, and Deep holds, from the skill tree).</summary>
+        public static int MaxHand(PlayerState p) => Balance.MaxHand + Relics.N(p.Relics, "grasp") + (p.Modifiers?.HandSize ?? 0);
 
         static void TrimHand(GameState state, PlayerState p, List<string> picked = null)
         {
@@ -385,6 +386,10 @@ namespace BlueLoop.Engine
         /// used: ready again on the third (game.ts BOSS_RECHARGE).</summary>
         public const int BossRecharge = 2;
 
+        /// <summary>Days more a Lost Overlord's own action takes against its rivals (the most any of them has: Flagship's pride).</summary>
+        public static int OverlordSlow(GameState state, PlayerState p) =>
+            state.Players.Aggregate(0, (n, q) => q == p || q.Boss != null ? n : Math.Max(n, q.Modifiers?.OverlordSlow ?? 0));
+
         /// <summary>Whether a part's action is the Overlord's own: once used, it recharges.</summary>
         public static bool Recharges(CardInstance c) => Cards.Def(c.DefId).OverlordPart == "overlord";
 
@@ -447,7 +452,7 @@ namespace BlueLoop.Engine
             // Its own action, used, recharges; else it comes a day nearer ready.
             if (p.Boss != null)
             {
-                if (used) p.Boss.Charge = BossRecharge;
+                if (used) p.Boss.Charge = BossRecharge + OverlordSlow(state, p);
                 else if (p.Boss.Charge != null && p.Boss.Charge > 0)
                 {
                     p.Boss.Charge -= 1;

@@ -185,13 +185,13 @@ namespace BlueLoop.Engine
 
         // ---- Loot ----
 
-        class LootMarkOf { public int Materials, Xp, Petals, Parts; public HashSet<string> Relics; public List<string> Cards; }
+        class LootMarkOf { public int Materials, Xp, Petals, Parts; public Dictionary<string, int> CrewXp; public HashSet<string> Relics; public List<string> Cards; }
 
         static LootMarkOf LootMark(CampaignState s)
         {
             var f = FactionById(s, s.PlayerId);
             var cards = s.Armies.Where(a => a.Owner == f.Id).SelectMany(a => a.Deck).Concat(f.Reserve).ToList();
-            return new LootMarkOf { Materials = f.Materials, Xp = s.Xp ?? 0, Petals = s.Petals, Relics = new HashSet<string>((f.Relics ?? new List<Relic>()).Select(r => r.Id)), Cards = cards, Parts = s.PartsFound?.Count ?? 0 };
+            return new LootMarkOf { Materials = f.Materials, Xp = s.Xp ?? 0, CrewXp = new Dictionary<string, int>(s.CompanionXp ?? new Dictionary<string, int>()), Petals = s.Petals, Relics = new HashSet<string>((f.Relics ?? new List<Relic>()).Select(r => r.Id)), Cards = cards, Parts = s.PartsFound?.Count ?? 0 };
         }
 
         static Loot LootSince(CampaignState s, LootMarkOf before, bool won)
@@ -207,11 +207,18 @@ namespace BlueLoop.Engine
                 if (n > 0) had[id] = n - 1;
                 else cards.Add(id);
             }
+            var crewXp = new Dictionary<string, int>();
+            foreach (var id in Companions.CompanionIds)
+            {
+                int n = (now.CrewXp.TryGetValue(id, out var x1) ? x1 : 0) - (before.CrewXp.TryGetValue(id, out var x0) ? x0 : 0);
+                if (n > 0) crewXp[id] = n;
+            }
             return new Loot
             {
                 Won = won,
                 Materials = Math.Max(0, now.Materials - before.Materials),
                 Xp = Math.Max(0, now.Xp - before.Xp),
+                CrewXp = crewXp.Count > 0 ? crewXp : null,
                 Petals = Math.Max(0, now.Petals - before.Petals),
                 Relics = (f.Relics ?? new List<Relic>()).Where(r => !before.Relics.Contains(r.Id)).ToList(),
                 Cards = cards,

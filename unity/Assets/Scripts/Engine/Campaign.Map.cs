@@ -110,6 +110,16 @@ namespace BlueLoop.Engine
             }
             s.StartDeck = army.Deck.ToList();
             army.Refit = false;
+            // (Spare parts, from the skill tree: the Captain's run begins with a common ship part not yet in the hangar.)
+            if (human && (run.Spares ?? 0) != 0)
+            {
+                var spare = Parts.NewCommonPart(run.Hangar ?? new List<string>(), R(s));
+                if (spare != null)
+                {
+                    (s.PartsFound ??= new List<string>()).Add(spare);
+                    Clog(s, $"Spare parts: {Parts.ShipPart(spare).Name} waits in the hangar.", (string)null, me.Id);
+                }
+            }
             Tell(s, human ? Story.CaptainIntroScene(me.Id, army.General) : Story.IntroScene(me.Race, me.Id, army.General));
             NoticeStory(s);
             return s;
@@ -395,13 +405,24 @@ namespace BlueLoop.Engine
             JoinCompanion(s, "engineer", "Three good parts on a hull like that? Somebody aboard cares. I'm coming with you, Captain. She needs an engineer.");
         }
 
+        /// <summary>
+        /// The companions' experience from a battle, kept until the screen banks it: every one aboard learns a little
+        /// from every battle the flagship fights, won or lost, played or not (more against a Lost Overlord), and each
+        /// more from what they did in it (game.acts); a share more again with Study and Mess hall.
+        /// </summary>
         static void NoteActs(CampaignState s, GameState game)
         {
+            var b = s.Battle;
+            var seat = b.Attacker == s.PlayerId ? game.Players[0] : b.Defender == s.PlayerId ? game.Players[1] : null;
+            bool won = seat != null && !Game.IsDraw(game) && game.WinnerId == seat.Id;
+            bool overlord = b.Challenge == null && b.Crystal == null && b.Struggle == null && b.Encounter == null && b.Dream == null && NodeById(s, b.NodeId).Heart == true;
+            int baseXp = seat != null ? (won ? T.CrewXpBattle : T.CrewXpBattleLost) + (overlord ? T.CrewXpOverlord : 0) : 0;
+            var aboard = CrewInDeck(s);
             foreach (var id in Companions.CompanionIds)
             {
                 Acts a = null;
                 game.Acts?.TryGetValue(id, out a);
-                int xp = a != null ? Companions.XpFromActs(id, a) : 0;
+                int xp = Round(((aboard.Contains(id) ? baseXp : 0) + (a != null ? Companions.XpFromActs(id, a) : 0)) * (1 + (s.Run?.XpBonus ?? 0)));
                 if (xp > 0)
                 {
                     s.CompanionXp ??= new Dictionary<string, int>();
@@ -1210,6 +1231,7 @@ namespace BlueLoop.Engine
             if (army != null) army.Damage = b.Dream.Damage;
             if (!AttackerWon(game))
             {
+                GainXp(s, T.XpBattleLost);
                 Clog(s, $"{f.Name} wakes, the dream unsolved.", b.NodeId, f.Id);
                 return;
             }

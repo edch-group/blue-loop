@@ -6715,7 +6715,7 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cs-captain-page.cs-launching .cs-arc path { opacity: 0; }
 .cs-launch-veil { position: fixed; inset: 0; z-index: 40; pointer-events: none; background: inherit; }
 
-/* ---- The commander on the map: face, name, level, and the bar to the next level ---- */
+/* ---- The player on the map: face, name; on the Captain's runs, the Captain's level and the bar to the next ---- */
 .cmp-profile { display: flex; align-items: center; gap: 8px; height: 44px; box-sizing: border-box; padding: 4px 14px 4px 4px; border-radius: 999px; background: var(--glass-strong); border: 1px solid #fff; box-shadow: var(--shadow); cursor: help; }
 .cmp-profile-face { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex: none; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(201, 162, 78, 0.7); }
 .cmp-profile-who { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 8px; row-gap: 3px; min-width: 96px; }
@@ -6723,22 +6723,36 @@ body.screen-campaign:has(.cs-page) .backdrop { display: block; }
 .cmp-profile-who small { font-family: var(--display); font-size: 0.56rem; letter-spacing: 0.14em; text-transform: uppercase; color: #9a7429; justify-self: end; white-space: nowrap; }
 .cmp-xpbar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: rgba(150, 156, 172, 0.25); overflow: hidden; }
 .cmp-xpbar i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #d9b45e, #f1d48a); }
+.cmp-profile-plain .cmp-profile-who { grid-template-columns: auto; min-width: 0; }
 @media (max-height: 560px) { .cmp-profile { height: 38px; padding-right: 10px; } .cmp-profile-face { width: 30px; height: 30px; } .cmp-profile-who { min-width: 80px; } }
 
-/* ---- A battle's experience in the loot: the level, the gauge filling, "+1 skill point" on a level gained ---- */
-.loot-xp { position: relative; display: grid; grid-template-columns: auto minmax(160px, 260px) auto; align-items: center; gap: 12px; font-family: var(--display); letter-spacing: 0.12em; text-transform: uppercase; }
-.loot-xp-lv { font-size: 0.7rem; color: var(--ink-soft); white-space: nowrap; }
-.loot-xp-lv b { font-size: 1.15rem; color: var(--ink); margin-left: 4px; display: inline-block; }
+/* ---- A battle's experience in the loot: a row for the Captain, then each companion: their face, name and level,
+   the gauge filling, what was earned, "+1 skill point" on a level gained ---- */
+.loot-crew { display: grid; grid-template-columns: auto; justify-content: center; gap: 6px 22px; }
+.loot-xp { position: relative; display: grid; grid-template-columns: 30px 92px minmax(140px, 230px) 64px; align-items: center; gap: 10px; font-family: var(--display); letter-spacing: 0.12em; text-transform: uppercase; }
+.loot-xp-face { width: 30px; height: 30px; border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(201, 162, 78, 0.7); }
+.loot-xp-who { display: grid; line-height: 1.15; }
+.loot-xp-who > b { font-weight: 500; font-size: 0.62rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loot-xp-lv { font-size: 0.56rem; color: var(--ink-soft); white-space: nowrap; }
+.loot-xp-lv b { font-size: 0.86rem; color: var(--ink); margin-left: 3px; display: inline-block; }
 .loot-xp-bar { height: 10px; border-radius: 5px; background: rgba(150, 156, 172, 0.22); overflow: hidden; box-shadow: inset 0 1px 2px rgba(60, 60, 90, 0.15); }
 .loot-xp-bar i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #d9b45e, #f6dc94, #d9b45e); background-size: 200% 100%; animation: xp-sheen 1.4s linear infinite; }
 .loot-xp-gain { font-size: 0.8rem; color: #9a7429; white-space: nowrap; }
-.loot-xp-up { position: absolute; left: 50%; top: -6px; transform: translate(-50%, -100%); font-size: 0.66rem; color: #9a7429; opacity: 0; pointer-events: none; white-space: nowrap; }
+.loot-xp-up { position: absolute; left: 50%; top: 2px; transform: translate(-50%, -100%); font-size: 0.6rem; color: #9a7429; opacity: 0; pointer-events: none; white-space: nowrap; }
 .loot-xp.levelled .loot-xp-up { animation: xp-up 1.6s ease-out both; }
 .loot-xp.levelled .loot-xp-lv b { animation: xp-lv 0.5s cubic-bezier(.2,1.6,.4,1); }
 @keyframes xp-sheen { to { background-position: -200% 0; } }
 @keyframes xp-up { 0% { opacity: 0; transform: translate(-50%, -60%); } 20% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -160%); } }
 @keyframes xp-lv { 50% { transform: scale(1.5); color: #c9a24e; } }
-/* (A phone on its side: the cards in a cache a little smaller, so everything fits above "take it".) */
+/* (A phone on its side: the crew's rows two to a line, smaller; the cards in a cache a little smaller, so everything
+   fits above "take it".) */
+@media (max-height: 560px) {
+  .loot-crew.loot-crew-many { grid-template-columns: auto auto; }
+  .loot-xp { grid-template-columns: 24px 82px minmax(90px, 130px) 52px; gap: 7px; }
+  .loot-xp-face { width: 24px; height: 24px; }
+  .loot-xp-bar { height: 7px; }
+  .loot-xp-gain { font-size: 0.66rem; }
+}
 @media (max-height: 560px) { .loot-items { padding: 10px 14px; } .loot-emblem small { font-size: 0.6rem; } .loot-emblem b { font-size: 0.52rem; } }
 /* (An emblem's name kept to two lines; its power shown whole [direction: emblems often cut off]: the tile grows
    to hold it, from a card's height.) */

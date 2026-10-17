@@ -1,12 +1,14 @@
 /**
  * The loop's lasting progress, kept for every run after.
  *
- * Experience (XP) is earned by everything a run does (every battle, won or lost, systems taken, challenges
- * cleared, galaxies crossed, bosses beaten), so every run moves the player on. It is never spent: it raises the
- * commander's level, and every level grants a skill point. Points buy the skill tree: seven branches,
- * one off each petal of the Stellari (a cooler sun, a sharper command, stronger defences, run perks, a stronger
- * start, spoils of war, lasting wisdom), each a tier of upgrades bought level by level, unlocking the next tier up,
- * to a capstone.
+ * Experience (XP) is the Captain's and each companion's own. The Captain's is earned by everything a run does (every
+ * battle, won or lost, systems taken, challenges cleared, galaxies crossed, bosses beaten), so every run moves them
+ * on; a companion's, by every battle the flagship fights with them aboard, and by what they did in it. It is never
+ * spent: it raises their level, and every level grants a skill point for their own tree (ascent.ts).
+ *
+ * Petals buy the Stellari's skill tree: eight branches, one off each of eight petals (a cooler sun, kinder planets,
+ * stronger defences, the long road, a stronger start, spoils of war, lasting wisdom, the crew), each a tier of
+ * upgrades bought level by level, unlocking the next tier up, to a capstone.
  *
  * Stellari petals are grabbed at wormholes and from beaten Overlords. They unlock races and heroes, and buy cards
  * into a race's starting deck for good.
@@ -20,7 +22,7 @@ import { CAPTAIN_START_ABILITY, captainId } from './captain';
 import { ascend, ascentGifts, ascentProblem, ascentSpent, CAPTAIN_TREE, COMPANION_TREES, plainAscent, type Ascent } from './ascent';
 import type { BattleModifiers } from './types';
 
-export type MetaGroup = 'sun' | 'command' | 'flagship' | 'perk' | 'start' | 'spoils' | 'lore' | 'unlock';
+export type MetaGroup = 'sun' | 'command' | 'flagship' | 'perk' | 'start' | 'spoils' | 'lore' | 'crew' | 'unlock';
 
 export interface MetaUpgrade {
   id: string;
@@ -54,21 +56,21 @@ export const pointCost = (u: MetaUpgrade) => TREE_PETALS[u.tier ?? 1] ?? 3;
 /** An upgrade's next level's price, in petals. */
 export const priceOf = (u: MetaUpgrade, level: number) => (u.group === 'unlock' ? u.cost(level) : pointCost(u));
 
-/** The experience to rise from a level to the next: a little more each level. */
-export const commanderXpToNext = (level: number) => 25 + level;
+/** The experience the Captain needs to rise from a level to the next: a little more each level. */
+export const captainXpToNext = (level: number) => 25 + level;
 
-/** The commander's level for the experience earned in all: the level, the experience into it, and what it needs. */
-export function levelFor(xp: number): { level: number; into: number; need: number } {
+/** The Captain's level for the experience they have earned in all: the level, the experience into it, and what it needs. */
+export function captainLevel(xp: number): { level: number; into: number; need: number } {
   let level = 1, left = Math.max(0, Math.floor(xp));
-  while (left >= commanderXpToNext(level)) {
-    left -= commanderXpToNext(level);
+  while (left >= captainXpToNext(level)) {
+    left -= captainXpToNext(level);
     level++;
   }
-  return { level, into: left, need: commanderXpToNext(level) };
+  return { level, into: left, need: captainXpToNext(level) };
 }
 
 /** The experience it takes, in all, to reach a level. */
-export const xpForLevel = (level: number) => Array.from({ length: Math.max(0, level - 1) }, (_, i) => commanderXpToNext(i + 1)).reduce((t, n) => t + n, 0);
+export const xpForLevel = (level: number) => Array.from({ length: Math.max(0, level - 1) }, (_, i) => captainXpToNext(i + 1)).reduce((t, n) => t + n, 0);
 
 /** Skill levels bought on the tree, each by its tier (what skill points once bought them with: kept for older saves). */
 const treeTiers = (meta: MetaState) => META_UPGRADES.filter((u) => u.group !== 'unlock').reduce((t, u) => t + (u.tier ?? 1) * (meta.upgrades[u.id] ?? 0), 0);
@@ -80,13 +82,16 @@ export const treePetalsSpent = (meta: MetaState) =>
 /** Skill points spent: on the Captain (captain.ts prices). */
 export const pointsSpent = (meta: MetaState) => captainPointsSpent(meta);
 
-/** Skill points to spend: one for every level past the first, less those spent. */
-export const pointsLeft = (meta: MetaState) => levelFor(meta.xp ?? 0).level - 1 - pointsSpent(meta);
+/** The Captain's skill points to spend: one for every level past the first, less those spent. */
+export const pointsLeft = (meta: MetaState) => captainLevel(meta.xp ?? 0).level - 1 - pointsSpent(meta);
 
 /** What a player has banked and bought (kept on the account). */
 export interface MetaState {
   petals: number;
-  /** Experience earned in all, every run (never spent: it makes the commander's level). */
+  /**
+   * The Captain's experience, earned in all, every run (never spent: it makes the Captain's level). (Kept under its
+   * old name: in older saves it was the commander's, which was always the Captain's, so nothing earned is lost.)
+   */
   xp: number;
   /** 2: skills are bought with points (before, XP was spent on them: see migrateMeta). */
   v?: number;
@@ -390,6 +395,11 @@ export const META_UPGRADES: MetaUpgrade[] = [
   { id: 'petals', group: 'lore', tier: 2, requires: [['study', 1]], name: 'Petal pouch', text: '+20% petals at every wormhole.', max: 3, cost: rising(40, 20) },
   { id: 'tithe', group: 'lore', tier: 2, requires: [['study', 2]], name: "Overlord's tithe", text: '+2 petals from every Overlord beaten.', max: 2, cost: rising(50, 40) },
   { id: 'legacy', group: 'lore', tier: 3, requires: [['petals', 1], ['tithe', 1]], name: 'Legacy', text: '+1 petal for every battle won.', max: 1, cost: flat(170) },
+  // The crew: the ship's company, its companions and its holds.
+  { id: 'holds', group: 'crew', tier: 1, name: 'Deep holds', text: '+1 to your hand limit in every battle.', max: 2, cost: rising(20, 15) },
+  { id: 'mess', group: 'crew', tier: 2, requires: [['holds', 1]], name: 'Mess hall', text: 'The Captain and every companion gain +25% experience.', max: 2, cost: rising(40, 30) },
+  { id: 'spares', group: 'crew', tier: 2, requires: [['holds', 1]], name: 'Spare parts', text: "The Captain's runs start with a random common ship part in the hangar.", max: 1, cost: flat(70) },
+  { id: 'pride', group: 'crew', tier: 3, requires: [['mess', 1], ['spares', 1]], name: "Flagship's pride", text: "Every Lost Overlord's own action recharges a day slower against you.", max: 1, cost: flat(180) },
   // Unlocks (petals): the other races, and each race's later heroes.
   ...[4, 5, 6, 7].map((race) => ({ id: `race:${race}`, group: 'unlock' as const, name: '', text: '', max: 1, cost: flat(10) })),
   // (Heroes are no longer bought: each is unlocked by the stars conquered with the one before it, heroUnlocked.)
@@ -592,7 +602,9 @@ export interface RunBonuses {
   hunters?: number;
   /** The races the Captain's rewards lean to (Kinship, Fellowship), and how far. */
   affinity?: { primary?: number; primaryBoost: number; secondary?: number; secondaryBoost: number };
-  /** A share more experience (Study), cards more in every card reward (Wide offers), petals more from every Overlord (Overlord's tithe), and cards more in its hoard (Overlord's vault). */
+  /** A random common ship part in the hangar as the Captain's run begins (Spare parts). */
+  spares?: number;
+  /** A share more experience, for the Captain and every companion (Study, Mess hall), cards more in every card reward (Wide offers), petals more from every Overlord (Overlord's tithe), and cards more in its hoard (Overlord's vault). */
   xpBonus?: number;
   choices?: number;
   tithe?: number;
@@ -691,6 +703,8 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
       ...(l('coldworld') + l('aligned') ? { deadCool: 2 * (l('coldworld') + l('aligned')) } : {}),
 
       ...(l('bastion') ? { guardDefence: 2 * l('bastion') } : {}),
+      ...(l('holds') ? { handSize: l('holds') } : {}),
+      ...(l('pride') ? { overlordSlow: l('pride') } : {}),
     },
     mend: l('mend'),
     loot: 0.1 * l('scouts'),
@@ -698,7 +712,8 @@ export function runBonuses(meta: MetaState | null | undefined, race?: number): R
     stock: 3 * l('stock'),
     legacy: l('legacy'),
     plunder: 2 * l('plunder'),
-    xpBonus: 0.1 * l('study'),
+    xpBonus: 0.1 * l('study') + 0.25 * l('mess'),
+    spares: l('spares'),
     choices: l('choice'),
     tithe: 2 * l('tithe'),
     vault: 2 * l('vault'),

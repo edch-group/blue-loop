@@ -133,6 +133,12 @@ export function newCurio(have: readonly string[], pick: number): string | null {
   return pool.length ? pool[Math.floor(pick * pool.length) % pool.length].id : null;
 }
 
+/** A common (white dwarf) part not yet in the hangar, or null if every one is had (Spare parts, from the skill tree). */
+export function newCommonPart(have: readonly string[], pick: number): string | null {
+  const pool = SHIP_PARTS.filter((p) => p.rarity === 'dwarf' && !p.curio && !have.includes(p.id));
+  return pool.length ? pool[Math.floor(pick * pool.length) % pool.length].id : null;
+}
+
 /**
  * A part not yet in the hangar, of a rarity (or the nearest there is), or null if every part is had. `pick` chooses
  * among them (a number from 0 to 1).

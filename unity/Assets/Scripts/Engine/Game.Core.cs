@@ -179,6 +179,9 @@ namespace BlueLoop.Engine
                 DrawCards(state, p, Balance.OpeningHand + (CatchUp(i) ? Balance.LaterSeatCards : 0) + (ps.Modifiers?.OpeningHand ?? 0) + (ps.Opening?.Draw ?? 0));
             }
             foreach (var p in state.Players) p.TargetId = NextOpponent(state, p)?.Id;
+            // (Flagship's pride: a Lost Overlord's own action starts the battle recharging.)
+            foreach (var p in state.Players)
+                if (p.Boss != null && OverlordSlow(state, p) > 0 && p.Tableau.Any(Recharges)) p.Boss.Charge = OverlordSlow(state, p);
 
             Log(state, $"A new Blue Loop begins with {string.Join(", ", state.Players.Select(p => p.Name))}.");
             StartTurn(state);

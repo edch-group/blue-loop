@@ -46,40 +46,47 @@ public partial class CampaignView
         float pillH = (phone ? 38 : 44) * Z, faceD = (phone ? 30 : 36) * Z, padR = (phone ? 10 : 14) * Z, whoMin = (phone ? 80 : 96) * Z;
         float navD = Css.Clamp(36 * Z, 8 * PH / 100, 44 * Z), rowH = Mathf.Max(pillH, navD);
         float x0 = pad.w, y0 = pad.x;
-        // (The commander's experience in all: what is banked, and what this run has earned and not yet banked.)
-        var level = Meta.LevelFor(meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)));
+        // (On the Captain's runs, the Captain's experience in all: what is banked, and what this run has earned and not
+        // yet banked. A race's run shows no level: experience is the Captain's and each companion's, not the player's.)
+        bool captainRun = me.Human == true;
+        var level = Meta.CaptainLevel(meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)));
         // You (campaign.ts renderProfile, .cmp-profile): a white pill, your face ringed in white and gold, your name and
-        // level, and under them how far into it you are.
+        // (the Captain's) level, and under them how far into it they are.
         var chip = WebLook.Rounded(top, "You", Look.GlassStrong, pillH / 2);
         chip.raycastTarget = true;
         string name = string.IsNullOrEmpty(Profile.Me.Name) ? "commander" : Profile.Me.Name.ToLowerInvariant();
         float whoX = (1 + 4) * Z + faceD + 8 * Z;
         var who = WebLook.Words(WebLook.Box(chip.transform, "Name", whoX, 0, 120 * Z, 12.4f * Z), name.ToUpperInvariant(), 0.66f * 16 * Z, 0.14f, Look.Ink, true, 500, TextAlignmentOptions.Left);
         float nameW = Mathf.Min(120 * Z, who.GetPreferredValues(who.text).x);
-        var lv = WebLook.Words(WebLook.Box(chip.transform, "Level", whoX + nameW + 8 * Z, 0, 80 * Z, 10.4f * Z), $"LEVEL {level.Level}", 0.56f * 16 * Z, 0.14f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
-        float whoW = Mathf.Max(whoMin, nameW + 8 * Z + lv.GetPreferredValues(lv.text).x);
+        var lv = captainRun ? WebLook.Words(WebLook.Box(chip.transform, "Level", whoX + nameW + 8 * Z, 0, 120 * Z, 10.4f * Z), $"CAPTAIN · LEVEL {level.Level}", 0.56f * 16 * Z, 0.14f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left) : null;
+        // (.cmp-profile-plain: the name alone, no least width.)
+        float whoW = lv != null ? Mathf.Max(whoMin, nameW + 8 * Z + lv.GetPreferredValues(lv.text).x) : nameW;
         float pillW = whoX + whoW + padR + 1 * Z;
         WebLook.Box(chip.rectTransform, x0, y0 + (rowH - pillH) / 2, pillW, pillH);
         WebLook.Shadow(chip, 8 * Z, 30 * Z, new Color(90 / 255f, 90 / 255f, 110 / 255f, 0.13f), pillH / 2);
-        // (The name over the bar, 3 between: the two in the pill's middle.)
+        // (The name over the bar, 3 between: the two in the pill's middle; the name alone, in its middle.)
         // (The name's line 14 high, the level's 11 on its baseline; the level at its column's end (justify-self: end), so
         // a short name leaves it at the right of the min-width.)
-        float whoH = 14 * Z + 3 * Z + 4 * Z, whoY = (pillH - whoH) / 2, lvW = lv.GetPreferredValues(lv.text).x + 0.14f * 0.56f * 16 * Z;
+        float whoH = lv != null ? 14 * Z + 3 * Z + 4 * Z : 14 * Z, whoY = (pillH - whoH) / 2;
         // (Its box placed, not the words filling it: placing those again in the pill's own measures put them twice as far in.)
         WebLook.Box((RectTransform)who.transform.parent, whoX, whoY, 120 * Z, 14 * Z);
         // (Cut short with an ellipsis past 120 across: set once its box is where it stays, as Hud.Ellipsis gives it room.)
         Hud.Ellipsis(who);
-        WebLook.Box((RectTransform)lv.transform.parent, whoX + whoW - lvW, whoY + 2 * Z, lvW + 4, 11 * Z);
         // (Your account's picture; without one, your hero's: glyphs.ts playerAvatar.)
         Face(chip.transform, Account.Current?.Avatar ?? me.Hero, 5 * Z + faceD / 2, pillH / 2, faceD, new Color32(0x1a, 0x1c, 0x2a, 255), (2 * Z, Color.white), (3 * Z, new Color(201 / 255f, 162 / 255f, 78 / 255f, 0.7f)));
-        var bar = WebLook.Rounded(chip.transform, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.25f), 2 * Z);
-        WebLook.Box(bar.rectTransform, whoX, whoY + whoH - 4 * Z, whoW, 4 * Z);
-        float into = Mathf.Clamp01((float)level.Into / Mathf.Max(1, (float)level.Need));
-        if (into > 0)
+        if (lv != null)
         {
-            var fill = WebLook.Rounded(bar.transform, "Fill", Color.white, 2 * Z);
-            WebLook.Box(fill.rectTransform, 0, 0, whoW * into, 4 * Z);
-            WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f1d48a"), true);
+            float lvW = lv.GetPreferredValues(lv.text).x + 0.14f * 0.56f * 16 * Z;
+            WebLook.Box((RectTransform)lv.transform.parent, whoX + whoW - lvW, whoY + 2 * Z, lvW + 4, 11 * Z);
+            var bar = WebLook.Rounded(chip.transform, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.25f), 2 * Z);
+            WebLook.Box(bar.rectTransform, whoX, whoY + whoH - 4 * Z, whoW, 4 * Z);
+            float into = Mathf.Clamp01((float)level.Into / Mathf.Max(1, (float)level.Need));
+            if (into > 0)
+            {
+                var fill = WebLook.Rounded(bar.transform, "Fill", Color.white, 2 * Z);
+                WebLook.Box(fill.rectTransform, 0, 0, whoW * into, 4 * Z);
+                WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f1d48a"), true);
+            }
         }
         // The story's word, under you (10 below your pill).
         var scene = OverlayUp() ? null : state.Story.Queue.FirstOrDefault();
@@ -688,7 +695,8 @@ public partial class CampaignView
 
     /// <summary>
     /// What the last battle brought (campaign.ts renderOverlay's loot): a sealed cache floating on a white halo, FOUND or
-    /// VICTORY · TAP TO OPEN under it; tapped, it bursts open: the experience first, its bar filling, then every reward
+    /// VICTORY · TAP TO OPEN under it; tapped, it bursts open: the experience first (a row for the Captain and each
+    /// companion who learnt, each bar filling), then every reward
     /// the same size (a card's) on a living white glow, tilted like treasure spilled out, a row bowed, one at a time;
     /// then TAKE IT.
     /// </summary>
@@ -716,7 +724,7 @@ public partial class CampaignView
             {
                 lootOpen = true;
                 Sound.Play("cache-open");
-                int n = new[] { l.Materials, l.Xp, l.Petals }.Count(x => x > 0) + (l.Relics?.Count ?? 0) + (l.Cards?.Count ?? 0);
+                int n = new[] { l.Materials, LootCrew(l).Count, l.Petals }.Count(x => x > 0) + (l.Relics?.Count ?? 0) + (l.Cards?.Count ?? 0);
                 for (int i = 0; i < n; i++) Sound.Play($"loot-{Mathf.Min(i, 5)}", 0.45f + i * 0.42f);
                 Refresh();
             });
@@ -740,15 +748,16 @@ public partial class CampaignView
         float gap = Css.Clamp(14 * Z, 3 * RawVw, 34 * Z);
         float lw = Mathf.Min(112 * Z, (92 * RawVw - (cols - 1) * gap) / cols, (100 * RawVh - 190 * Z - (rows - 1) * gap) / rows / 1.45f);
         float lh = lw * 1.4f, padY = (Css.MaxHeight(560) ? 10 : 20) * Z;
-        float xpH = l.Xp > 0 ? 1.15f * 16 * Z * 1.26f + 4 * Z + 4 * Z : 0, itemsH = 2 * padY + rows * lh + (rows - 1) * gap, takeH = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
+        var crew = LootCrew(l);
+        float xpH = crew.Count > 0 ? CrewH(crew.Count) + 4 * Z + 4 * Z : 0, itemsH = 2 * padY + rows * lh + (rows - 1) * gap, takeH = 0.66f * 16 * Z * 1.25f + 2 * 9 * Z;
         float total = xpH + itemsH + 4 * Z + 6 * Z + takeH, y = Middle(total);
-        if (l.Xp > 0)
+        if (crew.Count > 0)
         {
-            XpGauge(v, y, l.Xp, t0);
+            XpGauge(v, y, crew, t0);
             y += xpH;
         }
         y += padY;
-        int first = l.Xp > 0 ? 1 : 0;
+        int first = crew.Count > 0 ? 1 : 0;
         for (int i = 0; i < count; i++)
         {
             int row = i < split ? 0 : 1, j = row == 0 ? i : i - split, n = row == 0 ? split : count - split, from = row == 0 ? 0 : split;
@@ -769,77 +778,148 @@ public partial class CampaignView
         LootIn.On((RectTransform)ok.transform, t0, 0.45f + (count + first) * 0.42f + 0.2f, true);
     }
 
-    /// <summary>
-    /// The experience a loot brought (campaign.ts xpGauge): LEVEL and the level it stood at, its bar where it stood in
-    /// gold, +XP; once it is out, filling (XpFill).
-    /// </summary>
-    void XpGauge(RectTransform v, float y, int gained, float t0)
+    /// <summary>One who learnt from a battle, as the loot shows them: their card (its face), name, experience before and what was earned, and how their level is counted.</summary>
+    class CrewGain
     {
-        var meta = LoadMeta();
-        double from = meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)) - gained;
-        var was = Meta.LevelFor(from);
-        var g = WebLook.Box(v, "Experience", 0, y, PW, 33);
-        var lv = WebLook.Words(Hud.Fill(Hud.Rect(g, "Level")), "LEVEL", 0.7f * 16 * Z, 0.12f, Look.InkSoft, true, 400, TextAlignmentOptions.Left);
-        var n = WebLook.Words(Hud.Fill(Hud.Rect(g, "N")), was.Level.ToString(), 1.15f * 16 * Z, 0.12f, Look.Ink, true, 700, TextAlignmentOptions.Center);
-        var gain = WebLook.Words(Hud.Fill(Hud.Rect(g, "Gain")), $"+{gained} XP", 0.8f * 16 * Z, 0.12f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
-        // (Its level's room as wide as the level it ends at, so the row stays put as the number ticks up.)
-        string most = Meta.LevelFor(from + gained).Level.ToString();
-        float lw = lv.GetPreferredValues(lv.text).x, nw = Mathf.Max(n.GetPreferredValues(n.text).x, n.GetPreferredValues(most).x), gw = gain.GetPreferredValues(gain.text).x, bar = 260 * Z, gap = 12 * Z;
-        float w = lw + 4 * Z + nw + gap + bar + gap + gw, x = PW / 2 - w / 2;
-        WebLook.Box(lv.rectTransform, x, 0, lw + 4, 33);
-        WebLook.Box(n.rectTransform, x + lw + 4 * Z, 0, nw + 4, 33);
-        var track = WebLook.Rounded(g, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.22f), 5 * Z);
-        WebLook.Box(track.rectTransform, x + lw + 4 * Z + nw + gap, (33 - 10 * Z) / 2, bar, 10 * Z);
-        // (Clipped to its rounded track, as overflow: hidden.)
-        track.gameObject.AddComponent<Mask>().showMaskGraphic = true;
-        var fill = WebLook.Rounded(track.transform, "Fill", Color.white, 5 * Z);
-        WebLook.Box(fill.rectTransform, 0, 0, bar * Mathf.Clamp01((float)was.Into / Mathf.Max(1, (float)was.Need)), 10 * Z);
-        WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f6dc94"), true);
-        WebLook.Box(gain.rectTransform, x + w - gw, 0, gw + 4, 33);
-        // "+1 skill point" over the gauge's middle (.loot-xp-up: 6 above it, 0.66rem gold), unseen till a level is gained.
-        float us = 0.66f * 16 * Z;
-        var up = WebLook.Words(g, "+1 SKILL POINT", us, 0.12f, WebLook.Hex("#9a7429"), true, 400);
-        WebLook.Box(up.rectTransform, PW / 2 - 100 * Z, -6 * Z - us * 1.26f, 200 * Z, us * 1.26f);
-        up.alpha = 0;
-        up.raycastTarget = false;
-        LootIn.On(g, t0, 0.45f);
-        // (The fill begins once it is out: LOOT_FIRST + 350ms after the cache opens.)
-        var f = g.gameObject.AddComponent<XpFill>();
-        f.Set(this, from, gained, t0 + 0.8f, fill.rectTransform, bar, n, up);
+        public string Card, Name;
+        public double From;
+        public int Gain;
+        public System.Func<double, MetaLevel> Level;
     }
 
-    /// <summary>The gauge's fill heard: its run once, and a chime for each level as it is reached (kept across redraws).</summary>
-    float xpHeardFor = -1;
-    int xpLevelHeard;
+    static MetaLevel CompanionLv(double xp)
+    {
+        var c = Companions.CompanionLevel(xp);
+        return new MetaLevel { Level = c.Level, Into = c.Into, Need = c.Need };
+    }
 
     /// <summary>
-    /// The gauge filling (campaign.ts fillXpGauge): the bar runs from where it stood to where it ends up (eased out), round
-    /// again for every level gained, min(2.6s, 0.7s + 40ms an xp + 450ms a level) in all; each level reached, its number
-    /// ticks up with a bounce (xp-lv: to 1.5 and gold half way, 0.5s), a chime, "+1 skill point" rising and fading (xp-up,
-    /// 1.6s); the fill's own sound rising as it goes.
+    /// Who learnt from a battle (campaign.ts lootCrew) [direction: post-battle experience shown for each companion and
+    /// the Captain]: the Captain first, then each companion who earnt any.
+    /// </summary>
+    List<CrewGain> LootCrew(BlueLoop.Engine.Loot l)
+    {
+        var meta = LoadMeta();
+        var crew = new List<CrewGain>();
+        if (l.Xp > 0)
+            crew.Add(new CrewGain { Card = Builds.CaptainId, Name = "captain", From = meta.Xp + Mathf.Max(0, (state.Xp ?? 0) - (state.XpBanked ?? 0)) - l.Xp, Gain = l.Xp, Level = Meta.CaptainLevel });
+        foreach (var id in Companions.CompanionIds)
+        {
+            int gain = l.CrewXp != null && l.CrewXp.TryGetValue(id, out var g) ? g : 0;
+            if (gain <= 0) continue;
+            double kept = meta.Companions != null && meta.Companions.TryGetValue(id, out var c) && c != null ? c.Xp : 0;
+            double now = kept + (state.CompanionXp != null && state.CompanionXp.TryGetValue(id, out var u) ? u : 0);
+            var def = Companions.CompanionDef(id);
+            crew.Add(new CrewGain { Card = def.Card, Name = def.Name.Split(' ')[0].ToLowerInvariant(), From = System.Math.Max(0, now - gain), Gain = gain, Level = CompanionLv });
+        }
+        return crew;
+    }
+
+    /// <summary>
+    /// The crew's rows' measures (.loot-xp): face, name and level, bar and gain across, gaps between; on a phone turned
+    /// sideways smaller, and with more than two of them, two to a line (22 apart). Rows 30 (28) high, 6 apart.
+    /// </summary>
+    (float face, float who, float bar, float gain, float gap, float rowH, int cols) CrewLook(int n)
+    {
+        bool phone = Css.MaxHeight(560);
+        return phone ? (24 * Z, 82 * Z, 130 * Z, 52 * Z, 7 * Z, 28 * Z, n > 2 ? 2 : 1) : (30 * Z, 92 * Z, 230 * Z, 64 * Z, 10 * Z, 30 * Z, 1);
+    }
+
+    float CrewH(int n)
+    {
+        if (n == 0) return 0;
+        var k = CrewLook(n);
+        int lines = (n + k.cols - 1) / k.cols;
+        return lines * k.rowH + (lines - 1) * 6 * Z;
+    }
+
+    /// <summary>
+    /// The experience a loot brought (campaign.ts xpGauge): a row for each who learnt, the Captain first: their face
+    /// ringed in white and gold, their name over LEVEL and the level it stood at, its bar where it stood in gold, +XP;
+    /// once it is out, filling (XpFill), each row a little after the one before.
+    /// </summary>
+    void XpGauge(RectTransform v, float y, List<CrewGain> crew, float t0)
+    {
+        var k = CrewLook(crew.Count);
+        float rowW = k.face + k.who + k.bar + k.gain + 3 * k.gap, colGap = 22 * Z;
+        float blockW = k.cols * rowW + (k.cols - 1) * colGap, x0 = PW / 2 - blockW / 2;
+        var g = WebLook.Box(v, "Experience", 0, y, PW, CrewH(crew.Count));
+        bool phone = Css.MaxHeight(560);
+        for (int i = 0; i < crew.Count; i++)
+        {
+            var c = crew[i];
+            var was = c.Level(c.From);
+            float x = x0 + (i % k.cols) * (rowW + colGap), ry = (i / k.cols) * (k.rowH + 6 * Z);
+            var row = WebLook.Box(g, "Row " + c.Name, x, ry, rowW, k.rowH);
+            Face(row, c.Card, k.face / 2, k.rowH / 2, k.face, new Color32(0x1a, 0x1f, 0x2a, 255), (2 * Z, Color.white), (3 * Z, new Color(201 / 255f, 162 / 255f, 78 / 255f, 0.7f)));
+            // (Its name, 0.62rem, over LEVEL 0.56rem and its number 0.86rem, the two lines in the row's middle.)
+            float nameH = 0.62f * 16 * Z * 1.15f, lvH = 0.86f * 16 * Z * 1.15f, wy = (k.rowH - nameH - lvH) / 2, wx = k.face + k.gap;
+            var name = WebLook.Words(WebLook.Box(row, "Name", wx, wy, k.who, nameH), c.Name.ToUpperInvariant(), 0.62f * 16 * Z, 0.12f, Look.Ink, true, 500, TextAlignmentOptions.Left);
+            Hud.Ellipsis(name);
+            var lv = WebLook.Words(WebLook.Box(row, "Level", wx, wy + nameH, k.who, lvH), "LEVEL", 0.56f * 16 * Z, 0.12f, Look.InkSoft, true, 400, TextAlignmentOptions.Left);
+            float lw = lv.GetPreferredValues(lv.text).x;
+            var n = WebLook.Words(WebLook.Box(row, "N", wx + lw + 3 * Z, wy + nameH, k.who - lw - 3 * Z, lvH), was.Level.ToString(), 0.86f * 16 * Z, 0.12f, Look.Ink, true, 700, TextAlignmentOptions.Left);
+            // (Its bar: 10 high (on a phone 7), its fill clipped to its rounded track, as overflow: hidden.)
+            float bh = (phone ? 7 : 10) * Z, bx = wx + k.who + k.gap;
+            var track = WebLook.Rounded(row, "Bar", new Color(150 / 255f, 156 / 255f, 172 / 255f, 0.22f), bh / 2);
+            WebLook.Box(track.rectTransform, bx, (k.rowH - bh) / 2, k.bar, bh);
+            track.gameObject.AddComponent<Mask>().showMaskGraphic = true;
+            var fill = WebLook.Rounded(track.transform, "Fill", Color.white, bh / 2);
+            WebLook.Box(fill.rectTransform, 0, 0, k.bar * Mathf.Clamp01((float)was.Into / Mathf.Max(1, (float)was.Need)), bh);
+            WebLook.Fade(fill, WebLook.Hex("#d9b45e"), WebLook.Hex("#f6dc94"), true);
+            WebLook.Words(WebLook.Box(row, "Gain", bx + k.bar + k.gap, 0, k.gain, k.rowH), $"+{c.Gain} XP", (phone ? 0.66f : 0.8f) * 16 * Z, 0.12f, WebLook.Hex("#9a7429"), true, 400, TextAlignmentOptions.Left);
+            // "+1 skill point" over the row's middle (.loot-xp-up: 0.6rem gold, just above it), unseen till a level is gained.
+            float us = 0.6f * 16 * Z;
+            var up = WebLook.Words(row, "+1 SKILL POINT", us, 0.12f, WebLook.Hex("#9a7429"), true, 400);
+            WebLook.Box(up.rectTransform, rowW / 2 - 100 * Z, 2 * Z - us * 1.26f, 200 * Z, us * 1.26f);
+            up.alpha = 0;
+            up.raycastTarget = false;
+            // (The fill begins once it is out: LOOT_FIRST + 350ms after the cache opens, each row 260ms after the one before.)
+            var f = row.gameObject.AddComponent<XpFill>();
+            f.Set(this, i, c.From, c.Gain, c.Level, t0 + 0.8f + i * 0.26f, fill.rectTransform, k.bar, n, up);
+        }
+        LootIn.On(g, t0, 0.45f);
+    }
+
+    /// <summary>Each row's fill heard (its run, the first row's only), and the last level each has chimed (kept across redraws), by row and fill.</summary>
+    readonly HashSet<string> xpHeard = new HashSet<string>();
+    readonly Dictionary<string, int> xpLevelHeard = new Dictionary<string, int>();
+    readonly Dictionary<string, float> xpLevelAt = new Dictionary<string, float>();
+
+    /// <summary>
+    /// A row's gauge filling (campaign.ts fillXpGauge): the bar runs from where it stood to where it ends up (eased out),
+    /// round again for every level gained, min(2.6s, 0.7s + 40ms an xp + 450ms a level) in all; each level reached, its
+    /// number ticks up with a bounce (xp-lv: to 1.5 and gold half way, 0.5s), a chime, "+1 skill point" rising and fading
+    /// (xp-up, 1.6s); the fill's own sound rising as it goes (the first row's).
     /// </summary>
     public class XpFill : MonoBehaviour
     {
         CampaignView view;
+        string key;
+        bool voiced;
         double from;
         int gain;
         float start, dur, barW;
         RectTransform fill;
         TMP_Text level, up;
         int startLevel;
+        System.Func<double, MetaLevel> levelOf;
 
-        public void Set(CampaignView v, double xpFrom, int gained, float at, RectTransform bar, float width, TMP_Text n, TMP_Text pop)
+        internal void Set(CampaignView v, int row, double xpFrom, int gained, System.Func<double, MetaLevel> lv, float at, RectTransform bar, float width, TMP_Text n, TMP_Text pop)
         {
             view = v;
+            key = $"{row}@{at}";
+            voiced = row == 0;
             from = xpFrom;
             gain = gained;
+            levelOf = lv;
             start = at;
             fill = bar;
             barW = width;
             level = n;
             up = pop;
-            startLevel = Meta.LevelFor(from).Level;
-            int ups = Meta.LevelFor(from + gain).Level - startLevel;
+            startLevel = levelOf(from).Level;
+            int ups = levelOf(from + gain).Level - startLevel;
             dur = Mathf.Min(2.6f, 0.7f + gain * 0.04f + ups * 0.45f);
             Update();
         }
@@ -850,35 +930,35 @@ public partial class CampaignView
             float t = Time.time - start;
             if (!Application.isPlaying) t = dur;
             if (t < 0) return;
-            if (view.xpHeardFor != start && Application.isPlaying)
+            if (!view.xpHeard.Contains(key) && Application.isPlaying)
             {
-                view.xpHeardFor = start;
-                view.xpLevelHeard = startLevel;
+                view.xpHeard.Add(key);
+                view.xpLevelHeard[key] = startLevel;
                 // (Baked at each tenth of a second it may run: the nearest.)
-                Sound.Play($"xp-fill-{Mathf.Clamp(Mathf.RoundToInt(dur * 10), 7, 26)}");
+                if (voiced) Sound.Play($"xp-fill-{Mathf.Clamp(Mathf.RoundToInt(dur * 10), 7, 26)}");
             }
             float k = Mathf.Min(1, t / dur), e = 1 - (1 - k) * (1 - k);
-            var now = Meta.LevelFor(from + gain * e);
+            var now = levelOf(from + gain * e);
             fill.sizeDelta = new Vector2(barW * Mathf.Clamp01((float)now.Into / Mathf.Max(1, (float)now.Need)), fill.sizeDelta.y);
             level.text = now.Level.ToString();
-            if (now.Level > view.xpLevelHeard && Application.isPlaying)
+            if (Application.isPlaying && now.Level > (view.xpLevelHeard.TryGetValue(key, out var heard) ? heard : startLevel))
             {
-                view.xpLevelHeard = now.Level;
-                view.xpLevelAt = Time.time;
+                view.xpLevelHeard[key] = now.Level;
+                view.xpLevelAt[key] = Time.time;
                 Sound.Play("level-up");
             }
             // (The level's bounce and the point's rise, from the moment the last level was reached.)
-            float since = now.Level > startLevel ? Time.time - view.xpLevelAt : 99;
+            float since = now.Level > startLevel && view.xpLevelAt.TryGetValue(key, out var at) ? Time.time - at : 99;
             // (xp-lv: to 1.5 and gold at its half, and back, each half eased by cubic-bezier(.2, 1.6, .4, 1).)
             float b = since / 0.5f, bounce = b >= 1 ? 0 : b < 0.5f ? Bezier(0.2f, 1.6f, 0.4f, 1, b * 2) : 1 - Bezier(0.2f, 1.6f, 0.4f, 1, b * 2 - 1);
             level.rectTransform.localScale = Vector3.one * (1 + 0.5f * bounce);
             level.color = Color.LerpUnclamped(Look.Ink, WebLook.Hex("#c9a24e"), Mathf.Clamp01(bounce));
             // (xp-up: in by a fifth of its 1.6s, held, out over the last fifth, each eased out; rising from 60% of its
-            // height above its place (6 over the gauge) to 160%.)
+            // height above its place to 160%.)
             float u = since / 1.6f;
             up.alpha = u >= 1 ? 0 : u < 0.2f ? EaseOut(u / 0.2f) : u < 0.8f ? 1 : 1 - EaseOut((u - 0.8f) / 0.2f);
             float h = up.rectTransform.sizeDelta.y;
-            up.rectTransform.anchoredPosition = new Vector2(up.rectTransform.anchoredPosition.x, 6 * WebLook.Zoom + (0.6f + EaseOut(Mathf.Clamp01(u))) * h);
+            up.rectTransform.anchoredPosition = new Vector2(up.rectTransform.anchoredPosition.x, -2 * WebLook.Zoom + (0.6f + EaseOut(Mathf.Clamp01(u))) * h);
         }
 
         static float EaseOut(float x) => Bezier(0, 0, 0.58f, 1, x);
@@ -899,9 +979,6 @@ public partial class CampaignView
             return 3 * y1 * t * (1 - t) * (1 - t) + 3 * y2 * t * t * (1 - t) + t * t * t;
         }
     }
-
-    /// <summary>When the gauge last reached a level.</summary>
-    float xpLevelAt = -99;
 
     /// <summary>Materials or petals: their token on its glow and rays (baked from the page), the number under it.</summary>
     static void LootToken(RectTransform r, string icon, string big, float lw)

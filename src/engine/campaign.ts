@@ -30,7 +30,7 @@ import { EXPERIMENTS, RESEARCH, RETIRED_RESEARCH, researchBonus, researchProject
 import { moduleValue, type ShipModule } from './modules';
 import { isCaptain } from './captain';
 import { ACTIVE_CREW, COMPANION_IDS, companionDef, companionOf, DEFECTOR_SPARED, ENGINEER_PARTS, xpFromActs, type CompanionId } from './companions';
-import { newCurio, newPart, partRarity, partSlots, shipFit, shipPart, type PartSlot } from './parts';
+import { newCommonPart, newCurio, newPart, partRarity, partSlots, shipFit, shipPart, type PartSlot } from './parts';
 import { CURIO_GOOD, ENCOUNTERS_PER_GALAXY, encounterChoices, encounterPrice, HUNTER_STAGES, visitorName, type EncounterKind, type EncounterOutcome } from './encounters';
 import { RIFT_JUMPS, RIFT_KINDS, RIFTS, markedId, marksFor, NYX_MARKS, type NyxMark, type RiftKind } from './rifts';
 const NYX_MARK_NAME = (Object.fromEntries(Object.entries(NYX_MARKS).map(([k, v]) => [k, v.name])) as Record<NyxMark, string>);
@@ -156,6 +156,14 @@ export const CAMPAIGN = {
   xpChallenge: 6,
   xpGalaxy: 10,
   xpBoss: 15,
+  /**
+   * The companions aboard learn from every battle the flagship fights, played or not [direction: every companion and
+   * the Captain gain some experience at the end of every battle]: this much for a battle won, lost (or drawn), and
+   * more against a Lost Overlord; on top of what each learns from what they did in it (companions.ts learns).
+   */
+  crewXpBattle: 3,
+  crewXpBattleLost: 1,
+  crewXpOverlord: 3,
   petalShare: 12,
   /** Systems are never closer than this; routes longer than this are dropped unless needed to connect. */
   minSystemGap: 160,
@@ -654,7 +662,9 @@ export interface CampaignLogEntry {
 export interface Loot {
   won: boolean;
   materials: number;
+  /** The Captain's experience, and each companion's (those who earnt any). */
   xp: number;
+  crewXp?: Partial<Record<CompanionId, number>>;
   petals: number;
   relics: Relic[];
   cards: string[];
@@ -687,7 +697,7 @@ export interface CampaignState {
   /** The flagship's deck as the run began (the kept card and the cards it started with): none of them may be kept
    *  for the next run, only cards the run added (keepableCards). */
   startDeck?: string[];
-  /** Experience earned this run, and how much of it has been banked (it is kept even if the run is lost). */
+  /** The Captain's experience earned this run, and how much of it has been banked (it is kept even if the run is lost). */
   xp?: number;
   xpBanked?: number;
   /** The upgrades bought between runs that this run is played with. */
@@ -1178,7 +1188,7 @@ export function recycleValue(defId: string): number {
 function lootMark(s: CampaignState) {
   const f = factionById(s, s.playerId);
   const cards = [...s.armies.filter((a) => a.owner === f.id).flatMap((a) => a.deck), ...f.reserve];
-  return { materials: f.materials, xp: s.xp ?? 0, petals: s.petals, relics: new Set((f.relics ?? []).map((r) => r.id)), cards, parts: s.partsFound?.length ?? 0 };
+  return { materials: f.materials, xp: s.xp ?? 0, crewXp: { ...(s.companionXp ?? {}) }, petals: s.petals, relics: new Set((f.relics ?? []).map((r) => r.id)), cards, parts: s.partsFound?.length ?? 0 };
 }
 
 /** What the player gained since the mark: materials, experience, petals, relics, and cards put in a deck or the reserve. */
@@ -1193,10 +1203,16 @@ function lootSince(s: CampaignState, before: ReturnType<typeof lootMark>, won: b
     if (n > 0) had.set(id, n - 1);
     else cards.push(id);
   }
+  const crewXp: Partial<Record<CompanionId, number>> = {};
+  for (const id of COMPANION_IDS) {
+    const n = (now.crewXp[id] ?? 0) - (before.crewXp[id] ?? 0);
+    if (n > 0) crewXp[id] = n;
+  }
   return {
     won,
     materials: Math.max(0, now.materials - before.materials),
     xp: Math.max(0, now.xp - before.xp),
+    ...(Object.keys(crewXp).length ? { crewXp } : {}),
     petals: Math.max(0, now.petals - before.petals),
     relics: (f.relics ?? []).filter((r) => !before.relics.has(r.id)),
     cards,
@@ -1592,6 +1608,14 @@ export function createCampaign(setup: CampaignSetup): CampaignState {
   }
   s.startDeck = [...army.deck];
   army.refit = false;
+  // (Spare parts, from the skill tree: the Captain's run begins with a common ship part not yet in the hangar.)
+  if (human && run.spares) {
+    const id = newCommonPart(run.hangar ?? [], nextRandom(s));
+    if (id) {
+      (s.partsFound ??= []).push(id);
+      clog(s, `Spare parts: ${shipPart(id)!.name} waits in the hangar.`, undefined, me.id);
+    }
+  }
   tell(s, human ? captainIntroScene(me.id, army.general) : introScene(me.race, me.id, army.general));
   noticeStory(s);
   return s;
@@ -1878,11 +1902,21 @@ function meetEngineer(s: CampaignState, n: CampaignNode) {
   joinCompanion(s, 'engineer', "Three good parts on a hull like that? Somebody aboard cares. I'm coming with you, Captain. She needs an engineer.");
 }
 
-/** The companions' experience from a battle: what each did in it (game.acts), kept until the screen banks it. */
+/**
+ * The companions' experience from a battle, kept until the screen banks it: every one aboard learns a little from
+ * every battle the flagship fights, won or lost, played or not (more against a Lost Overlord), and each more from what
+ * they did in it (game.acts); a share more again with Study and Mess hall.
+ */
 function noteActs(s: CampaignState, game: GameState) {
+  const b = s.battle!;
+  const seat = b.attacker === s.playerId ? game.players[0] : b.defender === s.playerId ? game.players[1] : null;
+  const won = !!seat && !isDraw(game) && game.winnerId === seat.id;
+  const overlord = !b.challenge && !b.crystal && !b.struggle && !b.encounter && !b.dream && !!nodeById(s, b.nodeId).heart;
+  const base = seat ? (won ? CAMPAIGN.crewXpBattle : CAMPAIGN.crewXpBattleLost) + (overlord ? CAMPAIGN.crewXpOverlord : 0) : 0;
+  const aboard = crewInDeck(s);
   for (const id of COMPANION_IDS) {
     const a = game.acts?.[id];
-    const xp = a ? xpFromActs(id, a) : 0;
+    const xp = Math.round(((aboard.includes(id) ? base : 0) + (a ? xpFromActs(id, a) : 0)) * (1 + (s.run?.xpBonus ?? 0)));
     if (xp > 0) (s.companionXp ??= {})[id] = (s.companionXp[id] ?? 0) + xp;
   }
 }
@@ -2647,6 +2681,7 @@ function resolveDream(s: CampaignState, game: GameState) {
   if (army) army.damage = b.dream!.damage;
   const won = !isDraw(game) && game.winnerId === game.players[0].id;
   if (!won) {
+    gainXp(s, CAMPAIGN.xpBattleLost);
     clog(s, `${f.name} wakes, the dream unsolved.`, b.nodeId, f.id);
     return;
   }
@@ -3477,9 +3512,9 @@ function resolveBattle(s: CampaignState, game: GameState, salvage?: string | nul
   if (!draw && playerSide && (playerSide === 'attacker') !== attackerWon) playerFalls(s);
 }
 
-/** Experience for the player, for something done this run (it is banked at once: a lost run keeps it). */
+/** Experience for the Captain, for something done this run (it is banked at once: a lost run keeps it). */
 function gainXp(s: CampaignState, amount: number) {
-  // (Study, bought between runs: a share more.)
+  // (Study and Mess hall, bought between runs: a share more.)
   s.xp = (s.xp ?? 0) + Math.round(amount * (1 + (s.run?.xpBonus ?? 0)));
 }
 

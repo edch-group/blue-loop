@@ -271,7 +271,8 @@ public class CrewView : MonoBehaviour
         var c = Meta.CaptainMeta(meta);
         int left = Meta.PointsLeft(meta);
         if (Meta.CaptainPointsSpent(meta) > 0) Small(resetArmed ? "confirm reset" : "reset", Reset, resetArmed ? Look.Ink : Look.InkSoft, true);
-        Who(Ascent.CaptainTitles.ElementAtOrDefault(c.Gates ?? 0) ?? "The Captain", left, $"skill point{(left == 1 ? "" : "s")} · level {Meta.LevelFor(meta.Xp).Level}");
+        var clv = Meta.CaptainLevel(meta.Xp);
+        Who(Ascent.CaptainTitles.ElementAtOrDefault(c.Gates ?? 0) ?? "The Captain", left, $"skill point{(left == 1 ? "" : "s")} · level {clv.Level} · {clv.Into}/{clv.Need}");
         var g = Meta.CaptainGifts(meta);
         var a = new AscentState { Nodes = c.Nodes ?? new List<string>(), Gates = c.Gates ?? 0 };
         var wall = Cards.Rules.CaptainSingularities["wall"];
@@ -311,7 +312,8 @@ public class CrewView : MonoBehaviour
         var lv = Companions.CompanionLevel(meta.Companions[id].Xp);
         var title = d.Titles.ElementAtOrDefault(a.Gates) ?? d.Name;
         var parts = title.Split(new[] { ", " }, System.StringSplitOptions.None);
-        Who(parts.Length > 1 ? parts[1] : title, left, $"skill point{(left == 1 ? "" : "s")} · level {lv.Level} · {lv.Into}/{lv.Need}", d.LearnsText);
+        // (What they learn from, and that every battle aboard teaches them a little.)
+        Who(parts.Length > 1 ? parts[1] : title, left, $"skill point{(left == 1 ? "" : "s")} · level {lv.Level} · {lv.Into}/{lv.Need}", $"{d.LearnsText.TrimEnd('.')}, and a little from every battle aboard.");
         var first = d.Traits.First(k => k.Id == d.Start);
         var known = new List<Known> { new Known { arg = "", title = first.Name.ToLowerInvariant(), what = first.Text, colour = "#4fae9b", on = true, sub = "known" } };
         var names = d.Titles.Select(t => { var p = t.Split(new[] { ", " }, System.StringSplitOptions.None); return (p.Length > 1 ? p[1] : t).ToLowerInvariant(); }).ToList();

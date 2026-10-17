@@ -168,6 +168,8 @@ export function createGame(setup: GameSetup): GameState {
     drawCards(state, p, BALANCE.openingHand + (catchUp(i) ? BALANCE.laterSeatCards : 0) + (ps.modifiers?.openingHand ?? 0) + (ps.opening?.draw ?? 0));
   });
   for (const p of state.players) p.targetId = nextOpponent(state, p)?.id ?? null;
+  // (Flagship's pride: a Lost Overlord's own action starts the battle recharging.)
+  for (const p of state.players) if (p.boss && overlordSlow(state, p) > 0 && p.tableau.some(recharges)) p.boss.charge = overlordSlow(state, p);
 
   log(state, `A new Blue Loop begins with ${state.players.map((p) => p.name).join(', ')}.`);
   startTurn(state);
@@ -2211,9 +2213,9 @@ function dusk(state: GameState, p: PlayerState) {
  * After dusk, a hand over the limit is discarded down to it: the cards the player picked, then (if still over)
  * the costliest of the rest (a Hero kept while none leads their tableau).
  */
-/** The most cards a player may hold after dusk (a Grasp emblem holds more). */
+/** The most cards a player may hold after dusk (a Grasp emblem holds more, and Deep holds, from the skill tree). */
 export function maxHand(p: PlayerState): number {
-  return BALANCE.maxHand + relicN(p.relics, 'grasp');
+  return BALANCE.maxHand + relicN(p.relics, 'grasp') + (p.modifiers?.handSize ?? 0);
 }
 
 function trimHand(state: GameState, p: PlayerState, picked: string[] = []) {
@@ -2421,6 +2423,11 @@ function bossActionScore(state: GameState, p: PlayerState, part: CardInstance): 
  */
 export const BOSS_RECHARGE = 2;
 
+/** Days more a Lost Overlord's own action takes against its rivals (the most any of them has: Flagship's pride). */
+export function overlordSlow(state: GameState, p: PlayerState): number {
+  return state.players.reduce((n, q) => (q === p || q.boss ? n : Math.max(n, q.modifiers?.overlordSlow ?? 0)), 0);
+}
+
 /** Whether a part's action is the Overlord's own: once used, it recharges (BOSS_RECHARGE). */
 export function recharges(c: CardInstance): boolean {
   return cardDef(c.defId).overlordPart === 'overlord';
@@ -2561,7 +2568,7 @@ function bossAct(state: GameState, p: PlayerState) {
     else if (p.boss?.leader) log(state, `${p.name} reaches for a part it no longer has, and staggers.`);
   }
   if (p.boss) {
-    if (used) p.boss.charge = BOSS_RECHARGE;
+    if (used) p.boss.charge = BOSS_RECHARGE + overlordSlow(state, p);
     else if (p.boss.charge && --p.boss.charge <= 0) delete p.boss.charge;
   }
   // Its minions, each acting for itself.

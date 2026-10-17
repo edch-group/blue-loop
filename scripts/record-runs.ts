@@ -25,7 +25,8 @@ import {
 import { CAPTAIN } from '../src/engine/captain';
 import { encounterChoices } from '../src/engine/encounters';
 import { applyAction, isGameOver } from '../src/engine/game';
-import { emptyMeta, runBonuses } from '../src/engine/meta';
+import { emptyMeta, runBonuses, type MetaState } from '../src/engine/meta';
+import { plainAscent } from '../src/engine/ascent';
 import { nextRandom } from '../src/engine/rng';
 
 const runs = Number(process.env.RUNS ?? 6);
@@ -86,10 +87,22 @@ function choose(s: CampaignState, rand: () => number): CampaignAction {
   return { type: 'move', armyId: army.id, toId: pick(ahead.length && rand() < 0.85 ? ahead : moves).toId };
 }
 
+/**
+ * A save further on, for every third run: the crew's branch of the skill tree learnt (Deep holds, Mess hall, Spare
+ * parts, Flagship's pride) with Study, a part fitted, and two companions found (aboard the Captain's runs).
+ */
+const crewMeta = (): MetaState => ({
+  ...emptyMeta(),
+  upgrades: { holds: 2, mess: 2, spares: 1, pride: 1, study: 3 },
+  hangar: ['scrap_plating'],
+  fitted: { armour: 'scrap_plating' },
+  companions: { lancer: { ...plainAscent(), xp: 30 }, engineer: { ...plainAscent(), xp: 0 } },
+});
+
 const out: { setup: CampaignSetup; start: CampaignState; steps: { action: CampaignAction; state: CampaignState }[]; jump?: number }[] = [];
 let total = 0;
 for (let i = 0; i < runs; i++) {
-  const meta = emptyMeta();
+  const meta = i % 3 === 2 ? crewMeta() : emptyMeta();
   const setup: CampaignSetup = i % 2 ? { seed: 500 + i * 131, captain: CAPTAIN, run: runBonuses(meta) } : { seed: 500 + i * 131, race: i % 8, run: runBonuses(meta) };
   const rng = { rngState: setup.seed * 3 + 1 };
   const rand = () => nextRandom(rng);

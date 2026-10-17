@@ -129,6 +129,13 @@ namespace BlueLoop.Engine
             return pool.Count > 0 ? Pick(pool, pick) : null;
         }
 
+        /// <summary>A common (white dwarf) part not yet in the hangar, or null if every one is had (Spare parts, from the skill tree).</summary>
+        public static string NewCommonPart(IList<string> have, double pick)
+        {
+            var pool = ShipParts.Where(p => p.Rarity == "dwarf" && p.Curio != true && !have.Contains(p.Id)).ToList();
+            return pool.Count > 0 ? Pick(pool, pick) : null;
+        }
+
         /// <summary>A part not yet in the hangar, of a rarity (or the nearest there is), or null if every part is had.</summary>
         public static string NewPart(IList<string> have, string rarity, double pick)
         {

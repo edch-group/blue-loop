@@ -172,7 +172,9 @@ namespace BlueLoop.Engine
     {
         public bool Won;
         public int Materials;
+        /// <summary>The Captain's experience, and each companion's (those who earnt any).</summary>
         public int Xp;
+        public Dictionary<string, int> CrewXp;
         public int Petals;
         public List<Relic> Relics;
         public List<string> Cards;

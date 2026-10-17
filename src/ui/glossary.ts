@@ -140,7 +140,7 @@ export function glossarySections(): Record<string, [string, () => string]> {
           <li><b>Dawn</b><span>Your shields drop away. The orbit turns a notch. You draw ${B.drawPerTurn} (not on your first day). From round ${B.instabilityStartsRound}, regional instability heats every sun, more each round. Any global card acts. Then every card in your tableau runs its ${kw('dawn')} effect, left to right.</span></li>
           <li><b>Energy</b><span>You get energy equal to the days you have taken: 1 on your first, 2 on your second, up to ${B.maxPlays}. The industrial planet and energy cards add more.</span></li>
           <li><b>Your moves</b><span>In any order: play cards, attack with each ready card once, use your Hero once, set a trap. A card you play comes in dimmed: it can't attack or act until your next day, unless it has ${kw('darkspeed')}.</span></li>
-          <li><b>Dusk</b><span>Press end day. Every ${kw('dusk')} effect runs, left to right, except on cards played today. Over ${B.maxHand} cards in hand, you discard down to ${B.maxHand}.</span></li>
+          <li><b>Dusk</b><span>Press end day. Every ${kw('dusk')} effect runs, left to right, except on cards played today. Over ${B.maxHand} cards in hand, you discard down to ${B.maxHand} (more with Deep holds, on the Stellari's skill tree).</span></li>
           <li><b>Their day</b><span>Energy you didn't spend is banked through their day. With it you can answer once, with a ${kw('lightspeed')} card, when they play a card or attack.</span></li>
         </ol>
         ${figure('board', [

@@ -41,6 +41,12 @@
    "title": "lasting wisdom",
    "dir": 360,
    "colour": "#3fa9a4"
+  },
+  {
+   "g": "crew",
+   "title": "the crew",
+   "dir": 30,
+   "colour": "#8da63c"
   }
  ],
  "skills": {
@@ -384,10 +390,10 @@
   "study": {
    "icon": true,
    "say": [
-    "10% more experience.",
-    "20% more experience.",
-    "30% more experience.",
-    "40% more experience."
+    "The Captain and every companion gain 10% more experience.",
+    "The Captain and every companion gain 20% more experience.",
+    "The Captain and every companion gain 30% more experience.",
+    "The Captain and every companion gain 40% more experience."
    ],
    "value": [
     "+10%",
@@ -433,6 +439,54 @@
    "value": [
     "+1",
     "+2"
+   ]
+  },
+  "holds": {
+   "icon": true,
+   "say": [
+    "You may hold 1 more card in every battle.",
+    "You may hold 2 more cards in every battle.",
+    "You may hold 3 more cards in every battle."
+   ],
+   "value": [
+    "+1",
+    "+2",
+    "+3"
+   ]
+  },
+  "mess": {
+   "icon": true,
+   "say": [
+    "The Captain and every companion gain 25% more experience.",
+    "The Captain and every companion gain 50% more experience.",
+    "The Captain and every companion gain 75% more experience."
+   ],
+   "value": [
+    "+25%",
+    "+50%",
+    "+75%"
+   ]
+  },
+  "spares": {
+   "icon": true,
+   "say": [
+    "The Captain's runs start with a new common ship part in the hangar.",
+    "The Captain's runs start with a new common ship part in the hangar."
+   ],
+   "value": [
+    "1",
+    "2"
+   ]
+  },
+  "pride": {
+   "icon": true,
+   "say": [
+    "Every Lost Overlord's own action takes 1 day longer to recharge against you.",
+    "Every Lost Overlord's own action takes 2 days longer to recharge against you."
+   ],
+   "value": [
+    "+1 day",
+    "+2 days"
    ]
   }
  }

@@ -473,6 +473,10 @@ export interface BattleModifiers {
   guardDefence?: number;
   /** Every attacker of this side can attack the day it comes into play (Night Doctrine). */
   darkspeed?: number;
+  /** More cards this side may hold after dusk (Deep holds). */
+  handSize?: number;
+  /** Days longer a Lost Overlord's own action takes to recharge against this side, and to be ready at first (Flagship's pride). */
+  overlordSlow?: number;
 }
 
 export interface TurnStats {

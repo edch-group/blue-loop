@@ -4,7 +4,7 @@ import {
   armiesOf,
   armyMoves,
   buyUpgrade,
-  levelFor,
+  captainLevel,
   pointsLeft,
   xpForLevel,
   buyUpgradeProblem,
@@ -138,7 +138,7 @@ describe('the skill tree', () => {
 
 describe('the reworked skill tree', () => {
   it('has no skill that needs an emblem, nor one for systems surrendering', () => {
-    for (const u of META_UPGRADES) expect(`${u.name} ${u.text}`.toLowerCase()).not.toMatch(/paradise|surrender|flagship|hull/);
+    for (const u of META_UPGRADES) expect(`${u.name} ${u.text}`.toLowerCase()).not.toMatch(/paradise|surrender|flagship(?!'s pride)|hull/);
   });
 
   it('Aligned worlds: every planet gives more again', () => {
@@ -187,9 +187,9 @@ describe('the skill tree reset', () => {
 
 describe('commander levels', () => {
   it('a point for every level, each level needing a little more experience', () => {
-    expect(levelFor(0)).toEqual({ level: 1, into: 0, need: 26 });
-    expect(levelFor(26).level).toBe(2);
-    expect(levelFor(xpForLevel(10)).level).toBe(10);
+    expect(captainLevel(0)).toEqual({ level: 1, into: 0, need: 26 });
+    expect(captainLevel(26).level).toBe(2);
+    expect(captainLevel(xpForLevel(10)).level).toBe(10);
     expect(xpForLevel(3) - xpForLevel(2)).toBeGreaterThan(xpForLevel(2) - xpForLevel(1));
     expect(pointsLeft({ ...emptyMeta(), xp: xpForLevel(5) })).toBe(4);
   });

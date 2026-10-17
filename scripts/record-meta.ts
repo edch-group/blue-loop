@@ -137,16 +137,16 @@ for (const id of UPGRADE_IDS) {
   }
 }
 for (let l = 0; l < 80; l++) {
-  rec('commanderXpToNext', [l], M.commanderXpToNext(l));
+  rec('captainXpToNext', [l], M.captainXpToNext(l));
   rec('xpForLevel', [l], M.xpForLevel(l));
 }
-for (const xp of [-5, 0, 0.5, 25, 26, 51, 52, 53, 1000, 1234.7, 99999]) rec('levelFor', [xp], M.levelFor(xp));
+for (const xp of [-5, 0, 0.5, 25, 26, 51, 52, 53, 1000, 1234.7, 99999]) rec('captainLevel', [xp], M.captainLevel(xp));
 for (const r of [undefined, 'dwarf', 'stellar', 'anomaly', 'nonsense']) rec('starterCardPrice', [r], M.starterCardPrice(r));
 for (const h of HEROES) rec('heroUnlockNeed', [h], M.heroUnlockNeed(h));
 
 /** Every meta function, once, on a save. */
 function everything(m: MetaState) {
-  rec('levelFor', [m.xp], M.levelFor(m.xp));
+  rec('captainLevel', [m.xp], M.captainLevel(m.xp));
   rec('treePetalsSpent', [m], M.treePetalsSpent(m));
   rec('pointsSpent', [m], M.pointsSpent(m));
   rec('pointsLeft', [m], M.pointsLeft(m));

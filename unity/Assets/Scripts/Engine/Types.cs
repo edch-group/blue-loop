@@ -254,6 +254,10 @@ namespace BlueLoop.Engine
         public int? Paradise;
         public int? GuardDefence;
         public int? Darkspeed;
+        /// <summary>More cards this side may hold after dusk (Deep holds).</summary>
+        public int? HandSize;
+        /// <summary>Days longer a Lost Overlord's own action takes to recharge against this side, and to be ready at first (Flagship's pride).</summary>
+        public int? OverlordSlow;
     }
 
     public class TurnStats

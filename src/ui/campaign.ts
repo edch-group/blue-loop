@@ -32,7 +32,7 @@ import {
   resetSkillsProblem,
   SKILL_RESET_PETALS,
   buyUpgradeProblem,
-  levelFor,
+  captainLevel,
   pointCost,
   pointsLeft,
   levelOf,
@@ -161,6 +161,7 @@ import {
   crewInDeck,
   companionCardId,
   companionFromAscent,
+  type Loot,
 } from '../engine';
 import { account, markDirty } from './account';
 import { profile } from './profile';
@@ -288,7 +289,7 @@ const MENU_EMBLEM: Record<'captain' | 'ship' | 'stellari' | CompanionId, string>
 export const PETAL =
   '<svg class="cur cur-petal" viewBox="0 0 20 20" aria-label="petals"><path d="M10 1.8C15.6 6 15.6 14 10 18.2 4.4 14 4.4 6 10 1.8Z" fill="#d8e4f6" stroke="#97a2ba" stroke-width=".9" stroke-linejoin="round"/><path d="M10 4.6v10.8" stroke="#97a2ba" stroke-width=".7" stroke-linecap="round" opacity=".7"/></svg>';
 
-/** The skill tree's seven branches, one off each petal of the Stellari, each its own colour. */
+/** The skill tree's eight branches, one off each of eight petals of the Stellari, each its own colour. */
 export const UP_BRANCHES: { g: MetaGroup; title: string; dir: number; colour: string }[] = [
   // (One off each of the seven petals the flower shows above the foot of the screen, every 30° from left to right.)
   { g: 'sun', title: 'a cooler sun', dir: 180, colour: '#5f9fdc' },
@@ -298,6 +299,8 @@ export const UP_BRANCHES: { g: MetaGroup; title: string; dir: number; colour: st
   { g: 'start', title: 'a stronger start', dir: 300, colour: '#d9814f' },
   { g: 'spoils', title: 'spoils of war', dir: 330, colour: '#c4564a' },
   { g: 'lore', title: 'lasting wisdom', dir: 360, colour: '#3fa9a4' },
+  // (The crew: the petal on past lasting wisdom, round the flower's turn.)
+  { g: 'crew', title: 'the crew', dir: 30, colour: '#8da63c' },
 ];
 
 /** A research project's mark, as the skill tree's like upgrades have it (by its icon). */
@@ -334,7 +337,7 @@ export const UPGRADE_LOOK: Record<string, { icon: string; say: (level: number) =
   fellowship: { icon: glyph('M8 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM16 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 19.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5M11 19.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5'), say: (l) => `A second race's cards come up ${1 + (FELLOWSHIP_BOOST[l] ?? 0)}× as often.`, value: (l) => `${1 + (FELLOWSHIP_BOOST[l] ?? 0)}×` },
   scouts: { icon: glyph('M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM15.5 15.5l5 5'), say: (l) => `${10 * l}% more chance of emblems.`, value: (l) => `+${10 * l}%` },
   plunder: { icon: glyph('M4.5 9.5h15l-1.5 10h-12ZM8 9.5a4 4 0 0 1 8 0M10 13.5h4'), say: (l) => `${2 * l} materials for every battle won.`, value: (l) => `+${2 * l}` },
-  study: { icon: glyph('M3 8.5 12 4.5l9 4-9 4ZM6.5 10.5v4.5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-4.5M21 8.5v5'), say: (l) => `${10 * l}% more experience.`, value: (l) => `+${10 * l}%` },
+  study: { icon: glyph('M3 8.5 12 4.5l9 4-9 4ZM6.5 10.5v4.5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-4.5M21 8.5v5'), say: (l) => `The Captain and every companion gain ${10 * l}% more experience.`, value: (l) => `+${10 * l}%` },
   choice: { icon: glyph('M4 6.5h6v9H4ZM14 6.5h6v9h-6ZM9 18.5h6'), say: (l) => `${l} more card${l === 1 ? '' : 's'} to choose from in every reward.`, value: (l) => `+${l}` },
   tithe: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM5 20.5h14M8 17.5l-2 3M16 17.5l2 3'), say: (l) => `${2 * l} petals from every Overlord beaten.`, value: (l) => `+${2 * l}` },
   heirloom: { icon: glyph('M12 3.5 14.5 8.5l5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8Z'), say: () => 'Start each run with a Stellar emblem.', value: (l) => `${l}` },
@@ -342,6 +345,10 @@ export const UPGRADE_LOOK: Record<string, { icon: string; say: (level: number) =
   legacy: { icon: glyph('M12 2.5c4 3.2 5 8.6 0 15.5-5-6.9-4-12.3 0-15.5ZM7 21h10'), say: (l) => `${l} petal${l === 1 ? '' : 's'} for every battle won.`, value: (l) => `+${l}` },
   aligned: { icon: glyph('M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16ZM3 12h18M12 3v18'), say: (l) => `Every planet gives ${l} more card, ${l} more energy and ${2 * l} more cooling.`, value: (l) => `+${l} card, +${l} energy, +${2 * l} cooling` },
   vault: { icon: glyph('M4 6.5h16v13H4ZM4 10.5h16M12 13.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z'), say: (l) => `${2 * l} more cards in every Overlord's hoard.`, value: (l) => `+${2 * l}` },
+  holds: { icon: glyph('M9 5.5h6v10H9ZM6.5 7.2l-2.9.8 2.6 9.7 3.8-1M17.5 7.2l2.9.8-2.6 9.7-3.8-1M7 20.5h10'), say: (l) => `You may hold ${l} more card${l === 1 ? '' : 's'} in every battle.`, value: (l) => `+${l}` },
+  mess: { icon: glyph('M4 11.5h16c0 4.4-3.6 8-8 8s-8-3.6-8-8ZM8.5 21h7M9 3.5c-1 1.2 1 2.3 0 3.5M12 3.5c-1 1.2 1 2.3 0 3.5M15 3.5c-1 1.2 1 2.3 0 3.5'), say: (l) => `The Captain and every companion gain ${25 * l}% more experience.`, value: (l) => `+${25 * l}%` },
+  spares: { icon: glyph('M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7ZM12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1'), say: () => "The Captain's runs start with a new common ship part in the hangar.", value: (l) => `${l}` },
+  pride: { icon: glyph('M6 21V3.5M6 4.5h12l-3.5 4 3.5 4H6'), say: (l) => `Every Lost Overlord's own action takes ${l} day${l === 1 ? '' : 's'} longer to recharge against you.`, value: (l) => `+${l} day${l === 1 ? '' : 's'}` },
   salvage: { icon: glyph('M5.5 7.5h13l-1.2 12a1.5 1.5 0 0 1-1.5 1.4H8.2a1.5 1.5 0 0 1-1.5-1.4ZM3.5 7.5h17M9 7.5V4.5h6v3M10 11.5v6M14 11.5v6'), say: (l) => `${l} more card${l === 1 ? '' : 's'} to choose from when salvaging.`, value: (l) => `+${l}` },
 };
 
@@ -935,7 +942,7 @@ export class CampaignView {
   /** Petals grabbed at a wormhole go straight into the account's lasting progress (they outlive the run). */
   private bankPetals() {
     const s = this.state;
-    // (Experience too: kept the moment it is earned, so a lost run still moves the player on.)
+    // (The Captain's experience too: kept the moment it is earned, so a lost run still moves them on.)
     const xp = (s?.xp ?? 0) - (s?.xpBanked ?? 0);
     // (Stars conquered too, to the run's race: what unlocks its later heroes.)
     const stars = (s?.starsTaken ?? 0) - (s?.starsBanked ?? 0);
@@ -1577,15 +1584,13 @@ export class CampaignView {
         if (this.lootOpen || !s?.loot) break;
         this.lootOpen = true;
         const l = s.loot;
-        const n = [l.materials, l.xp, l.petals].filter(Boolean).length + l.relics.length + l.cards.length;
+        const crew = this.lootCrew(l);
+        const n = [l.materials, crew.length, l.petals].filter(Boolean).length + l.relics.length + l.cards.length;
         sound.cacheOpen();
         // (Each reward chimes as it comes out.)
         for (let i = 0; i < n; i++) window.setTimeout(() => sound.lootChime(i), LOOT_FIRST + i * LOOT_STEP);
-        // The experience gauge fills once it is out (it comes after the materials, if any).
-        if (l.xp) {
-          const from = this.commanderXp() - l.xp;
-          window.setTimeout(() => this.fillXpGauge(from, l.xp), LOOT_FIRST + 350);
-        }
+        // Each one's experience bar fills once it is out, one after another (the first sounding it filling).
+        crew.forEach((c, i) => window.setTimeout(() => this.fillXpGauge(i, c.from, c.gain, c.level, i === 0), LOOT_FIRST + 350 + i * 260));
         break;
       }
       case 'cmp-loot-ok':
@@ -1692,32 +1697,57 @@ export class CampaignView {
   }
 
   /** What this galaxy is like (touching every battle in it): its mark, its name, and what it does on a hover or tap. */
-  /** A battle's experience, as a gauge: the commander's level, the bar where it stood before, what was earned. */
-  private xpGauge(from: number, gain: number): string {
-    const { level, into, need } = levelFor(from);
-    return `<div class="loot-xp"><span class="loot-xp-lv">level <b>${level}</b></span><span class="loot-xp-bar"><i style="width:${((into / need) * 100).toFixed(1)}%"></i></span><span class="loot-xp-gain">+${gain} xp</span><span class="loot-xp-up" aria-hidden="true">+1 skill point</span></div>`;
+  /**
+   * Who learnt from a battle, as the loot shows them [direction: post-battle experience shown for each companion and
+   * the Captain]: the Captain first, then each companion; each one's face, name, experience before and what was
+   * earned, and how their level is counted.
+   */
+  private lootCrew(l: Loot): { face: string; name: string; from: number; gain: number; level: (xp: number) => { level: number; into: number; need: number } }[] {
+    const s = this.state;
+    const meta = loadMeta();
+    const out: ReturnType<CampaignView['lootCrew']> = [];
+    if (l.xp) out.push({ face: portrait(CAPTAIN), name: 'captain', from: this.captainXp() - l.xp, gain: l.xp, level: captainLevel });
+    for (const id of COMPANION_IDS) {
+      const gain = l.crewXp?.[id] ?? 0;
+      if (gain <= 0) continue;
+      const now = (meta.companions?.[id]?.xp ?? 0) + (s?.companionXp?.[id] ?? 0);
+      out.push({ face: portrait(companionDef(id).card), name: companionDef(id).name.split(' ')[0].toLowerCase(), from: Math.max(0, now - gain), gain, level: companionLevel });
+    }
+    return out;
+  }
+
+  /** A battle's experience, a row for each who learnt: their face, name and level, the bar where it stood before, what was earned. */
+  private xpGauge(l: Loot): string {
+    const crew = this.lootCrew(l);
+    if (!crew.length) return '';
+    return `<div class="loot-crew ${crew.length > 2 ? 'loot-crew-many' : ''}">${crew
+      .map((c, i) => {
+        const { level, into, need } = c.level(c.from);
+        return `<div class="loot-xp" data-xp="${i}"><span class="loot-xp-face">${c.face}</span><span class="loot-xp-who"><b>${esc(c.name)}</b><span class="loot-xp-lv">level <b>${level}</b></span></span><span class="loot-xp-bar"><i style="width:${((into / need) * 100).toFixed(1)}%"></i></span><span class="loot-xp-gain">+${c.gain} xp</span><span class="loot-xp-up" aria-hidden="true">+1 skill point</span></div>`;
+      })
+      .join('')}</div>`;
   }
 
   /**
-   * The gauge filling: the bar runs from where it stood to where it ends up, around again for every level gained
-   * (the level ticking up, a chime, "+1 skill point"), the sound of it filling rising as it goes.
+   * A row's gauge filling: the bar runs from where it stood to where it ends up, around again for every level gained
+   * (the level ticking up, a chime, "+1 skill point"), the sound of it filling rising as it goes (for the first row).
    */
-  private fillXpGauge(from: number, gain: number) {
-    const el = document.querySelector<HTMLElement>('.loot-xp');
+  private fillXpGauge(row: number, from: number, gain: number, levelOf: (xp: number) => { level: number; into: number; need: number }, voiced: boolean) {
+    const el = document.querySelector<HTMLElement>(`.loot-xp[data-xp="${row}"]`);
     const bar = el?.querySelector<HTMLElement>('.loot-xp-bar > i');
     const lv = el?.querySelector<HTMLElement>('.loot-xp-lv b');
     if (!el || !bar || !lv) return;
-    const start = levelFor(from), end = levelFor(from + gain);
+    const start = levelOf(from), end = levelOf(from + gain);
     const ups = end.level - start.level;
     const dur = Math.min(2600, 700 + gain * 40 + ups * 450);
-    sound.xpFill(dur / 1000);
+    if (voiced) sound.xpFill(dur / 1000);
     const t0 = performance.now();
     let shown = start.level;
     const step = (t: number) => {
       if (!el.isConnected) return;
       const k = Math.min(1, (t - t0) / dur);
       const e = 1 - (1 - k) * (1 - k);
-      const now = levelFor(from + gain * e);
+      const now = levelOf(from + gain * e);
       bar.style.width = `${((now.into / now.need) * 100).toFixed(1)}%`;
       if (now.level !== shown) {
         shown = now.level;
@@ -1940,19 +1970,25 @@ export class CampaignView {
     }, (LAUNCH_PAN + 8) * 1000);
   }
 
-  /** The commander's experience in all: what is banked, and what this run has earned and not yet banked. */
-  private commanderXp(): number {
+  /** The Captain's experience in all: what is banked, and what this run has earned and not yet banked. */
+  private captainXp(): number {
     const s = this.state;
     return (loadMeta().xp ?? 0) + Math.max(0, (s?.xp ?? 0) - (s?.xpBanked ?? 0));
   }
 
-  /** The player on the map: their face, their name, their commander level and how far into it they are. */
+  /**
+   * The player on the map: their face and name; on the Captain's runs, the Captain's level and how far into it they are
+   * (there is no level of the player's own: experience is the Captain's and each companion's).
+   */
   private renderProfile(): string {
-    const { level, into, need } = levelFor(this.commanderXp());
     const name = profile().name || 'Commander';
-    return `<div class="cmp-profile" aria-label="${esc(`${name}, level ${level}`)}">
-      ${playerAvatar(account()?.avatar ?? (this.state ? campaignPlayer(this.state).hero : undefined), 'cmp-profile-face')}
-      <span class="cmp-profile-who"><b>${esc(name.toLowerCase())}</b><small>level ${level}</small><span class="cmp-xpbar"><i style="width:${Math.round((into / need) * 100)}%"></i></span></span>
+    const face = playerAvatar(account()?.avatar ?? (this.state ? campaignPlayer(this.state).hero : undefined), 'cmp-profile-face');
+    if (!this.state || !campaignPlayer(this.state).human)
+      return `<div class="cmp-profile cmp-profile-plain" aria-label="${esc(name)}">${face}<span class="cmp-profile-who"><b>${esc(name.toLowerCase())}</b></span></div>`;
+    const { level, into, need } = captainLevel(this.captainXp());
+    return `<div class="cmp-profile" aria-label="${esc(`${name}, the Captain, level ${level}`)}">
+      ${face}
+      <span class="cmp-profile-who"><b>${esc(name.toLowerCase())}</b><small>captain · level ${level}</small><span class="cmp-xpbar"><i style="width:${Math.round((into / need) * 100)}%"></i></span></span>
     </div>`;
   }
 
@@ -2155,7 +2191,10 @@ export class CampaignView {
       tools: `${this.capPlaced.length ? '<button class="up-plan-undo" data-act="cmp-cap-undo">undo</button><button class="up-plan-undo" data-act="cmp-cap-clear">clear</button>' : ''}
             ${captainPointsSpent(meta) ? `<button class="up-plan-undo up-reset ${this.capResetArmed ? 'armed' : ''}" data-act="cmp-cap-reset">${this.capResetArmed ? 'confirm reset' : 'reset'}<i>${PETAL}${SKILL_RESET_PETALS}</i></button>` : ''}`,
       title: esc((CAPTAIN_TITLES[c.gates] ?? 'The Captain').toLowerCase()),
-      xp: `${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${levelFor(meta.xp ?? 0).level}</small>`,
+      xp: (() => {
+        const lv = captainLevel(meta.xp ?? 0);
+        return `${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${lv.level} · ${lv.into}/${lv.need}</small>`;
+      })(),
       sheet,
     };
   }
@@ -2191,7 +2230,7 @@ export class CampaignView {
             ${aboardToggle}`,
       title: esc((d.titles[a.gates] ?? d.name).toLowerCase()),
       xp: `${XP_MARK}<b>${left}</b><small>skill point${left === 1 ? '' : 's'} · level ${lv.level} · ${lv.into}/${lv.need}</small>`,
-      note: esc(d.learnsText.toLowerCase()),
+      note: esc(`${d.learnsText.replace(/[.]$/, '')}, and a little from every battle aboard.`.toLowerCase()),
       sheet,
     };
   }
@@ -3927,8 +3966,9 @@ export class CampaignView {
         ...l.cards.map((id) => `<div class="loot-tile loot-card"><span class="loot-glow">${cardHtml(id)}</span></div>`),
         ...(l.parts ?? []).map((id) => `<div class="loot-tile loot-part" title="Ship part"><span class="loot-glow">${canNebula() && shipPart(id) ? `<canvas class="loot-3d" data-loot3d="${shipPart(id)!.kind}:${shipPart(id)!.rarity}"></canvas>` : partShape(id)}</span><b>${esc(shipPart(id)?.name.toLowerCase() ?? '')}</b></div>`),
       ].filter(Boolean);
-      // (The experience first, top middle; the rewards after it, one at a time.)
-      const first = l.xp ? 1 : 0;
+      // (The experience first, top middle, a row for each who learnt; the rewards after it, one at a time.)
+      const gauge = this.xpGauge(l);
+      const first = gauge ? 1 : 0;
       // (In one row, or past three in two: the first a little fuller; the tiles sized so both rows fit the screen.)
       const split = items.length > 3 ? Math.ceil(items.length / 2) : items.length;
       const rows = [items.slice(0, split), items.slice(split)].filter((r) => r.length);
@@ -3937,7 +3977,7 @@ export class CampaignView {
         return `<div class="overlay overlay-soft loot-overlay"><button class="loot-cache" data-act="cmp-loot-open" aria-label="Open the cache">${canNebula() ? '<span class="loot-cache-halo" aria-hidden="true"></span><canvas class="loot-cache-art loot-cache-3d" data-loot3d="cache"></canvas>' : LOOT_CACHE}<span class="loot-cache-tap">${l.found ? 'found' : l.won ? 'victory' : 'what was saved'} · tap to open</span></button></div>`;
       return `<div class="overlay overlay-soft loot-overlay loot-opened">
         <div class="loot-burst" aria-hidden="true"></div>
-        ${l.xp ? `<div class="loot-item loot-top" style="--i:0">${this.xpGauge(this.commanderXp() - l.xp, l.xp)}</div>` : ''}
+        ${gauge ? `<div class="loot-item loot-top" style="--i:0">${gauge}</div>` : ''}
         <div class="loot-items" style="--cols:${cols};--rows:${rows.length}">${rows
           .map((row, r) => `<div class="loot-row" style="--n:${row.length}">${row
             .map((h, j) => {

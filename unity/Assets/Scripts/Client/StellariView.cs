@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// The Stellari's skill tree (campaign.ts renderShop): the flower at the foot of the sky, half of it below; a branch
-/// off each of seven of its petals, each its own colour, its petal deepening the more is learnt; a tier a ring out,
+/// off each of eight of its petals, each its own colour, its petal deepening the more is learnt; a tier a ring out,
 /// the capstone last. A tap learns a point at once (undo or clear takes it back while the tree is open); reset takes
 /// every point back for a few petals. Kinship's and Fellowship's first points ask which race first.
 /// </summary>
