@@ -799,11 +799,12 @@ public partial class BattleView : MonoBehaviour
         hint.gameObject.SetActive(false);
         if (state.WinnerId != null) return;
         var d = Dawn;
-        // Over the hand limit at the day's end: pick the cards to discard in the hand, then End Day.
+        // Over the hand limit at the day's end: pick the cards to discard in the hand (how many picked of how many), then
+        // confirm, which ends the day with them.
         if (discarding != null && pending == null)
         {
-            int left = Over - discarding.Count;
-            MidHint(left > 0 ? $"discard {left} card{(left == 1 ? "" : "s")}" : "end day to discard", ("keep playing", () => { discarding = null; Refresh(); }));
+            int picked = discarding.Count(u => Me.Hand.Any(c => c.Uid == u));
+            MidHint($"discard {picked}/{Over}", ("confirm", EndDay));
             return;
         }
         if (d != null)

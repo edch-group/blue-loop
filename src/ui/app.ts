@@ -4495,10 +4495,8 @@ export class App {
         sound.rustle();
         return this.render();
       }
-      case 'discard-cancel':
-        this.discarding = null;
-        this.duskMove = undefined;
-        return this.render();
+      case 'discard-confirm':
+        return this.requestEndDay();
       case 'board-zoom':
         return this.setBoardZoom(this.boardZoom === arg ? null : (arg as 'rival' | 'mine'));
       case 'hero-panel':
@@ -5732,10 +5730,13 @@ export class App {
     const hint = (text: string, cancel = true) => `<div class="mid-hint"><b>${text}</b>${cancel ? '<button class="mid-cancel" data-act="cancel">cancel</button>' : ''}</div>`;
     // Online, while your rival reads the card you just played.
     if (!p && !this.stage && this.online && this.net.waitFor === 'rival') return hint('waiting for rival', false);
-    // Over the hand limit at the day's end: pick the cards to discard in the hand, then End Day.
+    // Over the hand limit at the day's end: pick the cards to discard in the hand (how many picked of how many), then
+    // confirm, which ends the day with them.
     if (this.discarding && !p) {
-      const left = activePlayer(s).hand.length - maxHand(activePlayer(s)) - this.discarding.length;
-      return `<div class="mid-hint"><b>${left > 0 ? `discard ${left} card${left === 1 ? '' : 's'}` : 'end day to discard'}</b><button class="mid-cancel" data-act="discard-cancel">keep playing</button></div>`;
+      const me = activePlayer(s);
+      const over = me.hand.length - maxHand(me);
+      const picked = this.discarding.filter((u) => me.hand.some((c) => c.uid === u)).length;
+      return `<div class="mid-hint"><b>discard ${picked}/${over}</b><button class="mid-cancel" data-act="discard-confirm">confirm</button></div>`;
     }
     // Your dawn Recall, first thing in your day: a card back to hand; or let it be.
     const choice = this.dawnChoice();
