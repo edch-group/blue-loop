@@ -174,7 +174,7 @@
       return { start, stop, time };
     })();
   </script>
-  <script src="Build/e73e4c0fd751acf17f7b26962376d954.loader.js"></script>
+  <script src="Build/a45f3a811d2320e041dca98a6e7b3093.loader.js"></script>
   <script>
     const bar = document.querySelector('#loading i');
     // (Lock the screen sideways where that is allowed, Android in full screen; some browsers only after a tap.)
@@ -185,7 +185,7 @@
     // the publish step splits it, and lists the pieces beside it); fetched together and joined here. The bar shows the
     // download first, then the game's own loading.
     async function gameData() {
-      const whole = 'Build/5f94534c324c5d7e6b85fa3298860c41.data.unityweb';
+      const whole = 'Build/6a9fb78c5506bf09800788d6d5ca4991.data.unityweb';
       let parts = null;
       try {
         const r = await fetch(whole + '.parts.json');
@@ -220,18 +220,19 @@
     }
     gameData().then((dataUrl) => createUnityInstance(document.querySelector('#unity-canvas'), {
       dataUrl,
-      frameworkUrl: 'Build/dcbfa09abd865cd4a29f12d985d23bea.framework.js.unityweb',
-      codeUrl: 'Build/c59fba2275906750740e4d304599d719.wasm.unityweb',
+      frameworkUrl: 'Build/2af05ce30703dacde9d346c94b47eaea.framework.js.unityweb',
+      codeUrl: 'Build/75de792ebfadb1f7256fc8485a5b527f.wasm.unityweb',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: "DefaultCompany",
       productName: "Blue Loop",
       productVersion: "0.1.0+2026-10-17",
       matchWebGLToCanvasSize: true,
       devicePixelRatio: window.devicePixelRatio || 1,
-    }, (p) => { bar.style.width = `${Math.round((dataUrl.startsWith('blob:') ? 70 + 30 * p : 100 * p))}%`; }))
+    }, (p) => { bar.style.width = `${Math.round((dataUrl.startsWith('blob:') ? 70 + 30 * p : 100 * p))}%`; })
       // (The game's data, now in its own memory: the page's copy let go, rather than held beside it for as long as
       // the page lives, most of a phone's tab's room, which got the tab thrown out whenever it was left.)
-      .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; if (dataUrl.startsWith('blob:')) URL.revokeObjectURL(dataUrl); })
+      .then((game) => { if (dataUrl.startsWith('blob:')) URL.revokeObjectURL(dataUrl); return game; }))
+      .then((game) => { document.getElementById('loading').remove(); window.unityGame = game; })
       .catch((e) => { document.getElementById('loading').textContent = String(e); });
   </script>
 </body>
